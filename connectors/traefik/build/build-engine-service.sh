@@ -148,6 +148,7 @@ compile_source() {
 for source in \
     "$REPO_ROOT"/common/src/*.c \
     "$REPO_ROOT"/common/runtime/*.c \
+    "$REPO_ROOT/connectors/profile_registry.c" \
     "$REPO_ROOT/connectors/traefik/src/traefik_engine_service.c"
 do
     [ -f "$source" ] || continue

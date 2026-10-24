@@ -1,0 +1,8 @@
+# Place this middleware after forwardAuth and before the upstream service.
+http:
+  middlewares:
+    modsecurity-response-observer:
+      plugin:
+        modsecurityResponseObserver:
+          socketPath: /run/modsecurity/traefik-forwardauth-companion.sock
+          timeoutMillis: 5000

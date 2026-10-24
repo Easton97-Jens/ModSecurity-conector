@@ -90,7 +90,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             "module_sha256": digest(module),
             "modsecurity_library": str(library),
             "library_sha256": digest(library),
-            "nginx_version": "1.31.3",
+            "nginx_version": "1.31.4",
             "worker_user": "www-data",
             "loopback": "127.0.0.1",
             "port": 18443,
@@ -130,9 +130,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 "identity": "",
             },
             "nginx": {
-                "version": "1.31.3",
-                "release_tag": "release-1.31.3",
-                "source_repository": "https://nginx.org/download/nginx-1.31.3.tar.gz",
+                "version": "1.31.4",
+                "release_tag": "release-1.31.4",
+                "source_repository": "https://nginx.org/download/nginx-1.31.4.tar.gz",
                 "source_sha256": "d" * 64,
                 "cache_schema_version": 1,
                 "cache_key": "test-cache-key",
@@ -262,7 +262,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 "module": {"path": str(root / "artifacts/module.so"), "sha256": "2" * 64},
                 "modsecurity_library": {"path": str(root / "artifacts" / BROKER.ARTIFACT_LIBRARY_NAME), "sha256": "3" * 64},
             },
-            "nginx_version": "1.31.3",
+            "nginx_version": "1.31.4",
             "runtime": {
                 "root": str(root / "runtime"),
                 "config": str(root / "runtime/nginx.conf"),
@@ -1528,6 +1528,28 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 framework_sha=framework_sha,
             )
 
+    def test_restricted_caller_yaml_parser_accepts_only_the_exact_empty_mapping_literal(self) -> None:
+        document = BROKER.parse_restricted_caller_workflow_yaml(b"permissions: {}\n")
+        self.assertEqual(document, {"permissions": {}})
+
+    def test_caller_top_level_permissions_remain_exactly_deny_default(self) -> None:
+        raw = (ROOT / ".github/workflows/run-protected-nginx-root-broker.yml").read_bytes()
+        self.assertIn(b"permissions: {}\n", raw)
+        for permissions in (
+            b"permissions:\n  contents: read\n",
+            b"permissions:\n  contents: write\n",
+            b"permissions:\n  actions: read\n",
+        ):
+            with self.subTest(permissions=permissions):
+                changed = raw.replace(b"permissions: {}\n", permissions, 1)
+                document = BROKER.parse_restricted_caller_workflow_yaml(changed)
+                with self.assertRaisesRegex(BROKER.BrokerError, "exactly deny-default"):
+                    BROKER.validate_caller_workflow_document(
+                        document,
+                        broker_sha="49c40779a7b6de9f699391bcd524ea069787df42",
+                        framework_sha="03880bf66b3905940466ff10b3a431a27ecc6b26",
+                    )
+
     def test_restricted_caller_yaml_parser_rejects_indirection_duplicates_and_unsafe_encoding(self) -> None:
         invalid_documents = {
             "byte-order mark": b"\xef\xbb\xbfjobs:\n",
@@ -1538,7 +1560,11 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             "alias": b"jobs:\n  run: *anchor\n",
             "tag": b"jobs:\n  run: !unsafe value\n",
             "merge": b"jobs:\n  <<: *anchor\n",
-            "flow mapping": b"jobs: {}\n",
+            "nonempty flow mapping": b"jobs: {run: value}\n",
+            "spaced flow mapping": b"jobs: { }\n",
+            "flow list": b"jobs: []\n",
+            "tagged empty mapping": b"permissions: !unsafe {}\n",
+            "anchored empty mapping": b"permissions: &anchor {}\n",
             "duplicate key": b"jobs:\n  run: one\n  run: two\n",
         }
         for name, raw in invalid_documents.items():

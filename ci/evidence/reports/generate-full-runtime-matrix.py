@@ -295,19 +295,21 @@ def record_to_json(record: RunRecord) -> dict[str, Any]:
 
 def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) -> str:
     lines: list[str] = []
-    lines.append("# Full MRTS Runtime Matrix")
-    lines.append("")
-    lines.append("Generated file - do not edit manually.")
-    lines.append("")
-    lines.append(f"- Generated at: `{generated_at}`")
-    lines.append(f"- Variant runs: **{len(records)}**")
-    lines.append(f"- Total attempted: **{totals['attempted']}**")
-    lines.append(f"- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{totals['pass']}** / **{totals['fail']}** / **{totals['blocked']}** / **{totals['not_executable']}**")
-    lines.append(f"- Pending metadata rows observed in runtime summaries: **{totals['pending']}**")
-    lines.append("")
-    lines.append("## Variant Results")
-    lines.append("| Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Duration seconds | Summary | Log |")
-    lines.append("|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|")
+    lines.extend([
+        "# Full MRTS Runtime Matrix",
+        "",
+        "Generated file - do not edit manually.",
+        "",
+        f"- Generated at: `{generated_at}`",
+        f"- Variant runs: **{len(records)}**",
+        f"- Total attempted: **{totals['attempted']}**",
+        f"- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{totals['pass']}** / **{totals['fail']}** / **{totals['blocked']}** / **{totals['not_executable']}**",
+        f"- Pending metadata rows observed in runtime summaries: **{totals['pending']}**",
+        "",
+        "## Variant Results",
+        "| Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Duration seconds | Summary | Log |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
+    ])
     for record in records:
         lines.append(
             "| {connector} | {test_variant} | {mrts_variant} | {outcome} | {attempted} | {passed} | {failed} | {blocked} | {not_executable} | {pending} | {duration} | {summary} | {log} |".format(
@@ -326,10 +328,12 @@ def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) 
                 log=record.log_path,
             )
         )
-    lines.append("")
-    lines.append("## MRTS Upstream Config Tests")
-    lines.append("| Connector | Variant | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending |")
-    lines.append("|---|---|---:|---:|---:|---:|---:|---:|")
+    lines.extend([
+        "",
+        "## MRTS Upstream Config Tests",
+        "| Connector | Variant | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
+    ])
     for record in records:
         if record.mrts_variant != "with-mrts":
             continue
@@ -337,20 +341,22 @@ def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) 
         lines.append(
             f"| {record.connector} | {record.test_variant}/{record.mrts_variant} | {counts['attempted']} | {counts['pass']} | {counts['fail']} | {counts['blocked']} | {counts['not_executable']} | {counts['pending']} |"
         )
-    lines.append("")
-    lines.append("## Guardrails")
-    lines.append("- `feature-demo` is visible in reports but not runtime-executed unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is set.")
-    lines.append("- MRTS golden outputs under the submodule are golden/reference/drift input only and are not runtime case roots.")
-    lines.append("- `no-mrts` variants should have zero MRTS runtime cases.")
-    lines.append("- Runtime PASS/FAIL/BLOCKED values come from connector summary JSON, not classification overlays.")
-    lines.append("")
-    lines.append("## MRTS Native Infrastructure Evidence")
-    lines.append(f"- Apache native: `{NATIVE_EVIDENCE_REPORTS['apache']}`")
-    lines.append(f"- NGINX PR24 native: `{NATIVE_EVIDENCE_REPORTS['nginx']}`")
-    lines.append(f"- Native summary: `{NATIVE_EVIDENCE_REPORTS['summary']}`")
-    lines.append(f"- Combined native report: `{NATIVE_EVIDENCE_REPORTS['combined']}`")
-    lines.append("")
-    lines.append("These native MRTS reports are separate from connector full-matrix evidence.")
+    lines.extend([
+        "",
+        "## Guardrails",
+        "- `feature-demo` is visible in reports but not runtime-executed unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is set.",
+        "- MRTS golden outputs under the submodule are golden/reference/drift input only and are not runtime case roots.",
+        "- `no-mrts` variants should have zero MRTS runtime cases.",
+        "- Runtime PASS/FAIL/BLOCKED values come from connector summary JSON, not classification overlays.",
+        "",
+        "## MRTS Native Infrastructure Evidence",
+        f"- Apache native: `{NATIVE_EVIDENCE_REPORTS['apache']}`",
+        f"- NGINX PR24 native: `{NATIVE_EVIDENCE_REPORTS['nginx']}`",
+        f"- Native summary: `{NATIVE_EVIDENCE_REPORTS['summary']}`",
+        f"- Combined native report: `{NATIVE_EVIDENCE_REPORTS['combined']}`",
+        "",
+        "These native MRTS reports are separate from connector full-matrix evidence.",
+    ])
     return "\n".join(lines) + "\n"
 
 

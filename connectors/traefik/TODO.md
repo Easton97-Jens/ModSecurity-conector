@@ -71,10 +71,16 @@ Global gate definitions are consolidated in
 
 - [ ] `make test-no-crs` executed for Traefik scope
 - [ ] PASS/FAIL/BLOCKED counts documented
-- [x] Architecture boundary recorded in `capabilities.json`: Traefik 3.7 can
-      buffer a forwardAuth body, but the checked-in forwardAuth path does not enable
-      `forwardBody` and uses `request_body_mode=none`; Phase 2 is therefore
-      `not_implemented` for the selected path.
+- [x] Architecture boundary recorded in `capabilities.json`: Traefik 3.7
+      buffers forwardAuth P2 when `forwardBody: true` and a finite
+      `maxBodySize` are present. The checked-in path enables both at 4096 bytes,
+      requires `request_body_mode=buffered`, and the start harness rejects a
+      template that omits either setting.
+      `request_body_mode=none` is retained only for the legacy
+      request-body-disabled compatibility path and cannot describe the selected
+      buffered path.
+- [ ] Fresh real-host P2 allow/deny and over-limit evidence promotes the
+      configured P2 capability.
 - [x] Upstream response headers and bodies are recorded as
       `unsupported_by_host_model` for `forwardAuth`.
 - [ ] `make no-crs-baseline-traefik` produces current canonical evidence.

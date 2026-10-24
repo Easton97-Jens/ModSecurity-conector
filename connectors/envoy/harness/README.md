@@ -23,6 +23,16 @@ request-header 200/403 path only.
 - `envoy_smoke_helper.py` provides only the dependency-free upstream and
   certificate-verifying HTTPS probe; it does not make security decisions.
 
+The compatibility entrypoint additionally writes the existing Legacy JSONL
+format only after validating fresh private 200/403 client observations, the
+matching native rule `1000001`/transaction event and stopped processes. Its
+`runtime-result.json` and `targeted-result.json` refer to the same actual
+Libmodsecurity two-request observation. Missing, stale or contradictory
+evidence fails; previous PASS outputs are cleared before another run. This
+entrypoint accepts the targeted pair, without body, CRS or YAML-catalog claims.
+The Parent Legacy launcher supplies the centrally prepared host binary and
+current shared-build service and response observer.
+
 The runtime smoke requires `ENVOY_BIN` and the separately built connector
 service. Missing binaries return Exit 77/BLOCKED. Invalid config, early process
 exit, request failure, wrong status, or missing event evidence returns FAIL.

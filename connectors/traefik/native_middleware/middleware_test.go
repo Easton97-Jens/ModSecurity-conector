@@ -11,7 +11,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 type headerCall struct {
@@ -27,9 +29,11 @@ type bodyCall struct {
 }
 
 type recordingTransaction struct {
+	opens          int
 	headerCalls    []headerCall
 	headerValues   [][]Header
 	bodyCalls      []bodyCall
+	events         []string
 	contexts       []context.Context
 	closed         []Summary
 	headerDecision func(Direction, []Header, bool) Decision
@@ -41,6 +45,7 @@ func (transaction *recordingTransaction) ProcessHeaders(value context.Context, d
 	transaction.contexts = append(transaction.contexts, value)
 	transaction.headerCalls = append(transaction.headerCalls, headerCall{direction: direction, end: end, count: len(headers)})
 	transaction.headerValues = append(transaction.headerValues, append([]Header(nil), headers...))
+	transaction.events = append(transaction.events, string(direction)+"-headers")
 	if transaction.headerDecision != nil {
 		return transaction.headerDecision(direction, headers, end), nil
 	}
@@ -56,19 +61,20 @@ func requestHeaderValues(transaction *recordingTransaction) []Header {
 	return nil
 }
 
-func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
+func serveNoContentRequest(t *testing.T, request *http.Request) (*recordingTransaction, *httptest.ResponseRecorder) {
+	t.Helper()
 	transaction := &recordingTransaction{}
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
 	}), transaction)
-	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
-	if request.Header.Get("Host") != "" {
-		t.Fatal("httptest request unexpectedly stored authority in Header")
-	}
-
 	response := httptest.NewRecorder()
 	middleware.ServeHTTP(response, request)
+	return transaction, response
+}
 
+func assertNoContentRequestForwardsHost(t *testing.T, request *http.Request, wantHost string) {
+	t.Helper()
+	transaction, response := serveNoContentRequest(t, request)
 	if got, want := response.Code, http.StatusNoContent; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -78,56 +84,103 @@ func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
 			hosts = append(hosts, header.Value)
 		}
 	}
-	if got, want := hosts, []string{"authority.example:8443"}; !reflect.DeepEqual(got, want) {
+	if got, want := hosts, []string{wantHost}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("forwarded Host values = %#v, want %#v", got, want)
 	}
 }
 
-func TestMiddlewarePreservesExistingHostHeaderWithoutAuthorityDuplicate(t *testing.T) {
-	transaction := &recordingTransaction{}
-	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusNoContent)
-	}), transaction)
-	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
-	request.Host = "authority.example"
-	request.Header.Set("Host", "header.example")
-
-	middleware.ServeHTTP(httptest.NewRecorder(), request)
-
-	var hosts []string
-	for _, header := range requestHeaderValues(transaction) {
-		if strings.EqualFold(header.Name, "Host") {
-			hosts = append(hosts, header.Value)
-		}
-	}
-	if got, want := hosts, []string{"header.example"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("preserved Host values = %#v, want %#v", got, want)
-	}
-}
-
-func TestMiddlewareRejectsInvalidAuthorityBeforeEngineHeaders(t *testing.T) {
+func serveRejectedRequest(t *testing.T, request *http.Request) *recordingTransaction {
+	t.Helper()
 	transaction := &recordingTransaction{}
 	nextCalled := false
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		nextCalled = true
 	}), transaction)
-	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
-	request.Host = "authority.example\r\nInjected: yes"
 	response := httptest.NewRecorder()
-
 	middleware.ServeHTTP(response, request)
-
 	if nextCalled {
-		t.Fatal("next handler ran for invalid authority")
+		t.Fatal("next handler ran for rejected request")
 	}
 	if got, want := response.Code, http.StatusRequestHeaderFieldsTooLarge; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
+	}
+	return transaction
+}
+
+func metadataForRequest(t *testing.T, request *http.Request) []Metadata {
+	t.Helper()
+	transaction := &recordingTransaction{}
+	engine := &recordingEngine{transaction: transaction}
+	config := CreateConfig()
+	config.EngineSocketPath = "/run/msconnector-test.sock"
+	middleware, err := newWithEngine(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), config, "test", engine)
+	if err != nil {
+		t.Fatalf("newWithEngine() error = %v", err)
+	}
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+	return engine.metadata
+}
+
+func TestMiddlewareForwardsRequestAuthorityAsHostHeader(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
+	if request.Header.Get("Host") != "" {
+		t.Fatal("httptest request unexpectedly stored authority in Header")
+	}
+
+	assertNoContentRequestForwardsHost(t, request, "authority.example:8443")
+}
+
+func TestMiddlewareRejectsConflictingHostHeaderBeforeEngine(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header.Set("Host", "header.example")
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
+	}
+}
+
+func TestMiddlewareRejectsInvalidHostHeaderBeforeEngine(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header.Set("Host", "authority.example\r\nInjected: yes")
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
+	}
+}
+
+func TestMiddlewareAcceptsMatchingHostHeaderWithoutAuthorityDuplicate(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header.Set("Host", "authority.example")
+	assertNoContentRequestForwardsHost(t, request, "authority.example")
+}
+
+func TestMiddlewareRejectsInvalidAuthorityBeforeEngineHeaders(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example\r\nInjected: yes"
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
+	}
+}
+
+func TestMiddlewareRejectsMissingAuthorityBeforeEngineOpen(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = ""
+	transaction := serveRejectedRequest(t, request)
+	if got := transaction.opens; got != 0 {
+		t.Fatalf("engine opens = %d, want 0", got)
 	}
 }
 
 func (transaction *recordingTransaction) ProcessBody(value context.Context, direction Direction, body []byte, end bool) (Decision, error) {
 	transaction.contexts = append(transaction.contexts, value)
 	transaction.bodyCalls = append(transaction.bodyCalls, bodyCall{direction: direction, end: end, length: len(body)})
+	transaction.events = append(transaction.events, string(direction)+"-body")
 	if transaction.bodyDecision != nil {
 		return transaction.bodyDecision(direction, body, end), nil
 	}
@@ -144,10 +197,120 @@ func (transaction *recordingTransaction) Close(value context.Context, summary Su
 
 type recordingEngine struct {
 	transaction Transaction
+	metadata    []Metadata
 }
 
-func (engine recordingEngine) Open(_ context.Context, _ Metadata) (Transaction, error) {
+func (engine *recordingEngine) Open(_ context.Context, metadata Metadata) (Transaction, error) {
+	if transaction, ok := engine.transaction.(interface{ recordOpen() }); ok {
+		transaction.recordOpen()
+	}
+	engine.metadata = append(engine.metadata, metadata)
 	return engine.transaction, nil
+}
+
+func (transaction *recordingTransaction) recordOpen() {
+	transaction.opens++
+}
+
+func TestMiddlewarePreservesRawAuthorityInMetadata(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example:8443/resource", nil)
+	metadata := metadataForRequest(t, request)
+	if got, want := len(metadata), 1; got != want {
+		t.Fatalf("metadata records = %d, want %d", got, want)
+	}
+	value := metadata[0]
+	if got, want := value.Hostname, "authority.example:8443"; got != want {
+		t.Fatalf("metadata Hostname = %q, want raw authority %q", got, want)
+	}
+	if got, want := value.ServerAddress, "authority.example"; got != want {
+		t.Fatalf("metadata ServerAddress = %q, want parsed host %q", got, want)
+	}
+	if got, want := value.ServerPort, 8443; got != want {
+		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
+	}
+}
+
+func TestMiddlewarePreservesBracketedIPv6AuthorityInMetadata(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "http://[2001:db8::1]:8443/resource", nil)
+	metadata := metadataForRequest(t, request)
+	if got, want := len(metadata), 1; got != want {
+		t.Fatalf("metadata records = %d, want %d", got, want)
+	}
+	value := metadata[0]
+	if got, want := value.ServerAddress, "2001:db8::1"; got != want {
+		t.Fatalf("metadata ServerAddress = %q, want parsed IPv6 address %q", got, want)
+	}
+	if got, want := value.ServerPort, 8443; got != want {
+		t.Fatalf("metadata ServerPort = %d, want %d", got, want)
+	}
+}
+
+func TestMiddlewareRejectsInvalidAuthorityPortBeforeEngineOpen(t *testing.T) {
+	tests := []struct {
+		name      string
+		authority string
+	}{
+		{name: "non-numeric port", authority: "authority.example:not-a-port"},
+		{name: "out-of-range port", authority: "authority.example:65536"},
+		{name: "invalid IPv6 port", authority: "[2001:db8::1]:not-a-port"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+			request.Host = test.authority
+			transaction := serveRejectedRequest(t, request)
+			if got := transaction.opens; got != 0 {
+				t.Fatalf("engine opens = %d, want 0", got)
+			}
+		})
+	}
+}
+
+func TestMiddlewareForwardsMixedCaseHostMapKeyExactlyOnce(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+	request.Host = "authority.example"
+	request.Header["hOsT"] = []string{"authority.example"}
+
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	var hosts []Header
+	for _, header := range requestHeaderValues(transaction) {
+		if strings.EqualFold(header.Name, "Host") {
+			hosts = append(hosts, header)
+		}
+	}
+	if got, want := len(hosts), 1; got != want {
+		t.Fatalf("forwarded Host headers = %d, want %d", got, want)
+	}
+	if got, want := hosts[0], (Header{Name: "hOsT", Value: "authority.example"}); got != want {
+		t.Fatalf("forwarded mixed-case Host header = %#v, want %#v", got, want)
+	}
+}
+
+func TestMiddlewareRejectsMalformedHeaderBeforeEngineOpen(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		value  string
+	}{
+		{name: "invalid name", header: "Bad Name", value: "value"},
+		{name: "nul value", header: "X-Test", value: "bad\x00value"},
+		{name: "invalid utf8 value", header: "X-Test", value: string([]byte{'b', 0xff})},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "http://authority.example/resource", nil)
+			request.Header[test.header] = []string{test.value}
+			transaction := serveRejectedRequest(t, request)
+			if got := transaction.opens; got != 0 {
+				t.Fatalf("engine opens = %d, want 0", got)
+			}
+		})
+	}
 }
 
 func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
@@ -158,17 +321,25 @@ func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
 }
 
 func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTransaction) *Middleware {
-	return newTestMiddlewareWithTransaction(t, next, transaction)
+	t.Helper()
+	return newTestMiddlewareWithRequestBodyLimit(t, next, transaction, defaultMaxRequestBodyBytes)
 }
 
 func newTestMiddlewareWithTransaction(t *testing.T, next http.Handler, transaction Transaction) *Middleware {
 	t.Helper()
+	return newTestMiddlewareWithRequestBodyLimit(t, next, transaction, defaultMaxRequestBodyBytes)
+}
+
+func newTestMiddlewareWithRequestBodyLimit(t *testing.T, next http.Handler, transaction Transaction, requestBodyLimit int64) *Middleware {
+	t.Helper()
 	config := CreateConfig()
+	config.EngineSocketPath = "/run/msconnector-test.sock"
 	config.MaxRequestChunkBytes = 3
+	config.MaxRequestBodyBytes = requestBodyLimit
 	config.MaxResponseChunkBytes = 2
-	middleware, err := NewWithEngine(next, config, "test", recordingEngine{transaction: transaction})
+	middleware, err := newWithEngine(next, config, "test", &recordingEngine{transaction: transaction})
 	if err != nil {
-		t.Fatalf("NewWithEngine() error = %v", err)
+		t.Fatalf("newWithEngine() error = %v", err)
 	}
 	return middleware
 }
@@ -239,6 +410,23 @@ func assertResponseIncomplete(t *testing.T, description string, recording *recor
 	}
 }
 
+type trackingRequestBody struct {
+	reader    *strings.Reader
+	readBytes int
+}
+
+func newTrackingRequestBody(payload string) *trackingRequestBody {
+	return &trackingRequestBody{reader: strings.NewReader(payload)}
+}
+
+func (body *trackingRequestBody) Read(buffer []byte) (int, error) {
+	count, err := body.reader.Read(buffer)
+	body.readBytes += count
+	return count, err
+}
+
+func (*trackingRequestBody) Close() error { return nil }
+
 func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	transaction := &recordingTransaction{}
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -277,6 +465,403 @@ func TestMiddlewareStreamsRequestAndResponseInBoundedChunks(t *testing.T) {
 	}
 	if !summary.RequestEOS || !summary.ResponseEOS || !summary.ResponseCommitted {
 		t.Fatalf("expected complete committed summary, got %#v", summary)
+	}
+	assertRequestBodyCallbacks(t, transaction, len("request"))
+}
+
+func assertRequestBodyCallbacks(t *testing.T, transaction *recordingTransaction, wantBytes int) {
+	t.Helper()
+	requestBodyEvents := 0
+	requestBodyEndEvents := 0
+	requestBodyBytes := 0
+	for _, event := range transaction.events {
+		if event == "request-body" {
+			requestBodyEvents++
+		}
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction != DirectionRequest {
+			continue
+		}
+		requestBodyBytes += call.length
+		if call.end {
+			requestBodyEndEvents++
+		}
+	}
+	if requestBodyEvents == 0 || requestBodyBytes != wantBytes || requestBodyEndEvents != 1 {
+		t.Fatalf("request body callbacks = events:%d bytes:%d eos:%d, want events > 0 bytes:%d eos:1", requestBodyEvents, requestBodyBytes, requestBodyEndEvents, wantBytes)
+	}
+}
+
+func TestMiddlewareDrainsRequestBeforeResponseHeadersWhenHandlerSkipsBody(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/ordering", strings.NewReader("request"))
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	lastRequestBody := -1
+	firstResponseHeaders := -1
+	for index, event := range transaction.events {
+		if event == "request-body" {
+			lastRequestBody = index
+		}
+		if event == "response-headers" && firstResponseHeaders < 0 {
+			firstResponseHeaders = index
+		}
+	}
+	if lastRequestBody < 0 || firstResponseHeaders < 0 || lastRequestBody >= firstResponseHeaders {
+		t.Fatalf("request body was not drained before response headers: events=%v", transaction.events)
+	}
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("request EOS was not recorded after pre-commit drain: %#v", transaction.closed)
+	}
+}
+
+func TestMiddlewareAllowsInLimitRequestBodyBeforeResponseHeaders(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); err != nil {
+			t.Errorf("ReadAll(request.Body) error = %v", err)
+			return
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction, int64(len("request")))
+	source := newTrackingRequestBody("request")
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/in-limit", nil)
+	request.ContentLength = int64(len("request"))
+	request.Body = source
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusNoContent; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if got, want := source.readBytes, len("request"); got != want {
+		t.Fatalf("source bytes = %d, want %d", got, want)
+	}
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("in-limit request did not complete at EOS: %#v", transaction.closed)
+	}
+}
+
+func TestMiddlewareRejectsOverLimitBodyDuringSkippedHandlerDrain(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction, 5)
+	source := newTrackingRequestBody("request")
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-drain", nil)
+	request.ContentLength = int64(len("request"))
+	request.Body = source
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+}
+
+func TestMiddlewareRejectsOverLimitBodyReadByHandlerWithoutFurtherDrain(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); !errors.Is(err, ErrRequestRejected) {
+			t.Errorf("ReadAll(request.Body) error = %v, want ErrRequestRejected", err)
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction, 5)
+	source := newTrackingRequestBody("request")
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-handler", nil)
+	request.ContentLength = int64(len("request"))
+	request.Body = source
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+}
+
+func assertOverLimitRequestRejectedBeforeP3(t *testing.T, transaction *recordingTransaction, response *httptest.ResponseRecorder, source *trackingRequestBody, inputBytes int) {
+	t.Helper()
+	if got, want := response.Code, http.StatusRequestEntityTooLarge; got != want {
+		t.Fatalf("status = %d, want body-limit status %d", got, want)
+	}
+	if source.readBytes >= inputBytes {
+		t.Fatalf("over-limit source was fully drained: read=%d input=%d", source.readBytes, inputBytes)
+	}
+	for _, event := range transaction.events {
+		if event == "response-headers" {
+			t.Fatalf("P3 ran after request body limit rejection: events=%v", transaction.events)
+		}
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+		t.Fatalf("over-limit request incorrectly reached EOS: %#v", transaction.closed)
+	}
+	engineRequestBytes := 0
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionRequest {
+			engineRequestBytes += call.length
+		}
+	}
+	if got, want := engineRequestBytes, 3; got != want {
+		t.Fatalf("over-limit chunk reached engine: engine request bytes=%d, want only first bounded chunk=%d", got, want)
+	}
+}
+
+func TestMiddlewareConfigRejectsOutOfRangeRequestBodyLimit(t *testing.T) {
+	config := CreateConfig()
+	if config.MaxRequestBodyBytes != defaultMaxRequestBodyBytes {
+		t.Fatalf("default max request body bytes = %d, want %d", config.MaxRequestBodyBytes, defaultMaxRequestBodyBytes)
+	}
+	config.MaxRequestBodyBytes = maximumMaxRequestBodyBytes + 1
+	if _, err := normalizedConfig(config); err == nil {
+		t.Fatal("normalizedConfig accepted a request body limit above the finite cap")
+	}
+	config = CreateConfig()
+	config.MaxRequestBodyBytes = -1
+	if _, err := normalizedConfig(config); err == nil {
+		t.Fatal("normalizedConfig accepted a non-positive request body limit")
+	}
+	config = CreateConfig()
+	config.MaxRequestBodyBytes = 2
+	if _, err := normalizedConfig(config); err == nil {
+		t.Fatal("normalizedConfig accepted a request chunk larger than the aggregate request body limit")
+	}
+}
+
+func TestMiddlewareConfigRequestBodyIdleTimeoutMatrix(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value int
+		valid bool
+	}{
+		{name: "zero uses default", value: 0, valid: true},
+		{name: "negative", value: -1},
+		{name: "maximum", value: 60000, valid: true},
+		{name: "above maximum", value: 60001},
+		{name: "max int", value: int(^uint(0) >> 1)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := CreateConfig()
+			config.EngineSocketPath = "/run/msconnector-test.sock"
+			config.RequestBodyIdleTimeoutMillis = test.value
+			_, err := normalizedConfig(config)
+			if (err == nil) != test.valid {
+				t.Fatalf("normalizedConfig(%d) error = %v, valid = %v", test.value, err, test.valid)
+			}
+		})
+	}
+}
+
+type failingRequestBody struct{}
+
+func (failingRequestBody) Read([]byte) (int, error) {
+	return 0, errors.New("synthetic request-body read failure")
+}
+
+func (failingRequestBody) Close() error { return nil }
+
+func TestMiddlewareFailsClosedWhenPreCommitRequestDrainFails(t *testing.T) {
+	transaction := &recordingTransaction{}
+	nextCalled := false
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/drain-error", nil)
+	request.ContentLength = -1
+	request.Body = failingRequestBody{}
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+
+	if !nextCalled {
+		t.Fatal("next handler was not reached before its response triggered the drain")
+	}
+	if got, want := response.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want fail-closed status %d", got, want)
+	}
+	for _, event := range transaction.events {
+		if event == "response-headers" {
+			t.Fatalf("response headers evaluated after request drain failure: events=%v", transaction.events)
+		}
+	}
+}
+
+type blockingRequestBody struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingRequestBody() *blockingRequestBody {
+	return &blockingRequestBody{started: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (body *blockingRequestBody) Read([]byte) (int, error) {
+	body.once.Do(func() { close(body.started) })
+	<-body.release
+	return 0, io.ErrClosedPipe
+}
+
+func (body *blockingRequestBody) Close() error {
+	body.once.Do(func() { close(body.started) })
+	select {
+	case <-body.release:
+	default:
+		close(body.release)
+	}
+	return nil
+}
+
+func TestMiddlewareFailsClosedAndClosesIdleRequestBody(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.config.RequestBodyIdleTimeoutMillis = 10
+	body := newBlockingRequestBody()
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/idle", nil)
+	request.ContentLength = -1
+	request.Body = body
+	response := httptest.NewRecorder()
+	started := time.Now()
+	middleware.ServeHTTP(response, request)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("idle body drain took %s", elapsed)
+	}
+	if got, want := response.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want fail-closed status %d", got, want)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
+		t.Fatalf("idle body incorrectly reached EOS: %#v", transaction.closed)
+	}
+	select {
+	case <-body.release:
+	default:
+		t.Fatal("idle timeout did not close the request body")
+	}
+}
+
+func TestMiddlewareRequestBodyIdleTimeoutAllowsActiveFollowUp(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); err != nil {
+			t.Errorf("active body read = %v", err)
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.config.RequestBodyIdleTimeoutMillis = 100
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/active", strings.NewReader("active"))
+	response := httptest.NewRecorder()
+	middleware.ServeHTTP(response, request)
+	if got, want := response.Code, http.StatusNoContent; got != want {
+		t.Fatalf("active follow-up status = %d, want %d", got, want)
+	}
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("active follow-up did not reach EOS: %#v", transaction.closed)
+	}
+}
+
+func TestMiddlewareReusesAfterIdleTimeoutForLegitimateFollowUp(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/follow-up" {
+			if _, err := io.ReadAll(request.Body); err != nil {
+				t.Errorf("follow-up body read = %v", err)
+			}
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.config.RequestBodyIdleTimeoutMillis = 10
+	firstBody := newBlockingRequestBody()
+	first := httptest.NewRequest(http.MethodPost, "http://example.test/idle", nil)
+	first.ContentLength = -1
+	first.Body = firstBody
+	firstResponse := httptest.NewRecorder()
+	middleware.ServeHTTP(firstResponse, first)
+	if got, want := firstResponse.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("first status = %d, want fail-closed status %d", got, want)
+	}
+	second := httptest.NewRequest(http.MethodPost, "http://example.test/follow-up", strings.NewReader("ok"))
+	secondResponse := httptest.NewRecorder()
+	middleware.ServeHTTP(secondResponse, second)
+	if got, want := secondResponse.Code, http.StatusNoContent; got != want {
+		t.Fatalf("follow-up status = %d, want %d", got, want)
+	}
+	if transaction.opens != 2 || len(transaction.closed) != 2 || transaction.closed[0].RequestEOS || !transaction.closed[1].RequestEOS {
+		t.Fatalf("same middleware did not isolate timeout and follow-up cleanup: opens=%d closed=%#v", transaction.opens, transaction.closed)
+	}
+}
+
+func TestMiddlewareKeepsBodyDecisionWhenPreCommitDrainFindsP2Deny(t *testing.T) {
+	transaction := &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
+			if direction == DirectionRequest {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/p2-deny", strings.NewReader("request"))
+	middleware.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusForbidden; got != want {
+		t.Fatalf("status = %d, want preserved P2 denial %d", got, want)
+	}
+	if len(transaction.events) == 0 {
+		t.Fatal("body decision produced no engine event")
+	}
+	for _, event := range transaction.events {
+		if event == "response-headers" {
+			t.Fatalf("response headers evaluated after P2 denial: events=%v", transaction.events)
+		}
+	}
+}
+
+func TestMiddlewareMarksEmptyRequestEOSWithoutBodyCallback(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	middleware.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://example.test/empty", nil))
+
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("empty request was not closed at request EOS: %#v", transaction.closed)
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionRequest {
+			t.Fatalf("empty request unexpectedly produced request-body callback: %#v", transaction.bodyCalls)
+		}
+	}
+}
+
+func TestMiddlewareInspectsReadableZeroLengthBodyBeforeP3(t *testing.T) {
+	transaction := &recordingTransaction{}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}), transaction)
+	request := httptest.NewRequest(http.MethodPost, "http://example.test/zero-length-body", nil)
+	request.ContentLength = 0
+	request.Body = io.NopCloser(strings.NewReader(""))
+	middleware.ServeHTTP(httptest.NewRecorder(), request)
+
+	if len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatalf("readable zero-length body did not reach request EOS: %#v", transaction.closed)
+	}
+	lastRequestBody := -1
+	firstResponseHeaders := -1
+	for index, event := range transaction.events {
+		if event == "request-body" {
+			lastRequestBody = index
+		}
+		if event == "response-headers" && firstResponseHeaders < 0 {
+			firstResponseHeaders = index
+		}
+	}
+	if lastRequestBody < 0 || firstResponseHeaders < 0 || lastRequestBody >= firstResponseHeaders {
+		t.Fatalf("readable zero-length body bypassed P2 before P3: events=%v", transaction.events)
 	}
 }
 
@@ -990,11 +1575,38 @@ func assertBoundedBodies(t *testing.T, calls []bodyCall, direction Direction, ma
 
 func mustTestConfig(t *testing.T) Config {
 	t.Helper()
-	config, err := normalizedConfig(CreateConfig())
+	config := CreateConfig()
+	config.EngineSocketPath = "/run/msconnector-test.sock"
+	normalized, err := normalizedConfig(config)
 	if err != nil {
 		t.Fatalf("normalizedConfig() error = %v", err)
 	}
-	return config
+	return normalized
+}
+
+func TestCreateConfigFailsClosedUntilUDSEngineIsConfigured(t *testing.T) {
+	config := CreateConfig()
+	if config.EngineMode != "uds" {
+		t.Fatalf("CreateConfig() EngineMode = %q, want secure uds default", config.EngineMode)
+	}
+	if _, err := New(context.Background(), http.NotFoundHandler(), config, "missing-uds"); err == nil {
+		t.Fatal("New() accepted the secure default without an engineSocketPath")
+	}
+
+	config.EngineMode = "passthrough"
+	if _, err := New(context.Background(), http.NotFoundHandler(), config, "explicit-passthrough"); err == nil {
+		t.Fatal("New() accepted an always-allow passthrough mode")
+	}
+
+	config.EngineMode = "uds"
+	config.EngineSocketPath = "/run/msconnector-test.sock"
+	handler, err := New(context.Background(), http.NotFoundHandler(), config, "configured-uds")
+	if handler == nil {
+		t.Fatal("New() returned a nil handler for configured UDS mode")
+	}
+	if err != nil {
+		t.Fatalf("New() rejected configured UDS mode: %v", err)
+	}
 }
 
 type plainReader struct {

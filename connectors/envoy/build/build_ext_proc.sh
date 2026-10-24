@@ -96,6 +96,7 @@ fi
 
 for required_source in \
     "$REPO_ROOT/common/runtime/msconnector_runtime.c" \
+    "$REPO_ROOT/connectors/profile_registry.c" \
     "$EXT_PROC_ROOT/internal/processor/common_runtime_bridge.c" \
     "$EXT_PROC_ROOT/internal/processor/common_runtime_bridge.h"
 do
@@ -149,7 +150,7 @@ compile_common_source() {
     objects="$objects $object"
 }
 
-for source in "$REPO_ROOT"/common/src/*.c "$REPO_ROOT"/common/runtime/*.c; do
+for source in "$REPO_ROOT"/common/src/*.c "$REPO_ROOT"/common/runtime/*.c "$REPO_ROOT"/connectors/profile_registry.c; do
     [ -f "$source" ] || continue
     compile_common_source "$source"
 done

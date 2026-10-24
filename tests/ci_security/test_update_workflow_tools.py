@@ -35,8 +35,10 @@ def load_updater():
 UPDATER = load_updater()
 
 
-class WorkflowToolUpdaterTests(unittest.TestCase):
-    def copied_update_root(self, temporary_root: Path) -> Path:
+class WorkflowToolUpdaterFixtures:
+    def copied_update_root(
+        self, temporary_root: Path, *, freeze_checkout: bool = True
+    ) -> Path:
         destination = temporary_root / "connector"
         for relative_text in (
             UPDATER.ALLOWED_UPDATE_PATHS | UPDATER.PROPOSED_TREE_BASELINE_PATHS
@@ -46,6 +48,24 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
+        if freeze_checkout:
+            # Only synthetic copies use this baseline; current-tree inventory
+            # checks continue to verify the actual lock and workflow pins.
+            _path, lock, _digest = UPDATER.load_lock(destination)
+            baseline = self.changed_action(
+                lock,
+                "actions/checkout",
+                "v7.0.1",
+                "3d3c42e5aac5ba805825da76410c181273ba90b1",
+            )
+            if any(
+                lock["actions"]["actions/checkout"][field] != value
+                for field, value in baseline.items()
+            ):
+                UPDATER.apply_candidate(
+                    destination,
+                    self.candidate_for(destination, {"actions/checkout": baseline}),
+                )
         return destination
 
     @staticmethod
@@ -144,10 +164,15 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         *,
         commit: str = "a" * 40,
         reject_latest: bool = False,
+        current_version: str = "v4.37.8",
     ) -> dict[str, str] | None:
-        """Exercise the separate reviewed CodeQL same-major release path."""
+        """Exercise CodeQL using an explicit baseline independent of lock updates."""
 
         _path, lock, _digest = UPDATER.load_lock(ROOT)
+        record = deepcopy(lock["actions"]["github/codeql-action"])
+        record.update(
+            self.changed_action(lock, "github/codeql-action", current_version, "b" * 40)
+        )
         with contextlib.ExitStack() as patches:
             patches.enter_context(
                 patch.object(UPDATER, "release_page", return_value=releases)
@@ -167,7 +192,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                         side_effect=AssertionError("CodeQL must not use releases/latest"),
                     )
                 )
-            return UPDATER.action_candidate("github/codeql-action", lock["actions"]["github/codeql-action"])
+            return UPDATER.action_candidate("github/codeql-action", record)
 
     @staticmethod
     def changed_tool(
@@ -233,9 +258,13 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
             yield
 
+class WorkflowToolUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
     def test_resolver_uses_only_release_and_tag_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["actions/checkout"]
+        record = deepcopy(lock["actions"]["actions/checkout"])
+        record.update(
+            self.changed_action(lock, "actions/checkout", "v7.0.1", "b" * 40)
+        )
         with (
             patch.object(
                 UPDATER,
@@ -414,6 +443,50 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed major"):
             self.resolve_codeql_from_page(releases)
 
+    def test_codeql_resolver_accepts_releases_after_the_locked_version_advances(
+        self,
+    ) -> None:
+        for current, selected in (
+            ("v4.38.3", "v4.39.0"),
+            ("v4.999.9", "v4.1000.0"),
+        ):
+            with self.subTest(current=current, selected=selected):
+                candidate = self.resolve_codeql_from_page(
+                    [self.release_fixture(current), self.release_fixture(selected)],
+                    self.release_fixture(selected, immutable=True),
+                    current_version=current,
+                    reject_latest=True,
+                )
+                self.assertEqual(
+                    candidate,
+                    {
+                        "version": selected,
+                        "immutable_commit": "a" * 40,
+                        "upstream_release": (
+                            "https://github.com/github/codeql-action/releases/tag/"
+                            f"{selected}"
+                        ),
+                    },
+                )
+
+    def test_codeql_resolver_rejects_a_stale_release_page(self) -> None:
+        releases = [self.release_fixture("v4.38.0")]
+        with self.assertRaisesRegex(UPDATER.UpdateError, "release page is stale"):
+            self.resolve_codeql_from_page(
+                releases,
+                current_version="v4.38.3",
+            )
+
+    def test_codeql_resolver_reports_no_update_for_the_locked_release(self) -> None:
+        self.assertIsNone(
+            self.resolve_codeql_from_page(
+                [self.release_fixture("v4.38.3")],
+                self.release_fixture("v4.38.3", immutable=True),
+                current_version="v4.38.3",
+                commit="b" * 40,
+            )
+        )
+
     def test_codeql_resolver_requires_an_immutable_confirmed_action_release(
         self,
     ) -> None:
@@ -426,6 +499,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         page_release = self.release_fixture("v4.38.0")
         confirmations = {
             "draft": self.release_fixture("v4.38.0", draft=True, immutable=True),
+            "prerelease": self.release_fixture(
+                "v4.38.0", prerelease=True, immutable=True
+            ),
             "tag-mismatch": self.release_fixture("v4.38.1", immutable=True),
         }
         for name, confirmation in confirmations.items():
@@ -755,20 +831,34 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         }
         self.assertEqual(set(UPDATER.ALLOWED_UPDATE_PATHS), staged_paths)
 
+    def test_native_baseline_uses_nonrecursive_updater_inventory_regression(self) -> None:
+        """Candidate validation must not invoke the test that validates candidates."""
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        baseline = makefile.split("check-ci-security-contract: check-project-versions\n", 1)[1].split(
+            "\n\n", 1
+        )[0]
+        selector = (
+            "tests.ci_security.test_update_workflow_tools."
+            "WorkflowToolUpdaterTests"
+        )
+        self.assertIn(selector, baseline.split())
+        self.assertNotIn("tests.ci_security.test_update_workflow_tools", baseline.split())
+        self.assertNotIn(
+            "tests.ci_security.test_update_workflow_tools."
+            "WorkflowToolUpdaterIntegrationTests",
+            baseline.split(),
+        )
+        lint_workflow = (
+            ROOT / ".github/workflows/ci-security-workflow-lint.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("tests.ci_security.test_update_workflow_tools", lint_workflow.split())
+
     def test_connector_lock_adapter_preserves_the_on_disk_schema(self) -> None:
         raw = UPDATER.yaml.safe_load(
             (ROOT / "ci/tooling/security-tools.lock.yml").read_text(encoding="utf-8")
         )
         self.assertIn("pinned_actions", raw)
         self.assertNotIn("actions", raw)
-        self.assertEqual(
-            raw["pinned_actions"]["actions/checkout"]["commit_sha"],
-            "3d3c42e5aac5ba805825da76410c181273ba90b1",
-        )
-        self.assertEqual(
-            raw["tools"]["actionlint"]["release_commit"],
-            "914e7df21a07ef503a81201c76d2b11c789d3fca",
-        )
         _path, normalized, _digest = UPDATER.load_lock(ROOT)
         self.assertEqual(
             normalized["actions"]["actions/checkout"]["immutable_commit"],
@@ -777,6 +867,10 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertEqual(
             normalized["tools"]["actionlint"]["asset_url"],
             raw["tools"]["actionlint"]["url"],
+        )
+        self.assertEqual(
+            normalized["tools"]["actionlint"]["immutable_commit"],
+            raw["tools"]["actionlint"]["release_commit"],
         )
 
     def test_unallowlisted_locked_action_use_and_forbidden_yaml_fail_closed(self) -> None:
@@ -1061,26 +1155,104 @@ jobs:
             with (
                 patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
                 patch.object(UPDATER.subprocess, "run", side_effect=successful_check),
+                patch.object(UPDATER, "run_proposed_tree_workflow_lints") as lint,
             ):
                 UPDATER.validate_proposed_tree(root, candidate)
 
+            lint.assert_called_once_with(commands[0][1])
             self.assertEqual(len(commands), 1)
             self.assertEqual(commands[0][0][-1], "check-ci-security-contract")
             self.assertEqual(list(runner_temp.iterdir()), [])
             self.assert_connector_lock_unchanged(root, source_lock)
 
-    def test_proposed_tree_validation_runs_the_real_ci_security_contract(self) -> None:
-        """A bounded candidate must pass its real copied-tree contract checks."""
+    def test_proposed_lints_execute_verified_proposed_tools_and_fixtures(self) -> None:
+        self.run_fake_proposed_lints()
 
+    def test_proposed_lint_failure_cleans_private_tree_and_preserves_checkout(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            temporary_root = Path(temporary_directory)
-            root, candidate, source_lock, runner_temp = self.proposed_tree_fixture(
-                temporary_root
-            )
-            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
-                UPDATER.validate_proposed_tree(root, candidate)
+            root, candidate, source_lock, runner_temp = self.proposed_tree_fixture(Path(temporary_directory))
+            with (
+                self.runner_temp_environment(runner_temp),
+                patch.object(UPDATER, "run_proposed_tree_contract_checks"),
+                patch.object(UPDATER, "run_proposed_tree_workflow_lints", side_effect=UPDATER.UpdateError("new finding")),
+            ):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "new finding"):
+                    UPDATER.validate_proposed_tree(root, candidate)
             self.assertEqual(list(runner_temp.iterdir()), [])
             self.assert_connector_lock_unchanged(root, source_lock)
+
+    def run_fake_proposed_lints(
+        self, failing_tool: str | None = None, negative_exit: int = 14
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.copied_update_root(Path(temporary_directory))
+            _path, lock, _digest = UPDATER.load_lock(root)
+            changed_zizmor = self.changed_tool(lock, "zizmor", "v9.9.9", "c" * 40, "d" * 64)
+            UPDATER.apply_candidate(root, self.candidate_for(root, tools={"zizmor": changed_zizmor}))
+            _path, lock, _digest = UPDATER.load_lock(root)
+            fetched: list[str] = []
+
+            class FakeFetcher:
+                @staticmethod
+                def fetch_record(name: str, record: dict[str, object], destination: Path) -> Path:
+                    fetched.append(name)
+                    self.assertEqual(record["sha256"], lock["tools"][name]["sha256"])
+                    self.assertEqual(record["url"], lock["tools"][name]["asset_url"])
+                    if name == "zizmor":
+                        self.assertEqual(record["version"], "v9.9.9")
+                        self.assertEqual(record["sha256"], "d" * 64)
+                    destination.mkdir(mode=0o700)
+                    executable = destination / name
+                    if name == failing_tool:
+                        script = "#!/bin/sh\nexit 1\n"
+                    elif name == "zizmor":
+                        script = (
+                            "#!/bin/sh\ncase \"$2\" in\n"
+                            f"*/insecure.yml|*/unsafe.yml) exit {negative_exit} ;;\n"
+                            "*) exit 0 ;;\nesac\n"
+                        )
+                    else:
+                        script = "#!/bin/sh\nexit 0\n"
+                    executable.write_text(script, encoding="utf-8")
+                    executable.chmod(0o700)
+                    return executable
+
+            with (
+                self.runner_temp_environment(Path(temporary_directory)),
+                patch.object(UPDATER, "load_fetcher_module", return_value=FakeFetcher),
+            ):
+                UPDATER.run_proposed_tree_workflow_lints(root)
+            self.assertEqual(fetched, ["actionlint", "zizmor"])
+
+    def test_proposed_lints_reject_new_findings_and_broken_negative_controls(self) -> None:
+        for failing_tool in ("actionlint", "zizmor"):
+            with self.subTest(tool=failing_tool):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "lint failed"):
+                    self.run_fake_proposed_lints(failing_tool=failing_tool)
+        for negative_exit in (0, 1, 2):
+            with self.subTest(negative_exit=negative_exit):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "expected 14"):
+                    self.run_fake_proposed_lints(negative_exit=negative_exit)
+
+    def test_proposed_lints_never_execute_an_unverified_download(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.copied_update_root(Path(temporary_directory))
+            fetcher = unittest.mock.Mock()
+            fetcher.fetch_record.side_effect = ValueError("SHA-256 mismatch")
+            with (
+                patch.object(UPDATER, "load_fetcher_module", return_value=fetcher),
+                patch.object(UPDATER.subprocess, "run") as run,
+            ):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "SHA-256 mismatch"):
+                    UPDATER.run_proposed_tree_workflow_lints(root)
+            run.assert_not_called()
+
+    def test_proposed_lints_fail_closed_on_timeout_and_launch_failure(self) -> None:
+        for failure in (OSError("cannot execute"), subprocess.TimeoutExpired("lint", 180)):
+            with self.subTest(failure=failure):
+                with patch.object(UPDATER.subprocess, "run", side_effect=failure):
+                    with self.assertRaisesRegex(UPDATER.UpdateError, "could not complete"):
+                        UPDATER.run_proposed_workflow_lint(ROOT, ["lint"])
 
     def test_scope_verification_rejects_the_unallowlisted_source_of_a_rename(
         self,
@@ -1214,13 +1386,20 @@ jobs:
     def test_existing_branch_accepts_exact_trusted_base_derived_blobs(self) -> None:
         base_lock_blob = (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
         base_lock = self.normalized_connector_lock(base_lock_blob)
+        baseline_commit = base_lock["actions"]["actions/checkout"]["immutable_commit"]
+        baseline_version = base_lock["actions"]["actions/checkout"]["version"]
         checkout = self.changed_action(
-            base_lock, "actions/checkout", "v9.9.9", "a" * 40
+            base_lock,
+            "actions/checkout",
+            "v9.9.8" if baseline_version == "v9.9.9" else "v9.9.9",
+            "b" * 40 if baseline_commit == "a" * 40 else "a" * 40,
         )
         candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            expected_root = self.copied_update_root(temporary_root / "expected")
+            expected_root = self.copied_update_root(
+                temporary_root / "expected", freeze_checkout=False
+            )
             UPDATER.apply_candidate(expected_root, candidate)
             head_lock = self.normalized_connector_lock(
                 (expected_root / "ci/tooling/security-tools.lock.yml").read_bytes()
@@ -1305,6 +1484,25 @@ jobs:
             with self.subTest(forbidden_marker=forbidden_marker):
                 self.assertNotIn(forbidden_marker, workflow)
         self.assertNotRegex(workflow, r"git push\s+--force(?:\s|$)")
+
+
+class WorkflowToolUpdaterIntegrationTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
+    def test_proposed_tree_validation_runs_the_real_ci_security_contract(self) -> None:
+        """A bounded candidate must pass its real copied-tree contract checks."""
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            root, candidate, source_lock, runner_temp = self.proposed_tree_fixture(
+                temporary_root
+            )
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
+                patch.object(UPDATER, "run_proposed_tree_workflow_lints") as lint,
+            ):
+                UPDATER.validate_proposed_tree(root, candidate)
+            lint.assert_called_once()
+            self.assertEqual(list(runner_temp.iterdir()), [])
+            self.assert_connector_lock_unchanged(root, source_lock)
 
 
 if __name__ == "__main__":

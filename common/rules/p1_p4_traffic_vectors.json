@@ -197,6 +197,33 @@
       }
     },
     {
+      "id": "p3_redirect",
+      "phase": "P3",
+      "rule_id": 1103002,
+      "marker": "msconnector-p3-redirect",
+      "purpose": "Trigger a bounded redirect from an upstream response header before response commitment.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/p3-redirect",
+        "headers": {},
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {
+          "X-Msconnector-Vector": "msconnector-p3-redirect"
+        },
+        "body": "p3-redirect-upstream-response"
+      },
+      "expected": {
+        "requested_action": "redirect",
+        "actual_host_action": "replace_response_before_commit",
+        "response_status": 302,
+        "redirect_target": "/msconnector-p3-redirect-target",
+        "response_requirements": ["upstream response header observed", "P3 redirect event precedes response commit", "Location matches the bounded canonical target"]
+      }
+    },
+    {
       "id": "p4_only",
       "phase": "P4",
       "rule_id": 1104001,

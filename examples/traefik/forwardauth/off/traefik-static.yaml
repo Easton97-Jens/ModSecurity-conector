@@ -1,0 +1,14 @@
+experimental:
+  localPlugins:
+    modsecurityResponseObserver:
+      moduleName: github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/response_observer
+entryPoints:
+  web:
+    address: "127.0.0.1:8080"
+providers:
+  file:
+    filename: "./traefik-dynamic.yaml"
+    watch: false
+log:
+  level: INFO
+accessLog: {}

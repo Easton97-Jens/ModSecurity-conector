@@ -16,6 +16,8 @@ production agent loads ModSecurity rules once, creates transactions with the
 HAProxy `unique-id`, keeps bounded transaction state for its request and
 optional response-header phases, emits
 decision JSONL, and returns typed SPOE ACK variables for HAProxy enforcement.
+The SPOP listener has no authenticated transport and is intentionally restricted
+to `127.0.0.1`; remote or wildcard binds are unsupported and fail closed.
 `make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
 materializes each case, starts HAProxy plus the production SPOA agent plus a
 backend, sends the case request with curl, asserts the observed status, and
@@ -73,6 +75,22 @@ Shared connector-neutral data shapes used by the starter:
   former `wait-for-body` sample is disabled. The native HTX precommit route is
   selected only by the full-lifecycle profile, proves P1/P3 host replies, and
   does not promote the response-body capability.
+
+### SPOP request-ID correlation boundary
+
+`request_id` is a correlation key, not a display string. The production SPOP
+runtime validates the original length-delimited bytes before its C-string copy:
+empty, embedded-NUL, control-byte, non-ASCII, and overlong values are rejected.
+Thus `A\0X` cannot collapse to `A` at the transaction cache boundary, while a
+nonempty printable-ASCII ID, including the normal UUID form, remains accepted.
+A malformed `request_id` fails notification extraction and cannot create,
+replace, or claim a transaction.
+
+### SPOP request-target boundary
+
+The SPOP `path` and `uri` request-target fields use a canonical 4096-byte
+limit. A value longer than 4096 bytes, or containing an embedded NUL, is
+rejected before WAF transaction creation; it is never silently truncated.
 
 ## Build Starter
 
@@ -208,6 +226,30 @@ or a post-commit response point.  It therefore implements neither safe
 original/requested/visible-status metadata.  An agent timeout, agent failure,
 or generic HAProxy disconnect is not evidence of a late-intervention abort.
 
+### Mandatory native HTX response companion boundary
+
+The logical `haproxy-spoe-spop` solution requires a native HTX response
+companion for P3/P4. It must use the same HAProxy unique ID, claim one live
+transaction, forward bounded response headers and borrowed DATA slices, and
+finish exactly once at native `http_end`. Missing or duplicate correlation,
+cancel, timeout, and cleanup abort the transaction; an SPOP notification or
+`wait-for-body` sample is never an EOS signal.
+
+The production SPOP agent accepts `response-companion=native-htx` only with an
+explicit private companion socket, matching uid/gid, and a non-zero bounded
+response-body limit. The implemented combined profile registers the HTX request
+data filter after P1, binds the SPOP-published opaque handle to
+`stream->uniq_id`, and invokes the common response-header/DATA/EOS callbacks
+from HAProxy's `http_payload`/`http_end` hooks. A missing, malformed, expired,
+or duplicate handle remains fail-closed; the default `response-companion=none`
+path still rejects response-body activation because it has no response EOS
+transport. The repository-native current-source MRC1-v2 harness exercises the
+combined P1/P2-to-P3/P4 route locally; an external v1 artifact is not a
+substitute and this qualified local result is not a general production-readiness
+claim. Internal connector, protocol, timeout, unavailable, and invalid
+engine-response cleanup must use the corresponding typed MRC1 terminal cause,
+not a guessed client or upstream disconnect.
+
 The shared Phase-4 case set remains evidence-gated. Rule observation is
 separate from a client-visible 403; the semantic pre-commit, late-action, and
 status-metadata cases remain `NOT_EXECUTED` until their missing host behavior
@@ -248,7 +290,7 @@ upstream saw zero or one requests; neither value establishes their ordering
 against the client-visible 403. The filter uses HAProxy's normal reply-and-close
 path without a connector-owned body buffer. This is not evidence of incremental
 request forwarding or a general host-buffering guarantee. P4 (`1100301`) uses borrowed
-response DATA and one response EOS. Safe/minimal preserves the upstream
+response DATA and one response EOS. Off preserves native handling without the additional late policy. Safe preserves the upstream
 200/body and records `host_action=log_only`; Strict keeps
 `host_action=not_attempted` because no client-visible HAProxy abort primitive
 has been proven. The smoke does not claim a redirect, post-commit abort,
@@ -261,3 +303,28 @@ This overlay is not configured by the checked-in SPOP harness and is
 non-promoted canonical host evidence only. Therefore it does **not** promote
 the SPOE/SPOP Phase-4, late-intervention, no-buffer, or first-byte
 capabilities.
+
+## Phase-4 mode and response-body limit ownership
+
+The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+No valid Phase-4 mode adds a connector-owned cumulative response-inspection
+budget. libModSecurity owns WAF inspection selection and limits through
+`SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`.
+
+This rule applies to native integrations and Common Runtime-backed response
+paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4; selecting a mode does not create a
+missing response path.
+
+Legacy connector/runtime budget settings may remain parseable for
+compatibility, but they must not reject or abort a response solely because a
+legacy inspection-byte count is exceeded. Independent allocation,
+buffered-storage, chunk/message/frame, timeout, overflow and transport limits
+remain active in every mode. A buffered sidecar may therefore still reject a
+response that cannot fit its bounded host storage; that is host capacity, not
+WAF inspection policy.
+
+See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
+for the exact scope, compatibility boundary and validation limitations.

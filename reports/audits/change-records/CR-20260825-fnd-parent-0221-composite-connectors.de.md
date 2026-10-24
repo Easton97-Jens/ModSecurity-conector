@@ -150,6 +150,7 @@ Binary lieferten:
 | P2 deny | 403 | `LIFECYCLE_ONLY` P1/P2 |
 | P2 oversize | 413 | `LIFECYCLE_ONLY` P1/P2 |
 | P3 deny | 403 | `LIFECYCLE_ONLY` P1/P2/P3 |
+| P3 redirect follow-up | 302 | `LIFECYCLE_ONLY` P1/P2/P3, exakte `Location`-Attestation |
 | P4 Safe | 200 | `LIFECYCLE_ONLY` P1/P2/P3/P4, log-only |
 | metadata omitted | 503 | `LIFECYCLE_ONLY` Pre-Admission-Reservation plus terminales Disconnect |
 | P2-to-P3 timeout | 503 | `LIFECYCLE_ONLY` P1/P2 plus terminales Timeout |
@@ -167,16 +168,32 @@ Final-Current-Source-Runtime-Zusammenfassung ist payload-sicher und lokal bei
 `FND-PARENT-0221` zurückgehalten; kein roher Payload, Credential, Lease oder
 Decision-Token ist in diesem Record enthalten.
 
+Am 2026-08-28 lieferte ein frischer isolierter Traefik-H1-Follow-up für
+`p3_redirect` HTTP 302. Seine vertrauenswürdige Client-Grenze beobachtete
+genau ein kanonisches, begrenztes `Location`; der Receipt behält nur
+`redirect_location_verified: true`, niemals den Target-Wert. Eine frische
+Envoy-`1.39.0`-Voll-H1-Matrix übte denselben Fall aus, projizierte ihn durch
+den gemeinsamen Verifier als `LIFECYCLE_ONLY` und behielt dieselbe
+Boolean-only-Attestation. Der Top-Level-Scope der Envoy-Matrix bleibt
+`structural_input_only`; keines der Ergebnisse ist Katalog-Akzeptanz oder eine
+Produktions-Promotion.
+
+Der Follow-up ändert Shared Verifier/Dokumentation, Envoy-Helper/Matrix/
+Projektion, Traefik-Driver/Matrix sowie fokussierte Python-/Go-Tests. Der
+Verifier verlangt nun die kanonische P3-Regel `1103002`, exakt HTTP 302 und die
+Boolean-Attestation; außerdem normalisiert er absolute Projektionspfade vor
+Containment-Prüfungen. Letzteres schließt den unabhängigen
+`FND-PARENT-0987`-CWE-22-Pfad-Containment-Defekt, der bis zur Verifikation am
+exakten PR-Head `fixed` ist.
+
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 - P4 Strict wurde nicht promotiert: Envoy führt ihn absichtlich nicht aus und
   Traefik besitzt keinen unabhängig beobachteten clientsichtbaren Reset/Abort.
-- Der gemeinsame Traefik-`p3_redirect`-Vektor ist als 403 deny konfiguriert,
-  daher ist er als Redirect-Evidenz nicht bestanden.
-- Die vollständige Traefik-Hostmatrix wurde nach dem finalen Envoy-only-
-  Status-/Terminal-Normalizer-Patch nicht wiederholt. Ihre direkte
-  Middleware-/UDS-Race-Suite bestand, und die früheren Traefik-Receipts
-  behalten ihren angegebenen `LIFECYCLE_ONLY`-Scope.
+- P3 redirect besitzt nun die oben genannte isolierte Traefik- und Envoy-
+  HTTP-302-Evidenz, aber die vollständige Traefik-Hostmatrix wurde nach dem
+  Follow-up nicht wiederholt. Ihre Receipts behalten den angegebenen
+  `LIFECYCLE_ONLY`-Scope.
 - Real-Host-Duplicate-Response-Callback, Raw-Client-Cancellation,
   Same-Process-Traefik-Follow-up, H2/H3 und breitere Cross-Connector-Parität
   wurden nicht ausgeführt.

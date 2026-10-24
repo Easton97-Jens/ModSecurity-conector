@@ -80,6 +80,58 @@ capability boundary.
 Do not commit credentials, cookies, authorization values, private keys,
 certificates, raw request bodies, raw response bodies, or local runtime output.
 
+### HAProxy hosted evidence projection
+
+The fixed `with-crs/no-mrts` HAProxy runtime cell may upload evidence only
+after its runtime has exited and its cleanup result has been checked. It does
+not upload the runtime root, build root, cache root, process logs, or a copy of
+any of those roots. Instead, a source receipt for the fixed HAProxy P2 case is
+strictly parsed and compared with trusted workflow values, then newly
+serialized into exactly `haproxy-runtime-evidence.json` and `manifest.json`.
+Both files contain bounded allowlist metadata and SHA-256 digests only; they
+contain no body, header value, cookie, token, credential, opaque handle,
+absolute path, raw log, or free-form runtime error text.
+
+Receipt bytes cross through a fixed unprivileged `head --bytes=16385` stream
+cap, then to the evidence projector only through standard input after the
+identity drop. The projector accepts at most 16 KiB and rejects the 16,385th
+byte, so the workflow never buffers untrusted receipt output in a shell
+variable. Receipt bytes are never command-line arguments to `sudo`, `unshare`,
+or `setpriv`.
+
+The projection and verifier reject unexpected names, paths, JSON keys, types,
+special files, symlinks, size-limit violations, and digest mismatches. Their
+staging package is created below a new root-owned `RUNNER_TEMP` child. The
+package directory is owned by the separate evidence UID and grouped to the
+upload reader's runtime GID: it starts as `0700`, then the projector seals it
+at `0550`. The two fixed evidence-identity files remain `0444`, but an
+unrelated identity cannot traverse the `0550` directory; effective pathname
+read access is limited to the evidence owner and that upload-reader group.
+The runtime/upload reader has read/traverse permission only, never directory
+write, rename, unlink, or chmod permission. The verifier checks this ownership
+and mode contract immediately before the pinned upload action. Checkout code
+for runtime, source export, projection, verification, and the final workflow
+summary executes only after a private PID/mount namespace and privilege drop
+with `no_new_privs`; privileged operations have fixed staging-only paths and
+do not execute checkout code.
+
+Each embedded immutable-Git-object launcher verifies the exact Git blob
+preimage `b"blob " + decimal length + b"\0" + source` before `compile` can
+run it. Here `\0` is Git's single NUL delimiter, not a printable backslash and
+zero; a mismatched preimage fails the job before any selected checkout code is
+executed.
+
+For an evidence-receipt runtime, cleanup first asks the `setsid` leader to
+stop, gives it a bounded reaping window, then terminates any remaining process
+group and escalates to `KILL` only if the bounded termination window expires.
+It still waits for the recorded leader and verifies that its process group is
+empty. Any failed stop, wait, or residual-group check prevents the receipt,
+projection, and upload.
+
+This boundary records only the fixed P2 receipt and does not claim P3/P4,
+production readiness, or a successful hosted result until the exact workflow
+run and its uploaded artifact have been observed.
+
 ## Status and promotion
 
 | Status | Meaning |

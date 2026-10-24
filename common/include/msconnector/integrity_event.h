@@ -8,6 +8,9 @@
 extern "C" {
 #endif
 
+/* These helpers provide deterministic process-local correlation only; they
+ * do not authenticate event records or provide tamper-resistant audit
+ * integrity. */
 uint64_t msconnector_non_crypto_hash_bytes(const unsigned char *data, size_t size);
 uint64_t msconnector_non_crypto_hash_string(const char *value);
 uint64_t msconnector_integrity_event_hash(const msconnector_event *event, uint64_t previous_hash);

@@ -86,6 +86,60 @@ Zugangsdaten, Cookies, Authorization-Werte, private Schlüssel, Zertifikate,
 rohe Request-Bodies, rohe Response-Bodies oder lokale Runtime-Ausgabe werden
 nicht eingecheckt.
 
+### HAProxy-Hosted-Evidence-Projektion
+
+Die feste HAProxy-Runtime-Zelle `with-crs/no-mrts` darf Evidence erst hochladen,
+nachdem ihre Runtime beendet ist und ihr Cleanup-Ergebnis geprüft wurde. Sie
+lädt weder den Runtime-Root, Build-Root, Cache-Root, Prozesslogs noch eine
+Kopie eines dieser Roots hoch. Stattdessen wird ein Source-Receipt für den
+festen HAProxy-P2-Case strikt geparst, mit vertrauenswürdigen Workflowwerten
+verglichen und anschließend ausschließlich in
+`haproxy-runtime-evidence.json` und `manifest.json` neu serialisiert. Beide
+Dateien enthalten nur begrenzte Allowlist-Metadaten und SHA-256-Digests; sie
+enthalten keinen Body, Headerwert, Cookie, Token, Credential, opaque Handle,
+absoluten Pfad, rohen Log oder freien Runtime-Fehlertext.
+
+Receipt-Bytes passieren eine feste unprivilegierte Stream-Grenze
+`head --bytes=16385` und danach den Evidence-Projektor nur über Standard-
+Eingabe nach der Privilegabgabe. Der Projektor akzeptiert höchstens 16 KiB und
+weist das 16.385. Byte zurück; der Workflow puffert daher keine untrusted
+Receipt-Ausgabe in einer Shell-Variablen. Receipt-Bytes sind niemals
+Kommandozeilen-Argumente für `sudo`, `unshare` oder `setpriv`.
+
+Projektion und Verifier weisen unerwartete Namen, Pfade, JSON-Schlüssel,
+Typen, Special Files, Symlinks, Größenlimitverletzungen und Digest-Mismatches
+zurück. Ihr Staging-Paket entsteht unterhalb eines neuen root-besessenen
+`RUNNER_TEMP`-Childs. Das Paketverzeichnis gehört der getrennten Evidence-UID
+und hat die Runtime-GID des Upload-Lesers als Gruppe: Es beginnt mit `0700`,
+danach versiegelt der Projektor es mit `0550`. Die zwei festen Dateien der
+Evidence-Identität bleiben `0444`, aber eine nicht zugehörige Identität kann
+das `0550`-Verzeichnis nicht traversieren; der effektive lesbare Pfadzugriff
+ist auf den Evidence-Owner und diese Upload-Leser-Gruppe begrenzt. Der
+Runtime-/Upload-Leser erhält nur Lesen/Traversieren, niemals Verzeichnis-
+Schreiben, Umbenennen, Unlink oder chmod. Der Verifier prüft diesen Ownership-
+und Modusvertrag unmittelbar vor der gepinnten Upload-Action. Checkout-Code
+für Runtime, Source-Export, Projektion, Verifikation und die abschließende
+Workflow-Summary läuft nur nach privatem PID-/Mount-Namespace und
+Privilegabgabe mit `no_new_privs`; privilegierte Operationen haben feste
+nur-Staging-Pfade und führen keinen Checkout-Code aus.
+
+Jeder eingebettete Immutable-Git-Object-Launcher verifiziert den exakten
+Git-Blob-Preimage `b"blob " + Dezimallänge + b"\0" + source`, bevor `compile`
+ihn ausführen kann. `\0` ist hier Git's einzelnes NUL-Trennbyte und nicht ein
+druckbarer Backslash plus Null; ein abweichender Preimage lässt den Job
+fehlschlagen, bevor ausgewählter Checkout-Code ausgeführt wird.
+
+Für eine Evidence-Receipt-Runtime fordert das Cleanup zuerst den `setsid`-
+Leader zum Stoppen auf, gibt ihm ein begrenztes Reaping-Fenster, beendet dann
+eine verbleibende Prozessgruppe und eskaliert nur nach Ablauf des begrenzten
+Termination-Fensters auf `KILL`. Es wartet weiterhin auf den aufgezeichneten
+Leader und verifiziert eine leere Prozessgruppe. Jeder fehlgeschlagene Stop-,
+Wait- oder Residual-Group-Check verhindert Receipt, Projektion und Upload.
+
+Diese Grenze zeichnet nur den festen P2-Receipt auf und beansprucht weder
+P3/P4 noch Produktionsreife oder ein erfolgreiches Hosted-Ergebnis, bevor der
+exakte Workflow-Lauf und sein hochgeladenes Artefakt beobachtet wurden.
+
 ## Status und Promotion
 
 | Status | Bedeutung |

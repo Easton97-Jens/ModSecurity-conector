@@ -21,7 +21,6 @@ KNOWN = [
     "modsecurity_transaction_id_expr",
     "modsecurity_use_error_log",
     "modsecurity_phase4_mode",
-    "modsecurity_phase4_content_types_file",
     "modsecurity_phase4_log",
     "modsecurity_phase4_body_limit",
 ]

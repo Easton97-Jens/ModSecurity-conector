@@ -77,10 +77,16 @@ Globale Gate-Definitionen sind in `docs/connectors/README.md` und
 
 - [ ] `make test-no-crs` für den Traefik-Scope ausgeführt
 - [ ] PASS/FAIL/BLOCKED-Zählungen dokumentiert
-- [x] Architekturgrenze in `capabilities.json` aufgezeichnet: Traefik 3.7 kann
-      einen forwardAuth-Body puffern, aber der eingecheckte forwardAuth-Pfad
-      aktiviert `forwardBody` nicht und verwendet `request_body_mode=none`;
-      Phase 2 ist daher für den ausgewählten Pfad `not_implemented`.
+- [x] Architekturgrenze in `capabilities.json` aufgezeichnet: Traefik 3.7
+      puffert forwardAuth-P2, wenn `forwardBody: true` und ein endliches
+      `maxBodySize` gesetzt sind. Der eingecheckte Pfad aktiviert beides mit
+      4096 Bytes, verlangt `request_body_mode=buffered`, und das Start-Harness
+      lehnt Templates ohne diese Einstellungen ab.
+      `request_body_mode=none` bleibt ausschließlich für den Legacy-
+      Kompatibilitätspfad ohne Request-Body erhalten und kann den ausgewählten
+      gepufferten Pfad nicht beschreiben.
+- [ ] Frische echte Host-Evidence für P2-Allow/Denial und Übergrößen promotet
+      die konfigurierte P2-Fähigkeit.
 - [x] Upstream-Response-Headers und -Bodies für `forwardAuth` als
       `unsupported_by_host_model` aufgezeichnet.
 - [ ] `make no-crs-baseline-traefik` erzeugt aktuelle kanonische Evidence.

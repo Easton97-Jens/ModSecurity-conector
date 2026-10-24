@@ -4,8 +4,8 @@
 # assumes a Traefik local-plugin registration named "modsecurityNative". The
 # full-lifecycle-traefik-native target stages the source and materializes an
 # equivalent disposable configuration for pinned Traefik. That harness selects
-# `engineMode: uds` with a private run-local socket; this checked-in reference
-# remains passthrough so it cannot contain a stale or shared runtime path.
+# `engineMode: uds` with a private socket path; operators must provision that
+# path under an access-controlled runtime directory before enabling the plugin.
 http:
   middlewares:
     modsecurity-native-streaming:
@@ -14,6 +14,9 @@ http:
           maxHeaderCount: 128
           maxHeaderBytes: 65536
           maxRequestChunkBytes: 32768
+          maxRequestBodyBytes: 1048576
+          requestBodyIdleTimeoutMillis: 1000
           maxResponseChunkBytes: 32768
           transactionIDHeader: X-Request-Id
-          engineMode: passthrough
+          engineMode: uds
+          engineSocketPath: /run/traefik-msconnector/engine.sock

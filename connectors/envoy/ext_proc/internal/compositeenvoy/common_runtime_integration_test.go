@@ -33,6 +33,13 @@ func (o *recordedLifecycleEvents) snapshot() []composite.Event {
 	return append([]composite.Event(nil), o.events...)
 }
 
+func closeCommonRuntimeForTest(t *testing.T, engine *processor.CommonRuntimeEngine) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return engine.Close(ctx)
+}
+
 func TestAuthzServerAllowsRealCommonRequestAndEmitsBoundedPipelineMetadata(t *testing.T) {
 	repositoryRoot, err := filepath.Abs("../../../../../")
 	if err != nil {
@@ -83,13 +90,13 @@ event_path=%s
 		MaxHeaderBytes:  64 << 10,
 	}, engine, observer)
 	if err != nil {
-		_ = engine.Close()
+		_ = closeCommonRuntimeForTest(t, engine)
 		t.Fatalf("composite.New: %v", err)
 	}
 	server, err := NewAuthzServer(coordinator)
 	if err != nil {
 		coordinator.Close()
-		_ = engine.Close()
+		_ = closeCommonRuntimeForTest(t, engine)
 		t.Fatal(err)
 	}
 	request := authCheckRequest(nil)
@@ -97,16 +104,16 @@ event_path=%s
 	response, err := server.Check(context.Background(), request)
 	if err != nil {
 		coordinator.Close()
-		_ = engine.Close()
+		_ = closeCommonRuntimeForTest(t, engine)
 		t.Fatalf("Check() with real Common engine: %v", err)
 	}
 	if response.GetOkResponse() == nil || response.GetDynamicMetadata().GetFields()[metadataLease].GetStringValue() == "" {
 		coordinator.Close()
-		_ = engine.Close()
+		_ = closeCommonRuntimeForTest(t, engine)
 		t.Fatalf("real Common allow response did not issue protected metadata: %#v", response)
 	}
 	coordinator.Close()
-	if err := engine.Close(); err != nil {
+	if err := closeCommonRuntimeForTest(t, engine); err != nil {
 		t.Fatalf("engine.Close: %v", err)
 	}
 	events := observer.snapshot()

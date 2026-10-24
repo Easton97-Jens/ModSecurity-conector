@@ -53,7 +53,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
     if not text.startswith("name: Trusted Lighttpd Namespace Dispatch\n"):
         errors.append("workflow name")
 
-    trigger_match = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:\n)", text)
+    trigger_match = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^permissions:)", text)
     if trigger_match is None:
         errors.append("workflow trigger section")
         trigger_body = ""
@@ -100,8 +100,8 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         if forbidden in text:
             errors.append(f"forbidden workflow content: {forbidden}")
 
-    if not re.search(r"(?m)^permissions:\n  contents: read\n", text):
-        errors.append("top-level contents-read permission")
+    if not re.search(r"(?m)^permissions: \{\}\n", text):
+        errors.append("top-level deny-default permission")
     if text.count("${{ inputs.target }}") != 1 or "          TARGET: ${{ inputs.target }}" not in text:
         errors.append("target must enter shell only through one environment value")
 
@@ -838,7 +838,20 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
 
     def test_representative_boundary_mutations_fail_closed(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertEqual(trusted_dispatch_errors(text), [])
         mutations = {
+            "global read permission": (
+                "permissions: {}\n",
+                "permissions:\n  contents: read\n",
+            ),
+            "global write permission": (
+                "permissions: {}\n",
+                "permissions:\n  contents: write\n",
+            ),
+            "global write-all permission": (
+                "permissions: {}\n",
+                "permissions: write-all\n",
+            ),
             "PR trigger": ("  workflow_dispatch:\n", "  pull_request:\n  workflow_dispatch:\n"),
             "PR target trigger": (
                 "  workflow_dispatch:\n",

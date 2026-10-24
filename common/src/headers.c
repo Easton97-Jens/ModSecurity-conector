@@ -103,7 +103,10 @@ int msconnector_headers_parse_content_length(const msconnector_header *headers, 
         size_t current = 0;
         if (!msconnector_header_is_content_length_name(headers[index].name, headers[index].name_size)) { continue; }
         if (headers[index].value == 0 || !parse_decimal(headers[index].value, headers[index].value_size, &current)) { return -1; }
-        if (seen && current != parsed) { return -1; }
+        /* Reject every duplicate rather than relying on an upstream's
+         * identical-value normalization. This keeps all host translations
+         * fail-closed for request-smuggling-sensitive framing. */
+        if (seen) { return -1; }
         parsed = current; seen = 1;
     }
     if (!seen) { return 0; }

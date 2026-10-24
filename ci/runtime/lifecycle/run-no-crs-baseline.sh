@@ -77,6 +77,7 @@ FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT='/./{p;q;}'
 TRANSPORT_ARTIFACT_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py
 HOSTRUNTIME_RECORD_WRITER=$CONNECTOR_ROOT/ci/runtime/lifecycle/write-hostruntime-record.py
 LIGHTTPD_HOST_BINARY_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/resolve-lighttpd-host-binary.py
+TRAEFIK_HOST_BINARY_RESOLVER=$CONNECTOR_ROOT/ci/runtime/lifecycle/resolve-traefik-host-binary.py
 TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py
 SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
 
@@ -126,6 +127,10 @@ fi
 }
 [ -f "$LIGHTTPD_HOST_BINARY_RESOLVER" ] || {
     echo "FAIL: Lighttpd host-binary resolver is missing: $LIGHTTPD_HOST_BINARY_RESOLVER" >&2
+    exit 1
+}
+[ -f "$TRAEFIK_HOST_BINARY_RESOLVER" ] || {
+    echo "FAIL: Traefik host-binary resolver is missing: $TRAEFIK_HOST_BINARY_RESOLVER" >&2
     exit 1
 }
 [ -f "$TRAEFIK_ARTIFACT_STAGER" ] || {
@@ -937,7 +942,20 @@ case "$connector" in
     # The native lifecycle may deliberately provide a freshly staged pinned
     # binary outside the reusable component cache.  Record the version of the
     # binary that actually executed the host, not merely the cache default.
-    traefik) host_binary=${TRAEFIK_BIN:-$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik} ;;
+    traefik)
+        if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+            host_binary=${TRAEFIK_BIN:-$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik}
+        else
+            # The stage child provisions the pinned archive into this exact
+            # connector build root. Its exported TRAEFIK_BIN cannot propagate
+            # back to this parent; inherited/cache paths describe another host.
+            host_binary=$("$PYTHON" "$TRAEFIK_HOST_BINARY_RESOLVER" \
+                --build-root "$CONNECTOR_BUILD_ROOT") || {
+                echo "INFO: staged Traefik host binary is unavailable or unsafe; host version remains not_provisioned" >&2
+                host_binary=
+            }
+        fi
+        ;;
     lighttpd)
         if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
             host_binary=$HOST_RUNTIME_ROOT/lighttpd-patched/stage/bin/lighttpd
@@ -962,13 +980,29 @@ if [ -n "$host_binary" ] && [ -x "$host_binary" ]; then
     case "$connector" in
         apache)
             apache_runtime_lib=$(dirname "$(dirname "$host_binary")")/lib
-            host_version=$(LD_LIBRARY_PATH="$apache_runtime_lib:${MODSECURITY_LIB_DIR:-}:${LD_LIBRARY_PATH:-}" \
-                "$host_binary" -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT")
+            if apache_version_output=$(LD_LIBRARY_PATH="$apache_runtime_lib:${MODSECURITY_LIB_DIR:-}:${LD_LIBRARY_PATH:-}" \
+                "$host_binary" -v); then
+                host_version=$(printf '%s\n' "$apache_version_output" | "$PYTHON" -c '
+import re
+import sys
+
+versions = [line.strip() for line in sys.stdin if line.strip().startswith("Server version:")]
+if len(versions) != 1 or not re.fullmatch(
+    r"Server version: Apache/\d+\.\d+\.\d+(?:[ \t]+\([^\r\n]*\))?", versions[0], flags=re.ASCII
+):
+    raise SystemExit("FAIL: Apache host did not report one valid native Server version")
+print(versions[0])
+') || exit 2
+            else
+                apache_version_rc=$?
+                echo "FAIL: Apache host version command failed (rc=$apache_version_rc)" >&2
+                exit "$apache_version_rc"
+            fi
             ;;
         nginx) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
         haproxy) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
         envoy) host_version=$($host_binary --version 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
-        traefik) host_version=$($host_binary version 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
+        traefik) host_version=$("$host_binary" version 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
         lighttpd) host_version=$($host_binary -v 2>&1 | sed -n "$FIRST_NONEMPTY_OUTPUT_LINE_SED_SCRIPT") ;;
         *)
             echo "FAIL: unsupported connector host-version mapping: $connector" >&2

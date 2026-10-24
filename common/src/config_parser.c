@@ -25,7 +25,7 @@ int msconnector_parse_bool(const char *value, enum msconnector_bool_option *out)
 
 int msconnector_parse_phase4_mode(const char *value, enum msconnector_phase4_mode *out) {
     enum msconnector_phase4_mode parsed;
-    if (token_equals(value, "minimal")) { parsed = MSCONNECTOR_PHASE4_MODE_MINIMAL; }
+    if (token_equals(value, "off")) { parsed = MSCONNECTOR_PHASE4_MODE_OFF; }
     else if (token_equals(value, "safe")) { parsed = MSCONNECTOR_PHASE4_MODE_SAFE; }
     else if (token_equals(value, "strict")) { parsed = MSCONNECTOR_PHASE4_MODE_STRICT; }
     else { return 0; }

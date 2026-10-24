@@ -171,6 +171,10 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
                     runtime_root, events_path, probe_path, upstream_path, rejected,
                 )
 
+            probe.write_text(
+                json.dumps({"status": 403, "response_bytes": 24, "content_type": "text/plain"}),
+                encoding="utf-8",
+            )
             decision_log.write_text(
                 "modsecurity-htx: request intervention observed; "
                 f"transaction_id={accepted} phase=1 status=403 rule_id=1100001 action=deny\n",

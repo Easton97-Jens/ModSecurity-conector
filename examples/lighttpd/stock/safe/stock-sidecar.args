@@ -1,0 +1,5 @@
+# CLI argv record; stock-sidecar does not parse this file as key=value.
+--config /etc/lighttpd/msconnector-stock-safe.conf
+--listen 127.0.0.1:8080
+--upstream 127.0.0.1:8081
+--timeout-ms 10000

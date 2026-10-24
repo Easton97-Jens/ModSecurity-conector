@@ -1,4 +1,4 @@
-# Start-smoke template. The connector script replaces both address tokens in a
+# Start-smoke template. The connector script replaces all address/socket tokens in a
 # temporary copy outside the checkout.
 http:
   routers:
@@ -8,15 +8,30 @@ http:
       rule: PathPrefix(`/`)
       middlewares:
       - modsecurity-forwardauth
+      - modsecurity-response-observer
       service: unused-upstream
   middlewares:
     modsecurity-forwardauth:
       forwardAuth:
         address: http://__AUTH_ADDRESS__/authorize
         trustForwardHeader: false
+        # P2 is deliberately buffered and bounded.  Do not remove either
+        # option: forwardAuth has no streaming request-body callback, and an
+        # omitted option would silently disable P2.
+        forwardBody: true
+        maxBodySize: 4096
         authRequestHeaders:
         - X-Modsec-Smoke
         - X-Request-Id
+        - Content-Type
+        - Content-Length
+        authResponseHeaders:
+        - X-Msconnector-Response-Handle
+    modsecurity-response-observer:
+      plugin:
+        modsecurityResponseObserver:
+          socketPath: __COMPANION_SOCKET__
+          timeoutMillis: 5000
   services:
     unused-upstream:
       loadBalancer:

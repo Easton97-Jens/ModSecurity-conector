@@ -338,12 +338,18 @@ def _open_runtime_root_descriptor() -> tuple[int, int]:
     """Open the filesystem root with the flags required for safe traversal."""
     no_follow = getattr(os, "O_NOFOLLOW", None)
     directory_flag = getattr(os, "O_DIRECTORY", None)
-    if no_follow is None or directory_flag is None:
+    path_flag = getattr(os, "O_PATH", None)
+    if no_follow is None or directory_flag is None or path_flag is None:
         raise ValueError(
-            "safe runtime directories require O_NOFOLLOW and O_DIRECTORY support"
+            "safe runtime directories require O_PATH, O_NOFOLLOW and O_DIRECTORY support"
         )
-    flags = os.O_RDONLY | directory_flag | no_follow
+    flags = path_flag | directory_flag | no_follow
     return os.open("/", flags), flags
+
+
+def _runtime_leaf_flags(ancestor_flags: int) -> int:
+    """Keep the actual writable leaf readable rather than a path-only handle."""
+    return (ancestor_flags & ~os.O_PATH) | os.O_RDONLY
 
 
 def _open_runtime_component(
@@ -419,9 +425,13 @@ def ensure_safe_runtime_directory(path: Path | str) -> Path:
     current_path = Path("/")
     shared_temp_root: Path | None = None
     try:
-        for component in directory_path.parts[1:]:
+        components = directory_path.parts[1:]
+        for index, component in enumerate(components):
+            flags = directory_flags
+            if index == len(components) - 1:
+                flags = _runtime_leaf_flags(directory_flags)
             child_descriptor = _open_runtime_component(
-                descriptor, component, directory_path, directory_flags
+                descriptor, component, directory_path, flags
             )
             os.close(descriptor)
             descriptor = child_descriptor
@@ -495,7 +505,10 @@ def _open_private_runtime_components(
             child_descriptor = -1
             try:
                 try:
-                    child_descriptor = os.open(component, flags, dir_fd=descriptor)
+                    component_flags = flags
+                    if index == len(components) - 1:
+                        component_flags = _runtime_leaf_flags(flags)
+                    child_descriptor = os.open(component, component_flags, dir_fd=descriptor)
                 except OSError as exc:
                     raise ValueError(
                         f"private runtime root is unavailable or unsafe: {root}: {exc}"

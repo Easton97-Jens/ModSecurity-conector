@@ -1,18 +1,25 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"google.golang.org/grpc"
+)
+
+const (
+	maxConcurrentConnections = 128
+	maxConcurrentStreams     = processor.DefaultMaxActiveStreams
 )
 
 type engineRuntime struct {
@@ -23,7 +30,7 @@ type engineRuntime struct {
 }
 
 type engineCloser interface {
-	Close() error
+	Close(context.Context) error
 }
 
 func main() {
@@ -57,24 +64,39 @@ func run() (int, error) {
 	if err != nil {
 		return 2, err
 	}
+	return runWithOptions(options)
+}
+
+func runWithOptions(options commandLineOptions) (int, error) {
 	config, err := loadServiceConfig(options)
 	if err != nil {
 		return 2, err
-	}
-	if options.checkConfig && options.runtimeConfigPath == "" {
-		fmt.Printf("envoy_ext_proc: config-check-pass config=%s listen=%s\n", options.configPath, config.ListenAddress)
-		return 0, nil
 	}
 	runtime, err := configuredEngine(options.runtimeConfigPath)
 	if err != nil {
 		return 2, fmt.Errorf("engine setup: %w", err)
 	}
-	defer closeEngine(runtime)
 	if options.checkConfig {
+		if err := validateServiceAdmission(config, runtime); err != nil {
+			if cleanupErr := closeEngine(runtime, time.Duration(config.ShutdownTimeoutMS)*time.Millisecond); cleanupErr != nil {
+				return 1, fmt.Errorf("%v; engine cleanup: %w", err, cleanupErr)
+			}
+			return 2, err
+		}
+		if err := closeEngine(runtime, time.Duration(config.ShutdownTimeoutMS)*time.Millisecond); err != nil {
+			return 1, fmt.Errorf("engine cleanup: %w", err)
+		}
 		fmt.Printf("envoy_ext_proc: config-check-pass config=%s runtime_config=%s engine=%s listen=%s\n", options.configPath, options.runtimeConfigPath, runtime.description, config.ListenAddress)
 		return 0, nil
 	}
-	return serve(config, runtime, options.eventLogPath)
+	exitCode, serveErr := serve(config, runtime, options.eventLogPath)
+	if err := closeEngine(runtime, time.Duration(config.ShutdownTimeoutMS)*time.Millisecond); err != nil {
+		if serveErr != nil {
+			return 1, fmt.Errorf("serve: %v; engine cleanup: %w", serveErr, err)
+		}
+		return 1, fmt.Errorf("engine cleanup: %w", err)
+	}
+	return exitCode, serveErr
 }
 
 func parseCommandLine() (commandLineOptions, error) {
@@ -105,20 +127,27 @@ func loadServiceConfig(options commandLineOptions) (processor.Config, error) {
 	return config, nil
 }
 
-func closeEngine(runtime engineRuntime) {
+func closeEngine(runtime engineRuntime, timeout time.Duration) error {
 	if closer, ok := runtime.engine.(engineCloser); ok {
-		if err := closer.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "envoy_ext_proc: Common runtime cleanup: %v\n", err)
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return closer.Close(ctx)
 	}
+	return nil
+}
+
+// validateServiceAdmission makes --check-config exercise the same policy
+// boundary that serve() reaches before it binds a listener. The discard
+// observer allocates no event sink, so validation cannot create traffic or
+// evidence side effects.
+func validateServiceAdmission(config processor.Config, runtime engineRuntime) error {
+	if _, err := processor.NewService(config, runtime.engine); err != nil {
+		return fmt.Errorf("service admission: %w", err)
+	}
+	return nil
 }
 
 func serve(config processor.Config, runtime engineRuntime, eventLogPath string) (int, error) {
-	listener, err := net.Listen("tcp", config.ListenAddress)
-	if err != nil {
-		return 1, fmt.Errorf("listen %s: %w", config.ListenAddress, err)
-	}
-	defer listener.Close()
 	observer, observerCloser, err := newObserver(eventLogPath, runtime)
 	if err != nil {
 		return 2, fmt.Errorf("event log: %w", err)
@@ -130,13 +159,65 @@ func serve(config processor.Config, runtime engineRuntime, eventLogPath string) 
 	if err != nil {
 		return 1, fmt.Errorf("service setup: %w", err)
 	}
+	listener, err := net.Listen("tcp", config.ListenAddress)
+	if err != nil {
+		return 1, fmt.Errorf("listen %s: %w", config.ListenAddress, err)
+	}
+	listener = newLimitedListener(listener, maxConcurrentConnections)
+	defer listener.Close()
 	grpcServer := grpc.NewServer(
 		grpc.MaxRecvMsgSize(config.MaxGRPCMessageBytes),
 		grpc.MaxSendMsgSize(config.MaxGRPCMessageBytes),
+		grpc.MaxConcurrentStreams(uint32(config.MaxConcurrentStreams)),
 	)
 	extprocv3.RegisterExternalProcessorServer(grpcServer, service)
 	fmt.Printf("envoy_ext_proc: serving integration_mode=ext_proc evaluation_mode=%s rule_evaluation=%s engine=%s listen=%s\n", runtime.evaluationMode, runtime.ruleEvaluation, runtime.description, config.ListenAddress)
-	return waitForServerTermination(grpcServer, listener, config.ShutdownTimeoutMS)
+	return waitForServerTermination(grpcServer, listener, config.ShutdownTimeoutMS, service.FatalErrors())
+}
+
+type limitedListener struct {
+	net.Listener
+	slots chan struct{}
+	done  chan struct{}
+}
+
+func newLimitedListener(listener net.Listener, maximum int) net.Listener {
+	return &limitedListener{Listener: listener, slots: make(chan struct{}, maximum), done: make(chan struct{})}
+}
+
+func (listener *limitedListener) Accept() (net.Conn, error) {
+	select {
+	case listener.slots <- struct{}{}:
+	case <-listener.done:
+		return nil, net.ErrClosed
+	}
+	connection, err := listener.Listener.Accept()
+	if err != nil {
+		<-listener.slots
+		return nil, err
+	}
+	return &limitedConn{Conn: connection, release: func() { <-listener.slots }}, nil
+}
+
+func (listener *limitedListener) Close() error {
+	select {
+	case <-listener.done:
+	default:
+		close(listener.done)
+	}
+	return listener.Listener.Close()
+}
+
+type limitedConn struct {
+	net.Conn
+	releaseOnce sync.Once
+	release     func()
+}
+
+func (connection *limitedConn) Close() error {
+	err := connection.Conn.Close()
+	connection.releaseOnce.Do(connection.release)
+	return err
 }
 
 func newObserver(eventLogPath string, runtime engineRuntime) (processor.Observer, *processor.JSONLObserver, error) {
@@ -150,7 +231,7 @@ func newObserver(eventLogPath string, runtime engineRuntime) (processor.Observer
 	return observer, observer, nil
 }
 
-func waitForServerTermination(grpcServer *grpc.Server, listener net.Listener, shutdownTimeoutMS int) (int, error) {
+func waitForServerTermination(grpcServer *grpc.Server, listener net.Listener, shutdownTimeoutMS int, fatalErrors <-chan error) (int, error) {
 	serveResult := make(chan error, 1)
 	go func() {
 		serveResult <- grpcServer.Serve(listener)
@@ -165,6 +246,14 @@ func waitForServerTermination(grpcServer *grpc.Server, listener net.Listener, sh
 			return 1, fmt.Errorf("serve: %w", err)
 		}
 		return 0, nil
+	case err := <-fatalErrors:
+		if err == nil {
+			return 1, fmt.Errorf("ext_proc terminal cleanup channel closed without an error")
+		}
+		if stopErr := forceStopServer(grpcServer, shutdownTimeoutMS); stopErr != nil {
+			return 1, fmt.Errorf("unrecoverable ext_proc transaction cleanup: %v; %w", err, stopErr)
+		}
+		return 1, fmt.Errorf("unrecoverable ext_proc transaction cleanup: %w", err)
 	case <-signals:
 	}
 
@@ -176,8 +265,29 @@ func waitForServerTermination(grpcServer *grpc.Server, listener net.Listener, sh
 	select {
 	case <-stopped:
 	case <-time.After(time.Duration(shutdownTimeoutMS) * time.Millisecond):
-		grpcServer.Stop()
-		<-stopped
+		// Stop itself waits for gRPC transports to close and can therefore block
+		// (for example while a transport is stuck). Keep that forced path
+		// bounded too; a stuck shutdown is a controlled nonzero process outcome
+		// and the supervisor must be allowed to restart the connector.
+		if err := forceStopServer(grpcServer, shutdownTimeoutMS); err != nil {
+			return 1, err
+		}
 	}
 	return 0, nil
+}
+
+func forceStopServer(grpcServer *grpc.Server, shutdownTimeoutMS int) error {
+	stopDone := make(chan struct{})
+	go func() {
+		grpcServer.Stop()
+		close(stopDone)
+	}()
+	forcedWait := time.NewTimer(time.Duration(shutdownTimeoutMS) * time.Millisecond)
+	defer forcedWait.Stop()
+	select {
+	case <-stopDone:
+		return nil
+	case <-forcedWait.C:
+		return fmt.Errorf("gRPC server Stop exceeded forced deadline")
+	}
 }

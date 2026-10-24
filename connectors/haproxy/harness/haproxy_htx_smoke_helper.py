@@ -8,6 +8,7 @@ upstream, and HAProxy process.  It never persists request/response payloads.
 from __future__ import annotations
 
 import argparse
+from email.message import Message
 import http.client
 import http.server
 import json
@@ -42,8 +43,15 @@ CANONICAL_RULE_SNIPPETS = (
 UPSTREAM_OK_BODY = b"haproxy-htx-upstream-ok\n"
 UPSTREAM_PHASE4_BODY = b"no-crs-response-body-marker\n"
 HTX_TRANSACTION_ID_MAX_LENGTH = 127
+MAX_HARNESS_HEADER_BYTES = 8 * 1024
+MAX_HARNESS_REQUEST_BODY_BYTES = 64 * 1024
+MAX_HARNESS_RESPONSE_BODY_BYTES = 64 * 1024
+MAX_HARNESS_EVIDENCE_BYTES = 64 * 1024
+MAX_HARNESS_LOG_BYTES = 256 * 1024
 UPSTREAM_REQUEST_LOG_LABEL = "upstream request log"
 FIRST_BYTE_EVIDENCE_LABEL = "first-byte evidence"
+PROBE_EVIDENCE_LABEL = "probe evidence"
+HAPROXY_HOST_LOG_LABEL = "HAProxy host log"
 DECISION_PATTERN = re.compile(
     r"transaction_id=(?P<transaction_id>[A-Za-z0-9._-]+) "
     r"phase=(?P<phase>[0-9]+) status=(?P<status>[0-9]+) "
@@ -60,10 +68,66 @@ LATE_DECISION_PATTERN = re.compile(
 )
 
 
+# A host-evidence record is meaningful only for one of the fixed lifecycle
+# cases emitted by the runtime runner.  Keep the runner's host translation in
+# this closed mapping so direct helper callers cannot create arbitrary phase,
+# action, status, or upstream-count combinations.
+HostEvidenceCase = tuple[int, int, int, tuple[int, ...], str, bool]
+HOST_EVIDENCE_CASES: dict[str, HostEvidenceCase] = {
+    "allow": (1, 0, 200, (1,), "forwarded", False),
+    "phase1_403": (1, 1100001, 403, (0,), "enforced_reply", True),
+    "phase1_429": (1, 1100002, 429, (0,), "enforced_reply", True),
+    "phase2_client_deny": (2, 1100101, 403, (0, 1), "enforced_reply", True),
+    "phase2_bodyless_eos": (2, 0, 200, (1,), "observed_only", False),
+    "phase3_403": (3, 1100201, 403, (1,), "enforced_reply", True),
+    "phase4_bodyless_eos": (4, 0, 200, (1,), "observed_only", False),
+    "phase4_safe_barrier": (4, 1100301, 200, (1,), "safe_log_only", True),
+}
+
+
+class UpstreamRequestError(ValueError):
+    """Reject malformed or incomplete private upstream request framing."""
+
+
+class UpstreamRequestTooLarge(UpstreamRequestError):
+    """Reject a private upstream request body before buffering it."""
+
+
+class UpstreamHeaderTooLarge(UpstreamRequestError):
+    """Reject private upstream headers before the handler processes a request."""
+
+
 def checked_path(root: Path, raw_path: str, label: str, *, must_exist: bool) -> Path:
     """Return one CLI path confined to the invocation's private runtime root."""
 
     return artifact_path(root, raw_path, label, must_exist=must_exist)
+
+
+def bounded_artifact_text(
+    root: Path,
+    path: str | Path,
+    label: str,
+    maximum: int,
+    *,
+    errors: str | None = None,
+) -> str:
+    """Read one private regular artifact only after its byte-size limit holds."""
+
+    target = checked_path(root, str(path), label, must_exist=True)
+    if target.stat().st_size > maximum:
+        raise ValueError(f"{label} exceeds {maximum}-byte limit")
+    return read_text(root, target, label, errors=errors)
+
+
+def shared_artifact_parent(label: str, *paths: Path) -> Path:
+    """Require evidence inputs for one claim to remain in one private case root."""
+
+    if not paths:
+        raise ValueError(f"{label} requires at least one private artifact")
+    parent = paths[0].parent
+    if any(path.parent != parent for path in paths[1:]):
+        raise ValueError(f"{label} must share one private case root")
+    return parent
 
 
 def prepare_runtime_root(runtime_root: str) -> int:
@@ -93,7 +157,7 @@ def write_json(root: Path, path: Path, record: dict[str, object]) -> None:
 
 def load_json_object(root: Path, path: str, label: str) -> dict[str, object]:
     try:
-        value = json.loads(read_text(root, path, label))
+        value = json.loads(bounded_artifact_text(root, path, label, MAX_HARNESS_EVIDENCE_BYTES))
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid {label}") from exc
     if not isinstance(value, dict):
@@ -151,6 +215,98 @@ def trusted_loopback_tls_context(root: Path, certificate_path: str) -> ssl.SSLCo
     return context
 
 
+def probe_headers(header: list[str]) -> dict[str, str]:
+    """Return bounded, injection-free headers for the private HTTPS client."""
+
+    headers: dict[str, str] = {}
+    seen_header_names: set[str] = set()
+    total_bytes = 0
+    for item in header:
+        name, separator, value = item.partition(":")
+        name = name.strip()
+        value = value.strip()
+        if not separator or re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name) is None:
+            raise ValueError(f"invalid header: {item!r}")
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError(f"invalid header: {item!r}")
+        normalized_name = name.lower()
+        if normalized_name in seen_header_names:
+            raise ValueError(f"duplicate header: {name}")
+        try:
+            total_bytes += len(name.encode("ascii")) + len(value.encode("latin-1")) + 4
+        except UnicodeEncodeError as exc:
+            raise ValueError(f"invalid header: {item!r}") from exc
+        if total_bytes > MAX_HARNESS_HEADER_BYTES:
+            raise ValueError("request headers exceed private harness limit")
+        headers[name] = value
+        seen_header_names.add(normalized_name)
+    return headers
+
+
+def bounded_request_body(data: str | None) -> bytes | None:
+    """Encode one CLI body only when it fits the private harness limit."""
+
+    if data is None:
+        return None
+    body = data.encode("utf-8")
+    if len(body) > MAX_HARNESS_REQUEST_BODY_BYTES:
+        raise ValueError("request body exceeds private harness limit")
+    return body
+
+
+def upstream_content_length(headers: Message) -> int:
+    """Validate the single supported private upstream request framing mode."""
+
+    transfer_encodings = headers.get_all("transfer-encoding", []) or []
+    content_lengths = headers.get_all("content-length", []) or []
+    if len(transfer_encodings) > 1:
+        raise UpstreamRequestError("duplicate transfer encoding")
+    if len(content_lengths) > 1:
+        raise UpstreamRequestError("duplicate content length")
+    if transfer_encodings and content_lengths:
+        raise UpstreamRequestError("conflicting request body framing")
+    if transfer_encodings:
+        raise UpstreamRequestError("unsupported transfer encoding")
+    if not content_lengths:
+        return 0
+    value = content_lengths[0].strip()
+    if re.fullmatch(r"\d+", value, flags=re.ASCII) is None:
+        raise UpstreamRequestError("invalid content length")
+    length = int(value, 10)
+    if length > MAX_HARNESS_REQUEST_BODY_BYTES:
+        raise UpstreamRequestTooLarge("request body exceeds private harness limit")
+    return length
+
+
+def upstream_header_bytes(headers: Message) -> int:
+    """Reject an aggregate incoming header section over the private limit."""
+
+    total_bytes = 0
+    for name, value in headers.items():
+        try:
+            total_bytes += len(name.encode("ascii")) + len(value.encode("latin-1")) + 4
+        except UnicodeEncodeError as exc:
+            raise UpstreamRequestError("invalid request header encoding") from exc
+        if total_bytes > MAX_HARNESS_HEADER_BYTES:
+            raise UpstreamHeaderTooLarge("request headers exceed private harness limit")
+    return total_bytes
+
+
+def read_upstream_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
+    """Read a fully framed bounded upstream body or fail before logging it."""
+
+    content_length = upstream_content_length(handler.headers)
+    if content_length == 0:
+        return b""
+    try:
+        body = handler.rfile.read(content_length)
+    except OSError as exc:
+        raise UpstreamRequestError("timed out reading request body") from exc
+    if len(body) != content_length:
+        raise UpstreamRequestError("incomplete request body")
+    return body
+
+
 def upstream_profile(raw_path: str) -> tuple[str, str | None, bytes]:
     path = raw_path.split("?", 1)[0]
     if path == "/no-crs/request-body":
@@ -166,13 +322,33 @@ class UpstreamHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: object) -> None:
         del fmt, args
 
+    def parse_request(self) -> bool:
+        if not super().parse_request():
+            return False
+        try:
+            upstream_header_bytes(self.headers)
+        except UpstreamHeaderTooLarge:
+            self.send_error(431)
+            self.close_connection = True
+            return False
+        except UpstreamRequestError:
+            self.send_error(400)
+            self.close_connection = True
+            return False
+        return True
+
     def answer(self) -> None:
         try:
-            content_length = int(self.headers.get("content-length") or "0")
-        except ValueError:
-            content_length = 0
-        if content_length > 0:
-            self.rfile.read(content_length)
+            self.connection.settimeout(2.0)
+            read_upstream_request_body(self)
+        except UpstreamRequestTooLarge:
+            self.send_error(413)
+            self.close_connection = True
+            return
+        except (UpstreamRequestError, OSError):
+            self.send_error(400)
+            self.close_connection = True
+            return
         profile, response_header, response_body = upstream_profile(self.path)
         request_log = getattr(self.server, "request_log", None)
         request_log_lock = getattr(self.server, "request_log_lock", None)
@@ -246,13 +422,8 @@ def probe(
     certificate_path: str, evidence_path: str | None = None,
 ) -> int:
     root = verified_runtime_root(runtime_root)
-    headers: dict[str, str] = {}
-    for item in header:
-        name, separator, value = item.partition(":")
-        if not separator or not name.strip():
-            raise ValueError(f"invalid header: {item!r}")
-        headers[name.strip()] = value.strip()
-    request_body = None if data is None else data.encode("utf-8")
+    headers = probe_headers(header)
+    request_body = bounded_request_body(data)
     host, port, request_path = checked_loopback_https_url(url)
     parsed = urllib.parse.urlsplit(url)
     if parsed.query:
@@ -267,7 +438,9 @@ def probe(
     try:
         connection.request(method, request_path, body=request_body, headers=headers)
         response = connection.getresponse()
-        response_body = response.read()
+        response_body = response.read(MAX_HARNESS_RESPONSE_BODY_BYTES + 1)
+        if len(response_body) > MAX_HARNESS_RESPONSE_BODY_BYTES:
+            raise ValueError("HAProxy response body exceeds private harness limit")
         status = int(response.status)
         content_type = str(response.headers.get("content-type") or "")[:256]
     finally:
@@ -275,7 +448,7 @@ def probe(
             response.close()
         connection.close()
     if evidence_path:
-        write_json(root, checked_path(root, evidence_path, "probe evidence", must_exist=False), {
+        write_json(root, checked_path(root, evidence_path, PROBE_EVIDENCE_LABEL, must_exist=False), {
             "status": status,
             "response_bytes": len(response_body),
             "content_type": content_type,
@@ -348,6 +521,8 @@ def streaming_probe(
             if not chunk:
                 break
             response_bytes += len(chunk)
+            if response_bytes > MAX_HARNESS_RESPONSE_BODY_BYTES:
+                raise ValueError("HAProxy response body exceeds private harness limit")
         write_json(root, evidence_output, {
             "status": int(response.status),
             "response_bytes": response_bytes,
@@ -455,11 +630,23 @@ def first_byte_evidence(
 
 
 def write_first_byte_evidence(
-    runtime_root: str, path: str, paused_path: str, client_first_byte_path: str,
+    runtime_root: str,
+    path: str,
+    paused_path: str,
+    client_first_byte_path: str,
+    published_path: str | None = None,
 ) -> int:
     root = verified_runtime_root(runtime_root)
     output = checked_path(root, path, FIRST_BYTE_EVIDENCE_LABEL, must_exist=False)
-    write_json(root, output, first_byte_evidence(root, paused_path, client_first_byte_path))
+    paused = checked_path(root, paused_path, "synchronized upstream pause record", must_exist=True)
+    client = checked_path(root, client_first_byte_path, "client first-byte record", must_exist=True)
+    shared_artifact_parent("first-byte evidence inputs", output, paused, client)
+    record = first_byte_evidence(root, str(paused), str(client))
+    write_json(root, output, record)
+    if published_path:
+        published = checked_path(root, published_path, FIRST_BYTE_EVIDENCE_LABEL, must_exist=False)
+        if published != output:
+            write_json(root, published, record)
     return 0
 
 
@@ -538,17 +725,23 @@ backend htx_upstream
 def read_probe(runtime_root: str, path: str) -> dict[str, object]:
     root = verified_runtime_root(runtime_root)
     try:
-        value = json.loads(read_text(root, path, "probe evidence"))
+        value = json.loads(bounded_artifact_text(
+            root, path, PROBE_EVIDENCE_LABEL, MAX_HARNESS_EVIDENCE_BYTES,
+        ))
     except json.JSONDecodeError as exc:
-        raise ValueError("invalid probe evidence") from exc
+        raise ValueError(f"invalid {PROBE_EVIDENCE_LABEL}") from exc
     if not isinstance(value, dict):
-        raise ValueError("probe evidence is not an object")
+        raise ValueError(f"{PROBE_EVIDENCE_LABEL} is not an object")
     status = value.get("status")
     response_bytes = value.get("response_bytes")
     content_type = value.get("content_type")
     if isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 599:
         raise ValueError("invalid probe status")
-    if isinstance(response_bytes, bool) or not isinstance(response_bytes, int) or response_bytes < 0:
+    if (
+        isinstance(response_bytes, bool)
+        or not isinstance(response_bytes, int)
+        or not 0 <= response_bytes <= MAX_HARNESS_RESPONSE_BODY_BYTES
+    ):
         raise ValueError("invalid probe response size")
     if not isinstance(content_type, str) or len(content_type) > 256:
         raise ValueError("invalid probe content type")
@@ -567,7 +760,9 @@ def upstream_count(runtime_root: str, path: str, profile: str) -> int:
     if not target.exists():
         return 0
     count = 0
-    for line in read_text(root, target, UPSTREAM_REQUEST_LOG_LABEL).splitlines():
+    for line in bounded_artifact_text(
+        root, target, UPSTREAM_REQUEST_LOG_LABEL, MAX_HARNESS_LOG_BYTES,
+    ).splitlines():
         if not line:
             continue
         try:
@@ -590,7 +785,9 @@ def upstream_transaction_observed(
     if not target.is_file():
         return False
     matches = 0
-    for line in read_text(root, target, UPSTREAM_REQUEST_LOG_LABEL).splitlines():
+    for line in bounded_artifact_text(
+        root, target, UPSTREAM_REQUEST_LOG_LABEL, MAX_HARNESS_LOG_BYTES,
+    ).splitlines():
         if not line:
             continue
         try:
@@ -610,45 +807,77 @@ def upstream_transaction_observed(
 def decision_from_log(runtime_root: str, path: str, phase: int, rule_id: int) -> dict[str, object]:
     root = verified_runtime_root(runtime_root)
     matches: list[dict[str, object]] = []
-    for line in read_text(root, path, "HAProxy host log", errors="replace").splitlines():
-        match = DECISION_PATTERN.search(line)
-        if not match:
-            continue
-        result = {
-            "transaction_id": safe_htx_transaction_id(match.group("transaction_id")),
-            "phase": int(match.group("phase")),
-            "status": int(match.group("status")),
-            "rule_id": int(match.group("rule_id")),
-            "action": match.group("action").lower(),
-        }
-        if result["phase"] == phase and result["rule_id"] == rule_id:
-            matches.append(result)
+    for line in bounded_artifact_text(
+        root, path, HAPROXY_HOST_LOG_LABEL, MAX_HARNESS_LOG_BYTES, errors="replace",
+    ).splitlines():
+        for match in DECISION_PATTERN.finditer(line):
+            result = {
+                "transaction_id": safe_htx_transaction_id(match.group("transaction_id")),
+                "phase": int(match.group("phase")),
+                "status": int(match.group("status")),
+                "rule_id": int(match.group("rule_id")),
+                "action": match.group("action").lower(),
+            }
+            if result["phase"] == phase and result["rule_id"] == rule_id:
+                matches.append(result)
     if not matches:
-        raise ValueError(f"HAProxy host log lacks phase {phase} rule {rule_id}")
-    return matches[-1]
+        raise ValueError(f"{HAPROXY_HOST_LOG_LABEL} lacks phase {phase} rule {rule_id}")
+    if len(matches) != 1:
+        raise ValueError(
+            f"{HAPROXY_HOST_LOG_LABEL} must contain exactly one phase {phase} rule {rule_id} decision",
+        )
+    return matches[0]
 
 
 def late_decision_from_log(runtime_root: str, path: str, phase: int, rule_id: int) -> dict[str, object]:
     root = verified_runtime_root(runtime_root)
     matches: list[dict[str, object]] = []
-    for line in read_text(root, path, "HAProxy host log", errors="replace").splitlines():
-        match = LATE_DECISION_PATTERN.search(line)
-        if not match:
-            continue
-        result: dict[str, object] = {
-            "transaction_id": safe_htx_transaction_id(match.group("transaction_id")),
-            "phase": int(match.group("phase")),
-            "status": int(match.group("status")),
-            "rule_id": int(match.group("rule_id")),
-            "requested_action": match.group("requested_action").lower(),
-            "resolved_policy_action": match.group("resolved_policy_action").lower(),
-            "host_action": match.group("host_action").lower(),
-        }
-        if result["phase"] == phase and result["rule_id"] == rule_id:
-            matches.append(result)
+    for line in bounded_artifact_text(
+        root, path, HAPROXY_HOST_LOG_LABEL, MAX_HARNESS_LOG_BYTES, errors="replace",
+    ).splitlines():
+        for match in LATE_DECISION_PATTERN.finditer(line):
+            result: dict[str, object] = {
+                "transaction_id": safe_htx_transaction_id(match.group("transaction_id")),
+                "phase": int(match.group("phase")),
+                "status": int(match.group("status")),
+                "rule_id": int(match.group("rule_id")),
+                "requested_action": match.group("requested_action").lower(),
+                "resolved_policy_action": match.group("resolved_policy_action").lower(),
+                "host_action": match.group("host_action").lower(),
+            }
+            if result["phase"] == phase and result["rule_id"] == rule_id:
+                matches.append(result)
     if not matches:
-        raise ValueError(f"HAProxy host log lacks late phase {phase} rule {rule_id}")
-    return matches[-1]
+        raise ValueError(f"{HAPROXY_HOST_LOG_LABEL} lacks late phase {phase} rule {rule_id}")
+    if len(matches) != 1:
+        raise ValueError(
+            f"{HAPROXY_HOST_LOG_LABEL} must contain exactly one late phase {phase} rule {rule_id} decision",
+        )
+    return matches[0]
+
+
+def checked_host_evidence_case(
+    case: str,
+    phase: int,
+    rule_id: int,
+    observed_status: int,
+    host_action: str,
+) -> HostEvidenceCase:
+    """Return the one canonical host translation for a lifecycle case."""
+
+    expected = HOST_EVIDENCE_CASES.get(case)
+    if expected is None:
+        raise ValueError(f"unsupported HAProxy host-evidence case: {case}")
+    expected_phase, expected_rule_id, expected_status, _, expected_action, _ = expected
+    if (
+        isinstance(phase, bool)
+        or isinstance(rule_id, bool)
+        or isinstance(observed_status, bool)
+        or (phase, rule_id, observed_status, host_action)
+        != (expected_phase, expected_rule_id, expected_status, expected_action)
+    ):
+        raise ValueError(f"HAProxy host evidence does not match the closed contract for {case}")
+    return expected
 
 
 def write_event(
@@ -656,13 +885,15 @@ def write_event(
     observed_status: int, host_action: str, original_http_status: int | None = None,
 ) -> int:
     root = verified_runtime_root(runtime_root)
-    if host_action != "enforced_reply":
+    expected = checked_host_evidence_case(case, phase, rule_id, observed_status, host_action)
+    if host_action != "enforced_reply" or expected[-1] is not True:
         raise ValueError("canonical event output is reserved for an enforced host reply")
     decision = decision_from_log(runtime_root, decision_log, phase, rule_id)
     if decision["action"] != "deny" or decision["status"] != observed_status:
         raise ValueError("host decision does not match the client-visible enforced reply")
-    if original_http_status is not None and not 100 <= original_http_status <= 599:
-        raise ValueError("invalid original upstream status")
+    expected_original_http_status = 200 if case == "phase3_403" else None
+    if original_http_status != expected_original_http_status:
+        raise ValueError("host event original upstream status does not match its closed case contract")
     record: dict[str, object] = {
         # This is a harness projection of the HAProxy host log and client
         # response, not a Common-runtime event or a capability promotion.
@@ -754,7 +985,11 @@ def phase4_safe_event(
     """
 
     root = verified_runtime_root(runtime_root)
-    decision = late_decision_from_log(runtime_root, decision_log, 4, 1100301)
+    decision_path = checked_path(root, decision_log, HAPROXY_HOST_LOG_LABEL, must_exist=True)
+    probe_path = checked_path(root, probe_path, PROBE_EVIDENCE_LABEL, must_exist=True)
+    evidence_path = checked_path(root, first_byte_evidence_path, FIRST_BYTE_EVIDENCE_LABEL, must_exist=True)
+    shared_artifact_parent("phase4 safe evidence", decision_path, probe_path, evidence_path)
+    decision = late_decision_from_log(runtime_root, str(decision_path), 4, 1100301)
     if (
         decision["requested_action"] != "deny"
         or decision["resolved_policy_action"] != "log_only"
@@ -762,10 +997,10 @@ def phase4_safe_event(
         or decision["status"] != 403
     ):
         raise ValueError("HAProxy late decision is not the required safe log-only outcome")
-    probe = read_probe(runtime_root, probe_path)
+    probe = read_probe(runtime_root, str(probe_path))
     if probe["status"] != 200 or int(probe["response_bytes"]) < 1:
         raise ValueError("HAProxy safe P4 client outcome must preserve HTTP 200 with a body")
-    evidence = load_json_object(root, first_byte_evidence_path, FIRST_BYTE_EVIDENCE_LABEL)
+    evidence = load_json_object(root, str(evidence_path), FIRST_BYTE_EVIDENCE_LABEL)
     required_true = (
         "promotion_eligible",
         "client_first_byte_received",
@@ -792,7 +1027,11 @@ def phase4_safe_event(
     if any(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in (first_chunk_size, body_seen, body_inspected)
-    ) or int(first_chunk_size) < 1 or int(body_inspected) > int(body_seen):
+    ) or (
+        int(first_chunk_size) < 1
+        or int(body_inspected) > int(body_seen)
+        or int(first_chunk_size) > int(probe["response_bytes"])
+    ):
         raise ValueError(f"{FIRST_BYTE_EVIDENCE_LABEL} has invalid body accounting")
     safe_run_id = safe_token(run_id, "run id", maximum=128)
     safe_transport_case = safe_token(transport_case_id, "transport case id")
@@ -846,9 +1085,20 @@ def write_host_evidence(
     upstream_requests: int, host_action: str, decision_log: str | None = None,
 ) -> int:
     root = verified_runtime_root(runtime_root)
-    if upstream_requests < 0:
-        raise ValueError("upstream request count must not be negative")
     probe = read_probe(runtime_root, probe_path)
+    expected = checked_host_evidence_case(
+        case, phase, rule_id, int(probe["status"]), host_action,
+    )
+    allowed_upstream_requests = expected[3]
+    requires_decision = expected[5]
+    if (
+        isinstance(upstream_requests, bool)
+        or not isinstance(upstream_requests, int)
+        or upstream_requests not in allowed_upstream_requests
+    ):
+        raise ValueError(f"upstream request count does not match the closed contract for {case}")
+    if bool(decision_log) != requires_decision:
+        raise ValueError(f"decision-log presence does not match the closed contract for {case}")
     if host_action in {"enforced_reply", "safe_log_only"} and int(probe["response_bytes"]) == 0:
         raise ValueError(f"{host_action} host outcome has no client response bytes")
     record: dict[str, object] = {
@@ -864,6 +1114,9 @@ def write_host_evidence(
     }
     if decision_log:
         decision = decision_from_log(runtime_root, decision_log, phase, rule_id)
+        expected_decision_status = 403 if case == "phase4_safe_barrier" else int(probe["status"])
+        if decision["action"] != "deny" or decision["status"] != expected_decision_status:
+            raise ValueError(f"host decision does not match the closed contract for {case}")
         record.update({
             "transaction_id": decision["transaction_id"],
             "decision_status": decision["status"],
@@ -908,6 +1161,7 @@ def parse_args() -> argparse.Namespace:
     first_byte.add_argument("--path", required=True)
     first_byte.add_argument("--paused-path", required=True)
     first_byte.add_argument("--client-first-byte-path", required=True)
+    first_byte.add_argument("--published-path")
     probe_status_parser = subparsers.add_parser("probe-status")
     probe_status_parser.add_argument("--path", required=True)
     rules = subparsers.add_parser("write-rules")
@@ -1005,6 +1259,7 @@ def command_handlers(args: argparse.Namespace) -> dict[str, Callable[[], int]]:
         ),
         "write-first-byte-evidence": lambda: write_first_byte_evidence(
             args.runtime_root, args.path, args.paused_path, args.client_first_byte_path,
+            args.published_path,
         ),
         "probe-status": lambda: print_result(probe_status(args.runtime_root, args.path)),
         "write-rules": lambda: write_rules(args.runtime_root, args.path, args.canonical_rules),

@@ -19,27 +19,52 @@ Byte oder einen Strict-Abbruch nach dem Commit. Das
 [Strict-Profilgrenze](#strict-profilgrenze) dokumentiert die optionale Grenze,
 ohne ein striktes Transportergebnis zu behaupten.
 
-Das [ext_authz-Kompatibilitätsbeispiel](#ext_authz-kompatibilität) ist
-ausdrücklich nur für die Request-Phase. Es darf nicht zur Beschreibung von
-P3/P4-Abdeckung verwendet werden.
+Das verbliebene [ext_authz-Kompatibilitätsbeispiel](#ext_authz-kompatibilität)
+ist nur für die Request-Phase. Die vollständige logische ext_authz-Lösung
+liegt unter `ext-authz/{off,safe,strict,all}` und ergänzt den verpflichtenden
+privaten UDS-Response-Observer für P3/P4.
 
 ## Dateien
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Template | Minimale gestreamte ext_proc-Transportform. |
-| [minimal/envoy-ext-proc-service.json](minimal/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Minimalprofil. |
-| [minimal/msconnector-runtime.conf](minimal/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=minimal`. |
+| [off/envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in) | Template | Gestreamte ext_proc-Transportform mit abgeschalteter zusätzlicher Late-Policy. |
+| [off/envoy-ext-proc-service.json](off/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Off-Kompatibilitätsprofil. |
+| [off/msconnector-runtime.conf](off/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=off`. |
 | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Template | Envoy-Listener, ext_proc-Filter und gRPC-/Upstream-Cluster. |
 | [safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) | Service-Konfiguration | Grenzen und Safe-Late-Action-Policy des Prozessors. |
+| [ext-proc/all/](ext-proc/all/) | Logisches Bundle | Umfassende ext_proc-Template-, Service- und Runtime-Konfiguration mit Strict-P4-Policy. |
+| [ext-authz/all/](ext-authz/all/) | Logisches Bundle | Umfassende ext_authz- plus private Response-Observer-Konfiguration mit Strict-P4-Policy. |
 | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Runtime-Konfiguration | DetectionOnly-Regeln mit dem ausgewählten ext_proc-Transport; siehe [DetectionOnly-Profil](#detectiononly-profil). |
 | [disabled/msconnector-runtime.conf](disabled/msconnector-runtime.conf) | Runtime-Konfiguration | Runtime deaktiviert, Host-YAML bleibt transportorientiert; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
 | [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
 | [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
 | [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | No-CRS-Regelquelle und Phasen-IDs. |
 | [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, keine Run-Evidence. |
-| [Minimale ext_proc-Referenz](#minimale-ext_proc-referenz) | Dokumentation | Vollständige minimale gestreamte Transportform. |
+| [Off-ext_proc-Referenz](#off-ext_proc-referenz) | Dokumentation | Vollständige gestreamte Transportform mit nativer Interventionsbehandlung. |
 | [ext_authz-Kompatibilität](#ext_authz-kompatibilität) | Kompatibilität | Frühere Request-Authorization-Route. |
+
+## Vollständige logische Profilmatrix
+
+Jede logische Envoy-Lösung besitzt ein materialisierbares Bundle für
+`off`, `safe`, `strict` und `all`. Jedes Bundle enthält ein Host-Template und eine
+Common-Runtime-Konfiguration mit sichtbaren Limits und Modi.
+
+| Logische Lösung | Off | Safe | Strict | All | P1/P2 | P3/P4 |
+| --- | --- | --- | --- | --- | --- | --- |
+| ext_proc | [Bundle](ext-proc/off/) | [Bundle](ext-proc/safe/) | [Bundle](ext-proc/strict/) | [Bundle](ext-proc/all/) | ext_proc | ext_proc |
+| ext_authz | [Bundle](ext-authz/off/) | [Bundle](ext-authz/safe/) | [Bundle](ext-authz/strict/) | [Bundle](ext-authz/all/) | ext_authz | privater UDS-ext_proc-Observer |
+
+Der ext_authz-Observer erhält nur das einmalige opaque Handle des
+Authorization-Service und anschließend Response-Header/-Body. Fehlende,
+abgelaufene oder abweichende Handles werden fail-closed behandelt. Sein Socket
+wird vom Envoy-Harness in ein privates, nur dem Eigentümer zugängliches
+Runtime-Verzeichnis gerendert; der Default im Quelltext ist
+`/run/modsecurity/envoy-ext-authz-companion.sock`.
+
+Die P1-Fortsetzung des Observers entfernt
+`x-msconnector-response-handle` ausdrücklich vor dem Upstream-Routing; das
+opaque Handle ist daher für die Anwendung nicht sichtbar.
 
 Alle obigen Pfade sind ab examples/envoy repository-relativ. Die erzeugte
 Runtime-Konfiguration muss außerhalb des Checkouts geschrieben werden.
@@ -74,7 +99,7 @@ Materializer-Platzhalter und den getrennten ext_authz-Kompatibilitätseintrag.
 | `SecRuleEngine` | ModSecurity Engine | Wählt Engine-Enforcement, DetectionOnly oder Off in der Runtime-Regeldatei. |
 | `request_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Request-Body-Eingabe für die native Bridge. |
 | `response_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Response-Body-Eingabe für die native Bridge. |
-| `late_action_policy` | Connector-Service | Zeichnet minimale, sichere oder strikte Post-Commit-Policy ohne erfundenen Status auf. |
+| `late_action_policy` | Connector-Service | Wählt off, safe oder strict; off bewahrt die native Behandlung ohne zusätzliche Late-Policy. |
 
 Das Entfernen von `ext_proc` deaktiviert den Connector-Pfad. `SecRuleEngine Off`
 lässt die Prozessorroute bestehen, deaktiviert aber die Engine-Regelauswertung.
@@ -111,9 +136,12 @@ auf safe. Sie ist die native Full-Lifecycle-Referenz. Ein P4-Ergebnis nach dem
 Start der Response wird als Safe-Log-only dargestellt, nicht als behaupteter
 später HTTP-Statuswechsel oder deterministischer Stream-Reset.
 
-Die separate ext_authz-Konfiguration kann weder Upstream-Response-Header noch
--Bodies sehen und wird deshalb absichtlich nicht als P3/P4-Kernpfad
-beschrieben. Es gibt kein Strict-Beispiel.
+Die separate Kompatibilitätskonfiguration kann weder Upstream-Response-Header
+noch -Bodies sehen und ist absichtlich keine vollständige logische
+Connectorlösung. Für den P1--P4-Vertrag die Bundles unter
+`ext-authz/{off,safe,strict,all}` verwenden. Strict dokumentiert die
+Entscheidungsgrenze, verspricht aber keinen künstlichen späten Status nach dem
+Response-Commit durch Envoy.
 
 ## No-CRS-Regeln
 
@@ -128,13 +156,13 @@ Runtime-Konfiguration. Die Repositoryquelle für das No-CRS-Profil ist
 | 1100201 | P3 | Response-Header-Deny |
 | 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
 
-## Minimale ext_proc-Referenz
+## Off-ext_proc-Referenz
 
 Der ausgewählte Envoy-Kern benötigt gestreamte ext_proc-Eingaben in beiden
-Richtungen. Die Minimaldateien liefern eine vollständige Transportform in
-[envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in),
+Richtungen. Die Off-Profildateien liefern eine vollständige Transportform in
+[envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in),
 ihren validierten Service-Vertrag und eine passende Common-Runtime-Datei mit
-`phase4_mode=minimal`. Es ist kein nativer Request-only-Pfad: Die Bridge
+`phase4_mode=off`. Es ist kein nativer Request-only-Pfad: Die Bridge
 benötigt weiterhin STREAMED-Request- und Response-Body-Modi. Das getrennte
 [ext_authz-Request-only-Material](#ext_authz-kompatibilität) bleibt
 Kompatibilitätsmaterial.
@@ -157,8 +185,8 @@ vom gestreamten ext_proc-Kern unter [safe/](safe/) getrennt.
 
 Die [ext_authz-Konfiguration](compatibility-ext-authz/envoy-ext-authz.yaml)
 macht die spätere Upstream-Response diesem Service nicht zugänglich. Sie ist
-keine P3/P4-, Safe-Late-Intervention-, Strict-, First-Byte- oder
-No-Buffer-Evidence.
+keine P3/P4-Evidence und bleibt nur als Request-only-Kompatibilitätsfixture
+erhalten.
 
 ## Validierung
 
@@ -193,13 +221,15 @@ CRS-Abdeckung.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Der ext_proc-Service akzeptiert `late_action_policy: strict`, zeichnet nach
-der Commit-Grenze aber aktuell `strict_abort_not_attempted` auf. Strict ist
-optional und es wird keine Late-Reset-Konfiguration behauptet.
+Das ext_proc-Service-JSON akzeptiert `late_action_policy: strict`, aber eine
+regelauswertende Common Runtime mit `phase4_mode=strict` weist das Profil
+`envoy-ext-proc` beim Start ab. Das Strict-Artefakt ist damit sichtbar und
+parsergestützt, aber absichtlich nicht startbar, bis eine deterministische
+Post-Commit-Envoy-Hostaktion nachgewiesen ist.
 
 Safe-ext_proc-Template und Service-Vertrag verwenden, generiertes YAML und
-Service-JSON validieren und Host-Evidenz ergänzen, bevor auf ein striktes
-Transportergebnis vertraut wird.
+Service-JSON validieren und die erforderliche Host-Evidenz ergänzen, bevor ein
+striktes Transportergebnis aktiviert wird.
 
 ## Verwandtes Material
 

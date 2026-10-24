@@ -725,7 +725,7 @@ def transport_metadata_value(value: Any) -> str | None:
 
 
 def late_intervention_mode_metadata_value(value: Any) -> str | None:
-    return normalized_metadata_enum(value, {"minimal", "safe", "strict"})
+    return normalized_metadata_enum(value, {"off", "safe", "strict"})
 
 
 _KNOWN_METADATA_NORMALIZERS = (

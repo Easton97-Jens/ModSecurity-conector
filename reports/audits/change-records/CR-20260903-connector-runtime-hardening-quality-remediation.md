@@ -1,0 +1,477 @@
+# Change Record CR-20260903-connector-runtime-hardening-quality-remediation
+
+**Language:** English | [Deutsch](CR-20260903-connector-runtime-hardening-quality-remediation.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | CR-20260903-connector-runtime-hardening-quality-remediation |
+| Date (UTC) | 2026-09-03 |
+| Base revision | 08fab232d77e300be15cb010e2adbcd590955727 (`origin/master`; current-master integration) |
+| Delivery status | Draft PR [#346](https://github.com/Easton97-Jens/ModSecurity-conector/pull/346) is the sole delivery authority. The current-master merge and local candidate evidence are documented below; exact hosted evidence and merge status must be read from the PR. This record does not itself assert a merge. |
+
+The initial command, runtime, limitation, and review sections below are retained
+historical snapshots from earlier candidates. The dated follow-up sections
+supersede them for the current-master candidate; neither snapshot substitutes
+for exact-head hosted evidence.
+
+## Motivation and problem statement
+
+This Parent-only remediation addresses the current PR's Codex review findings,
+SonarQube Cloud Quality-Gate errors, and red connector workflow evidence for
+runtime error, timeout, cancellation, protocol, and cleanup paths. The initial
+hosted state contained an Apache runtime failure, a bilingual-documentation
+heading failure, and a SonarQube Cloud gate error (`new_security_rating=3` and
+`new_duplicated_lines_density=4.5`).
+
+## Acceptance criteria
+
+- Correct the identified connector runtime and cleanup defects without
+  weakening fail-closed controls or changing CI/governance inputs.
+- Preserve legitimate allow/block behavior and add trigger and control
+  regression coverage at each changed boundary.
+- Remove the identified Sonar new-code security and duplication causes without
+  suppressions, exclusions, or Quality-Gate changes.
+- Keep English/German reader-facing documentation and the Change Record pair
+  materially equivalent.
+- Obtain fresh exact-head GitHub Actions and SonarQube Cloud evidence after a
+  normal push; delivery remains pending until those results exist.
+
+## Implementation decision and rationale
+
+The remediation corrects Apache listener-inode parsing and private artifact
+handling; Common event protocol-value double escaping plus lossless JSONL and
+integrity-chain handling; Traefik stable worker-slot cleanup; Lighttpd helper
+artifact, endpoint, executable, and zombie-session handling; Envoy ext_proc
+absolute stream lifetime, cancellation, and bounded post-send evidence after a
+confirmed response at the lifetime boundary; and the two bilingual heading
+hierarchies.
+
+For HAProxy SPOE/SPOP, the remediation uses checked `MSG_NOSIGNAL` full-write
+paths, terminal peer-local failure handling and rate-limited error evidence,
+detached bounded peer workers, immediate close on exhausted peer admission,
+strict worker/transaction limits, and fail-closed protocol outcomes. A
+response NOTIFY sent while response processing is disabled produces the
+documented 503 outcome before transaction processing; malformed NOTIFY and
+missing response correlation remain disruptive even in `mode=detect-only`.
+Valid engine Allow/Block decisions retain their configured mode semantics.
+The source-backed configuration renderer now documents that
+`response-body-timeout` must be zero only with `response-companion=none`.
+
+The scope is limited to Parent source, tests, connector documentation, example
+configuration, and this record. It includes no CI workflow, permission,
+branch-protection, ruleset, required-check, Framework, MRTS, Gitlink, direct
+`master`, or merge change. Current `master` remains the authoritative base.
+
+## Security impact
+
+The affected security boundaries include untrusted network peers,
+request/response streams, subprocess and artifact paths, Unix/TCP endpoints,
+protocol parsers, and concurrent transaction state. The implementation adds
+bounded path and endpoint checks, stable cleanup ownership, cancellation
+propagation, absolute stream lifetime, and single-pass event encoding while
+retaining existing authorization decisions. An independent post-fix review
+found an Apache `/proc/net/tcp` token-index defect; the parser and its
+actual-layout regression fixture were corrected, and focused verification
+passed. The final independent review then found three active Envoy service
+configurations missing the new mandatory stream lifetime; all were corrected.
+A later independent HAProxy boundary review found the response-phase,
+detect-only protocol-error, and saturated-admission gaps addressed above. The
+earlier combined-diff review is retained as historical evidence. A later
+two-stage Apache/lighttpd boundary review found, then verified the correction
+of, FIFO-before-type-check, directory-creation and artifact-parent TOCTOU,
+bounded cleanup-tree, and JSON-receipt resource-limit defects. Its final
+re-review found no concrete remaining bypass in the corrected boundary.
+
+## Changed files
+
+- `connectors/apache/harness/apache_process_guard.py`,
+  `connectors/apache/harness/run_apache_smoke.sh`, and their focused and real-
+  process tests for launch-bound supervision, parent death, pidfd failure,
+  typed state, exact-inode publication, retirement, and cleanup
+- Common event headers, runtime, JSON/JSONL/integrity implementation, and
+  `tests/event_json_utf8_smoke.c` plus
+  `tests/transaction_phase_runtime_companion_test.c`
+- `connectors/traefik/src/traefik_engine_service.c`, the Native UDS middleware
+  request-body watchdog/configuration/tests, and all synchronized Native UDS
+  examples plus English/German generated references
+- Lighttpd backend-close and Stock lifecycle harness source and tests,
+  including pre-registration parent-death, process identity, and cleanup
+- `ci/checks/common/check-common-helpers.sh`
+- Envoy ext_proc processor/configuration and composite integration source and
+  tests, including distinct stream-idle/lifetime causes, cancellation, bounded
+  native cleanup/destruction, duration bounds, English/German READMEs, active
+  service configurations, and example service configurations
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`, its cache-miss
+  harness and cleanup/ownership tests, HAProxy example configurations and
+  English/German configuration references, and
+  `reports/connector-configuration-inventory.json`
+- HAProxy response-timeout, transaction-cache, peer-isolation, resource-limit,
+  SIGPIPE/peer-isolation, and Sonar reliability contracts
+- `ci/checks/documentation/connector_config_reference.py` and
+  `tests/test_connector_config_reference.py`
+- Traefik Native UDS `.traefik.yml`, middleware source/tests, EN/DE READMEs,
+  dynamic profile examples, and `requestBodyIdleTimeoutMillis` operator
+  surfaces
+- this English/German Change Record pair and both archive indexes
+
+## Commands executed
+
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest
+  tests.test_apache_process_guard
+  connectors.lighttpd.tests.test_backend_close_harness_contract
+  connectors.lighttpd.tests.test_stock_lifecycle_harness_contract
+  tests.test_traefik_engine_service_shutdown_contract` — passed, 81 tests.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_haproxy_spop_response_timeout_contract
+  tests.test_haproxy_spop_transaction_cache_contract
+  tests.test_haproxy_spop_peer_isolation_contract
+  tests.test_haproxy_spop_resource_limits_contract
+  tests.test_haproxy_spop_sigpipe_peer_isolation_contract
+  tests.test_sonar_reliability_contract` — passed, 34 tests.
+- `rtk proxy make -C connectors/haproxy self-test-spoa-runtime` — passed;
+  the selected libModSecurity headers lack the optional rule-ID API and the
+  supported baseline probe was selected as designed.
+- In `connectors/envoy/ext_proc`, `rtk proxy go test -count=5
+  ./internal/processor`, `rtk proxy go test -race -count=1
+  ./internal/processor`, `rtk proxy go test -count=1 ./...`, and `rtk proxy go
+  vet ./...` — passed; deterministic controls cover successful response-CONTINUE
+  and immediate-response sends at the actual stream deadline, evidence failure,
+  terminal cleanup, and rejected follow-up admission.
+- `rtk proxy cc -std=c17 -Wall -Wextra -Werror -Icommon/include
+  tests/event_json_utf8_smoke.c common/src/*.c` followed by the smoke binary
+  and `jq` decoded-value assertion — passed. Strict C17 and ASAN/UBSAN builds
+  of that smoke and the real Common-runtime/libmodsecurity companion test —
+  including rejection of malformed UTF-8 without an event/chain advance and a
+  valid follow-up event — also passed; task-owned binaries are removed before
+  delivery.
+- `rtk proxy jq -e .` for the three active and four example Envoy service JSON
+  files — passed.
+- `rtk proxy cc -std=c17 -Wall -Wextra -Werror -fsyntax-only
+  -Icommon/include -Iconnectors/haproxy/src
+  connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` — passed.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_connector_config_reference` and
+  `rtk proxy python3 ci/checks/documentation/check-connector-config-reference.py
+  --repo-root .` — passed, 4 tests and current generated references.
+- `rtk proxy git diff --check` — passed at the final local validation point.
+- `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+  tests.test_bilingual_docs tests.test_connector_config_reference` — passed,
+  26 tests. At that historical validation point, the combined focused connector
+  set passed 119 tests.
+
+## Runtime evidence
+
+No complete local real-host matrix run is asserted. The Apache hosted runtime
+failure was traced to listener-inode parsing and corrected locally; exact-head
+hosted workflow evidence is still required. The real Common runtime regression
+proves a lossy event is neither written nor chained and that a legitimate
+follow-up succeeds. The HAProxy native self-test proves the connector's framed
+protocol controls but not a full HAProxy host integration or operating-system
+FD-leak audit.
+
+## Checks not run and rationale
+
+No complete local real-host matrix was run. The full bilingual documentation
+check was run but is `blocked_environment` solely because this task checkout
+lacks required Framework Gitlink targets; no Framework initialization or
+modification is authorized. PR-scoped SonarQube Cloud analysis and GitHub
+Actions have not yet run for the remediation head. No merge or direct `master`
+update is authorized.
+
+## Known limitations
+
+The ten connector solutions still need full runtime-layer failure-vector,
+parallelism, shutdown, and cleanup evidence where their real host dependencies
+are available.
+
+## Remaining risks
+
+Any remaining Sonar or hosted failure must be addressed from its exact-head
+evidence without weakening controls.
+
+## Final diff and review status
+
+An earlier local combined review is retained as historical evidence. The fresh
+independent Apache/lighttpd bypass review completed in two correction rounds:
+it first found the FIFO and creation race, then pathname-after-validation
+paths, and finally an unbounded `write-json --field` sink. The final narrow
+re-review found no concrete remaining bypass after the descriptor-relative and
+size-bound corrections. A normal remediation commit and push, then exact-head
+Codex, GitHub Actions, and SonarQube Cloud results, remain pending. This
+record deliberately does not claim a final commit, push, Quality Gate pass,
+workflow pass, or merge; those facts are reconciled only after they occur.
+
+## Follow-up trust-boundary correction
+
+The Apache smoke runner now prepares generated runtime, log, audit, module,
+configuration, document-root, and case-output directories through a
+descriptor-relative `mkdirat`/`O_DIRECTORY|O_NOFOLLOW` walk. It rejects a
+symlinked nested path without creating the target outside the runtime area,
+requires trusted ancestor ownership, and preserves both private `0700` and
+non-private-output-root legitimate controls. Apache evidence is opened
+descriptor-relatively below the private artifact root, accepts only a regular
+file, and is bounded to `1048576` bytes; FIFO and oversized evidence fail
+closed without blocking.
+
+The lighttpd Linux guard now opens the trusted root, artifact parent, and
+cleanup-tree descendants through verified directory descriptors. It opens
+candidate artifacts with `O_NONBLOCK|O_NOFOLLOW`, requires a private regular
+file before parsing, preserves retryable absent-log polling, and bounds the
+cleanup tree by entry count and depth. JSON receipts accept at most 32 fields,
+4096 bytes per field, and 65536 serialized bytes; an oversized receipt creates
+no artifact, while the fixed-provenance control remains accepted.
+
+The narrow Common helper test correction retains the lossless event contract:
+when serialization cannot produce a lossless event, the output buffer is empty
+rather than a synthetic `"truncated":true` record. This changes neither a
+workflow nor a ruleset, required check, Quality Gate, or production fail mode.
+
+The newest focused aggregate was:
+
+```text
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v \
+  tests.test_apache_process_guard tests.test_apache_smoke_case_output_root \
+  connectors.lighttpd.tests.test_backend_close_harness_contract \
+  connectors.lighttpd.tests.test_stock_lifecycle_harness_contract \
+  tests.test_haproxy_spop_peer_isolation_contract \
+  tests.test_haproxy_spop_sigpipe_peer_isolation_contract
+```
+
+It passed `114` tests. `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m
+py_compile` for the affected Apache/lighttpd Python guards and probes,
+`rtk proxy sh -n` for the affected Apache/lighttpd runners,
+`rtk proxy make check-common-helpers-c17`, and `rtk proxy git diff --check`
+also passed. `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v
+tests.test_bilingual_docs tests.test_connector_config_reference` also passed
+with `26` tests. The HAProxy revalidation confirms that a saturated gate closes the
+new peer and continues the accept loop; all slots can still be occupied until
+their bounded peer deadlines, a documented deployment-dependent residual that
+requires a real-agent saturation run before it can be classified further.
+
+## Exact-head Sonar authority-boundary follow-up — 2026-09-04
+
+This section supersedes the earlier pending-hosted-status statements above;
+those earlier statements remain historical snapshots rather than current
+delivery status.
+For exact PR head `d4f5674e8438d398696b1e92965d6e246618306f`, all returned
+GitHub Actions checks, including `bounded-c-cpp` and the five connector runtime
+matrix cells, succeeded. SonarQube Cloud alone failed the Quality Gate with
+`new_security_rating=3` (required `<=1`) and five open vulnerabilities: four
+`pythonsecurity:S8707` findings in the Apache process guard and one
+`pythonsecurity:S8705` finding in the lighttpd session guard. The duplication
+measure was `2.3`, within its configured threshold. No CI workflow, ruleset,
+branch rule, or required check was modified.
+
+The Apache guard no longer accepts generic `--directory` or `--artifact-root`
+flags from a direct invocation. The smoke runner supplies those capabilities
+through required trusted runner-scoped configuration; the existing
+descriptor-relative, ownership, mode, size-bound, and cleanup controls remain
+in force. The lighttpd guard no longer accepts an `argparse.REMAINDER` command.
+It constructs only four typed runner profiles: `lighttpd-config-check`,
+`lighttpd-server`, `stock-lifecycle-hold`, and bounded `sleep-duration`.
+Missing, unknown, additional, or conflicting profile values fail before
+`execv`; the Stock profile uses the fixed lifecycle probe and its fixed
+argument shape.
+
+The final local candidate passed the focused Apache/lighttpd/HAProxy aggregate
+below with `116` tests and the bilingual/config-reference suite with `26`
+tests:
+
+```text
+rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v \
+  tests.test_apache_process_guard tests.test_apache_smoke_case_output_root \
+  connectors.lighttpd.tests.test_backend_close_harness_contract \
+  connectors.lighttpd.tests.test_stock_lifecycle_harness_contract \
+  tests.test_haproxy_spop_peer_isolation_contract \
+  tests.test_haproxy_spop_sigpipe_peer_isolation_contract
+```
+
+Python compilation for the affected guards/probes, `sh -n` for all affected
+runners, `make check-common-helpers-c17`, and `git diff --check` also passed.
+Two independent post-patch authority-boundary reviews found no direct CLI
+bypass or runner-contract regression. The residual trust boundary is the
+runner process configuration and selected host executables: this is trusted
+orchestration input, not an authentication mechanism against a same-identity
+local principal. Such a principal is outside this local harness boundary.
+`FND-SONAR-0074` remains `in_progress` until a normal follow-up push produces
+a passing SonarQube Cloud result for its exact PR head.
+
+### lighttpd zombie-cleanup follow-up
+
+An original Codex review finding remained reproducible after the earlier
+zombie-state correction: `terminate_registered_session()` preserved raw initial
+session membership for audit, then incorrectly derived `unexpected_members`
+from that raw list. A pre-existing zombie therefore made
+`cleanup-session --reject-unexpected-members` fail after successful active
+containment. The guard now retains raw `initial_members` as evidence, but
+derives unexpected members from active initial non-leaders and verified
+non-leader TERM/KILL signals only. Uninspectable state remains fail-closed;
+live initial and late-forked members remain unexpected and keep the reject
+control effective.
+
+The regression launches a task session with a pre-existing zombie child,
+requires `cleanup-session --reject-unexpected-members` to return success, and
+proves that the zombie remains in `initial_members` but not in
+`unexpected_members`. The test waits for a complete child-PID record and gives
+the leader a TERM reaping path before any escalation. A process that disappears
+between membership scan and `/proc` state read is benign only for `ENOENT` or
+`ESRCH`; all other inspection failures remain fail-closed. The existing
+live-child and late-fork controls also passed. The two lighttpd harness contract
+suites passed with `65` tests; Python compilation and `git diff --check`
+passed. No CI workflow, ruleset, branch rule, or required check was changed.
+
+## Current-master integration follow-up — 2026-09-07
+
+PR #346 was semantically combined with current `origin/master`
+`08fab232d77e300be15cb010e2adbcd590955727` by a normal, non-rewriting merge.
+The five actual conflicts were resolved as unions of the current controls:
+the helper-aware Apache Common-adoption contract, bounded HAProxy SPOP parsing
+and peer isolation, the complete English/German Change Record indexes, and the
+combined Sonar reliability harness. The current-master NGINX and HAProxy
+checker repairs remain intact. The original #346 lighttpd response-abort and
+deferred-finish behavior was ported onto the current source layout rather than
+dropped during integration. No `.github/**`, ruleset, branch-protection,
+required-check, Quality-Gate, Gitlink, Framework, or MRTS path was changed.
+
+An independent integration review found that one running native SPOP owner
+could outlive its caller deadline, block all following owner work, and hold an
+unbounded shutdown join. The repair makes that queue terminal, closes
+admission and the listener, cancels pending work, and allows at most a fixed
+one-second shutdown grace. If native state remains reachable, the agent exits
+with documented restart status `75` without freeing or unwinding that state.
+A second review found the same lifetime class through a failed or hanging
+response-companion transport stop. That stop is now independently outer-
+bounded; every incomplete synchronization/stop path exits `75`. Common removes
+only its captured owned UDS inode before potentially blocking joins or worker
+waits. A replacement inode is deliberately retained. The final independent
+re-review found no remaining UAF, double-free, listener-FD reuse, or lock-order
+bypass in these paths.
+
+The exact-head Sonar analysis of `f572fa1a` reported only two `c:S5487`
+Reliability blockers in the SPOP owner-lock lifecycle. The follow-up uses a
+distinct process state for the legitimate post-restart self-test and snapshots
+the terminal restart disposition before destroying the queue lock. It neither
+suppresses an issue nor changes the Quality Gate. Two independent Envoy reviews
+also confirmed residual watchdog gaps after a successful response `Send` and
+inside `transaction.Close`: a native/CGo call that had already entered an
+uninterruptible section could retain the stream and admission slot without a
+fatal signal. Both operations are now outer-bounded. A stuck evidence call
+atomically transfers state ownership to one reaper; a stuck close returns a
+terminal cleanup failure. In both cases the process owner receives `FatalErrors`,
+follow-up admission is rejected, and the native transaction is never closed a
+second time or freed while still reachable. Engine-operation, stream-idle,
+stream-lifetime, and cleanup timeouts remain distinct controls.
+
+Current local evidence includes:
+
+- Common/Apache/NGINX: 146 tests passed plus 80 passed subtests; all four
+  Common-adoption targets and the Common security contract passed.
+- HAProxy: the complete Python/contract selection ran 239 tests, with 227
+  passed and 12 skipped, plus 93 passed subtests; the focused ASan/UBSan harness passed the terminal
+  owner, failed transport-stop, hanging transport-stop, and legitimate fresh-
+  instance controls. The real Common response-companion transport test passed
+  C17 `-Wall -Wextra -Werror` with ASan, UBSan, and leak detection, covering
+  parallel clients, UDS ownership, stop/restart, cancel, cleanup, and follow-up.
+- Envoy: all ext_proc package tests, the complete race suite, vet, and the
+  `-buildvcs=false` build passed, including deterministic blocked-evidence and
+  blocked-close fatal/reaper/follow-up controls. Traefik Native UDS, composite middleware, and response observer tests,
+  race tests, build, vet, fuzz, contracts, and runtime harnesses passed.
+- lighttpd: 154 tests passed with 28 skipped and 80 passed subtests; the tight
+  Stock/Patched/ABI selection passed 156 tests with 18 skipped and 108 passed
+  subtests. The Common-adoption target passed.
+- Bilingual documentation passed 22 tests; `git diff --check` passed.
+
+Four non-gating current-master baselines are not reclassified as successes:
+the standalone HAProxy SPOA self-test link fails identically on unchanged
+master with undefined `msconnector_block_status_is_allowed`; the Common SDK
+contract fails identically because its text checker matches a comment; and one
+Envoy example test fails identically because it asserts a gofmt-unstable column
+alignment. The NGINX bounded-soak contract also fails identically on unchanged
+master because it expects the retired single cleanup trap while the harness now
+uses distinct EXIT, INT, and TERM handlers. The lighttpd configuration target did not finish within the bounded
+local observation and has no claimed build result. Production SPOP PID/ready/
+port metadata is removed by the repository harness's runtime-root cleanup but
+is not inode-bound or removed by the standalone agent itself; this pre-existing
+supervisor/stale-metadata limitation remains explicit follow-up work. Exact-
+head GitHub Actions and SonarQube Cloud evidence remain pending until the normal
+integration commit is pushed; this section asserts neither that hosted result
+nor a merge to `master`.
+
+## Terminal cleanup-review follow-up — 2026-09-07
+
+The pre-delivery security review identified three PR-introduced gaps and they
+were corrected before the current candidate was finalized. Common Runtime no
+longer invokes the response-companion shutdown callback from generic service
+release: the serving path is the sole owner and invokes it exactly once, while
+a listener-setup failure invokes it zero times because no companion was
+started. This preserves the public callback contract for non-idempotent
+implementations and prevents double shutdown, double destroy, or a cleanup
+leak caused by a rejected second callback.
+
+The Apache process guard now closes a newly opened PID descriptor when any
+subsequent binding check fails. Cleanup evidence is fully written and closed
+in a private temporary file, then published by a non-overwriting hard link;
+short writes are completed and every failed publication rolls back its
+temporary and final names. On a storage error the guard uses the already
+verified in-memory identity and pidfd to terminate the just-started server,
+proves the listener and session are quiescent, and returns a distinct cleaned
+failure status. The shell then reaps that child, removes its PID file, verifies
+the port is free, and never performs an unbounded wait after invalid evidence.
+Ownership inspection is retried for a bounded interval. If a transient
+`/proc` or listener snapshot error occurred before a complete snapshot became
+available, the guard treats the observation as unstable, performs the same
+verified cleanup, and does not publish potentially inconsistent evidence.
+
+Traefik's new `maxRequestBodyBytes` control is represented in the English and
+German examples and configuration references, the selected safe dynamic
+configuration, and the generated configuration inventory. A source-backed
+test compares all eight native-middleware JSON fields with every one of those
+operator surfaces. The default and hard maximum remain 1048576 bytes.
+
+The focused local controls passed 56 Apache guard tests including 21
+parameterized/subtest cases, 15 Common worker and
+security contract tests, and 60 Traefik/documentation tests plus 15 subtests.
+The final aggregate and immutable exact-head security-diff evidence are
+recorded only after the candidate commit exists. Existing findings
+`FND-PARENT-0015` (same-identity pathname-UDS impersonation) and
+`FND-PARENT-0966` (forced Envoy shutdown drain ordering) remain pre-existing
+follow-up items and are not closed by this change. No `.github/**`, Quality
+Gate, ruleset, branch-protection, or required-check path was changed.
+
+## Final current-master validation — 2026-09-07
+
+The candidate is based on current `origin/master`
+`08fab232d77e300be15cb010e2adbcd590955727`, incorporated by the existing
+non-rewriting merge. No `.github/**`, ruleset, branch-protection,
+required-check, Quality-Gate, Gitlink, Framework, or MRTS path changed.
+
+Local validation covered Apache, HAProxy, Envoy, Traefik, and lighttpd.
+Apache process/smoke supervision and cleanup controls passed, including
+parent-death, pidfd-failure, evidence-publication, identity, retirement, and
+follow-up-request cases. HAProxy passed the bounded native owner/transport
+cleanup controls and the Common response-companion transport test with strict
+C17, ASan, UBSan, leak detection, parallel clients, cancel, restart, cleanup,
+and follow-up cases. Envoy ext_proc passed package tests, race tests, vet, and
+build validation, including bounded evidence/Close watchdogs, fatal/reaper
+handoff, cancellation, and follow-up admission. Traefik Native UDS,
+composite, and response-observer tests, race/build/vet/fuzz/contracts, and
+runtime harnesses passed, including the bounded request-body size and idle
+controls. lighttpd Stock/Patched/ABI lifecycle, parent-death, identity,
+zombie, and cleanup controls passed.
+
+The unchanged-master baselines remain explicitly non-gating and are not
+reclassified as successes: standalone HAProxy SPOA linking fails on the
+existing undefined `msconnector_block_status_is_allowed`; the Common SDK
+contract matches an existing comment; the Envoy example test asserts unstable
+gofmt column alignment; and the NGINX bounded-soak contract expects the
+retired single cleanup trap. The bounded lighttpd configuration observation
+did not produce a build result. Production SPOP PID/ready/port metadata
+remains a documented inode-binding/supervisor follow-up.
+
+`FND-PARENT-0015` (same-identity pathname-UDS impersonation) and
+`FND-PARENT-0966` (forced Envoy shutdown drain ordering) remain open
+pre-existing follow-up findings. Exact-head GitHub Actions and SonarQube Cloud
+results remain pending until the normal candidate push; no merge to `master`
+is claimed here.

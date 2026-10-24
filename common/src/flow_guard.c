@@ -35,7 +35,17 @@ int msconnector_flow_guard_mark_validated(msconnector_flow_guard *guard, enum ms
 }
 
 int msconnector_flow_guard_mark_immutable(msconnector_flow_guard *guard) { if (guard == 0) { return MSCONNECTOR_FLOW_GUARD_INVALID; } guard->immutable = 1; return MSCONNECTOR_FLOW_GUARD_OK; }
-int msconnector_flow_guard_next_sequence(msconnector_flow_guard *guard, unsigned long *sequence) { if (guard == 0 || sequence == 0) { return MSCONNECTOR_FLOW_GUARD_INVALID; } ++guard->sequence; *sequence = guard->sequence; return MSCONNECTOR_FLOW_GUARD_OK; }
+int msconnector_flow_guard_next_sequence(msconnector_flow_guard *guard, unsigned long *sequence) {
+    if (guard == 0 || sequence == 0) {
+        return MSCONNECTOR_FLOW_GUARD_INVALID;
+    }
+    if (guard->immutable) {
+        return MSCONNECTOR_FLOW_GUARD_IMMUTABLE;
+    }
+    ++guard->sequence;
+    *sequence = guard->sequence;
+    return MSCONNECTOR_FLOW_GUARD_OK;
+}
 
 const char *msconnector_flow_guard_error_name(int code) {
     switch (code) {

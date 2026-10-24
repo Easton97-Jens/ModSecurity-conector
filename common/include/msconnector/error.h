@@ -24,6 +24,13 @@ typedef enum msconnector_error_code {
     MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
     MSCONNECTOR_ERROR_TIMEOUT,
     MSCONNECTOR_ERROR_IO,
+    /* A bounded connector-local protocol frame or lifecycle message was
+     * malformed, unexpected, or otherwise failed closed. */
+    MSCONNECTOR_ERROR_PROTOCOL,
+    MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+    MSCONNECTOR_ERROR_CORRELATION_MISSING,
+    MSCONNECTOR_ERROR_CORRELATION_EXPIRED,
+    MSCONNECTOR_ERROR_CORRELATION_MISMATCH,
     MSCONNECTOR_ERROR_INTERNAL
 } msconnector_error_code;
 

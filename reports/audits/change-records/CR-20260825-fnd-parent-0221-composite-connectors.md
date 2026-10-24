@@ -141,6 +141,7 @@ returned:
 | P2 deny | 403 | `LIFECYCLE_ONLY` P1/P2 |
 | P2 oversize | 413 | `LIFECYCLE_ONLY` P1/P2 |
 | P3 deny | 403 | `LIFECYCLE_ONLY` P1/P2/P3 |
+| P3 redirect follow-up | 302 | `LIFECYCLE_ONLY` P1/P2/P3, exact `Location` attestation |
 | P4 Safe | 200 | `LIFECYCLE_ONLY` P1/P2/P3/P4, log-only |
 | metadata omitted | 503 | `LIFECYCLE_ONLY` pre-admission reservation plus terminal disconnect |
 | P2-to-P3 timeout | 503 | `LIFECYCLE_ONLY` P1/P2 plus terminal timeout |
@@ -158,16 +159,29 @@ runtime summary is payload-safe and retained locally with `FND-PARENT-0221`;
 no raw payload, credential, lease, or decision token is included in this
 record.
 
+On 2026-08-28, a fresh isolated Traefik H1 follow-up for `p3_redirect`
+returned HTTP 302. Its trusted client boundary observed exactly one canonical,
+bounded `Location`; the receipt keeps only
+`redirect_location_verified: true`, never the target value. A fresh Envoy
+`1.39.0` full H1 matrix exercised the same case, projected it through the
+shared verifier as `LIFECYCLE_ONLY`, and retained the same boolean-only
+attestation. Envoy's top-level matrix remains `structural_input_only`, and
+neither result is catalog acceptance or production promotion.
+
+The follow-up changes the shared verifier/docs, Envoy helper/matrix/projection,
+Traefik driver/matrix, and focused Python/Go tests. The verifier now requires
+the canonical P3 rule `1103002`, exactly HTTP 302, and the boolean attestation;
+it also normalizes absolute projection paths before containment checks. The
+latter closes the independent `FND-PARENT-0987` CWE-22 path-containment defect,
+which is fixed pending exact-PR-head verification.
+
 ## Checks not run and rationale
 
 - P4 Strict was not promoted: Envoy intentionally does not run it, and Traefik
   has no independently observed client-visible reset/abort.
-- The shared Traefik `p3_redirect` vector is configured as a 403 deny, so it
-  is non-passing as redirect evidence.
-- The full Traefik host matrix was not repeated after the final Envoy-only
-  status/terminal-normalizer patch. Its direct middleware/UDS race suite
-  passed, and the earlier Traefik receipts retain their stated
-  `LIFECYCLE_ONLY` scope.
+- P3 redirect now has the isolated Traefik and Envoy HTTP 302 evidence above,
+  but the full Traefik host matrix was not repeated after the follow-up. Those
+  receipts retain their stated `LIFECYCLE_ONLY` scope.
 - Real-host duplicate response callback, raw client cancellation, same-process
   Traefik follow-up, H2/H3, and broader cross-connector parity are not run.
 - One initial timeout invocation used a runtime-root suffix that intentionally

@@ -1,0 +1,208 @@
+schema_version = 2
+repository = "parent"
+catalog_version = "3.2"
+routing_marker = "codex-control-plane-routing:parent"
+
+# Canonical Parent policy catalog. Digests bind inheritance to the exact local policy body.
+[[policies]]
+id = "PARENT-ARCHITECTURE-AND-BOUNDARIES"
+source = ".codex/context/architecture-and-boundaries.md"
+sha256 = "8292052fc0c67fe1b49ab25142fb4c5ee18049f13b06d9ae5e34c16dc8286f18"
+inheritable = true
+
+[[policies]]
+id = "PARENT-CHANGE-WORKFLOW"
+source = ".codex/context/change-workflow.md"
+sha256 = "99338bc8dcf501aaad27af55e2360b32cdbd8194afe88d721a49f9b073933fb2"
+inheritable = true
+
+[[policies]]
+id = "PARENT-CLEANUP-AND-RESTORATION"
+source = ".codex/context/cleanup-and-restoration.md"
+sha256 = "aad7fb8de1f118ba702d8b396f3b590ff5818912f389f5d601cf264d722b9f91"
+inheritable = true
+
+[[policies]]
+id = "PARENT-COMMAND-EXECUTION"
+source = ".codex/context/command-execution-policy.md"
+sha256 = "93c767f969a8bcd3887676d76a2dacd9442dab8abb1acea0fb8a4f8130bb0927"
+inheritable = true
+
+[[policies]]
+id = "PARENT-CONNECTOR-MATRIX"
+source = ".codex/context/connector-matrix.md"
+sha256 = "36cc8773af6ee6dfc9bc28ad3453529ad2fd6ba16d2e07c6fc2cb70b1247bcbf"
+inheritable = true
+
+[[policies]]
+id = "PARENT-DEFINITION-OF-DONE"
+source = ".codex/context/definition-of-done.md"
+sha256 = "4b0c7bd9492fc6dbc8529928e56a1f76c4f14449964d4df47b308208c3a56c26"
+inheritable = true
+
+[[policies]]
+id = "PARENT-DELIVERY-AND-CI"
+source = ".codex/context/delivery-and-ci.md"
+sha256 = "423c10f4e99367f948d91aa559edfc52ee35fe35b84b3a8df22728f21b6448e4"
+inheritable = true
+
+[[policies]]
+id = "PARENT-DOCUMENTATION-AND-TRACEABILITY"
+source = ".codex/context/documentation-and-traceability.md"
+sha256 = "bd7a18cf341a2092e0b7e859f7cdd6359730ba679f809fc1b266172228572759"
+inheritable = true
+
+[[policies]]
+id = "PARENT-FEASIBILITY"
+source = ".codex/context/feasibility-policy.md"
+sha256 = "2efe9307718a16b54d6e8ec00053df838ac56362f6b66747e0f6fd5efd78f56a"
+inheritable = true
+
+[[policies]]
+id = "PARENT-FINDINGS"
+source = ".codex/context/findings-policy.md"
+sha256 = "14fd7c7fb774c81088c88069a435dfd0452b669e62205fb159e2d442261f494b"
+inheritable = true
+
+[[policies]]
+id = "PARENT-FRAMEWORK-ORCHESTRATION"
+source = ".codex/context/framework-orchestration.md"
+sha256 = "f7f36d5bf469422331f030bb5bb23e4b7473fec502ab4fdab2e0f71128cc1971"
+inheritable = true
+
+[[policies]]
+id = "PARENT-GIT-POLICY"
+source = ".codex/context/git-policy.md"
+sha256 = "2fe01fa7920e57110327d4bd37e32134757d6b24539184c3cb2252107a95c89a"
+inheritable = true
+
+[[policies]]
+id = "PARENT-INDEX"
+source = ".codex/context/index.md"
+sha256 = "535d9747811453344c862f80cb5cbfb6ffc013a29507db9e9519ade93fd9112b"
+inheritable = true
+
+[[policies]]
+id = "PARENT-MASTER-INTEGRATION"
+source = ".codex/context/master-integration.md"
+sha256 = "73a55eee25948fc24f0cc67f3507961d5a0967df02b45998e1fa6d83bf49e288"
+inheritable = true
+
+[[policies]]
+id = "PARENT-PHASE4-TARGET-SEMANTICS"
+source = ".codex/context/phase4-target-semantics.md"
+sha256 = "1b814c00833ced3c100746da8eae034da803e66067ea5d992b6429d91ff9ea3c"
+inheritable = true
+
+[[policies]]
+id = "PARENT-POLICY-PRECEDENCE"
+source = ".codex/context/policy-precedence.md"
+sha256 = "72fb1a260491f297e951f696255c743ae88a6ca29c3e2555f4823438de3f578e"
+inheritable = true
+
+[[policies]]
+id = "PARENT-PR-REMEDIATION"
+source = ".codex/context/pr-remediation.md"
+sha256 = "6581ff6431cdbf03f97d33bf09fcdb6b837bcdff382fdc011b6095cd7da37a20"
+inheritable = true
+
+[[policies]]
+id = "PARENT-PROTOCOL-AND-HARDENING"
+source = ".codex/context/protocol-and-hardening.md"
+sha256 = "8407cd777e22649a121607982bd1f2ab14d38c0c80f75ba7899e3a4825a1068b"
+inheritable = true
+
+[[policies]]
+id = "PARENT-PYTHON-POLICY"
+source = ".codex/context/python-policy.md"
+sha256 = "ee814ddea817e0b43c14f7526907322a2457eea89f035562982193a03d85f49e"
+inheritable = true
+
+[[policies]]
+id = "PARENT-RESOURCES-AND-STORAGE"
+source = ".codex/context/resources-and-storage.md"
+sha256 = "6258b815f57d05ce5e95f92729751ffbe3f8c9ebd75f5b9e45a6c220c5e64586"
+inheritable = true
+
+[[policies]]
+id = "PARENT-SECURITY-POLICY"
+source = ".codex/context/security-policy.md"
+sha256 = "9de88fcd03ba2eb797f85061499630c09d7afcc7eeba51e34a69a432c2b20185"
+inheritable = true
+
+[[policies]]
+id = "PARENT-SECURITY-RUNTIME-PREFLIGHT"
+source = ".codex/context/security-runtime-preflight.md"
+sha256 = "83a470e08b0ccf8a22a6e1e606ec4b8684e954636c2034c7b9c7535a17a33fa5"
+inheritable = true
+
+[[policies]]
+id = "PARENT-SONARQUBE-POLICY"
+source = ".codex/context/sonarqube-policy.md"
+sha256 = "073bf46e644df54fdc080fe1ab872007059c18787a243b32a65a83455cd486c0"
+inheritable = true
+
+[[policies]]
+id = "PARENT-SUBAGENTS-AND-BACKGROUND"
+source = ".codex/context/subagents-and-background.md"
+sha256 = "be9e4f3813e8b867524c66c700bdca8a06ad1c2d70815fc14f06c6326d33e329"
+inheritable = true
+
+[[policies]]
+id = "PARENT-TASK-WORKFLOW"
+source = ".codex/context/task-workflow.md"
+sha256 = "88ec5469763a1a1717ecb5ab4fd745bb0bd008b9f255530edba6dbee768777cd"
+inheritable = true
+
+[[policies]]
+id = "PARENT-TESTING-AND-EVIDENCE"
+source = ".codex/context/testing-and-evidence.md"
+sha256 = "cc55e61bfefed4ff6b9763c02270a7b692cb8f78692fa9fbbf3e10b6c1669118"
+inheritable = true
+
+[[policies]]
+id = "PARENT-TOOLING-AND-LANGUAGE"
+source = ".codex/context/tooling-and-language.md"
+sha256 = "a10d12af28a6c60f9a5933ca7228ccb96a53c5946942d3bbd3ae99b8fbee40d7"
+inheritable = true
+
+[aliases]
+"PARENT-ARCHITECTURE" = "PARENT-ARCHITECTURE-AND-BOUNDARIES"
+"PARENT-BUGFIX-WORKFLOW" = "PARENT-CHANGE-WORKFLOW"
+"PARENT-CLI-TOOLS" = "PARENT-TOOLING-AND-LANGUAGE"
+"PARENT-COMMANDS" = "PARENT-COMMAND-EXECUTION"
+"PARENT-CONNECTOR-TEST-MATRIX-POLICY" = "PARENT-CONNECTOR-MATRIX"
+"PARENT-CROSS-REPOSITORY-ORCHESTRATION-POLICY" = "PARENT-FRAMEWORK-ORCHESTRATION"
+"PARENT-DELIVERY-AND-CI-POLICY" = "PARENT-DELIVERY-AND-CI"
+"PARENT-DOCUMENTATION-POLICY" = "PARENT-DOCUMENTATION-AND-TRACEABILITY"
+"PARENT-FEASIBILITY-AND-EXECUTION-GATE-POLICY" = "PARENT-FEASIBILITY"
+"PARENT-FEATURE-WORKFLOW" = "PARENT-CHANGE-WORKFLOW"
+"PARENT-FINDING-MANAGEMENT-POLICY" = "PARENT-FINDINGS"
+"PARENT-FORK-AND-UPSTREAM-POLICY" = "PARENT-GIT-POLICY"
+"PARENT-FRAMEWORK-POLICY" = "PARENT-FRAMEWORK-ORCHESTRATION"
+"PARENT-LANGUAGE-STANDARDS-POLICY" = "PARENT-TOOLING-AND-LANGUAGE"
+"PARENT-LANGUAGE-TOOLING-POLICY" = "PARENT-TOOLING-AND-LANGUAGE"
+"PARENT-MASTER-INTEGRATION-AUTHORIZATION-POLICY" = "PARENT-MASTER-INTEGRATION"
+"PARENT-PARALLEL-BACKGROUND-AGENT-AND-COMMAND-POLICY" = "PARENT-SUBAGENTS-AND-BACKGROUND"
+"PARENT-POLICY-CONSISTENCY-AUDIT" = "PARENT-POLICY-PRECEDENCE"
+"PARENT-POLICY-COVERAGE-MATRIX" = "PARENT-POLICY-PRECEDENCE"
+"PARENT-PR-BRANCH-RETENTION-AND-CLEANUP-POLICY" = "PARENT-CLEANUP-AND-RESTORATION"
+"PARENT-PR-FEEDBACK-REMEDIATION-POLICY" = "PARENT-PR-REMEDIATION"
+"PARENT-PR-LIFECYCLE-AND-CHANGE-RECORD-RETENTION-POLICY" = "PARENT-DOCUMENTATION-AND-TRACEABILITY"
+"PARENT-PROJECT-OVERVIEW" = "PARENT-ARCHITECTURE-AND-BOUNDARIES"
+"PARENT-PROMPT-ADHERENCE-POLICY" = "PARENT-TASK-WORKFLOW"
+"PARENT-PROTOCOL-AND-HARDENING-POLICY" = "PARENT-PROTOCOL-AND-HARDENING"
+"PARENT-PYTHON-DEPENDENCY-AND-QUALITY-POLICY" = "PARENT-PYTHON-POLICY"
+"PARENT-PYTHON-ENVIRONMENT" = "PARENT-PYTHON-POLICY"
+"PARENT-PYTHON-TOOL-PROVISIONING-POLICY" = "PARENT-PYTHON-POLICY"
+"PARENT-QUESTION-AND-CLARIFICATION-POLICY" = "PARENT-TASK-WORKFLOW"
+"PARENT-SECURITY" = "PARENT-SECURITY-POLICY"
+"PARENT-SECURITY-WORKFLOW" = "PARENT-SECURITY-POLICY"
+"PARENT-SONARQUBE" = "PARENT-SONARQUBE-POLICY"
+"PARENT-SONARQUBE-CLOUD-POLICY" = "PARENT-SONARQUBE-POLICY"
+"PARENT-STORAGE-POLICY" = "PARENT-RESOURCES-AND-STORAGE"
+"PARENT-SUBAGENT-ORCHESTRATION-POLICY" = "PARENT-SUBAGENTS-AND-BACKGROUND"
+"PARENT-TESTING" = "PARENT-TESTING-AND-EVIDENCE"
+"PARENT-TOOL-UPDATE-POLICY" = "PARENT-TOOLING-AND-LANGUAGE"
+"PARENT-TRACEABILITY-POLICY" = "PARENT-DOCUMENTATION-AND-TRACEABILITY"
+"PARENT-WORKSPACE-RESTORATION-POLICY" = "PARENT-CLEANUP-AND-RESTORATION"

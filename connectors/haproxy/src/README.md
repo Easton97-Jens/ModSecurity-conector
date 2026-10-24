@@ -27,7 +27,8 @@ The SPOP runtime parses live NOTIFY arguments from HAProxy, including `method`,
 `uri`, `req.hdrs_bin` with a safe `req.hdrs` fallback, and `req.body`. The
 binding loads the materialized rules file, processes URI, headers, optional
 request body bytes, and libmodsecurity interventions, then the runtime sends
-the verified set-var ACK for 403 disruptive decisions.
+the verified set-var ACK for disruptive 403 decisions and exact P2 body-limit
+413 decisions.
 
 Live evidence currently covers request-side variables `REQUEST_URI`,
 `REQUEST_HEADERS`, `REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`,
@@ -36,8 +37,9 @@ plus CRS SQLi anomaly blocking in the With-CRS variant. Request-body support is
 bounded by the current HAProxy request-buffered, single-frame SPOE path
 (`tune.bufsize 65536`, `max-frame-size 65532`, one `req.body` argument).
 
-Response phases, audit-log assertions, redirects, non-403 disruptive statuses,
-and `RESPONSE_BODY` remain unimplemented for HAProxy runtime promotion.
+Response phases, audit-log assertions, redirects, other non-403 disruptive
+statuses, and `RESPONSE_BODY` remain unimplemented for HAProxy runtime
+promotion.
 
 Productive source may only be added with ORIGIN/license/metadata evidence,
 including the future HAProxy source origin, license, imported files, local

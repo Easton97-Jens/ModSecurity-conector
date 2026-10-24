@@ -4,24 +4,39 @@
 ``common.sh`` is never sourced or executed. The protected update workflow
 proves the Framework Git object, extracts its ``ci/lib/common.sh`` as a data
 file, and this tool accepts only a bounded registry-defined data grammar. It
-can write only the explicit Parent target registry.
+can write only the explicit Parent target registry. A separately validated
+resolver SHA may additionally update the single ordinary project version
+lock; it is never read from ``common.sh``.
 
-NGINX is intentionally outside this generic synchronizer. Its privileged
-release tuple remains owned by the dedicated root-broker workflow and must be
-updated through an independently reviewed NGINX change.
+The official ModSecurity v3 provenance tuple is a bounded source-data
+exception: only its exact repository, stable v3 release tag, and lowercase
+commit may project to the compiler-guide sources. NGINX remains outside this
+generic synchronizer; its privileged release tuple stays owned by the dedicated
+root-broker workflow and requires an independently reviewed NGINX change.
 """
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+import fcntl
+from functools import partial
 import json
 import os
 from pathlib import Path
 import re
 import stat
+import sys
 import tempfile
 from urllib.parse import urlsplit
+
+
+SCRIPT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SCRIPT_REPOSITORY_ROOT))
+from ci.lib.framework_revision_pins import (
+    FrameworkRevisionPinsError, LOCK_RELATIVE_PATH, parse_framework_revision_pins,
+)
 
 
 MAX_COMMON_BYTES = 256 * 1024
@@ -30,11 +45,13 @@ MAX_RESOLVED_VALUE_BYTES = 64 * 1024
 MAX_RESOLVED_TOTAL_BYTES = 256 * 1024
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
+LOWER_HEX40 = re.compile(r"^[0-9a-f]{40}$", re.ASCII)
 SAFE_PATCH = re.compile(r"^[A-Za-z0-9._-]+\.patch$")
 SERIES = re.compile(r"^(?a:\d+)\.(?a:\d+)$")
 OFFICIAL_LIGHTTPD_RELEASE_ROOT_URL = "https://download.lighttpd.net/lighttpd"
 OFFICIAL_HAPROXY_RELEASE_ROOT_URL = "https://www.haproxy.org/download"
 OFFICIAL_CRS_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
+OFFICIAL_MODSECURITY_REPOSITORY = "https://github.com/owasp-modsecurity/ModSecurity.git"
 ENVOY_PROJECTION = "Envoy projection"
 LIGHTTPD_PROJECTION = "Lighttpd projection"
 LIGHTTPD_RESOLUTION_DEPENDENCY = "Lighttpd resolution dependency"
@@ -45,6 +62,7 @@ HAPROXY_HTX_TUPLE = "HAProxy HTX tuple"
 HAPROXY_HTX_PROJECTION = "HAProxy HTX projection"
 HAPROXY_HTX_RESOLUTION_DEPENDENCY = "HAProxy HTX resolution dependency"
 CRS_PROJECTION = "CRS Parent projections"
+MODSECURITY_V3_PROJECTION = "ModSecurity v3 documentation projection"
 
 
 class SyncError(ValueError):
@@ -261,6 +279,27 @@ SOURCE_REGISTRY = (
         lambda value: bool(re.fullmatch(r"v(?a:\d+)\.(?a:\d+)\.(?a:\d+)", value)),
         CRS_PROJECTION,
     ),
+    SourceField(
+        "MODSECURITY_V3_APPROVED_REPO_URL",
+        True,
+        LITERAL,
+        _fixed_value(OFFICIAL_MODSECURITY_REPOSITORY),
+        MODSECURITY_V3_PROJECTION,
+    ),
+    SourceField(
+        "MODSECURITY_V3_APPROVED_COMMIT",
+        True,
+        LITERAL,
+        lambda value: bool(LOWER_HEX40.fullmatch(value)),
+        MODSECURITY_V3_PROJECTION,
+    ),
+    SourceField(
+        "MODSECURITY_V3_RELEASE_TAG",
+        True,
+        LITERAL,
+        lambda value: bool(re.fullmatch(r"v3\.(?a:\d+)\.(?a:\d+)", value)),
+        MODSECURITY_V3_PROJECTION,
+    ),
 )
 SOURCE_FIELDS = {field.name: field for field in SOURCE_REGISTRY}
 if len(SOURCE_FIELDS) != len(SOURCE_REGISTRY):
@@ -271,6 +310,14 @@ if len(SOURCE_FIELDS) != len(SOURCE_REGISTRY):
 class TargetSpec:
     relative_path: str
     fields: tuple[tuple[str, str], ...]
+    syntax: str
+
+
+@dataclass(frozen=True)
+class FrameworkShaProjectionSpec:
+    """One fixed Parent identity target owned by the resolver-SHA projector."""
+
+    relative_path: str
     syntax: str
 
 
@@ -293,6 +340,15 @@ TARGET_REGISTRY = (
     TargetSpec(
         "ci/provisioning/components/prepare-runtime-components.py",
         (("DEFAULT_HAPROXY_VERSION", "HAPROXY_VERSION"),),
+        "python",
+    ),
+    TargetSpec(
+        "tests/test_prepare_runtime_components.py",
+        (
+            ("TEST_HAPROXY_LOCKED_VERSION", "HAPROXY_VERSION"),
+            ("TEST_HAPROXY_LOCKED_SOURCE_URL", "HAPROXY_SOURCE_URL"),
+            ("TEST_HAPROXY_LOCKED_SHA256", "HAPROXY_SHA256"),
+        ),
         "python",
     ),
     TargetSpec(
@@ -343,6 +399,30 @@ TARGET_REGISTRY = (
         ),
         "haproxy-contract",
     ),
+    TargetSpec(
+        "scripts/generate_compiler_guides.py",
+        (
+            ("MODSECURITY_REF_COMMAND", "MODSECURITY_REF_COMMAND"),
+            ("MODSECURITY_COMMIT_COMMAND", "MODSECURITY_COMMIT_COMMAND"),
+        ),
+        "python",
+    ),
+    TargetSpec(
+        "tests/test_compiler_guides.py",
+        (
+            ("MODSECURITY_REF_COMMAND", "MODSECURITY_REF_COMMAND"),
+            ("MODSECURITY_COMMIT_COMMAND", "MODSECURITY_COMMIT_COMMAND"),
+        ),
+        "python",
+    ),
+)
+
+# This target class is deliberately separate from TARGET_REGISTRY. The value
+# comes only from the workflow's already-validated official Framework commit,
+# never from candidate common.sh data. Its closed scope prevents the generic
+# synchronizer from gaining ownership of unrelated runtime or NGINX pins.
+FRAMEWORK_SHA_PROJECTION_TARGETS = (
+    FrameworkShaProjectionSpec(LOCK_RELATIVE_PATH, "project-versions-lock"),
 )
 
 # Security boundary: the general Framework updater must never regain ownership
@@ -356,6 +436,8 @@ if any(
     for _target_name, source_name in spec.fields
 ):
     raise RuntimeError("NGINX must not be registered as a Framework Parent target")
+if any("nginx" in spec.relative_path.lower() for spec in FRAMEWORK_SHA_PROJECTION_TARGETS):
+    raise RuntimeError("NGINX must not be registered as a Framework SHA projection target")
 
 
 def _absolute(path: Path) -> Path:
@@ -524,10 +606,13 @@ def _source_variable_part(value: str, index: int, field: SourceField) -> tuple[t
     if match is None:
         raise SyncError(f"invalid variable reference in {field.name}")
     reference = match.group(1)
+    next_index = index + len(match.group(0))
+    if next_index < len(value) and re.match(r"\w", value[next_index], re.ASCII):
+        raise SyncError(f"ambiguous source variable reference in {field.name}")
     _require_expression_type(field, "references")
     if reference not in SOURCE_FIELDS:
         raise SyncError(f"unknown source variable reference in {field.name}: {reference}")
-    return ("reference", reference, ""), index + len(match.group(0))
+    return ("reference", reference, ""), next_index
 
 
 def _source_expression_parts(rhs: str, field: SourceField) -> list[tuple[str, str, str]]:
@@ -917,9 +1002,35 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
     return json.dumps(payload, indent=2) + "\n"
 
 
-def _render_targets(root: Path, values: dict[str, str]) -> list[RenderedTarget]:
+def _render_framework_sha_projection_targets(
+    root: Path, framework_sha: str
+) -> list[RenderedTarget]:
+    """Update only the approved Framework revision; retain MRTS and toolchain pins."""
+    path = _target_path(root, LOCK_RELATIVE_PATH)
+    original, mode = _read_regular(path, "Framework revision lock", allowed_root=root)
+    try:
+        payload = parse_framework_revision_pins(original)
+    except FrameworkRevisionPinsError as exc:
+        raise SyncError(f"invalid Framework revision lock: {exc}") from exc
+    if payload["framework_sha"] == framework_sha:
+        replacement = original
+    else:
+        payload["framework_sha"] = framework_sha
+        replacement = (json.dumps(payload, indent=2) + "\n").encode("utf-8")
+    return [RenderedTarget(path, original, replacement, mode)]
+
+
+def _render_targets(
+    root: Path, values: dict[str, str], framework_sha: str | None
+) -> list[RenderedTarget]:
     derived = {
         "ENVOY_IMAGE": f"envoyproxy/envoy:v{values['ENVOY_VERSION']}",
+        "MODSECURITY_REF_COMMAND": (
+            f'MODSECURITY_REF="{values["MODSECURITY_V3_RELEASE_TAG"]}"'
+        ),
+        "MODSECURITY_COMMIT_COMMAND": (
+            f'MODSECURITY_COMMIT="{values["MODSECURITY_V3_APPROVED_COMMIT"]}"'
+        ),
     }
     rendered: list[RenderedTarget] = []
 
@@ -941,6 +1052,8 @@ def _render_targets(root: Path, values: dict[str, str]) -> list[RenderedTarget]:
             raise SyncError(f"registered target is not UTF-8 text: {path}") from exc
         replacement = _render_target(spec, text, values, path, source_value)
         rendered.append(RenderedTarget(path, original, replacement.encode("utf-8"), mode))
+    if framework_sha is not None:
+        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha))
     return rendered
 
 
@@ -986,7 +1099,10 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def _replace_file(path: Path, contents: bytes, mode: int) -> None:
+def _replace_file(
+    path: Path, contents: bytes, mode: int,
+    on_replaced: Callable[[], None] | None = None,
+) -> None:
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(descriptor, "wb", closefd=True) as handle:
@@ -996,6 +1112,8 @@ def _replace_file(path: Path, contents: bytes, mode: int) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        if on_replaced is not None:
+            on_replaced()
         _fsync_directory(path.parent)
     finally:
         if descriptor >= 0:
@@ -1004,33 +1122,94 @@ def _replace_file(path: Path, contents: bytes, mode: int) -> None:
             os.unlink(temporary)
 
 
-def synchronize(root: Path, framework_common: Path, sync: bool) -> list[str]:
+@contextmanager
+def _project_version_transaction(root: Path, sync: bool) -> Iterator[None]:
+    """Use the same directory lock as all project-version publishers."""
+    directory = _require_directory(root / Path(LOCK_RELATIVE_PATH).parent, "project version directory")
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX if sync else fcntl.LOCK_SH)
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def synchronize(
+    root: Path,
+    framework_common: Path,
+    sync: bool,
+    framework_sha: str | None = None,
+) -> list[str]:
     repository_root = _require_directory(root, "repository root")
+    if framework_sha is not None and not LOWER_HEX40.fullmatch(framework_sha):
+        raise SyncError("Framework SHA must be exactly 40 lowercase hexadecimal characters")
     values = parse_common(framework_common)
-    rendered = _render_targets(repository_root, values)
-    changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
-    if sync and changed:
-        _commit_rendered(rendered)
+    with _project_version_transaction(repository_root, sync):
+        rendered = _render_targets(repository_root, values, framework_sha)
+        changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
+        if sync and changed:
+            _commit_rendered(rendered)
+
     return changed
+
+
+def _require_target_unchanged(
+    item: RenderedTarget, expected: bytes, expected_metadata: os.stat_result | None = None,
+) -> None:
+    current, mode = _read_regular(
+        item.path, "synchronization target", allowed_root=item.path.parent,
+    )
+    if current != expected or mode != item.mode:
+        raise SyncError(f"synchronization target changed concurrently: {item.path}")
+    if expected_metadata is not None:
+        observed = item.path.lstat()
+        for field in ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns"):
+            if getattr(observed, field) != getattr(expected_metadata, field):
+                raise SyncError(f"synchronization target metadata changed concurrently: {item.path}")
 
 
 def _commit_rendered(rendered: list[RenderedTarget]) -> None:
     committed: list[RenderedTarget] = []
+    written_metadata: dict[Path, os.stat_result] = {}
+
+    def record_replacement(item: RenderedTarget) -> None:
+        committed.append(item)
+        written_metadata[item.path] = item.path.lstat()
+
     try:
+        # Check the complete prepared transaction before its first mutation.
+        for item in rendered:
+            _require_target_unchanged(item, item.original)
         for item in rendered:
             if item.replacement == item.original:
                 continue
-            _replace_file(item.path, item.replacement, item.mode)
-            committed.append(item)
-    except OSError as exc:
-        rollback_errors: list[str] = []
-        for item in reversed(committed):
-            try:
-                _replace_file(item.path, item.original, item.mode)
-            except OSError as rollback_exc:
-                rollback_errors.append(str(rollback_exc))
-        detail = "; rollback failed: " + "; ".join(rollback_errors) if rollback_errors else ""
-        raise SyncError(f"synchronization failed; completed changes were rolled back: {exc}{detail}") from exc
+            _require_target_unchanged(item, item.original)
+            # Track the replace itself, before directory fsync can fail.
+            _replace_file(item.path, item.replacement, item.mode, partial(record_replacement, item))
+    except (OSError, SyncError) as exc:
+        rollback_errors = _rollback_rendered(committed, written_metadata)
+        if rollback_errors:
+            outcome = "rollback incomplete: " + "; ".join(rollback_errors)
+        else:
+            outcome = "completed changes were rolled back"
+        raise SyncError(f"synchronization failed; {outcome}: {exc}") from exc
+
+
+def _rollback_rendered(
+    committed: list[RenderedTarget], written_metadata: dict[Path, os.stat_result],
+) -> list[str]:
+    rollback_errors: list[str] = []
+    for item in reversed(committed):
+        try:
+            # Never overwrite an unrelated edit made after our replacement,
+            # including an in-place edit which retains the same inode.
+            if item.path not in written_metadata:
+                raise SyncError(f"cannot verify replacement metadata for rollback: {item.path}")
+            _require_target_unchanged(item, item.replacement, written_metadata[item.path])
+            _replace_file(item.path, item.original, item.mode)
+        except (OSError, SyncError) as rollback_exc:
+            rollback_errors.append(str(rollback_exc))
+    return rollback_errors
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1039,11 +1218,22 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--validate", action="store_true", help="parse inputs and targets without requiring an already-synced tree")
     mode.add_argument("--check", action="store_true", help="fail when a fixed target would change")
     mode.add_argument("--sync", action="store_true", help="write the fixed target registry atomically")
-    parser.add_argument("--repo-root", type=Path, default=Path(__file__).parents[2])
+    parser.add_argument("--repo-root", type=Path, default=SCRIPT_REPOSITORY_ROOT)
     parser.add_argument("--framework-common", type=Path, required=True)
+    parser.add_argument(
+        "--framework-sha",
+        help="validated official Framework SHA to project to the ordinary project version lock",
+    )
     args = parser.parse_args(argv)
     try:
-        changed = synchronize(_absolute(args.repo_root), _absolute(args.framework_common), args.sync)
+        if _absolute(args.repo_root) != SCRIPT_REPOSITORY_ROOT:
+            raise SyncError("CLI repository root must be the repository containing this script")
+        changed = synchronize(
+            SCRIPT_REPOSITORY_ROOT,
+            _absolute(args.framework_common),
+            args.sync,
+            args.framework_sha,
+        )
     except (OSError, SyncError) as exc:
         print(f"sync-framework-component-versions: error: {exc}")
         return 2

@@ -30,7 +30,8 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("pull_request:", self.caller)
         self.assertNotIn("pull_request_target:", self.caller)
         self.assertNotIn("workflow_call:", self.caller)
-        self.assertIn("permissions:\n  contents: read", self.caller)
+        self.assertIn("\npermissions: {}\n", self.caller)
+        self.assertIn("  no-crs:\n    permissions:\n      contents: read\n", self.caller)
         self.assertIn("uses: ./.github/workflows/reusable-five-connectors-profile.yml", self.caller)
         self.assertIn("profile: no-crs", self.caller)
         self.assertNotIn("inputs:", self.caller)
@@ -43,7 +44,9 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("schedule:", self.reusable)
         self.assertNotIn("pull_request:", self.reusable)
         self.assertNotIn("pull_request_target:", self.reusable)
-        self.assertIn("permissions:\n  contents: read", self.reusable)
+        self.assertIn("\npermissions: {}\n", self.reusable)
+        for job in ("resolve-profile", "no-crs", "aggregate"):
+            self.assertIn(f"  {job}:\n    permissions:\n      contents: read\n", self.reusable)
         self.assertNotIn("secrets:", self.reusable)
         self.assertNotIn("permissions: write", self.reusable)
         self.assertNotIn("sudo", self.reusable.lower())
@@ -54,6 +57,7 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("github.event.inputs", self.reusable)
 
     def test_matrix_is_resolver_backed_and_every_row_is_revalidated(self) -> None:
+        self.assertIn("python3 -m unittest -v tests.test_all_connectors_no_crs_workflow_contract", self.reusable)
         self.assertIn("five-connector-no-crs-profile.py \\", self.reusable)
         self.assertIn('--profile "$PROFILE" --emit-github-matrix', self.reusable)
         self.assertIn("matrix: ${{ fromJSON(needs.resolve-profile.outputs.matrix) }}", self.reusable)

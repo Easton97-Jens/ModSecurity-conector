@@ -1,6 +1,7 @@
 #include "first.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -18,11 +19,20 @@
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/lighttpd/src/lighttpd_modsecurity_mapper.h"
 #include "msconnector/late_intervention.h"
+#include "msconnector/transaction_contract.h"
+#include "connectors/profile_registry.h"
+
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+#define MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE "patched-native-lighttpd"
+#else
+#define MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE "native-lighttpd-plugin"
+#endif
 
 typedef struct {
     int enabled;
     int expose_host_transaction_id;
     const buffer *config_file;
+    const buffer *request_body_gate;
 } plugin_config;
 
 typedef struct {
@@ -53,6 +63,7 @@ typedef struct {
     int request_body_gate_rejected;
     int response_body_finished;
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    int response_body_aborted;
     off_t request_body_next_offset;
     off_t response_body_next_offset;
 #endif
@@ -80,6 +91,10 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
     off_t stream_offset,
     int eos,
     void *p_d);
+static plugin_body_hook_result mod_msconnector_handle_response_abort(
+    request_st *r,
+    plugin_response_abort_reason reason,
+    void *p_d);
 #endif
 
 static const plugin mod_msconnector_plugin = {
@@ -94,6 +109,7 @@ static const plugin mod_msconnector_plugin = {
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
   .handle_request_body          = mod_msconnector_handle_request_body,
   .handle_response_body         = mod_msconnector_handle_response_body,
+  .handle_response_abort        = mod_msconnector_handle_response_abort,
 #endif
 };
 
@@ -129,6 +145,9 @@ static void mod_msconnector_merge_config_cpv(
       case 2: /* msconnector.expose-host-transaction-id */
         config->expose_host_transaction_id = cpv->v.u != 0U;
         break;
+      case 3: /* msconnector.request-body-gate */
+        config->request_body_gate = cpv->v.b;
+        break;
       default:
         break;
     }
@@ -152,6 +171,9 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         T_CONFIG_SCOPE_SERVER }
      ,{ CONST_STR_LEN("msconnector.expose-host-transaction-id"),
         T_CONFIG_BOOL,
+        T_CONFIG_SCOPE_SERVER }
+     ,{ CONST_STR_LEN("msconnector.request-body-gate"),
+        T_CONFIG_STRING,
         T_CONFIG_SCOPE_SERVER }
      ,{ NULL, 0,
         T_CONFIG_UNSET,
@@ -217,14 +239,44 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         return HANDLER_ERROR;
     }
     if (!msconnector_runtime_set_event_integration_mode(
-            p->runtime, "patched-native-lighttpd")) {
+            p->runtime, MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE)) {
         log_error(
             srv->errh,
             __FILE__,
             __LINE__,
-            "msconnector runtime could not set patched-native-lighttpd event integration mode");
+            "msconnector runtime could not set %s event integration mode",
+            MSCONNECTOR_LIGHTTPD_EVENT_INTEGRATION_MODE);
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
+    }
+
+    {
+        const char *solution_id =
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+            "lighttpd-patched";
+#else
+            "lighttpd-stock";
+#endif
+        const msconnector_transaction_profile *profile =
+            msconnector_profile_registry_find(solution_id);
+        if (profile == NULL ||
+            msconnector_transaction_profile_phase_route(profile,
+                MSCONNECTOR_PHASE_REQUEST_HEADERS) !=
+                MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT ||
+            msconnector_transaction_profile_phase_route(profile,
+                MSCONNECTOR_PHASE_RESPONSE_HEADERS) !=
+                MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT) {
+            log_error(srv->errh, __FILE__, __LINE__,
+                "lighttpd transaction profile is missing direct P1/P3 support");
+            msconnector_runtime_destroy(&p->runtime);
+            return HANDLER_ERROR;
+        }
+        if (!msconnector_runtime_set_transaction_profile(p->runtime, profile)) {
+            log_error(srv->errh, __FILE__, __LINE__,
+                "lighttpd transaction profile injection failed");
+            msconnector_runtime_destroy(&p->runtime);
+            return HANDLER_ERROR;
+        }
     }
 
 #ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
@@ -242,6 +294,18 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         return HANDLER_ERROR;
     }
     if (request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&
+        (p->defaults.request_body_gate == NULL ||
+         buffer_is_blank(p->defaults.request_body_gate) ||
+         strcmp(p->defaults.request_body_gate->ptr, "pre-upstream") != 0)) {
+        log_error(
+            srv->errh,
+            __FILE__,
+            __LINE__,
+            "patched lighttpd request_body_mode=streaming requires msconnector.request-body-gate=pre-upstream");
+        msconnector_runtime_destroy(&p->runtime);
+        return HANDLER_ERROR;
+    }
+    if (request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING &&
         msconnector_runtime_body_limit_action(p->runtime) !=
           MSCONNECTOR_BODY_LIMIT_ACTION_REJECT) {
         log_error(
@@ -249,6 +313,17 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
             __FILE__,
             __LINE__,
             "patched lighttpd request_body_mode=streaming requires body_limit_action=reject to retain a bounded pre-upstream request-body buffer");
+        msconnector_runtime_destroy(&p->runtime);
+        return HANDLER_ERROR;
+    }
+    if (request_body_mode != MSCONNECTOR_BODY_MODE_STREAMING &&
+        p->defaults.request_body_gate != NULL &&
+        !buffer_is_blank(p->defaults.request_body_gate)) {
+        log_error(
+            srv->errh,
+            __FILE__,
+            __LINE__,
+            "msconnector.request-body-gate is only valid with request_body_mode=streaming");
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
@@ -531,6 +606,18 @@ static handler_t mod_msconnector_prepare_request_body(
     if (r->reqbody_length == 0) {
         return mod_msconnector_finish_request_body(r, p, ctx);
     }
+    if (p->request_body_limit == 0U ||
+        (r->reqbody_length > 0 &&
+         (uintmax_t)r->reqbody_length > (uintmax_t)p->request_body_limit)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "patched lighttpd request body exceeds the Common P2 bound before upstream release");
+        ctx->request_body_gate_rejected = 1;
+        return mod_msconnector_error_response(
+            r, p->runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
+    }
     if (r->conf.stream_request_body
         & (FDEVENT_STREAM_REQUEST | FDEVENT_STREAM_REQUEST_BUFMIN)) {
         return mod_msconnector_reject_request_body_gate_conflict(
@@ -593,6 +680,19 @@ static handler_t mod_msconnector_handle_request_body(
             "msconnector request-body hook received a non-contiguous range");
         return mod_msconnector_error_response(
             r, p->runtime, MSCONNECTOR_ERROR_HOST_API_FAILURE);
+    }
+    if (length < 0 ||
+        (uintmax_t)stream_offset > (uintmax_t)p->request_body_limit ||
+        (uintmax_t)length >
+            (uintmax_t)p->request_body_limit - (uintmax_t)stream_offset) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "patched lighttpd request-body hook exceeded the Common P2 bound");
+        ctx->request_body_gate_rejected = 1;
+        return mod_msconnector_error_response(
+            r, p->runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
     }
 
     append.ctx = ctx;
@@ -668,6 +768,10 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
     ctx->response_body_finished = 1;
     if (!msconnector_decision_is_disruptive(&decision)) {
         return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+    if (phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF) {
+        return mod_msconnector_apply_decision(r, p, ctx, &decision) == HANDLER_ERROR
+            ? PLUGIN_BODY_HOOK_ERROR : PLUGIN_BODY_HOOK_ABORT;
     }
 
     msconnector_late_intervention_policy_init(&policy);
@@ -789,6 +893,34 @@ static plugin_body_hook_result mod_msconnector_handle_response_body(
     ctx->response_body_next_offset += (off_t)length;
     return eos ? mod_msconnector_finish_response_body(r, p, ctx)
                : PLUGIN_BODY_HOOK_CONTINUE;
+}
+
+static plugin_body_hook_result mod_msconnector_handle_response_abort(
+        request_st *r,
+        plugin_response_abort_reason reason,
+        void *p_d) {
+    plugin_data *p = p_d;
+    handler_ctx *ctx = r->plugin_ctx[p->id];
+
+    if (reason != PLUGIN_RESPONSE_ABORT_UPSTREAM_EOF ||
+        !p->response_body_hooks_enabled || ctx == NULL ||
+        ctx->transaction == NULL || ctx->response_body_finished ||
+        ctx->response_body_aborted) {
+        return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+
+    /* This is deliberately not the normal EOS callback: an upstream EOF
+     * before Content-Length/dechunk completion is a typed abort event.  The
+     * host owns the fail-closed response and request reset owns destruction. */
+    ctx->response_body_aborted = 1;
+    log_error(
+        r->conf.errh,
+        __FILE__,
+        __LINE__,
+        "msconnector event=upstream_eof response-body-abort host-transaction-id=%s offset=%lld",
+        ctx->host_request_id,
+        (long long)ctx->response_body_next_offset);
+    return PLUGIN_BODY_HOOK_CONTINUE;
 }
 
 #endif
@@ -1009,6 +1141,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
     handler_ctx **ctx_slot = (handler_ctx **)&r->plugin_ctx[p->id];
     handler_ctx *ctx = *ctx_slot;
     msconnector_error runtime_error;
+    int defer_transaction_finish = 0;
 
     if (ctx == NULL) {
         return HANDLER_GO_ON;
@@ -1027,13 +1160,17 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
         else if (p->response_body_hooks_enabled &&
                  ctx->response_processed && !ctx->response_body_finished) {
             /* A disconnect/reset did not reach the entity EOS callback.  Do
-             * not synthesize Phase-4 completion from request reset; destroy
-             * the transaction after Common's bounded cleanup attempt. */
-            log_error(
-                r->conf.errh,
-                __FILE__,
-                __LINE__,
-                "msconnector entity-body lifecycle ended without EOS; no synthetic Phase-4 finalization was emitted");
+             * not synthesize Phase-4 completion from request reset.  Defer
+             * the single bounded finish attempt to handler_ctx_destroy(),
+             * which also performs native transaction cleanup exactly once. */
+            defer_transaction_finish = 1;
+            if (!ctx->response_body_aborted) {
+                log_error(
+                    r->conf.errh,
+                    __FILE__,
+                    __LINE__,
+                    "msconnector entity-body lifecycle ended without EOS; no synthetic Phase-4 finalization was emitted");
+            }
         }
 #else
         if (ctx->response_processed && !ctx->response_body_finished &&
@@ -1045,27 +1182,29 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
                 "msconnector could not complete unobserved response lifecycle before reset");
         }
 #endif
-        msconnector_error_init(&runtime_error);
-        if (ctx->request_body_gate_rejected) {
-            if (!msconnector_runtime_transaction_finish_host_rejected_request_body(
+        if (!defer_transaction_finish) {
+            msconnector_error_init(&runtime_error);
+            if (ctx->request_body_gate_rejected) {
+                if (!msconnector_runtime_transaction_finish_host_rejected_request_body(
+                        ctx->transaction,
+                        &runtime_error)) {
+                    log_error(
+                        r->conf.errh,
+                        __FILE__,
+                        __LINE__,
+                        "msconnector rejected request-body gate logging finalization failed: %s",
+                        msconnector_error_code_name(runtime_error.code));
+                }
+            } else if (!msconnector_runtime_transaction_finish(
                     ctx->transaction,
                     &runtime_error)) {
                 log_error(
                     r->conf.errh,
                     __FILE__,
                     __LINE__,
-                    "msconnector rejected request-body gate logging finalization failed: %s",
+                    "msconnector transaction finish failed: %s",
                     msconnector_error_code_name(runtime_error.code));
             }
-        } else if (!msconnector_runtime_transaction_finish(
-                ctx->transaction,
-                &runtime_error)) {
-            log_error(
-                r->conf.errh,
-                __FILE__,
-                __LINE__,
-                "msconnector transaction finish failed: %s",
-                msconnector_error_code_name(runtime_error.code));
         }
     }
     handler_ctx_destroy(ctx_slot);

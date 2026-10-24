@@ -54,9 +54,11 @@ type snapshotP1Engine struct {
 	headers    []processor.Header
 	bodyCalls  int
 	denyStatus int
+	openCalls  int
 }
 
 func (e *snapshotP1Engine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
+	e.openCalls++
 	return &snapshotP1Tx{engine: e}, nil
 }
 
@@ -112,6 +114,26 @@ func TestForwardAuthNeverReturnsLeaseHeader(t *testing.T) {
 	}
 	if got := rec.Header().Get(LeaseHeader); got != "" {
 		t.Fatalf("sensitive response metadata leaked: lease=%q", got)
+	}
+}
+
+func TestForwardAuthMissingLeaseFailsClosedBeforeEngineOpen(t *testing.T) {
+	engine := &snapshotP1Engine{}
+	c, err := composite.New("traefik", []byte("01234567890123456789012345678901"), composite.Limits{}, engine, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/missing-lease", nil)
+	rec := httptest.NewRecorder()
+	(&ForwardAuth{Coordinator: c}).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if engine.openCalls != 0 {
+		t.Fatalf("engine opened without a valid private lease: %d", engine.openCalls)
 	}
 }
 

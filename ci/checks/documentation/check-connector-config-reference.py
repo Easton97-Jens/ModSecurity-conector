@@ -12,6 +12,7 @@ a free-text grep check.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -29,6 +30,15 @@ from connector_config_reference import (  # noqa: E402
     inventory_json,
     rendered_files,
 )
+_MATRIX_SPEC = importlib.util.spec_from_file_location(
+    "logical_connector_example_matrix",
+    Path(__file__).resolve().parent / "check-logical-connector-example-matrix.py",
+)
+if _MATRIX_SPEC is None or _MATRIX_SPEC.loader is None:  # pragma: no cover - packaging failure
+    raise ImportError("logical connector example matrix checker is unavailable")
+_MATRIX_MODULE = importlib.util.module_from_spec(_MATRIX_SPEC)
+_MATRIX_SPEC.loader.exec_module(_MATRIX_MODULE)
+logical_connector_example_errors = _MATRIX_MODULE.logical_connector_example_errors
 
 
 REQUIRED_INVENTORY_FIELDS = frozenset({
@@ -64,12 +74,12 @@ PROFILE_README = "README.md"
 DETECTION_ONLY_RULES = "rules/detection-only.conf"
 ENGINE_OFF_RULES = "rules/engine-off.conf"
 PROFILE_REQUIREMENTS = {
-    "apache": ("minimal/httpd.conf", "safe/httpd.conf", PROFILE_README, "detection-only/httpd.conf", "disabled/httpd.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
-    "nginx": ("minimal/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
-    "haproxy": ("minimal/haproxy-htx.cfg", "safe/haproxy-htx.cfg", PROFILE_README, "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
-    "envoy": ("minimal/envoy-ext-proc-streaming.yaml.in", "minimal/envoy-ext-proc-service.json", "minimal/msconnector-runtime.conf", "safe/envoy-ext-proc-streaming.yaml.in", "safe/envoy-ext-proc-service.json", PROFILE_README, "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
-    "traefik": ("minimal/traefik-static.yaml", "minimal/traefik-dynamic.yaml", "minimal/traefik-engine-service.conf", "safe/traefik-dynamic.yaml", "safe/traefik-engine-service.conf", PROFILE_README, "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
-    "lighttpd": ("minimal/lighttpd.conf", "minimal/msconnector-runtime.conf", "safe/lighttpd-http1-identity.conf", "safe/msconnector-runtime.conf", PROFILE_README, "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
+    "apache": ("off/httpd.conf", "safe/httpd.conf", PROFILE_README, "detection-only/httpd.conf", "disabled/httpd.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
+    "nginx": ("off/nginx.conf", "safe/nginx.conf", "strict/nginx.conf", "detection-only/nginx.conf", "disabled/nginx.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
+    "haproxy": ("off/haproxy-htx.cfg", "safe/haproxy-htx.cfg", PROFILE_README, "detection-only/haproxy-htx.cfg", "disabled/haproxy-htx.cfg", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
+    "envoy": ("off/envoy-ext-proc-streaming.yaml.in", "off/envoy-ext-proc-service.json", "off/msconnector-runtime.conf", "safe/envoy-ext-proc-streaming.yaml.in", "safe/envoy-ext-proc-service.json", PROFILE_README, "detection-only/msconnector-runtime.conf", "disabled/msconnector-runtime.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
+    "traefik": ("off/traefik-static.yaml", "off/traefik-dynamic.yaml", "off/traefik-engine-service.conf", "safe/traefik-dynamic.yaml", "safe/traefik-engine-service.conf", PROFILE_README, "detection-only/traefik-engine-service.conf", "disabled/traefik-engine-service.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
+    "lighttpd": ("off/lighttpd.conf", "off/msconnector-runtime.conf", "safe/lighttpd-http1-identity.conf", "safe/msconnector-runtime.conf", PROFILE_README, "detection-only/msconnector-runtime.conf", "disabled/lighttpd.conf", DETECTION_ONLY_RULES, ENGINE_OFF_RULES),
 }
 
 
@@ -128,7 +138,7 @@ def profile_local_path_errors(root: Path) -> list[str]:
 
 
 def profile_layout_errors(root: Path) -> list[str]:
-    """Check the committed minimal/safe/strict/detection/disabled examples."""
+    """Check the committed off/safe/strict/detection/disabled examples."""
     return [
         *profile_file_errors(root),
         *profile_rule_errors(root),
@@ -270,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     expected_json = inventory_json(root)
     inventory_path = root / "reports/connector-configuration-inventory.json"
     errors = profile_layout_errors(root)
+    errors.extend(logical_connector_example_errors(root))
     errors.extend(german_translation_errors(inventory))
     inventory_errors, names_by_doc = inventory_validation_errors(inventory)
     errors.extend(inventory_errors)

@@ -6,13 +6,20 @@
 
 Integrationsmodus: repository-eigenes Traefik-Local-Plugin plus persistenter
 lokaler Unix-Domain-Socket-Engine-Service. Die
-[statische Minimalreferenz](minimal/traefik-static.yaml) registriert Local
-Plugin und File Provider. Die benachbarten minimalen dynamischen und
-Engine-Service-Dateien wählen dieselbe UDS-Form mit `phase4_mode=minimal`; die
+[statische Off-Referenz](off/traefik-static.yaml) registriert Local
+Plugin und File Provider. Die benachbarten dynamischen Off-Profil- und
+Engine-Service-Dateien wählen dieselbe UDS-Form mit `phase4_mode=off`; die
 [dynamische Safe-Referenz](safe/traefik-dynamic.yaml)
 wählt engineMode uds. Die passende
 [Engine-Service-Konfiguration](safe/traefik-engine-service.conf) wählt
 gestreamte Bodies und phase4_mode safe.
+
+Der native UDS-Dienst verwendet für jeden vollständigen Frame eine einzige
+monotone Deadline, schließt Clients bei Überschreitung und begrenzt parallele
+Worker standardmäßig auf 64, höchstens auf 256. Die Grenze wird über die
+Service-CLI-Option `--max-workers N` gesetzt, nicht über eine Traefik-YAML-
+Einstellung. Beim Herunterfahren werden aktive Sockets signalisiert und die
+interne Finalisierung bis zum Ende der Worker aufgeschoben.
 
 Dies ist die native HTTP/1.1-P1--P4-Safe-Referenz. P1, P2, P3 und P4 sind
 Request-Header, Request-Body, Response-Header und Response-Body. Safe behauptet
@@ -21,16 +28,19 @@ Konfiguration verspricht keinen vollständigen Response-Buffer und keine
 Regelbewertung pro Chunk. Die Strict-Profilgrenze dokumentiert die optionale
 Grenze, statt einen ausführbaren Host-Abbruch zu behaupten.
 
-[forwardAuth-Kompatibilitätsdateien](#forwardauth-kompatibilität) sind nur
-Request-Authorization und dürfen nicht als P3/P4-Kernpfad gelten.
+Die vollständige Matrix liegt unter [native-uds/](native-uds/) und
+[forwardauth/](forwardauth/) und enthält die Bundles `off`, `safe`,
+`strict` und `all`. `all` verwendet den bestehenden Strict-P4-Policy-Wert und
+ist kein vierter Phasenmodus. Die älteren [forwardAuth-Kompatibilitätsdateien](#forwardauth-kompatibilität)
+bleiben Request-only-Beispiele und dürfen nicht als P3/P4-Kernpfad gelten.
 
 ## Dateien
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/traefik-static.yaml](minimal/traefik-static.yaml) | Statische Host-Konfiguration | Local-Plugin-Registrierung, Web-EntryPoint und File Provider. |
-| [minimal/traefik-dynamic.yaml](minimal/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Minimale UDS-Middleware-/Router-/Service-Form. |
-| [minimal/traefik-engine-service.conf](minimal/traefik-engine-service.conf) | Engine-Konfiguration | Gestreamte Body-Modi mit minimaler Late-P4-Policy. |
+| [off/traefik-static.yaml](off/traefik-static.yaml) | Statische Host-Konfiguration | Local-Plugin-Registrierung, Web-EntryPoint und File Provider. |
+| [off/traefik-dynamic.yaml](off/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | UDS-Middleware-/Router-/Service-Form für das Off-Kompatibilitätsprofil. |
+| [off/traefik-engine-service.conf](off/traefik-engine-service.conf) | Engine-Konfiguration | Gestreamte Body-Modi mit abgeschalteter zusätzlicher Late-P4-Policy. |
 | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Router, Middleware, UDS-Engine-Auswahl und lokaler Upstream. |
 | [safe/traefik-engine-service.conf](safe/traefik-engine-service.conf) | Engine-Konfiguration | Regeln, Limits, gestreamte Body-Modi und Safe-Policy. |
 | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine-Konfiguration | DetectionOnly-Regeln mit ausgewählter UDS-Middleware; siehe [DetectionOnly-Profil](#detectiononly-profil). |
@@ -53,10 +63,10 @@ angepasst werden.
 | entryPoints.web.address | Listener-Adressstring | Pflicht; expliziter statischer Wert; Traefik-Static-Scope | :8080. Öffentlicher Bind verändert die Exponierung. |
 | providers.file.filename | Dynamischer Konfigurationsdateipfad relativ zum Traefik-Arbeitsverzeichnis | Pflicht; expliziter statischer Wert; File-Provider-Scope | ./traefik-dynamic.yaml. Safe-Dynamic-Datei an diesen aufgelösten Ort kopieren. |
 | Router-Regel und Service-URL | Request-Matcher und Upstream-URL | Pflicht; dynamische Konfiguration; Router/Service-Scope | PathPrefix für alle Pfade und http://127.0.0.1:8081. Routen begrenzen und Endpunkt für Deployment ersetzen. |
-| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, maxResponseChunkBytes | Positive Plugin-Limits | Pflicht; dynamische Konfiguration; Middleware-Scope | 128, 65536, 32768, 32768. Kleinere Werte lehnen mehr Input ab; Grenzen nicht entfernen. |
+| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, maxRequestBodyBytes, requestBodyIdleTimeoutMillis, maxResponseChunkBytes | Positive Plugin-Limits | Pflicht; dynamische Konfiguration; Middleware-Scope | 128, 65536, 32768, 1048576, 1000, 32768. `maxRequestBodyBytes` begrenzt die Body-Größe und `requestBodyIdleTimeoutMillis` die Inaktivität; beide Grenzen beibehalten. |
 | transactionIDHeader | HTTP-Korrelationsheadername | Pflicht; dynamische Konfiguration; Middleware-Scope | X-Request-Id. Metadaten, kein Geheimnis. |
-| engineMode | Native Engine-Modus: passthrough oder uds | Für Safe-Referenz Pflicht; dynamische Konfiguration; Middleware-Scope | uds. Benötigt einen gültigen privaten engineSocketPath. |
-| engineSocketPath | Absoluter privater Unix-Socket-Pfad | Bei engineMode uds Pflicht; dynamische Konfiguration; Middleware-Scope | /run/traefik-msconnector/engine.sock. Parent-Verzeichnis muss zugriffsgeschützt sein und dem vertrauenswürdigen Service gehören. |
+| engineMode | Nativer Engine-Modus: nur uds | Pflicht; dynamische Konfiguration; Middleware-Scope | uds. Jeder Legacy-passthrough-Wert wird abgelehnt. |
+| engineSocketPath | Absoluter privater Unix-Socket-Pfad | Pflicht; dynamische Konfiguration; Middleware-Scope | /run/traefik-msconnector/engine.sock. Parent-Verzeichnis muss zugriffsgeschützt sein und dem vertrauenswürdigen Service gehören. |
 | rules_file | Installierter geprüfter Rules-Dateipfad | Pflicht; Engine-Konfiguration; Engine-Scope | /etc/modsecurity/no-crs-baseline.conf. Regeln können Traffic blockieren. |
 | request_body_mode und response_body_mode | Engine-Body-Modi | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | streaming. Beweist weder vollständiges Buffering noch späte Client-Action. |
 | phase4_mode | Name der Late-P4-Policy | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | safe. Erlaubt weder erfundenen Status noch Strict-Abbruch. |
@@ -75,9 +85,10 @@ Common-Runtime-Datei und den getrennt markierten forwardAuth-Kompatibilitätsweg
 | `response_body_mode` | Common Runtime | Wählt die native Engine-P4-Body-Verarbeitung. |
 | `phase4_mode` | Common Runtime | Zeichnet die gewünschte Late-P4-Policy auf; Go-Middleware bleibt nach Commit log-only. |
 
-`engineMode: passthrough` ist eine Source-only-Allow-Engine und kein
-Rule-Enforcement. `SecRuleEngine Off` lässt die UDS-Route bestehen, deaktiviert
-aber Engine-Regeln. forwardAuth ist ein getrennter Request-only-Kompatibilitätsweg.
+Nur `engineMode: uds` wird akzeptiert. Eine Legacy-`passthrough`-Konfiguration
+wird bei der Plugin-Konstruktion abgelehnt; sie kann nicht als Allow-Fallback
+dienen. `SecRuleEngine Off` lässt die UDS-Route bestehen, deaktiviert aber
+Engine-Regeln. forwardAuth ist ein getrennter Request-only-Kompatibilitätsweg.
 
 ## Profile
 
@@ -169,13 +180,41 @@ Strict-Verhalten, Produktionsreife oder CRS-Abdeckung.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Common Runtime akzeptiert `phase4_mode=strict`, aber die native Go-Middleware
-stuft disruptive P4-Entscheidungen nach Commit zu log-only herab. Strict ist
-optional und es wird kein Abbruchprofil behauptet.
+Common Runtime weist `phase4_mode=strict` für beide Traefik-Profile beim Start
+ab, weil keines eine nachgewiesene `strict_post_commit_action` besitzt. Dies
+ist ein fail-closed-Konfigurationsfehler, kein später Log-only-Downgrade und
+kein behaupteter Abbruch.
 
 Das Safe-UDS-Setup beibehalten, statische/dynamische Konfiguration und den
-Engine-Service validieren und neue Host-Evidenz verlangen, bevor ein strikter
-Transportanspruch erhoben wird.
+Engine-Service validieren und eine deterministische Hostaktion samt
+Client-Evidenz verlangen, bevor Strict aktiviert wird.
+
+## Vollständige Matrix der logischen Lösungen
+
+Jede logische Lösung besitzt sichtbare Bundles für `off`, `safe`, `strict`
+und `all`. Off und Safe sind zur Laufzeit zulässig; die Strict-Bundles
+sind parsergestützt, werden aber absichtlich vom Common-Runtime-Zulassungsgate
+abgewiesen. Die nativen UDS-Bundles verwenden das repository-eigene
+`modsecurityNative`-Plugin und decken P1/P2/P3/P4 in einer gestreamten
+Transaktion ab. Die forwardAuth-Bundles sind eine logische Lösung aus
+Traefik-`forwardAuth`, unmittelbar gefolgt vom privaten UDS-Plugin
+`modsecurityResponseObserver`: forwardAuth liefert P1 und den begrenzten
+gepufferten P2-Body (`forwardBody: true`, `maxBodySize: 4096`), der Observer
+beansprucht das undurchsichtige Handle für P3/P4. Ein fehlendes Handle oder ein
+Observer-Timeout wird fail-closed behandelt und bereinigt die korrelierte
+Transaktion.
+
+| Lösung | Varianten | P1/P2 | P3/P4 | Hostgrenze |
+| --- | --- | --- | --- | --- |
+| Native UDS | [off](native-uds/off/), [safe](native-uds/safe/), [strict](native-uds/strict/), [all](native-uds/all/) | Natives Plugin, gestreamt und begrenzt | Natives Plugin, gestreamt und begrenzt | Strict-Start wird abgewiesen, bis ein Host-Abbruch nachgewiesen ist. |
+| forwardAuth + Observer | [off](forwardauth/off/), [safe](forwardauth/safe/), [strict](forwardauth/strict/), [all](forwardauth/all/) | forwardAuth plus begrenzter gepufferter Body | Privater Response-Observer über ein undurchsichtiges Handle | Strict-Start wird abgewiesen; kein später clientseitiger Abbruch wird behauptet. |
+
+Jede Runtime-Datei zeigt alle aktuell geparsten Common-Runtime-Schlüssel. Die
+aktive Rules-Quelle ist die geprüfte private `rules_file`; `rules_inline`,
+Remote-Ruleschlüssel, statische `transaction_id` und die optionale
+Content-Type-Datei sind als auskommentierte, gegenseitig ausschließende
+Alternativen sichtbar. Event-JSONL enthält nur Metadaten und nutzt einen
+begrenzten privaten Pfad.
 
 ## Verwandtes Material
 

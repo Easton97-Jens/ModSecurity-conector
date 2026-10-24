@@ -254,9 +254,9 @@ _HOST_MODEL_REQUIRED_STATES = MappingProxyType(
         ),
         "traefik": MappingProxyType(
             {
-                "request_body_buffered": "not_implemented",
+                "request_body_buffered": "configured_not_exercised",
                 "request_body_streaming": "unsupported_by_host_model",
-                "phase2": "not_implemented",
+                "phase2": "configured_not_exercised",
                 **_PRE_UPSTREAM_RESPONSE_REQUIRED_STATES,
             }
         ),

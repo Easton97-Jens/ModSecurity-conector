@@ -48,6 +48,47 @@ Der ausgewählte native UDS-Pfad und forwardAuth haben verschiedene Response-
 Sichtbarkeit; ein forwardAuth-Request-Ergebnis darf nicht als nativer P3-/P4-
 Nachweis befördert werden.
 
+## forwardAuth als logischer Response-Companion
+
+Das <code>forwardAuth</code>-Request-Protokoll kann P3/P4 nicht selbst
+transportieren. Sein Authorization-Service übergibt dieselbe lebende
+Common-/native Transaktion nach abgeschlossenem P1/P2 an einen festen,
+TTL-begrenzten Response-Companion mit 64 Einträgen. Er gibt genau einen
+serverseitig erzeugten opaken 256-Bit-Response-Handle aus, niemals eine
+Transaktions-ID, Connector-ID oder Host-ID. Der private MRC1-Listener
+akzeptiert diesen Handle genau einmal; damit bleibt jeder zurückgehaltene
+native State in der Common Runtime.
+
+Das mitgelieferte Response-Observer-Plugin sowie die Artefakte
+<code>traefik-response-observer-{static,dynamic}.yaml</code> machen forwardAuth
+und seinen Response-Observer zu einer logischen Connectorlösung. Die dynamische
+Kette lautet <code>forwardAuth -&gt; response observer -&gt; upstream</code> und
+erlaubt aus der Authorization-Antwort ausschließlich
+<code>X-Msconnector-Response-Handle</code>. Der Observer claimed und entfernt
+diesen Header vor dem Upstream-Handler. Er sendet P3 vor dem Writer-Commit,
+P4-Chunks/EOS danach, zeichnet die tatsächliche Hostaktion auf und gibt
+deterministisch frei oder cancelt. Er verwendet ausschließlich private UDS;
+der Standard-Companion-Pfad liegt unter <code>/run/modsecurity</code>, dessen
+kanonisches owner-only Parent mit <code>0700</code> der Operator bereitstellen
+muss. Es gibt keinen TCP-Fallback.
+
+Fehlende, fehlerhafte, abgelaufene, doppelte, wiederverwendete oder nicht
+erreichbare Handles werden vor dem Upstream-Response-Commit fail-closed
+behandelt. Ein fehlerhaftes MRC1-Ergebnis, ein Deadline-Ablauf oder ein
+Cleanup-Fehler folgt demselben Fehler-/Cancel-Pfad; TTL-Ablauf zeichnet Timeout
+auf und zerstört zurückgehaltenen State. Disruptive Engine-Ergebnisse nach dem
+Commit werden als Log-only aufgezeichnet, weil Traefik die Response nicht
+rückwirkend umschreiben kann. Das lokale Plugin bietet weder
+<code>Unwrap</code> noch <code>Hijacker</code> und umgeht diese Grenze damit
+nicht.
+
+Diese Dateien und ihre Component-Tests sind Source-Level-Evidence. Eine
+eingesetzte Traefik-Instanz benötigt weiterhin Plugin-Load-, Konfigurations-
+und Traffic-Evidence, bevor sie als Host-Runtime-Evidence beschrieben wird.
+
+Der [gemeinsame Transaktions- und Phasenvertrag](../../common/docs/transaction-phase-contract.de.md)
+definiert Zustandsmaschine und einheitliche Entscheidungsrichtlinie.
+
 ## P1--P4-Lifecycle und lokaler Engine-Service
 
 Der ausgewählte native Hostcheck staged die Middleware in einem isolierten

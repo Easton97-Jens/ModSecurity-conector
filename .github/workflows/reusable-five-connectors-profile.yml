@@ -8,11 +8,12 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   resolve-profile:
+    permissions:
+      contents: read
     name: Resolve closed No-CRS profile
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -36,6 +37,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Verify fixed No-CRS workflow contract
+        run: python3 -m unittest -v tests.test_all_connectors_no_crs_workflow_contract
+
       - name: Resolve fixed connector matrix
         id: profile
         env:
@@ -47,6 +51,8 @@ jobs:
           printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
 
   no-crs:
+    permissions:
+      contents: read
     name: No-CRS / ${{ matrix.connector }} / ${{ inputs.profile }} / ${{ matrix.protocol }} / ${{ matrix.phase4_mode }}
     needs:
       - resolve-profile
@@ -288,7 +294,7 @@ jobs:
 
       - name: Upload bounded connector failure diagnostics
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: five-connector-diagnostics-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 10
@@ -301,7 +307,7 @@ jobs:
 
       - name: Upload canonical connector evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: five-no-crs-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 10
@@ -309,6 +315,8 @@ jobs:
           path: ${{ env.EVIDENCE_ROOT }}/${{ matrix.connector }}/${{ env.NO_CRS_RUN_ID }}/
 
   aggregate:
+    permissions:
+      contents: read
     name: No-CRS / five-connector result aggregate
     if: always()
     needs:
@@ -353,7 +361,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Download five connector evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: five-no-crs-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/five-connector-profile-artifacts/${{ github.run_id }}-${{ github.run_attempt }}
@@ -439,7 +447,7 @@ jobs:
 
       - name: Upload result-only aggregate
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: five-connectors-no-crs-summary-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 10

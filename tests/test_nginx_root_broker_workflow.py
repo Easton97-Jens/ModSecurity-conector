@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -310,7 +311,8 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
         self.assertIn("  workflow_call:\n", self.workflow)
         self.assertNotIn("  pull_request:", self.workflow)
         self.assertNotIn("  pull_request_target:", self.workflow)
-        self.assertIn("permissions:\n  contents: read", self.workflow)
+        self.assertIn("\npermissions: {}\n", self.workflow)
+        self.assertIn("    permissions:\n      contents: read\n", self.workflow)
         self.assertIn("github.event_name == 'workflow_dispatch'", self.workflow)
         self.assertNotIn("github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'", self.workflow)
         self.assertIn("github.repository == 'Easton97-Jens/ModSecurity-conector'", self.workflow)
@@ -686,6 +688,136 @@ class TrustedNginxRootBrokerWorkflowTest(unittest.TestCase):
         returncode, outer_umask = run_failed_crs_fetch_umask_probe(self.workflow)
         self.assertEqual(returncode, 1)
         self.assertIn(outer_umask, {"077", "0077"})
+
+    def run_protected_crs_tag_probe(
+        self, temporary: Path, *, moved_tag: bool = False, wrong_head: bool = False,
+        wrong_origin: bool = False, existing_wrong_tag: bool = False, annotated: bool = False,
+    ) -> tuple[subprocess.CompletedProcess[str], Path, Path, str]:
+        def git(directory: Path, *arguments: str) -> str:
+            return subprocess.check_output(
+                ["/usr/bin/git", "-C", str(directory), *arguments], text=True,
+                stderr=subprocess.PIPE,
+            ).strip()
+
+        upstream = temporary / "upstream"
+        upstream.mkdir()
+        git(upstream, "init")
+        git(upstream, "config", "user.name", "CRS regression fixture")
+        git(upstream, "config", "user.email", "crs@example.invalid")
+        (upstream / "rules.conf").write_text("approved rule\n", encoding="utf-8")
+        git(upstream, "add", "rules.conf")
+        git(upstream, "commit", "-m", "approved CRS")
+        approved_commit = git(upstream, "rev-parse", "HEAD")
+        (upstream / "rules.conf").write_text("changed rule\n", encoding="utf-8")
+        git(upstream, "commit", "-am", "different CRS")
+        different_commit = git(upstream, "rev-parse", "HEAD")
+        release_tag = "v4.29.0"
+        tag_commit = different_commit if moved_tag else approved_commit
+        tag_arguments = ("-a", release_tag, "-m", "reviewed release", tag_commit) if annotated else (release_tag, tag_commit)
+        git(upstream, "tag", *tag_arguments)
+
+        source = temporary / "fresh-source"
+        source.mkdir()
+        git(source, "init")
+        git(source, "fetch", "--no-tags", str(upstream), approved_commit)
+        if wrong_head or existing_wrong_tag:
+            git(source, "fetch", "--no-tags", str(upstream), different_commit)
+        git(source, "checkout", "--detach", different_commit if wrong_head else approved_commit)
+        repository_url = "https://github.com/coreruleset/coreruleset.git"
+        git(source, "remote", "add", "origin", "https://example.invalid/foreign.git" if wrong_origin else repository_url)
+        self.assertEqual(git(source, "tag", "--list"), "")
+        if existing_wrong_tag:
+            git(source, "tag", release_tag, different_commit)
+
+        protected = temporary / "protected"
+        broker_path = protected / "ci/runtime/broker/nginx_root_broker.py"
+        broker_path.parent.mkdir(parents=True)
+        broker_path.write_text(
+            f"CRS_APPROVED_REPOSITORY = {repository_url!r}\n"
+            f"CRS_RELEASE_TAG = {release_tag!r}\n"
+            f"CRS_APPROVED_COMMIT = {approved_commit!r}\n",
+            encoding="utf-8",
+        )
+        workflow_path = protected / ".github/workflows/nginx-root-broker.yml"
+        workflow_path.parent.mkdir(parents=True)
+        workflow_path.write_text(self.workflow, encoding="utf-8")
+        git(protected, "init")
+        git(protected, "config", "user.name", "Protected broker fixture")
+        git(protected, "config", "user.email", "broker@example.invalid")
+        git(protected, "add", ".")
+        git(protected, "commit", "-m", "protected broker constants and workflow")
+        broker_sha = git(protected, "rev-parse", "HEAD")
+        (protected / ".venv/bin").mkdir(parents=True)
+        (protected / ".venv/bin/python").symlink_to(sys.executable)
+        mock_bin = temporary / "mock-bin"
+        mock_bin.mkdir()
+        # Redirect only the exact protected network fetch to the local upstream;
+        # all ref, origin, HEAD, and peeling checks execute actual Git commands.
+        (mock_bin / "git").write_text(
+            f"#!{sys.executable}\n"
+            "import os, subprocess, sys\n"
+            "args = sys.argv[1:]\n"
+            "if 'fetch' in args:\n"
+            "    expected = ['-c', 'core.hooksPath=/dev/null', '-c', 'protocol.file.allow=never', '-C', os.environ['CRS_SOURCE_DIR'], 'fetch', '--depth', '1', '--no-tags', os.environ['PROTECTED_REPOSITORY_URL'], 'refs/tags/v4.29.0:refs/tags/v4.29.0']\n"
+            "    if args != expected:\n"
+            "        raise SystemExit('unexpected protected CRS fetch')\n"
+            "    args = [os.environ['LOCAL_UPSTREAM'] if arg == os.environ['PROTECTED_REPOSITORY_URL'] else 'protocol.file.allow=always' if arg == 'protocol.file.allow=never' else arg for arg in args]\n"
+            "raise SystemExit(subprocess.run(['/usr/bin/git', *args]).returncode)\n",
+            encoding="utf-8",
+        )
+        (mock_bin / "git").chmod(0o700)
+        step = step_block(self.workflow, "Build a protected immutable OWASP CRS bundle without root")
+        verification = re.search(r"(?ms)^          verify_broker_source\(\) \{\n.*?^          \}", step)
+        self.assertIsNotNone(verification)
+        assert verification is not None
+        start = step.index("          # The broker independently acquires")
+        end = step.index("          .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-crs-bundle", start)
+        admission = temporary / "bundle-admitted"
+        result = subprocess.run(
+            ["bash", "-c", "set -euo pipefail\n" + textwrap.dedent(verification.group(0)) + "\n" + textwrap.dedent(step[start:end]) + '\ntouch "$ADMISSION_MARKER"'],
+            cwd=protected, capture_output=True, text=True, check=False,
+            env={
+                "LC_ALL": "C", "PATH": f"{mock_bin}:{os.defpath}", "BASH_ENV": "/dev/null",
+                "BROKER_SHA": broker_sha, "CRS_SOURCE_DIR": str(source),
+                "LOCAL_UPSTREAM": str(upstream), "PROTECTED_REPOSITORY_URL": repository_url,
+                "ADMISSION_MARKER": str(admission),
+            },
+        )
+        return result, admission, source, approved_commit
+
+    def test_commit_only_crs_checkout_gains_the_exact_protected_release_tag(self) -> None:
+        for annotated in (False, True):
+            with self.subTest(annotated=annotated), tempfile.TemporaryDirectory() as raw:
+                result, admission, source, approved_commit = self.run_protected_crs_tag_probe(Path(raw), annotated=annotated)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(admission.exists())
+                peeled = subprocess.check_output(
+                    ["/usr/bin/git", "-C", str(source), "rev-parse", "refs/tags/v4.29.0^{}"], text=True,
+                ).strip()
+                self.assertEqual(peeled, approved_commit)
+
+    def test_wrong_crs_release_tag_or_checkout_is_rejected_before_bundle_admission(self) -> None:
+        for changes in (
+            {"moved_tag": True}, {"wrong_head": True}, {"wrong_origin": True},
+            {"existing_wrong_tag": True},
+        ):
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as raw:
+                result, admission, _source, _approved_commit = self.run_protected_crs_tag_probe(Path(raw), **changes)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(admission.exists())
+                self.assertNotIn("unexpected protected CRS fetch", result.stderr)
+
+    def test_protected_tag_provenance_is_loaded_from_verified_broker_source(self) -> None:
+        step = step_block(self.workflow, "Build a protected immutable OWASP CRS bundle without root")
+        before_contract = step[:step.index('          broker_crs_contract=')]
+        self.assertTrue(before_contract.rstrip().endswith("# Select provenance from the blob-verified broker, never caller data."))
+        self.assertIn("verify_broker_source ci/runtime/broker/nginx_root_broker.py", before_contract)
+        self.assertIn('.venv/bin/python -I -c', step)
+        for constant in ("CRS_APPROVED_REPOSITORY", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"):
+            self.assertIn(f'broker["{constant}"]', step)
+        self.assertNotIn("${{", step.split("        run: |", 1)[1])
+        self.assertNotIn("--force", step)
+        self.assertLess(step.index('refs/tags/$broker_crs_tag^{}'), step.index("prepare-crs-bundle"))
 
     def test_protected_build_uses_the_existing_no_rpath_opt_in(self) -> None:
         config = NGINX_CONFIG.read_text(encoding="utf-8")

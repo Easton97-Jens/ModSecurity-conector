@@ -71,6 +71,11 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
     def write_json(self, path: Path, payload: dict[str, object]) -> None:
         path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
 
+    def assert_evidence_rejected(self, root: Path) -> None:
+        with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
+            with self.assertRaises(CALLER.CallerContractError):
+                CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+
     def identity(self, variant: str, run_id: str) -> dict[str, object]:
         profile = CALLER.PROFILE_BY_VARIANT[variant]
         payload: dict[str, object] = {
@@ -83,7 +88,7 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
             "nginx_binary_sha256": BINARY_DIGEST,
             "nginx_module_sha256": MODULE_DIGEST,
             "modsecurity_library_sha256": LIBRARY_DIGEST,
-            "nginx_version": "1.31.3",
+            "nginx_version": "1.31.4",
             "master_pid": 42,
             "master_uid": 0,
             "worker_pid": 43,
@@ -109,7 +114,7 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
             "nginx_binary_sha256": BINARY_DIGEST,
             "nginx_module_sha256": MODULE_DIGEST,
             "modsecurity_library_sha256": LIBRARY_DIGEST,
-            "nginx_version": "1.31.3",
+            "nginx_version": "1.31.4",
             "root_broker_status": "PASS",
             "cleanup_state": CALLER.CLEANUP_STATE,
             "policy_profile": profile,
@@ -408,9 +413,7 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
             runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
             runtime["unexpected"] = True
             self.write_json(runtime_path, runtime)
-            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
-                with self.assertRaises(CALLER.CallerContractError):
-                    CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+            self.assert_evidence_rejected(root)
 
         with self.temporary_root() as temporary:
             root = Path(temporary)
@@ -423,9 +426,7 @@ class ProtectedNginxBrokerCallerTest(unittest.TestCase):
                 evidence_root, CALLER.WITH_CRS_VARIANT, WITH_CRS_RUN_ID
             )
             (with_crs / CALLER.AUDIT_LOG_FILENAME).write_bytes(b"")
-            with mock.patch.dict(os.environ, {CALLER.RUNNER_TEMP_ENVIRONMENT: str(root)}):
-                with self.assertRaises(CALLER.CallerContractError):
-                    CALLER.verify_evidence(TARGET_SHA, NO_CRS_RUN_ID, WITH_CRS_RUN_ID)
+            self.assert_evidence_rejected(root)
 
         with self.temporary_root() as temporary:
             root = Path(temporary)

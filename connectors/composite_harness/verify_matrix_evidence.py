@@ -53,13 +53,22 @@ CASES = {
     # reservation opener and terminal cleanup, but deliberately no P1/P2
     # transaction evidence after ForwardAuth rejects the missing lease.
     "metadata_omitted": (),
+    # Envoy ext_authz has already admitted P1/P2 before its response-only
+    # ext_proc companion receives dynamic metadata. A missing forwarded
+    # metadata namespace is a fail-closed response-boundary error: the
+    # upstream may have produced a response, but Envoy commits no P3/P4
+    # response to the client and the unclaimed bounded entry expires.
+    "envoy_response_metadata_omitted": ("P1", "P2"),
     "p2_to_p3_timeout": ("P1", "P2"),
 }
 CONNECTORS = {"envoy", "traefik"}
 MANIFEST_KEYS = {"schema", "connector", "case", "case_artifact", "expected_phases", "client_observation", "upstream_observation", "cleanup"}
 ARTIFACT_KEYS = {"id", "event_log"}
 UPSTREAM_KEYS = {"lease_observed", "request_terminal", "response_observed"}
-CLIENT_KEYS = {"lease_observed", "visible_status", "p4_outcome", "p4_visible_status", "p4_response_committed"}
+CLIENT_KEYS = {
+    "lease_observed", "visible_status", "redirect_location_verified",
+    "p4_outcome", "p4_visible_status", "p4_response_committed",
+}
 CLEANUP_KEYS = {"count", "status"}
 RAW_EVENT_KEYS = {
     "decision_id", "connector", "phase", "outcome", "reason", "requested_action",
@@ -78,6 +87,7 @@ CASE_RULE_IDS = {
     "p1_deny": ("P1", "1101001"),
     "p2_deny": ("P2", "1102001"),
     "p3_deny": ("P3", "1103001"),
+    "p3_redirect": ("P3", "1103002"),
     "p4_safe": ("P4", "1104002"),
 }
 MANIFEST_CASE_ARTIFACT = "manifest.case_artifact"
@@ -134,9 +144,11 @@ class _ManifestContext:
     artifact_id: str
     event_log: str
     client_status: Any
+    redirect_location_verified: bool
     request_terminal: bool
     response_observed: bool
     p4_outcome: str
+    p4_visible_status: Any
     p4_committed: bool
 
 
@@ -172,7 +184,7 @@ def _manifest_identity(
 
 def _manifest_observations(
     manifest: dict[str, Any], runtime_root: PrivateRuntimeRoot
-) -> tuple[Any, bool, bool, str, bool]:
+) -> tuple[Any, bool, bool, bool, str, Any, bool]:
     client_path = _safe_observation_name(
         _string(manifest["client_observation"], "manifest.client_observation"),
         "manifest.client_observation",
@@ -192,6 +204,10 @@ def _manifest_observations(
     client_status = client["visible_status"]
     if client_status is not None:
         _status(client_status, "client_observation.visible_status")
+    redirect_location_verified = _bool(
+        client["redirect_location_verified"],
+        "client_observation.redirect_location_verified",
+    )
     p4_outcome = _string(client["p4_outcome"], "client_observation.p4_outcome")
     if p4_outcome not in {"none", "abort", "reset"}:
         raise EvidenceError("client_observation.p4_outcome is invalid")
@@ -199,7 +215,15 @@ def _manifest_observations(
     if p4_status is not None:
         _status(p4_status, "client_observation.p4_visible_status")
     p4_committed = _bool(client["p4_response_committed"], "client_observation.p4_response_committed")
-    return client_status, request_terminal, response_observed, p4_outcome, p4_committed
+    return (
+        client_status,
+        redirect_location_verified,
+        request_terminal,
+        response_observed,
+        p4_outcome,
+        p4_status,
+        p4_committed,
+    )
 
 
 def _validate_manifest_cleanup(manifest: dict[str, Any]) -> None:
@@ -221,13 +245,14 @@ def _manifest_context(
     connector, case, expected, artifact_id, event_log = _manifest_identity(
         manifest, manifest_path, expected_event_log
     )
-    client_status, request_terminal, response_observed, p4_outcome, p4_committed = _manifest_observations(
+    client_status, redirect_location_verified, request_terminal, response_observed, p4_outcome, p4_visible_status, p4_committed = _manifest_observations(
         manifest, runtime_root
     )
     _validate_manifest_cleanup(manifest)
     return _ManifestContext(
         connector, case, tuple(expected), artifact_id, event_log, client_status,
-        request_terminal, response_observed, p4_outcome, p4_committed,
+        redirect_location_verified,
+        request_terminal, response_observed, p4_outcome, p4_visible_status, p4_committed,
     )
 
 
@@ -414,6 +439,18 @@ def _validate_event_sequence(
     ]
 
 
+def validate_raw_event_records(
+    events: list[dict[str, Any]], connector: str, case: str,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Validate one connector case before an adapter persists its raw event log."""
+
+    if connector not in CONNECTORS:
+        raise EvidenceError("raw event connector is not supported")
+    if case not in CASES:
+        raise EvidenceError("raw event case is not supported")
+    return _validate_event_sequence(events, connector, list(CASES[case]), case)
+
+
 def _phase_action(events: list[dict[str, Any]], case: str, phase: str, action: str) -> None:
     event = next(event for event in events if event.get("phase") == phase)
     if event.get("requested_action") != action:
@@ -436,11 +473,17 @@ def _matching_action(
 
 
 def _verify_oversize(
-    events: list[dict[str, Any]], action_events: list[dict[str, Any]], request_terminal: bool, response_observed: bool
+    events: list[dict[str, Any]], action_events: list[dict[str, Any]], client_status: Any,
+    request_terminal: bool, response_observed: bool,
 ) -> None:
     oversize = _matching_action(action_events, "deny", (413, 413))
     p2 = next((event for event in events if event.get("phase") == "P2"), None)
-    if oversize is None or p2 is None or p2.get("visible_status") != 413:
+    if (
+        oversize is None
+        or p2 is None
+        or p2.get("visible_status") != 413
+        or client_status != 413
+    ):
         raise EvidenceError("P2 oversize requires a raw 413 P2 decision and request-side deny action")
     if not request_terminal or response_observed:
         raise EvidenceError("P2 oversize requires request termination before upstream observation")
@@ -460,8 +503,8 @@ def _verify_allow(
 
 
 def _verify_timeout(
-    events: list[dict[str, Any]], client_status: Any, request_terminal: bool, response_observed: bool,
-    p4_committed: bool, p4_outcome: str,
+    events: list[dict[str, Any]], connector: str, client_status: Any, request_terminal: bool, response_observed: bool,
+    p4_committed: bool, p4_outcome: str, p4_visible_status: Any,
 ) -> None:
     for phase in ("P1", "P2"):
         _phase_action(events, "p2_to_p3_timeout", phase, "allow")
@@ -469,12 +512,19 @@ def _verify_timeout(
         raise EvidenceError("P2-to-P3 timeout requires a real 503 client status")
     if request_terminal or not response_observed:
         raise EvidenceError("P2-to-P3 timeout requires upstream request observation without request termination")
-    if p4_committed or p4_outcome != "none":
+    if p4_committed or p4_outcome != "none" or p4_visible_status is not None:
         raise EvidenceError("P2-to-P3 timeout must stop before P4 response commitment")
-    lease = next((event for event in events if event.get("phase") == "lease"), None)
-    terminal = next((event for event in events if event.get("phase") == "terminal"), None)
-    if lease is None or terminal is None or terminal.get("reason") != "timeout":
-        raise EvidenceError("P2-to-P3 timeout requires lease issuance followed by timeout cleanup")
+    expected_events = ("P1", "P2", "lease", "terminal")
+    if connector == "traefik":
+        expected_events = ("reservation",) + expected_events
+    if tuple(event.get("phase") for event in events) != expected_events:
+        raise EvidenceError("P2-to-P3 timeout requires one unclaimed lease followed directly by timeout cleanup")
+    if connector == "traefik" and events[0].get("outcome") != "reserved":
+        raise EvidenceError("P2-to-P3 timeout requires one pre-admission reservation before P1")
+    lease = events[-2]
+    terminal = events[-1]
+    if lease.get("outcome") != "issued" or terminal.get("reason") != "timeout":
+        raise EvidenceError("P2-to-P3 timeout requires issued lease followed by timeout cleanup")
 
 
 def _verify_denial(
@@ -500,12 +550,14 @@ def _verify_denial(
 
 def _verify_redirect(
     events: list[dict[str, Any]], action_events: list[dict[str, Any]], client_status: Any,
-    request_terminal: bool, response_observed: bool,
+    redirect_location_verified: bool, request_terminal: bool, response_observed: bool,
 ) -> None:
-    if client_status is None or not 300 <= client_status <= 399 or _matching_action(
-        action_events, "redirect", (client_status, client_status)
+    if client_status != 302 or _matching_action(
+        action_events, "redirect", (302, 302)
     ) is None:
-        raise EvidenceError("P3 redirect requires matching raw redirect action and client-visible status")
+        raise EvidenceError("P3 redirect requires matching raw redirect action and canonical HTTP 302 status")
+    if not redirect_location_verified:
+        raise EvidenceError("P3 redirect requires an exact client-boundary Location attestation")
     _phase_action(events, "p3_redirect", "P3", "redirect")
     if request_terminal or not response_observed:
         raise EvidenceError("p3_redirect requires upstream response observation without request termination")
@@ -513,15 +565,24 @@ def _verify_redirect(
 
 def _verify_p4_safe(
     events: list[dict[str, Any]], action_events: list[dict[str, Any]], p4_outcome: str,
-    request_terminal: bool, response_observed: bool, p4_committed: bool,
+    client_status: Any, p4_visible_status: Any, request_terminal: bool,
+    response_observed: bool, p4_committed: bool,
 ) -> None:
     p4_events = [event for event in events if event.get("phase") == "P4"]
-    if not p4_events or _matching_action(action_events, "log_only") is None:
+    log_only = _matching_action(action_events, "log_only")
+    if not p4_events or log_only is None:
         raise EvidenceError("P4 Safe requires raw P4 and host_action=log_only evidence")
+    _phase_action(events, "p4_safe", "P4", "deny")
     if p4_outcome != "none":
         raise EvidenceError("P4 Safe cannot claim a client abort/reset")
     if request_terminal or not response_observed or not p4_committed:
         raise EvidenceError("P4 Safe requires a committed upstream response without request termination")
+    if (
+        type(client_status) is not int
+        or client_status != log_only.get("visible_status")
+        or p4_visible_status != client_status
+    ):
+        raise EvidenceError("P4 Safe requires matching committed client and log-only visible statuses")
 
 
 def _verify_metadata_omitted(
@@ -541,29 +602,95 @@ def _verify_metadata_omitted(
         )
 
 
+def _verify_envoy_response_metadata_omitted(
+    events: list[dict[str, Any]], client_status: Any, request_terminal: bool,
+    response_observed: bool, p4_outcome: str, p4_visible_status: Any,
+    p4_committed: bool,
+) -> None:
+    """Verify Envoy's response-boundary missing-metadata failure semantics."""
+    for phase in ("P1", "P2"):
+        _phase_action(events, "envoy_response_metadata_omitted", phase, "allow")
+    if client_status != 503:
+        raise EvidenceError("Envoy response metadata omission requires a fail-closed 503 client status")
+    if request_terminal or not response_observed:
+        raise EvidenceError("Envoy response metadata omission requires an observed upstream response without request termination")
+    if p4_committed or p4_outcome != "none" or p4_visible_status is not None:
+        raise EvidenceError("Envoy response metadata omission must stop before P4 response commitment")
+    phases = tuple(event.get("phase") for event in events)
+    if phases != ("P1", "P2", "lease", "terminal"):
+        raise EvidenceError("Envoy response metadata omission requires P1/P2, one unclaimed lease, and terminal cleanup only")
+    if events[2].get("outcome") != "issued":
+        raise EvidenceError("Envoy response metadata omission requires one issued lease")
+    if events[-1].get("reason") != "timeout":
+        raise EvidenceError("Envoy response metadata omission requires bounded timeout cleanup")
+
+
 def _verify(manifest_path: Path, runtime_root: PrivateRuntimeRoot, expected_event_log: Path | None = None) -> Verification:
     context = _manifest_context(manifest_path, runtime_root, expected_event_log)
     events = _load_raw_events(runtime_root, context.event_log)
-    decision_id, action_events = _validate_event_sequence(
-        events, context.connector, list(context.expected), context.case
+    decision_id, action_events = validate_raw_event_records(
+        events, context.connector, context.case
     )
 
     if context.case == "p2_oversize":
-        _verify_oversize(events, action_events, context.request_terminal, context.response_observed)
+        _verify_oversize(
+            events,
+            action_events,
+            context.client_status,
+            context.request_terminal,
+            context.response_observed,
+        )
         _phase_action(events, context.case, "P1", "allow")
         _phase_action(events, context.case, "P2", "deny")
     elif context.case in {"p1_allow", "p2_allow"}:
         _verify_allow(events, context.case, context.client_status, context.request_terminal, context.response_observed)
     elif context.case == "p2_to_p3_timeout":
-        _verify_timeout(events, context.client_status, context.request_terminal, context.response_observed, context.p4_committed, context.p4_outcome)
+        _verify_timeout(
+            events,
+            context.connector,
+            context.client_status,
+            context.request_terminal,
+            context.response_observed,
+            context.p4_committed,
+            context.p4_outcome,
+            context.p4_visible_status,
+        )
     elif context.case in {"p1_deny", "p2_deny", "p3_deny"}:
         _verify_denial(events, action_events, context.case, context.client_status, context.request_terminal, context.response_observed)
     elif context.case == "p3_redirect":
-        _verify_redirect(events, action_events, context.client_status, context.request_terminal, context.response_observed)
+        _verify_redirect(
+            events,
+            action_events,
+            context.client_status,
+            context.redirect_location_verified,
+            context.request_terminal,
+            context.response_observed,
+        )
     elif context.case == "p4_safe":
-        _verify_p4_safe(events, action_events, context.p4_outcome, context.request_terminal, context.response_observed, context.p4_committed)
+        _verify_p4_safe(
+            events,
+            action_events,
+            context.p4_outcome,
+            context.client_status,
+            context.p4_visible_status,
+            context.request_terminal,
+            context.response_observed,
+            context.p4_committed,
+        )
     elif context.case == "metadata_omitted":
         _verify_metadata_omitted(events, context.client_status, context.request_terminal, context.response_observed, context.p4_committed)
+    elif context.case == "envoy_response_metadata_omitted":
+        if context.connector != "envoy":
+            raise EvidenceError("Envoy response metadata omission is valid only for the Envoy composite")
+        _verify_envoy_response_metadata_omitted(
+            events,
+            context.client_status,
+            context.request_terminal,
+            context.response_observed,
+            context.p4_outcome,
+            context.p4_visible_status,
+            context.p4_committed,
+        )
     if context.case == "p4_strict":
         # A driver-side observation is not proof that Envoy/Traefik invoked a
         # real client-visible reset/abort primitive. No current runner has that

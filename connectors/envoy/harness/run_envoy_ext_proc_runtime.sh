@@ -49,6 +49,9 @@ PHASE4_BARRIER_TIMEOUT=${ENVOY_PHASE4_BARRIER_TIMEOUT_SECONDS:-10}
 CHILD_STOP_ATTEMPTS=${ENVOY_CHILD_STOP_ATTEMPTS:-20}
 CHILD_STOP_DELAY=${ENVOY_CHILD_STOP_DELAY_SECONDS:-0.1}
 PHASE4_BARRIER_TRANSACTION_ID=envoy-ext-proc-phase4-safe
+PHASE4_ONLY_TRANSACTION_ID=envoy-ext-proc-phase4-only
+PHASE2_BODY_LIMIT_TRANSACTION_ID=envoy-ext-proc-phase2-body-limit
+PHASE3_REDIRECT_TRANSACTION_ID=envoy-ext-proc-phase3-redirect
 READINESS_TRANSACTION_ID=envoy-ext-proc-readiness-1
 ALLOW_TRANSACTION_ID=envoy-ext-proc-allow-1
 CRS_RUNTIME=${MSCONNECTOR_CRS_RUNTIME:-0}
@@ -60,7 +63,10 @@ CRS_ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/crs-allow-probe.json"
 CRS_BLOCK_PROBE_EVIDENCE="$RUNTIME_ROOT/crs-block-probe.json"
 CRS_BYPASS_PROBE_EVIDENCE="$RUNTIME_ROOT/crs-bypass-probe.json"
 readonly ENVIRONMENT_LOG_LINES='1,160p'
-readonly NO_CRS_REQUEST_BODY_MARKER=no-crs-request-body-marker
+readonly P2_REQUEST_BODY_MARKER=msconnector-p2-only
+readonly P2_BODY_LIMIT_BODY='msconnector-p2-body-limit;bounded-runtime-input-0123456789'
+readonly P3_REDIRECT_TARGET=/msconnector-p3-redirect-target
+P2_BODY_LIMIT_UPSTREAM_MARKER="$RUNTIME_ROOT/upstream-p2-body-limit.reached"
 READINESS_PROBE_EVIDENCE="$RUNTIME_ROOT/readiness-probe.json"
 ALLOW_PROBE_EVIDENCE="$RUNTIME_ROOT/allow-probe.json"
 TLS_CERTIFICATE="$RUNTIME_ROOT/envoy-loopback.crt"
@@ -517,6 +523,10 @@ case "$ALLOW_PROBE_EVIDENCE" in
     "$RUNTIME_ROOT"/*) ;;
     *) echo "envoy_ext_proc_runtime: FAIL - allow probe evidence must be under RUNTIME_ROOT" >&2; exit 1 ;;
 esac
+case "$P2_BODY_LIMIT_UPSTREAM_MARKER" in
+    "$RUNTIME_ROOT"/*) ;;
+    *) echo "envoy_ext_proc_runtime: FAIL - P2 body-limit upstream marker must be under RUNTIME_ROOT" >&2; exit 1 ;;
+esac
 for crs_probe_evidence in "$CRS_ALLOW_PROBE_EVIDENCE" "$CRS_BLOCK_PROBE_EVIDENCE" "$CRS_BYPASS_PROBE_EVIDENCE"; do
     case "$crs_probe_evidence" in
         "$RUNTIME_ROOT"/*) ;;
@@ -554,6 +564,7 @@ rm -f "$COMMON_EVENT_LOG_PATH" "$COMPLETION_LOG_PATH" "$SUMMARY" "$EXT_PROC_RUNT
     "$TRANSPORT_OBSERVATIONS" "$PHASE4_BARRIER_OBSERVATION" \
     "$ALLOW_PROBE_EVIDENCE" "$CRS_ALLOW_PROBE_EVIDENCE" "$CRS_BLOCK_PROBE_EVIDENCE" \
     "$CRS_BYPASS_PROBE_EVIDENCE" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" \
+    "$P2_BODY_LIMIT_UPSTREAM_MARKER" \
     "$PHASE4_BARRIER_DIR/upstream-paused.json" "$PHASE4_BARRIER_DIR/release" \
     "$PHASE4_BARRIER_DIR/upstream-completed.json"
 
@@ -750,9 +761,9 @@ fi
 
 if ! phase1_deny_status=$("$PYTHON_BIN" "$HELPER" probe \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-    --url "https://127.0.0.1:$listen_port/phase1-deny" \
+    --url "https://127.0.0.1:$listen_port/vector/p1" \
     --header "X-Request-Id: envoy-ext-proc-phase1-deny" \
-    --header "X-Modsec-Smoke: block"); then
+    --header "X-Msconnector-Vector: msconnector-p1-only"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-1 deny probe could not be completed" >&2
     exit 1
 fi
@@ -763,8 +774,8 @@ fi
 
 if ! phase2_deny_status=$("$PYTHON_BIN" "$HELPER" probe \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-    --url "https://127.0.0.1:$listen_port/phase2-deny" --method POST \
-    --data "$NO_CRS_REQUEST_BODY_MARKER" \
+    --url "https://127.0.0.1:$listen_port/vector/p2" --method POST \
+    --data "$P2_REQUEST_BODY_MARKER" \
     --header "X-Request-Id: envoy-ext-proc-phase2-deny"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-2 deny probe could not be completed" >&2
     exit 1
@@ -774,9 +785,26 @@ if [ "$phase2_deny_status" != "403" ]; then
     exit 1
 fi
 
+if ! phase2_body_limit_status=$("$PYTHON_BIN" "$HELPER" probe \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/vector/p2-body-limit" --method POST \
+    --data "$P2_BODY_LIMIT_BODY" \
+    --header "X-Request-Id: $PHASE2_BODY_LIMIT_TRANSACTION_ID"); then
+    echo "envoy_ext_proc_runtime: FAIL - phase-2 body-limit probe could not be completed" >&2
+    exit 1
+fi
+if [ "$phase2_body_limit_status" != "413" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - phase-2 body limit returned $phase2_body_limit_status, expected 413" >&2
+    exit 1
+fi
+if [ -e "$P2_BODY_LIMIT_UPSTREAM_MARKER" ] || [ -L "$P2_BODY_LIMIT_UPSTREAM_MARKER" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - phase-2 body-limit request reached the upstream" >&2
+    exit 1
+fi
+
 if ! phase3_deny_status=$("$PYTHON_BIN" "$HELPER" probe \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-    --url "https://127.0.0.1:$listen_port/phase3-block" \
+    --url "https://127.0.0.1:$listen_port/vector/p3" \
     --header "X-Request-Id: envoy-ext-proc-phase3-deny"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-3 deny probe could not be completed" >&2
     exit 1
@@ -788,8 +816,9 @@ fi
 
 if ! phase3_redirect_status=$("$PYTHON_BIN" "$HELPER" probe \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-    --url "https://127.0.0.1:$listen_port/phase3-redirect" --no-redirect \
-    --header "X-Request-Id: envoy-ext-proc-phase3-redirect"); then
+    --url "https://127.0.0.1:$listen_port/vector/p3-redirect" --no-redirect \
+    --header "X-Request-Id: $PHASE3_REDIRECT_TRANSACTION_ID" \
+    --require-response-header "Location: $P3_REDIRECT_TARGET"); then
     echo "envoy_ext_proc_runtime: FAIL - phase-3 redirect probe could not be completed" >&2
     exit 1
 fi
@@ -798,9 +827,21 @@ if [ "$phase3_redirect_status" != "302" ]; then
     exit 1
 fi
 
+if ! phase4_only_status=$("$PYTHON_BIN" "$HELPER" probe \
+    --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+    --url "https://127.0.0.1:$listen_port/vector/p4" \
+    --header "X-Request-Id: $PHASE4_ONLY_TRANSACTION_ID"); then
+    echo "envoy_ext_proc_runtime: FAIL - phase-4 only probe could not be completed" >&2
+    exit 1
+fi
+if [ "$phase4_only_status" != "200" ]; then
+    echo "envoy_ext_proc_runtime: FAIL - phase-4 only returned $phase4_only_status, expected 200" >&2
+    exit 1
+fi
+
 if ! phase4_barrier_observation=$("$PYTHON_BIN" "$HELPER" phase4-first-byte \
     --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-    --host 127.0.0.1 --port "$listen_port" --path /phase4-marker \
+    --host 127.0.0.1 --port "$listen_port" --path /vector/p4-safe \
     --header "X-Request-Id: $PHASE4_BARRIER_TRANSACTION_ID" \
     --barrier-dir "$PHASE4_BARRIER_DIR" --timeout "$PHASE4_BARRIER_TIMEOUT" \
     --output "$PHASE4_BARRIER_OBSERVATION"); then
@@ -827,6 +868,52 @@ if [ "$phase4_followup_status" != "200" ]; then
     exit 1
 fi
 
+phase4_only_completion_ready=0
+attempt=0
+while [ "$attempt" -lt 20 ]; do
+    attempt=$((attempt + 1))
+    if "$PYTHON_BIN" - "$COMPLETION_LOG_PATH" "$PHASE4_ONLY_TRANSACTION_ID" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+transaction_id = sys.argv[2]
+if not path.is_file() or path.is_symlink() or path.stat().st_size > 2 * 1024 * 1024:
+    raise SystemExit(1)
+records = []
+for line in path.read_text(encoding="utf-8", errors="strict").splitlines():
+    if not line:
+        continue
+    record = json.loads(line)
+    if isinstance(record, dict) and record.get("transaction_id") == transaction_id:
+        records.append(record)
+if len(records) != 1:
+    raise SystemExit(1)
+record = records[0]
+if (
+    record.get("event") != "ext_proc_stream_complete"
+    or record.get("integration_mode") != "ext_proc"
+    or record.get("close_reason") != "response_end_of_stream"
+    or not isinstance(record.get("response_body_chunks"), int)
+    or not isinstance(record.get("response_body_bytes"), int)
+    or record["response_body_chunks"] < 1
+    or record["response_body_bytes"] < 1
+):
+    raise SystemExit(1)
+PY
+    then
+        phase4_only_completion_ready=1
+        break
+    fi
+    sleep 1
+done
+if [ "$phase4_only_completion_ready" -ne 1 ]; then
+    echo "envoy_ext_proc_runtime: FAIL - missing bounded P4-only completion evidence" >&2
+    print_runtime_log "$COMPLETION_LOG_PATH"
+    exit 1
+fi
+
 event_ready=0
 attempt=0
 while [ "$attempt" -lt 20 ]; do
@@ -850,8 +937,8 @@ if [ "$event_ready" -ne 1 ]; then
 fi
 if grep -Fq 'request-body-for-ext-proc' "$COMPLETION_LOG_PATH" || \
     grep -Fq 'envoy connector upstream ok' "$COMPLETION_LOG_PATH" || \
-    grep -Fq "$NO_CRS_REQUEST_BODY_MARKER" "$COMPLETION_LOG_PATH" || \
-    grep -Fq 'no-crs-response-body-marker' "$COMPLETION_LOG_PATH"; then
+    grep -Fq "$P2_REQUEST_BODY_MARKER" "$COMPLETION_LOG_PATH" || \
+    grep -Fq 'msconnector-p4-safe' "$COMPLETION_LOG_PATH"; then
     echo "envoy_ext_proc_runtime: FAIL - metadata evidence contains a body payload" >&2
     exit 1
 fi
@@ -863,11 +950,11 @@ while [ "$attempt" -lt 20 ]; do
     if [ -s "$COMMON_EVENT_LOG_PATH" ] && \
         grep -Fq '"connector":"envoy"' "$COMMON_EVENT_LOG_PATH" && \
         grep -Fq '"integration_mode":"ext_proc"' "$COMMON_EVENT_LOG_PATH" && \
-        grep -Fq '"rule_id":"1100001"' "$COMMON_EVENT_LOG_PATH" && \
-        grep -Fq '"rule_id":"1100101"' "$COMMON_EVENT_LOG_PATH" && \
-        grep -Fq '"rule_id":"1100201"' "$COMMON_EVENT_LOG_PATH" && \
-        grep -Fq '"rule_id":"1100202"' "$COMMON_EVENT_LOG_PATH" && \
-        grep -Fq '"rule_id":"1100301"' "$COMMON_EVENT_LOG_PATH" && \
+        grep -Fq '"rule_id":"1101001"' "$COMMON_EVENT_LOG_PATH" && \
+        grep -Fq '"rule_id":"1102001"' "$COMMON_EVENT_LOG_PATH" && \
+        grep -Fq '"rule_id":"1103001"' "$COMMON_EVENT_LOG_PATH" && \
+        grep -Fq '"rule_id":"1103002"' "$COMMON_EVENT_LOG_PATH" && \
+        grep -Fq '"rule_id":"1104002"' "$COMMON_EVENT_LOG_PATH" && \
         grep -Fq '"transport_result":"http_status"' "$COMMON_EVENT_LOG_PATH" && \
         grep -Fq '"transport_result":"log_only"' "$COMMON_EVENT_LOG_PATH" && \
         grep -Fq '"actual_action":"log_only"' "$COMMON_EVENT_LOG_PATH"; then
@@ -883,8 +970,9 @@ if [ "$raw_event_ready" -ne 1 ]; then
 fi
 if grep -Fq 'request-body-for-ext-proc' "$COMMON_EVENT_LOG_PATH" || \
     grep -Fq 'envoy connector upstream ok' "$COMMON_EVENT_LOG_PATH" || \
-    grep -Fq "$NO_CRS_REQUEST_BODY_MARKER" "$COMMON_EVENT_LOG_PATH" || \
-    grep -Fq 'no-crs-response-body-marker' "$COMMON_EVENT_LOG_PATH"; then
+    grep -Fq "$P2_REQUEST_BODY_MARKER" "$COMMON_EVENT_LOG_PATH" || \
+    grep -Fq "$P2_BODY_LIMIT_BODY" "$COMMON_EVENT_LOG_PATH" || \
+    grep -Fq 'msconnector-p4-safe' "$COMMON_EVENT_LOG_PATH"; then
     echo "envoy_ext_proc_runtime: FAIL - Common raw event evidence contains a body payload" >&2
     exit 1
 fi
@@ -918,8 +1006,9 @@ if [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] && [ ! -s "$FULL_LIFECYCLE_EVIDENCE_
     echo "envoy_ext_proc_runtime: FAIL - phase-4 first-byte evidence was not written" >&2
     exit 1
 fi
-if grep -Fq 'no-crs-response-body-marker' "$COMMON_EVENT_LOG_PATH" || \
-    grep -Fq "$NO_CRS_REQUEST_BODY_MARKER" "$COMMON_EVENT_LOG_PATH"; then
+if grep -Fq 'msconnector-p4-safe' "$COMMON_EVENT_LOG_PATH" || \
+    grep -Fq "$P2_REQUEST_BODY_MARKER" "$COMMON_EVENT_LOG_PATH" || \
+    grep -Fq "$P2_BODY_LIMIT_BODY" "$COMMON_EVENT_LOG_PATH"; then
     echo "envoy_ext_proc_runtime: FAIL - phase-4 barrier event persisted a body payload" >&2
     exit 1
 fi
@@ -1094,8 +1183,12 @@ PY
     printf 'streamed_request_status=%s\n' "$streamed_status"
     printf 'phase1_deny_status=%s\n' "$phase1_deny_status"
     printf 'phase2_deny_status=%s\n' "$phase2_deny_status"
+    printf 'phase2_body_limit_status=%s\n' "$phase2_body_limit_status"
+    printf 'phase2_body_limit_upstream_reached=false\n'
     printf 'phase3_deny_status=%s\n' "$phase3_deny_status"
     printf 'phase3_redirect_status=%s\n' "$phase3_redirect_status"
+    printf 'phase4_only_status=%s\n' "$phase4_only_status"
+    printf 'phase4_only_completion=PASS\n'
     printf 'phase4_rule_observed_status=%s\n' "$phase4_safe_status"
     printf 'phase4_safe_status=%s\n' "$phase4_safe_status"
     printf 'phase4_end_of_stream_evaluation_status=%s\n' "$phase4_safe_status"

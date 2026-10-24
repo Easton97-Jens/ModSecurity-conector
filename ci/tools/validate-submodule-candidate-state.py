@@ -273,6 +273,12 @@ def _require_full_revision(value: str, code: str) -> str:
     return value
 
 
+def _validated_submodule_url(value: str, code: str) -> str:
+    if not value or not value.isascii() or any(char in value for char in "\x00\r\n"):
+        _fail(code)
+    return value
+
+
 def _diagnostic_paths(root: Path, arguments: Sequence[str]) -> list[str]:
     """Return a bounded list of Git paths only, never source-file content."""
 
@@ -331,6 +337,19 @@ def _validate_parent(arguments: argparse.Namespace) -> Path:
         arguments.current_gitlink_sha, "CURRENT_GITLINK_SHA_INVALID"
     )
     arguments.candidate_sha = _require_full_revision(arguments.candidate_sha, "CANDIDATE_SHA_INVALID")
+    if (arguments.allowed_nested_gitlink_path is None) != (
+        arguments.allowed_nested_submodule_url is None
+    ):
+        _fail("ALLOWED_NESTED_SUBMODULE_INVALID")
+    if arguments.allowed_nested_gitlink_path is not None:
+        arguments.allowed_nested_gitlink_path = _relative_path(
+            arguments.allowed_nested_gitlink_path,
+            "ALLOWED_NESTED_SUBMODULE_INVALID",
+        )
+        arguments.allowed_nested_submodule_url = _validated_submodule_url(
+            arguments.allowed_nested_submodule_url,
+            "ALLOWED_NESTED_SUBMODULE_INVALID",
+        )
     arguments.expected_parent_head = _require_full_revision(
         arguments.expected_parent_head, "EXPECTED_PARENT_HEAD_INVALID"
     )
@@ -385,6 +404,23 @@ def _submodule_paths(root: Path) -> list[str]:
     return paths
 
 
+def _submodule_url(root: Path, submodule_path: str) -> str:
+    try:
+        values = _git(
+            root,
+            "config",
+            "-f",
+            GITMODULES_FILENAME,
+            "--get",
+            f"submodule.{submodule_path}.url",
+        ).splitlines()
+    except ValidationError:
+        _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+    if len(values) != 1 or not values[0]:
+        _fail("FRAMEWORK_SUBMODULE_METADATA_INVALID")
+    return values[0]
+
+
 def _tree_entry_metadata(entry: str) -> tuple[str, str | None, str | None]:
     header, separator, path = entry.partition("\t")
     fields = header.split()
@@ -427,33 +463,54 @@ def _tree_metadata(root: Path, revision: str) -> tuple[dict[str, str], dict[str,
 
 
 def _validate_candidate_submodule_metadata(
-    root: Path, current_revision: str, candidate_revision: str
+    root: Path,
+    current_revision: str,
+    candidate_revision: str,
+    *,
+    allowed_nested_gitlink_path: str | None,
+    allowed_nested_submodule_url: str | None,
 ) -> None:
-    """Reject candidate changes to nested-submodule topology or gitlinks."""
+    """Reject nested metadata changes except one explicitly verified Gitlink."""
 
     current_gitlinks, current_gitmodules = _tree_metadata(root, current_revision)
     candidate_gitlinks, candidate_gitmodules = _tree_metadata(root, candidate_revision)
-    if current_gitlinks != candidate_gitlinks or current_gitmodules != candidate_gitmodules:
-        changed_paths = sorted(
-            {
-                *set(current_gitlinks) ^ set(candidate_gitlinks),
-                *set(current_gitmodules) ^ set(candidate_gitmodules),
-                *{
-                    path
-                    for path in set(current_gitlinks) & set(candidate_gitlinks)
-                    if current_gitlinks[path] != candidate_gitlinks[path]
-                },
-                *{
-                    path
-                    for path in set(current_gitmodules) & set(candidate_gitmodules)
-                    if current_gitmodules[path] != candidate_gitmodules[path]
-                },
-            }
-        )[:20]
-        _fail(
-            "FRAMEWORK_SUBMODULE_METADATA_CHANGED",
-            paths=changed_paths,
-        )
+
+    changed_gitlinks = (
+        set(current_gitlinks) ^ set(candidate_gitlinks)
+    ) | {
+        path
+        for path in set(current_gitlinks) & set(candidate_gitlinks)
+        if current_gitlinks[path] != candidate_gitlinks[path]
+    }
+    changed_gitmodules = (
+        set(current_gitmodules) ^ set(candidate_gitmodules)
+    ) | {
+        path
+        for path in set(current_gitmodules) & set(candidate_gitmodules)
+        if current_gitmodules[path] != candidate_gitmodules[path]
+    }
+    changed_paths = sorted(changed_gitlinks | changed_gitmodules)[:20]
+    if not changed_paths:
+        return
+
+    allowed_path = allowed_nested_gitlink_path
+    allowed_url = allowed_nested_submodule_url
+    if (
+        changed_gitmodules
+        or allowed_path is None
+        or allowed_url is None
+        or changed_gitlinks != {allowed_path}
+        or allowed_path not in current_gitlinks
+        or allowed_path not in candidate_gitlinks
+    ):
+        _fail("FRAMEWORK_SUBMODULE_METADATA_CHANGED", paths=changed_paths)
+
+    configured_paths = _submodule_paths(root)
+    if (
+        configured_paths.count(allowed_path) != 1
+        or _submodule_url(root, allowed_path) != allowed_url
+    ):
+        _fail("FRAMEWORK_SUBMODULE_METADATA_CHANGED", paths=changed_paths)
 
 
 def _validate_nested(root: Path) -> None:
@@ -465,9 +522,9 @@ def _validate_nested(root: Path) -> None:
     )
     for relative in paths:
         path = root / relative
-        # A candidate's nested submodule must not be fetched merely to prove
-        # that the candidate is safe.  Its topology and gitlink were compared
-        # against the reviewed commit above; an absent worktree or the empty
+        # The validator never initialises candidate-controlled nested source.
+        # Its topology is immutable here and any permitted Gitlink transition
+        # was explicitly allowlisted above; an absent worktree or the empty
         # directory Git leaves for an uninitialised nested submodule is an
         # accepted state.  Do not use Path.is_dir() here: it follows symlinks.
         try:
@@ -515,7 +572,11 @@ def _validate_framework(parent: Path, arguments: argparse.Namespace) -> None:
             actual_head=actual_candidate_head,
         )
     _validate_candidate_submodule_metadata(
-        framework, arguments.current_gitlink_sha, arguments.candidate_sha
+        framework,
+        arguments.current_gitlink_sha,
+        arguments.candidate_sha,
+        allowed_nested_gitlink_path=arguments.allowed_nested_gitlink_path,
+        allowed_nested_submodule_url=arguments.allowed_nested_submodule_url,
     )
     paths = _submodule_paths(framework)
     _require_clean(
@@ -552,6 +613,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     validate.add_argument("--submodule-path", required=True)
     validate.add_argument("--current-gitlink-sha", required=True)
     validate.add_argument("--candidate-sha", required=True)
+    validate.add_argument("--allowed-nested-gitlink-path")
+    validate.add_argument("--allowed-nested-submodule-url")
     validate.add_argument("--expected-parent-head", required=True)
     validate.add_argument("--expected-parent-hooks-sha256", required=True)
     return parser.parse_args(argv)

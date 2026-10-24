@@ -98,9 +98,10 @@ fi
 mkdir -p "$OUT"
 HARNESS="$SCRIPT_DIR/apache_request_transaction_cleanup.c"
 UTILS="$REPO_ROOT/connectors/apache/src/msc_utils.c"
+TRANSACTION_STATE="$REPO_ROOT/common/src/transaction_state.c"
 BIN="$OUT/apache-request-transaction-cleanup"
 
 "$CC_BIN" -std=c17 -Wall -Wextra -Werror -ffunction-sections -fdata-sections \
-    $APXS_CFLAGS $APXS_CPPFLAGS $INCLUDES "$HARNESS" "$UTILS" \
+    $APXS_CFLAGS $APXS_CPPFLAGS $INCLUDES "$HARNESS" "$UTILS" "$TRANSACTION_STATE" \
     -Wl,--gc-sections $APR_RPATH_FLAG $APR_LINK_FLAGS $APR_UTIL_LINK_FLAGS -o "$BIN"
 "$BIN"

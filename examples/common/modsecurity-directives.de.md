@@ -407,7 +407,7 @@ On ermöglicht P4 nur, wenn der Host Response-Bytes im Geltungsbereich bereitste
 
 ### Validierung und Fehler
 
-Der Host/libmodsecurity weist beim Laden der Regeldatei ungültige Engine-Syntax ab. Zur Laufzeit können ein MIME-Typ außerhalb des Geltungsbereichs, ein deaktivierter Host-Body-Pfad oder ein überschrittenes Limit P4 ohne die erwartete vollständige Body-Eingabe lassen.
+Der Host beziehungsweise libmodsecurity weist ungültige Engine-Syntax beim Laden der Regeldatei ab. Zur Laufzeit können ein durch die Engine ausgeschlossener Response-MIME-Typ, ein deaktivierter Host-Body-Pfad oder ein überschrittenes Limit dazu führen, dass P4 nicht die erwartete vollständige Body-Eingabe erhält.
 
 ### Beispiel
 

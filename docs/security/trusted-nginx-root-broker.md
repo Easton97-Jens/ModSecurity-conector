@@ -137,6 +137,11 @@ before API access, artifact creation, or evidence readback.
 
 ## Versioned declarative caller contract
 
+The current caller declares top-level `permissions: {}` and grants only
+`contents: read` to each admitted job. The restricted parser accepts the exact
+empty mapping literal `{}` for this contract; nonempty flow mappings, flow
+lists, anchors, and tags remain rejected.
+
 The reusable-workflow interface has exactly six inputs:
 
 - `caller_manifest_artifact`
@@ -186,6 +191,16 @@ active caller pins the broker revision that contains this protected
 snapshot contract, so a resulting-Parent-master dispatch selects it directly.
 
 ## Protected artifacts and CRS bundle
+
+The workflow source explicitly fetches the protected CRS release tag without
+root before bundle admission. Repository, tag, and commit come from the
+blob-verified broker constants. The fresh source must retain the approved
+origin and HEAD, and the fetched tag must peel to the approved commit; existing
+content checks still apply. This also supports a Framework fetcher that
+materializes only the approved commit without tags. Activating this correction
+requires a reviewed broker revision and a new immutable caller tuple; the
+currently recorded `49c40779a7b6de9f699391bcd524ea069787df42` caller pin does
+not select the new workflow source.
 
 The workflow rebuilds the reviewed NGINX binary, ModSecurity NGINX module, and
 ModSecurity shared library from the checked-out protected source without root.

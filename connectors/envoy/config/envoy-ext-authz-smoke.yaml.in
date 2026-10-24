@@ -48,9 +48,37 @@ static_resources:
                   cluster: ext_authz
                   timeout: 1s
                 path_prefix: /auth
+                authorization_response:
+                  # The authorization service creates this opaque, one-time
+                  # capability server-side.  It goes only to the following
+                  # local ext_proc filter, which removes it before routing.
+                  allowed_upstream_headers:
+                    patterns:
+                    - exact: x-msconnector-response-handle
               with_request_body:
                 max_request_bytes: 4096
                 allow_partial_message: false
+          - name: envoy.filters.http.ext_proc
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: msconnector_ext_authz_response_observer
+                timeout: 0.2s
+              # This observer receives only the request handle (never the
+              # request payload), then the response P3/P4 stream.
+              processing_mode:
+                request_header_mode: SEND
+                request_body_mode: NONE
+                request_trailer_mode: SKIP
+                response_header_mode: SEND
+                response_body_mode: STREAMED
+                response_trailer_mode: SEND
+              send_body_without_waiting_for_header_response: false
+              allow_mode_override: false
+              failure_mode_allow: false
+              message_timeout: 0.2s
+              max_message_timeout: 0.25s
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -87,6 +115,22 @@ static_resources:
               socket_address:
                 address: 127.0.0.1
                 port_value: @AUTHZ_PORT@
+  - name: msconnector_ext_authz_response_observer
+    connect_timeout: 0.2s
+    type: STATIC
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: msconnector_ext_authz_response_observer
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: "@RESPONSE_OBSERVER_SOCKET@"
 admin:
   access_log:
   - name: envoy.access_loggers.file

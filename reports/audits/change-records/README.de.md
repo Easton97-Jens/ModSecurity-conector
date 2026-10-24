@@ -14,10 +14,192 @@ angelegt werden.
 - [CR-20260826-http2-http3-protocol-parity](CR-20260826-http2-http3-protocol-parity.de.md) —
   der aktuelle Benutzer autorisierte diesen unabhängigen Parent-Workstream zur
   HTTP/2-/HTTP/3-Protokollparität und seine gekoppelte Dokumentation. Er weist
-  nur gelieferte Evidence aus; Runtime-Lücken, das nicht initialisierte
-  Framework-Submodul, das unberührte MRTS sowie der noch nicht committed,
-  gepushed oder durch einen erstellten PR vertretene Delivery-Status bleiben
-  ausdrücklich sichtbar.
+  nur gelieferte Evidence aus; Runtime-Lücken und der aktuelle Lieferstatus
+  von Draft-PR #348 bleiben ausdrücklich sichtbar.
+
+- [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
+  | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
+  der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf
+  `35454150502` angefordert. Sie ersetzt den unzureichenden ambient Token des
+  Updater-Publishers durch den bestehenden repositorybegrenzten
+  Workflow-Updater-App-Token, erhält die geschlossene CRS/no-MRTS-SHA-Projektion,
+  ergänzt fail-closed Credential-Regression-Coverage und behauptet keine
+  Framework-/MRTS-Source, Gitlink-, App-Konfigurations-, Hosted-Rerun-, direkte
+  `master`- oder Merge-Aktion.
+
+- [CR-20260919-framework-candidate-review-digest](CR-20260919-framework-candidate-review-digest.de.md)
+  | English companion: `CR-20260919-framework-candidate-review-digest.md` —
+  der aktuelle Benutzer hat diese Parent-only-Remediation für den verlinkten
+  GitHub-Actions-Run `35449797036` angefordert. Sie ersetzt den explizit
+  geprüften Framework-`common.sh`-Structure-Digest für Kandidat
+  `cc36b37d0f6a0fbc3512f3878a691751e91c5fbb`, ergänzt fail-closed
+  Pin-Boundary-Regression-Coverage und lässt Framework-/MRTS-Source, Gitlinks,
+  Permissions, Hosted-Reruns und Merge-State unverändert.
+
+- [CR-20260919-update-submodule-sha-projection](CR-20260919-update-submodule-sha-projection.de.md)
+  | English companion: CR-20260919-update-submodule-sha-projection.md — der
+  aktuelle Benutzer hat diese Parent-only-Korrektur für den verlinkten
+  GitHub-Actions-Run 35441775719 angefordert. Der Record hält die geschlossene
+  Static-SHA-Projektionskorrektur und die fokussierte `python:S8786`-
+  Remediation ohne Suppression, lokale Tests, das unabhängige statische
+  Security-Review und ausstehende Exact-Nachfolger-Delivery-Evidenz fest.
+  Keine Framework-/MRTS-Source, Gitlink-Aktualisierung, Hosted-Rerun oder
+  Merge-Aktion wird behauptet.
+
+- [CR-20260916-general-state-finding-remediation](CR-20260916-general-state-finding-remediation.de.md)
+  | English companion: `CR-20260916-general-state-finding-remediation.md` —
+  der aktuelle Benutzer autorisierte ausdrücklich sichere Remediation im
+  bestehenden Parent-Draft-PR #369. Der gepaarte Record hält den unveränderlichen
+  Expat-Pin, die opt-in-Envoy-Response-Phase-Regel-/Fixture-Evidenz, externes
+  Apache-APXS-Profile-Registry-Staging, NGINX-Archive-Owner-/Authority-
+  Härtung und das lokale HAProxy-SPOP-`c:S924`-Refactoring fest, während
+  blockierte Traefik-, Apache-, native NGINX-, Framework- und Exact-Head-
+  Sonar-Evidenz als solche erhalten bleibt. Keine Framework-/MRTS-/Gitlink-
+  Änderung, direkte `master`-Aktion, Auto-Merge oder Merge wird behauptet.
+
+- [CR-20260916-lighttpd-stock-sidecar-endpoint-metadata](CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.de.md)
+  | English companion: `CR-20260916-lighttpd-stock-sidecar-endpoint-metadata.md` —
+  der aktuelle Benutzer autorisierte ausdrücklich einen task-owned
+  Parent-Worktree und einen PR für die eingegrenzte lighttpd-Stock-Sidecar-
+  Endpunktmetadaten-Reparatur. Der Record hält den reproduzierten `502`-
+  Allow-Fehler, kernelbezogenes fail-closed Mapping, gezielte lokale Ergebnisse,
+  den verbleibenden Immediate-Reset-Testfehler und ausstehende Exact-Head-
+  Hosted-Evidenz fest. Keine Framework-/MRTS-/Gitlink-Änderung, direkte
+  `master`-Aktion, Auto-Merge oder Merge wird behauptet.
+
+- [CR-20260913-sonar-connector-followup-remediation](CR-20260913-sonar-connector-followup-remediation.de.md)
+  | English companion: `CR-20260913-sonar-connector-followup-remediation.md` —
+  der aktuelle Benutzer autorisierte diesen normalen Parent-only-Follow-up-PR
+  zur Remediation von 16 aktuellen Parent-SonarQube-Cloud-Findings. Er hält
+  scoped lokale Source- und Contract-Evidenz, die erforderliche neue Exact-
+  Head-Security-/Hosted-Verifikation sowie die verbleibende Framework-Issue- /
+  Aggregatduplikationsgrenze fest. Keine Framework-/MRTS-/Gitlink-Änderung,
+  direkte `master`-Aktion oder Merge wird behauptet.
+
+- [CR-20260910-sonarcloud-parent-open-issues-duplication-remediation](CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.de.md)
+  | English companion: `CR-20260910-sonarcloud-parent-open-issues-duplication-remediation.md` —
+  die Parent-Traceability-Policy verlangt diesen gepaarten Record für die
+  nicht triviale Parent-only-SonarCloud-Remediation in PR #361. Er hält lokale
+  Source-, Test- und Security-Diff-Evidenz für 112 Parent-Baseline-Code-Smells
+  und echte Duplikatblock-Reduktionsarbeit fest, während ein Framework-Issue
+  und repositoryübergreifender Duplikatcontent außerhalb des Scopes bleiben.
+  Exact-Head-Hosted-Evidenz ist vor einem Merge erforderlich; eine gemergte
+  Default-Branch-Metrikverbesserung wird nicht behauptet.
+
+- [CR-20260912-nginx-terminal-checker-alignment](CR-20260912-nginx-terminal-checker-alignment.de.md)
+  | English companion: `CR-20260912-nginx-terminal-checker-alignment.md` —
+  nach dem autorisierten und gemergten PR #360 verlangt die angeforderte
+  Resulting-Master-Workflow-Recovery diesen kleinsten Parent-only-
+  Static-Checker-Successor. Er verlangt den vorhandenen terminalen
+  Response-Header-Retry-Guard und die Collection-Fehler-Sticky-Zuweisung;
+  NGINX-Runtime-Source, Framework/MRTS, Gitlink, Workflow, Governance,
+  SonarQube-Controls und direkter `master`-Schreibvorgang bleiben unverändert.
+  Der lokale Successor hat keinen Commit, PR, Hosted-Result oder Merge; ein
+  eigener Successor-Merge benötigt separate exakte Autorisierung.
+
+- [CR-20260912-pr363-candidate-contract-repair](CR-20260912-pr363-candidate-contract-repair.de.md)
+  | English companion: `CR-20260912-pr363-candidate-contract-repair.md` — der
+  aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
+  Worktree und einen Draft PR. Sie löst die von PR #363 aufgedeckten veralteten
+  Parent-Verträge mit einem read-only-Kandidatengatter, erhält generische und
+  geschützte NGINX-Ownership-Grenzen und lässt trusted CodeQL das neueste
+  stabile Go-Release über den bestehenden begrenzten Updater auflösen. Kein
+  Framework-/MRTS-Source, keine PR-#363-Änderung, kein direkter `master`-
+  Schreibvorgang und kein Merge werden behauptet; Delivery-Fakten bleiben an
+  den aktuellen Task-PR-Lifecycle gebunden.
+
+- [CR-20260912-go-latest-release-contract](CR-20260912-go-latest-release-contract.de.md)
+  | English companion: `CR-20260912-go-latest-release-contract.md` — der
+  aktuelle Benutzer autorisierte diese Parent-only-Korrektur in einem eigenen
+  Worktree und einen PR. Sie generalisiert den begrenzten Go-Release-Updater
+  und seinen Trusted-CodeQL-Selector von einer festen Minor-Serie auf die
+  höchste stabile numerische Release; sie hält lokale Source-Evidence und
+  Exact-Head-Delivery-Anforderungen fest. Keine Framework-/MRTS-Source-,
+  Gitlink-, Berechtigungs-, Pin-, Dependency- oder direkte
+  `master`-Schreibänderung wird behauptet; beobachtete Delivery-Fakten
+  bleiben an den aktuellen PR-Lifecycle gebunden.
+
+- [CR-20260909-fail-closed-connector-remediation](CR-20260909-fail-closed-connector-remediation.de.md)
+  | English companion: `CR-20260909-fail-closed-connector-remediation.md` —
+  Parent-only-Fail-Closed-Handling für aktiviertes Apache-Transaktions-Setup
+  und native NGINX-Response-Header-Fehler. Der Record hält fokussierte lokale
+  Evidence und blockierte Host-Runtime-Proofs für den vom Benutzer
+  autorisierten Draft-PR fest; keine Framework-/MRTS-, Gitlink-, Merge-,
+  Release- oder Deployment-Aktion wird behauptet.
+- [CR-20260903-connector-runtime-hardening-quality-remediation](CR-20260903-connector-runtime-hardening-quality-remediation.de.md) —
+  aktuelle Parent-only-Remediation der Codex-Review-Findings, SonarQube-Cloud-
+  Quality-Gate-Fehler und roten Connector-Workflow-Evidence für Draft PR #346.
+  Sie weist lokale Evidence und ausstehende Exact-Head-Hosted-Ergebnisse aus;
+  keine CI-, Framework-/MRTS-, Gitlink-, `master`- oder Merge-Änderung wird
+  behauptet.
+- [CR-20260906-haproxy-master-recovery](CR-20260906-haproxy-master-recovery.de.md)
+  | English companion: `CR-20260906-haproxy-master-recovery.md` — die vom
+  Benutzer autorisierte Parent-only-HAProxy-Master-Recovery richtet den
+  veralteten globalen Common-Adoption-Checker am bestehenden fail-closed-
+  Host-Mapper aus und überträgt den kleinsten vollständigen SPOP-
+  Bytegrenzen-Proof aus PR #346 als Read-only-Referenz. Sie ändert weder
+  Framework, MRTS, Gitlink, Workflow, Governance, Quality-Gate-Control,
+  fremde Connector-Source noch PR-#346-Status; der Record unterscheidet lokale
+  Evidence von ausstehender Exact-Head-Hosted-Evidence und behauptet keinen
+  Merge.
+
+- [CR-20260905-nginx-current-master-common-adoption-repair](CR-20260905-nginx-current-master-common-adoption-repair.de.md)
+  | English companion: `CR-20260905-nginx-current-master-common-adoption-repair.md` —
+  die vom Benutzer autorisierte Parent-only-NGINX-Static-Contract-Reparatur
+  richtet den Resulting-Master-Checker am aktuellen fail-closed-Request-Mapper-
+  und begrenzten Explicit-Length-Server-Header-Pfad aus. Sie ändert weder
+  NGINX-Runtime-Source, Framework, MRTS, Gitlink, Workflow, Governance noch
+  PR-#346-Status; validierter Implementierungs- und Hosted-Evidence-Head
+  `672d5aa22a94640f50aea191885f991b0d8f45c3` war zur Review freigegeben mit
+  36 terminalen Checks (30 erfolgreich und sechs dokumentierte Skips),
+  Sonar-Quality-Gate `OK` und null `OPEN`/`CONFIRMED`-Issues, Bugs,
+  Vulnerabilities, Code-Smells oder `TO_REVIEW`-Hotspots. Der
+  Dokumentationsabgleich-Successor hat diesen Head als Parent und verändert
+  ausschließlich die gekoppelten Delivery-Dokumentationspfade; Checker, Tests
+  und Produktquellcode sind gegenüber dem validierten Parent byte-identisch.
+  Kein Merge wird behauptet, und Ready for Review ist keine Merge-Autorisierung.
+
+- [CR-20260904-apache-helper-aware-common-adoption-contract](CR-20260904-apache-helper-aware-common-adoption-contract.de.md)
+  | English companion: `CR-20260904-apache-helper-aware-common-adoption-contract.md` —
+  die vom Benutzer autorisierte Parent-only-Apache-Static-Contract-Reparatur
+  richtet den Checker an der begrenzten P2-Helper-Architektur aus und verwirft
+  einen reproduzierten Dead-Code-Checker-Bypass. Sie ändert weder Apache-
+  Runtime-Source, Framework, MRTS, Gitlink, Workflow, Governance noch den
+  Status von PR #346; native P2- und Exact-Head-Hosted-Evidenz stehen aus und
+  es wird kein Merge behauptet.
+
+- [CR-20260824-connector-security-invariants](CR-20260824-connector-security-invariants.de.md)
+  | English companion: `CR-20260824-connector-security-invariants.md` — das
+  Parent-only-Connector-Security-Hardening hält lokale Remote-Rule-, HTTP-
+  Grenz- und Event-Runtime-Evidence fest. Es schließt Framework/MRTS, Gitlink,
+  CI/Governance und gemischte gleichzeitige Edits aus; Remote-Delivery wartet
+  auf eine explizite Autorisierung des aktuellen Benutzers, und Hosted-Checks
+  sowie ein Merge werden nicht behauptet.
+
+- [CR-20260903-security-remediation-open-findings](CR-20260903-security-remediation-open-findings.de.md) —
+  der aktuelle Benutzer autorisierte ausdrücklich diese Parent-only-
+  Security-Remediation, fokussierte Regressionsevidence, gepaarte
+  Traceability und einen Draft PR. Sie initialisiert oder verändert weder
+  Framework/MRTS noch einen Gitlink, CI-Berechtigungen oder Dependencies und
+  autorisiert keinen Merge.
+- [CR-20260903-no-crs-doc-consistency-repair](CR-20260903-no-crs-doc-consistency-repair.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only-Reparatur des
+  reproduzierten Traefik-No-CRS-Dokumentations-/Capability-Katalog-
+  Konsistenzfehlers in einem eigenen Worktree und einen normalen PR. Sie
+  bewahrt den begrenzten, nicht hochgestuften P2-Zustand und nicht
+  unterstütztes Request-Body-Streaming; keine Framework-/MRTS-Source,
+  Gitlink-, Workflow-Berechtigungs-, Sonar-Control- oder Merge-Änderung wird
+  behauptet.
+
+- [CR-20260902-nginx-workflow-contract-repair](CR-20260902-nginx-workflow-contract-repair.de.md) —
+  der aktuelle Benutzer autorisierte diese Parent-only-Reparatur eines
+  reproduzierten NGINX-Source-Contract-Checker-Fehlers in einem eigenen
+  Worktree und einen Draft PR. Die erforderliche Codex-Security-Arbeit
+  identifizierte und ergänzte anschließend die enge Envoy-grpc-go-High-Severity-
+  Dependency-Remediation. Der Record bewahrt die laufenden Once-only-Mapper-,
+  Phase-4-Scope- und Common-Body-Limit-Assertions; er ändert weder NGINX-
+  Runtime-Source, Workflows, Framework/MRTS, Gitlinks, Sonar-Controls noch
+  Merge-Status.
 
 - [CR-20260825-fnd-parent-0221-composite-connectors](CR-20260825-fnd-parent-0221-composite-connectors.de.md) —
   der aktuelle Benutzer autorisierte eine Parent-only-Composite-
@@ -34,6 +216,14 @@ angelegt werden.
   und einen unabhängigen Draft PR. Der Record hält nur beobachtete lokale
   Evidence fest; keine Framework-/MRTS-Source, kein Gitlink, Workflow,
   geschützte NGINX-Grenze, Hosted-Result, Ready-Status oder Merge wird
+  behauptet.
+
+- [CR-20260825-shared-transaction-phase-contract](CR-20260825-shared-transaction-phase-contract.de.md) —
+  der aktuelle Benutzer hat ausdrücklich einen Parent-Draft-PR für den
+  gemeinsamen Transaktions-Phasenvertrag autorisiert. Der Record unterscheidet
+  lokale Komponentenvalidierung von nicht ausgeführter Real-Host-/Hosted-
+  Evidence und erhält die offenen P0/P1-Findings; kein Merge, keine
+  CI-Scope-Änderung, keine Framework-/MRTS- oder Gitlink-Aktion wird
   behauptet.
 
 - [CR-20260825-lighttpd-phase2-pre-upstream-gate](CR-20260825-lighttpd-phase2-pre-upstream-gate.de.md) —

@@ -17,15 +17,14 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`listen`](#listen) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`load_module`](#load-module) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`modsecurity`](#modsecurity) | Host / Connector | boolean | no | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Gates connector transaction creation; it is not SecRuleEngine. |
-| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Bounds response bytes offered to P4 processing by the native connector. |
-| [`modsecurity_phase4_content_types_file`](#modsecurity-phase4-content-types-file) | Host / Connector | path | no | host defaults when omitted | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Scopes P4 response-body inspection to configured MIME types. |
-| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | none | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4. |
-| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | safe | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line. |
+| [`modsecurity_phase4_body_limit`](#modsecurity-phase4-body-limit) | Host / Connector | positive decimal byte count | no | 1048576 | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit. |
+| [`modsecurity_phase4_log`](#modsecurity-phase4-log) | Host / Connector | path | no | not configured | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper. |
+| [`modsecurity_phase4_mode`](#modsecurity-phase4-mode) | Host / Connector | enum | no | off | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | off preserves NGINX's native intervention handling without disabling ModSecurity response-body inspection. safe applies an intervention while the response is still changeable and records a late disruptive decision without inventing a new status. strict uses the native abort_connection path after commit. Response MIME selection belongs to ModSecurity through SecResponseBodyMimeType. |
 | [`modsecurity_rules`](#modsecurity-rules) | Host / Connector | string | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Loads inline content through libmodsecurity during configuration loading. |
 | [`modsecurity_rules_file`](#modsecurity-rules-file) | Host / Connector | path | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | During NGINX configuration loading, ngx_conf_set_rules_file passes the supplied path to libmodsecurity's msc_rules_add_file. The NGINX setter neither canonicalizes nor requires an absolute path; use an absolute path to avoid a process-working-directory dependency. A missing, unreadable, or invalid top-level rule file returns the libmodsecurity loader error and fails the configuration check/reload. Include and IncludeOptional inside that file are then interpreted by libmodsecurity, not expanded by the NGINX parser. Unlike modsecurity_rules, which sends one inline configuration string to msc_rules_add, this directive sends a file path to msc_rules_add_file; both contribute to the configured rule set and its normal parent/child merge. |
-| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | two strings | no | none; optional | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Passes the key/URL pair to libmodsecurity's remote-rule loader. |
+| [`modsecurity_rules_remote`](#modsecurity-rules-remote) | Host / Connector | registered but always rejected directive | no | no usable value | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Policy A rejects remote-rule configuration before a rule loader or network operation. |
 | [`modsecurity_transaction_id`](#modsecurity-transaction-id) | Host / Connector | string/expression | no | none; connector creates a fallback identifier | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Supplies the engine and event correlation identifier for a transaction. |
-| [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | boolean | no | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation. |
+| [`modsecurity_use_error_log`](#modsecurity-use-error-log) | Host / Connector | boolean | no | on | NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location) | `off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission. |
 | [`proxy_pass`](#proxy-pass) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server`](#server) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
 | [`server_name`](#server-name) | Host | host-owned configuration field | no | No connector default; this host field is explicit in the example. | The context shown in the checked-in example; consult the pinned host documentation for all host-specific contexts. | Host-owned setting appearing in the checked-in example; it is not a connector directive. |
@@ -52,7 +51,7 @@ See [Engine reference](../common/modsecurity-directives.md).
 
 | Profile | File | Status |
 | --- | --- | --- |
-| Minimal | [minimal/nginx.conf](minimal/nginx.conf) | Active starter configuration |
+| Off / compatibility | [off/nginx.conf](off/nginx.conf) | Active starter configuration |
 | Safe full lifecycle | [safe/nginx.conf](safe/nginx.conf) | Selected bounded reference |
 | Strict | [strict/nginx.conf](strict/nginx.conf) | Parser-supported or explicitly optional boundary |
 | DetectionOnly | [detection-only/nginx.conf](detection-only/nginx.conf) | Engine evaluates/logs without disruptive action |
@@ -405,7 +404,7 @@ ngx_conf_set_common_flag_slot rejects invalid values during nginx -t; NGX_HTTP_L
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/nginx/minimal/nginx.conf](../../examples/nginx/minimal/nginx.conf).
+Source-backed example: [examples/nginx/off/nginx.conf](../../examples/nginx/off/nginx.conf).
 
 ### Safety and operations
 
@@ -416,7 +415,7 @@ off bypasses connector P1–P4 processing even if a rule file is configured.
 
 ### Short description
 
-Bounds response bytes offered to P4 processing by the native connector.
+Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.
 
 ### Syntax
 
@@ -450,7 +449,7 @@ Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_m
 
 P1 controls integration; rules and P4 controls affect the stated phase only.
 
-Bounds response bytes offered to P4 processing by the native connector.
+Legacy compatibility value; valid Phase-4 modes do not enforce it as a connector WAF response-inspection limit.
 
 ### Validation and errors
 
@@ -464,69 +463,14 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 ### Safety and operations
 
-A larger limit raises memory/CPU exposure; zero is invalid in the native setters.
-
-<a id="modsecurity-phase4-content-types-file"></a>
-## `modsecurity_phase4_content_types_file`
-
-### Short description
-
-Scopes P4 response-body inspection to configured MIME types.
-
-### Syntax
-
-```text
-modsecurity_phase4_content_types_file <value>;
-```
-
-### Valid contexts
-
-- NGX_HTTP_MAIN_CONF (http), NGX_HTTP_SRV_CONF (server), NGX_HTTP_LOC_CONF (location)
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| path | one readable file with MIME tokens | no |
-
-### Default
-
-host defaults when omitted
-
-Source: `connector-specific default content-type loader`.
-
-### Inheritance and merge
-
-http → server → location; a child inherits if it does not set a value.
-
-Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.
-
-### Phases and runtime effect
-
-P1 controls integration; rules and P4 controls affect the stated phase only.
-
-Scopes P4 response-body inspection to configured MIME types.
-
-### Validation and errors
-
-ngx_conf_set_phase4_content_types_file rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 is the registered context mask.
-
-### Example
-
-Selected value: use the syntax above and the source-backed file below.
-
-Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
-
-### Safety and operations
-
-Keep the scope narrow and validate that the host exposes the intended representation of response bytes.
+Use libModSecurity SecResponseBodyLimit/SecResponseBodyLimitAction for WAF inspection policy; independent host resource limits remain separate.
 
 <a id="modsecurity-phase4-log"></a>
 ## `modsecurity_phase4_log`
 
 ### Short description
 
-Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4.
+Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper.
 
 ### Syntax
 
@@ -542,51 +486,51 @@ modsecurity_phase4_log <value>;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| path | one connector JSONL event/intervention-log path | no |
+| path | one absolute or relative path to a safe regular file | no |
 
 ### Default
 
-none
+not configured
 
-Source: `parser registration has no default`.
+Source: `connector configuration`.
 
 ### Inheritance and merge
 
-http → server → location; a child inherits if it does not set a value.
+http → server → location; a child inherits the parent sink when unset.
 
-Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.
+Merge: The effective context owns one connector descriptor; inherited configuration is not reopened by the generic NGINX file registry.
 
 ### Phases and runtime effect
 
-P1 controls integration; rules and P4 controls affect the stated phase only.
+P4 event records are appended to the configured connector-owned descriptor.
 
-Sets a connector event path; current Apache and NGINX paths also use it for earlier rule/intervention metadata, not only P4.
+Opens a connector-owned native NGINX event sink through the Common Runtime's secure no-follow descriptor helper.
 
 ### Validation and errors
 
-ngx_conf_set_phase4_log rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1 is the registered context mask.
+ngx_conf_set_phase4_log opens the path with the Common no-follow helper and fails closed unless the resolved leaf is a regular file below a safe parent. The descriptor is connector-owned and opened private (0600); configuration reload creates a new safe descriptor for the new cycle.
 
 ### Example
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
+Source-backed example: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Safety and operations
 
-Treat JSONL metadata as sensitive operational data and set safe ownership/rotation.
+The helper rejects symlink traversal, non-regular leaves, unsafe ownership or writable parents, and insecure modes. Generic NGINX USR1 file reopening is not a supported rotation mechanism; use a validated configuration reload.
 
 <a id="modsecurity-phase4-mode"></a>
 ## `modsecurity_phase4_mode`
 
 ### Short description
 
-Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.
+off preserves NGINX's native intervention handling without disabling ModSecurity response-body inspection. safe applies an intervention while the response is still changeable and records a late disruptive decision without inventing a new status. strict uses the native abort_connection path after commit. Response MIME selection belongs to ModSecurity through SecResponseBodyMimeType.
 
 ### Syntax
 
 ```text
-modsecurity_phase4_mode minimal | safe | strict;
+modsecurity_phase4_mode off | safe | strict;
 ```
 
 ### Valid contexts
@@ -597,11 +541,11 @@ modsecurity_phase4_mode minimal | safe | strict;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| enum | minimal \| safe \| strict; before commit all use deny_if_possible, after commit minimal/safe are log_only and strict is abort_connection | no |
+| enum | off \| safe \| strict | no |
 
 ### Default
 
-safe
+off
 
 Source: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 
@@ -613,13 +557,13 @@ Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_m
 
 ### Phases and runtime effect
 
-P4 only. The response-body filter accumulates bounded in-scope bytes and finishes the engine at EOS (last_buf/last_in_chain); header/body commitment determines whether a status or only a late transport action remains possible.
+P4 only. Response bytes continue to be offered to ModSecurity subject to engine configuration and connector body limits; the mode controls intervention handling, not MIME inspection scope.
 
-Before response headers/body are committed, minimal, safe, and strict all resolve a P4 intervention as deny_if_possible, so NGINX can still return the requested engine status (or 403 fallback). Once headers are committed or the body started, minimal and safe both use the common log_only action; they record the late decision without a later status rewrite. Strict instead resolves to abort_connection: the native body filter marks the connection as errored, records connection_aborted, and returns NGX_ERROR. The known host boundary is that NGINX invokes the P4 engine finish only at last_buf/last_in_chain after bounded in-scope body accumulation, so a response may already be visible. Strict can therefore terminate a connection, but cannot guarantee a later 403 or replace an already-sent status line.
+off preserves NGINX's native intervention handling without disabling ModSecurity response-body inspection. safe applies an intervention while the response is still changeable and records a late disruptive decision without inventing a new status. strict uses the native abort_connection path after commit. Response MIME selection belongs to ModSecurity through SecResponseBodyMimeType.
 
 ### Validation and errors
 
-ngx_conf_set_phase4_mode accepts only minimal|safe|strict during nginx -t. Runtime late behavior is source-defined: non-strict post-commit paths emit log_only; strict marks the connection errored and returns NGX_ERROR, without manufacturing a later 403.
+ngx_conf_set_phase4_mode accepts only off|safe|strict during nginx -t; minimal and unknown values are rejected.
 
 ### Example
 
@@ -629,7 +573,7 @@ Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/saf
 
 ### Safety and operations
 
-safe/minimal retain late-decision evidence without interrupting an already-started response. strict requests a connection abort after commit, which can expose clients to a partial response; it is not a reliable post-commit HTTP-status enforcement mode.
+off is the compatibility default, safe avoids a fabricated late status rewrite, and strict may terminate an already-started response through the native abort path.
 
 <a id="modsecurity-rules"></a>
 ## `modsecurity_rules`
@@ -735,7 +679,7 @@ ngx_conf_set_rules_file calls msc_rules_add_file while nginx -t/configuration lo
 
 Selected value: use the syntax above and the source-backed file below.
 
-Source-backed example: [examples/nginx/minimal/nginx.conf](../../examples/nginx/minimal/nginx.conf).
+Source-backed example: [examples/nginx/off/nginx.conf](../../examples/nginx/off/nginx.conf).
 
 ### Safety and operations
 
@@ -746,7 +690,7 @@ Keep the file, its parent directories, and any engine-included files non-writabl
 
 ### Short description
 
-Passes the key/URL pair to libmodsecurity's remote-rule loader.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Syntax
 
@@ -762,39 +706,39 @@ modsecurity_rules_remote <key> <url>;
 
 | Type | Allowed values | Required |
 | --- | --- | --- |
-| two strings | key and URL | no |
+| registered but always rejected directive | no key/URL pair is accepted | no |
 
 ### Default
 
-none; optional
+no usable value
 
-Source: `parser registration has no default`.
+Source: `security policy: remote rule loading disabled`.
 
 ### Inheritance and merge
 
-http → server → location; a child inherits if it does not set a value.
+No remote value can be inherited or merged because every use is rejected.
 
-Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_merge combines parent and child rules.
+Merge: No remote value can be merged because every use is rejected before rule loading.
 
 ### Phases and runtime effect
 
-P1 controls integration; rules and P4 controls affect the stated phase only.
+No rule-loader or network path is reachable through this directive.
 
-Passes the key/URL pair to libmodsecurity's remote-rule loader.
+Policy A rejects remote-rule configuration before a rule loader or network operation.
 
 ### Validation and errors
 
-ngx_conf_set_rules_remote rejects invalid values during nginx -t; NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE2 is the registered context mask.
+ngx_conf_set_rules_remote rejects every key/URL pair during nginx -t before a rule loader or network operation.
 
 ### Example
 
-Selected value: use the syntax above and the source-backed file below.
+There is no accepted example: every configured value is rejected by security policy.
 
-Source-backed example: [examples/nginx/safe/nginx.conf](../../examples/nginx/safe/nginx.conf).
+Source-backed example: `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
 ### Safety and operations
 
-Remote policy is not exercised by the selected no-CRS examples; do not treat it as a local-file substitute.
+Remote loading is technically disabled for every connector; do not rely on a remote URL or key.
 
 <a id="modsecurity-transaction-id"></a>
 ## `modsecurity_transaction_id`
@@ -856,7 +800,7 @@ Do not put credentials or sensitive request data in a correlation identifier.
 
 ### Short description
 
-Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.
+`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.
 
 ### Syntax
 
@@ -890,7 +834,7 @@ Merge: ngx_conf_merge_* combines scalar/pointer configuration, while msc_rules_m
 
 P1 controls integration; rules and P4 controls affect the stated phase only.
 
-Controls forwarding of libmodsecurity messages to the host error log; it does not switch rule evaluation.
+`off` suppresses regular and native libModSecurity callback messages in the NGINX error log. It does not disable WAF evaluation or alter Event JSONL emission.
 
 ### Validation and errors
 

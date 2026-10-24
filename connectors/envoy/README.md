@@ -9,11 +9,20 @@ Envoy's `ext_authz` filter. The connector owns the Envoy profile and thin Common
 SDK mapper callbacks; the connector-neutral engine and HTTP service lifecycle
 remain in `common/runtime/`.
 
-This is a request-phase integration. It can receive bounded request headers and
-a buffered request body and translate a Common decision into an authorization
-response. `ext_authz` does not expose upstream response headers or response
-bodies to this service, so response inspection remains unsupported and no
-response-body claim is made.
+The direct `ext_authz` protocol is a request-phase integration. It can receive
+bounded request headers and a buffered request body and translate a Common
+decision into an authorization response. On its own, `ext_authz` does not
+expose upstream response headers or response bodies, so the direct protocol is
+not a P3/P4-capable host adapter.
+
+The named `envoy-ext-authz` logical connector therefore requires the private
+MRC1 response companion described in the [canonical Envoy guide](../../docs/connectors/envoy.md).
+It retains the same live Common/native transaction from completed P2 to P3/P4
+rather than reconstructing a request snapshot. The response observer is
+mandatory: omitting it is a configuration error, and observer or correlation
+failure is fail-closed. This is source/component wiring with state
+`implemented_not_asserted`; it is not a claim that an arbitrary Envoy
+deployment has loaded the required templates.
 
 ## Separate, non-promoted `ext_proc` full-lifecycle host path
 
@@ -38,9 +47,13 @@ P3 redirect, and P4 safe post-commit log-only behavior. It validates the raw
 Common events and the host-confirmed actions after successful gRPC sends. This
 is real local host evidence, but it remains non-promoted and does not change
 the canonical `ext_authz` capabilities or runtime status. A late P4 decision
-in `minimal`/`safe` is recorded as host-confirmed `log_only`; `strict` remains
-`strict_abort_not_attempted`. It never claims a late status change,
-deterministic reset, client reset, or upstream reset.
+in `safe` is recorded as host-confirmed `log_only`; `off` preserves native
+intervention handling without applying the additional late policy. The service
+decoder can represent `late_action_policy: strict`, but a rule-evaluating CGo
+service with `phase4_mode=strict` rejects the `envoy-ext-proc` profile at
+startup until a deterministic post-commit host action is proven. It never
+claims a late status change, deterministic reset, client reset, or upstream
+reset.
 
 The exact ext_proc API boundary, opt-in client-cancel observation, and
 non-promotion conditions are documented in the
@@ -193,23 +206,54 @@ does not promote a capability or substitute for canonical collection.
   timeout, reset, first-byte, HTTP/2, client-byte observation, canonical
   collector, or capability-promotion evidence.
 
-## Canonical Phase-4 boundary
+## Direct `ext_authz` boundary and logical Phase-4 contract
 
-The selected host model is Envoy HTTP `ext_authz`.  It asks the authorization
-service before upstream handling and never exposes the later upstream response
-to that service.  `response_body_buffered`, `phase4`,
-`phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
-`late_intervention_log_only`, `late_intervention_abort`, and
-`late_intervention_status_metadata` are therefore
-`unsupported_by_host_model`, not merely unverified.
-
-Every shared Phase-4 case for this integration must be `UNSUPPORTED`, with the
-reason that the selected ext_authz integration executes before the upstream
-response and does not expose upstream response-body data.  A request-phase
+The direct Envoy HTTP `ext_authz` protocol asks the authorization service
+before upstream handling and never exposes the later upstream response to that
+service. In the legacy direct capability table,
+`response_body_buffered`, `phase4`, `phase4_rule_evaluation`,
+`phase4_pre_commit_deny`, `late_intervention`, `late_intervention_log_only`,
+`late_intervention_abort`, and `late_intervention_status_metadata` are
+therefore `unsupported_by_host_model`, not merely unverified. A request-phase
 allow or deny, including a real request-side 200 or 403, is not response-phase
-evidence.  The service cannot supply original upstream status, visible client
-status after a late intervention, or a post-commit action because no such host
-event reaches it.
+evidence for that direct protocol.
 
-`UNSUPPORTED` describes this chosen architecture; it never counts as `PASS`.
-No response-body payload is written to events or reports.
+That boundary does not make P3/P4 not-applicable for the complete
+`envoy-ext-authz` logical connector. Its required chain hands the live Common
+transaction from `ext_authz` after P2 to the private-UDS `ext_proc` response
+observer through a server-generated opaque handle. The observer claims the
+handle exactly once, strips it before the upstream request, sends P3 before
+response commitment, sends bounded P4 chunks plus exactly one EOS, and then
+releases or cancels deterministically. Missing, malformed, expired, replayed,
+or unavailable correlation is a configuration or protocol failure and fails
+closed before response commitment.
+
+Accordingly, a shared P4 case is `UNSUPPORTED` only for an unpaired direct
+`ext_authz` protocol. The logical connector must use its required observer for
+P3/P4 or fail as misconfigured; it must never silently relabel those phases as
+unsupported. No response-body payload is written to events or reports.
+
+## Phase-4 mode and response-body limit ownership
+
+The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+No valid Phase-4 mode adds a connector-owned cumulative response-inspection
+budget. libModSecurity owns WAF inspection selection and limits through
+`SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`.
+
+This rule applies to native integrations and Common Runtime-backed response
+paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4; selecting a mode does not create a
+missing response path.
+
+Legacy connector/runtime budget settings may remain parseable for
+compatibility, but they must not reject or abort a response solely because a
+legacy inspection-byte count is exceeded. Independent allocation,
+buffered-storage, chunk/message/frame, timeout, overflow and transport limits
+remain active in every mode. A buffered sidecar may therefore still reject a
+response that cannot fit its bounded host storage; that is host capacity, not
+WAF inspection policy.
+
+See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
+for the exact scope, compatibility boundary and validation limitations.

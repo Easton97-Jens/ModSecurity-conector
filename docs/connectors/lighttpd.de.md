@@ -4,12 +4,24 @@
 
 ## Überblick
 
-lighttpd verwendet den ausgewählten <code>patched-native-lighttpd</code>-Pfad
+Die kanonische Stock-Lösung verwendet das ausgewählte traffic-owning
+<code>stock-lighttpd-sidecar</code>; der separat dokumentierte
+<code>patched-native-lighttpd</code>-Pfad bleibt eine eigene Lösung mit
 mit <code>mod_msconnector.so</code>. Das ausgewählte Profil ist
 HTTP/1.1-fokussiert und verwendet eine versionierte Patched-Host-Grenze für
 geliehene Body-Ranges. Es behauptet keine Produktionsreife, keine
 Sicherheitsverifikation, keine CRS-Verifikation, keine vollständige Matrix,
 keine HTTP/2-/HTTP/3-Abdeckung und keine kanonische P4-Runtime-Evidence.
+
+Die logische Lösung <code>lighttpd-stock</code> ist das traffic-owning
+<code>stock-lighttpd-sidecar</code>: Es bindet nur an wörtliches privates
+Loopback, spricht begrenztes HTTP/1.1 und besitzt einen vollständigen
+Client/Backend-Austausch in einem Worker. Es führt P1--P4 direkt ohne
+prozessübergreifenden Korrelations-Handle und ohne TTL-Registry aus. Sein
+Event-JSONL ist metadaten-only und enthält niemals Body-Payloads. Das
+unveränderte native Stock-Modul bleibt eine ausdrückliche nichtkanonische
+P1/P3-Kompatibilitätsübersetzung und niemals ein stiller Fallback. Der
+gepatchte Pfad bleibt eine getrennte direkte P1--P4-Lösung.
 
 ## Architektur und Ownership
 
@@ -79,7 +91,7 @@ dies ist ein Source-/Static-Vertrag, kein Fault-Injection-Runtime-Claim.
 | P4-Frage | Aktuelle Grenze |
 | --- | --- |
 | Response-Body-Hook | Gepatchter Identity-Entity-Body-Source-Pfad existiert |
-| Safe-/Minimal-Ergebnis | Sichtbare Response erhalten und konservatives <code>log_only</code>-Verhalten aufzeichnen |
+| Safe-Policy-Ergebnis | Sichtbare Response erhalten und konservatives <code>log_only</code>-Verhalten aufzeichnen |
 | Strict-Ergebnis | Ausdrücklich nicht ausgeführt ohne client-validierte Host-Abort-Primitive |
 | Streaming/Limits | Braucht ein reales ausgewähltes Host-/Client-Artefakt zur Promotion |
 

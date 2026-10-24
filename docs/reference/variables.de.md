@@ -103,6 +103,7 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | <code>CACHE_ROOT</code>, <code>VERIFIED_COMPONENT_CACHE</code>, <code>CONNECTOR_COMPONENT_CACHE</code> | Cache | nein | <code>cache-v2</code> unter dem Verified-Root; gemeinsames Kind | absolute Verzeichnisse | Wiederverwendbarer Component-Cache, getrennt von einem Lauf |
 | <code>VERIFIED_EVIDENCE_ROOT</code>, <code>EVIDENCE_ROOT</code>, <code>RUNTIME_EVIDENCE_ROOT</code> | Evidence | nein | Unterhalb des Verified-Root abgeleitet | absolute Verzeichnisse | Elternpfade kanonischer No-CRS- und Runtime-Evidence |
 | <code>RUNTIME_RUN_ROOT</code>, <code>RUNTIME_LOG_ROOT</code> | Runtime | nein | Unterhalb des Verified-Root abgeleitet | absolute Verzeichnisse | Elternpfade für Roh-Läufe und pro-Lauf-Logs |
+| <code>MSCONNECTOR_PRIVATE_SOCKET_ROOT</code> | Envoy-/Traefik-Lifecycle-Interna | durch Stage-Wrapper gesetzt | eindeutiges privates Kind von <code>RUNNER_TEMP</code> oder <code>TMPDIR</code> | absolutes, vom Eigentümer kontrolliertes Verzeichnis, Modus <code>0700</code>; codierter Socket-Pfad unter 108 Bytes | Enthält Invocation-eigene Unix-Sockets getrennt von langen Evidence-Pfaden; der Wrapper prüft das Prozessende vor der Bereinigung |
 | <code>VERIFIED_RUN_ID</code> | Report-Lauf | nein | übergebene ID, generierte UTC/Commit-ID oder ID des vorhandenen Manifests | dateisystemsicheres Token | Identifiziert einen Verified-Report-Lauf |
 | <code>NO_CRS_CONNECTORS</code> | No-CRS-Auswahl | nein | <code>apache nginx haproxy envoy traefik lighttpd</code> | durch Leerzeichen getrennte Connector-Namen | Begrenzte Connector-Menge für Aggregate-Targets |
 | <code>NO_CRS_RUN_ID</code> | No-CRS-Evidence | ja für Evidence-Checks | keiner; Runner können einen UTC/Commit-Wert ableiten | 1–128 ASCII-Buchstaben/Ziffern plus <code>.</code>, <code>_</code>, <code>-</code>; beginnt alphanumerisch | Kanonischer Evidence-Namespace |
@@ -225,13 +226,16 @@ Eigenschaften:
 
 #### Direktes NGINX-Release-Asset-Tupel für Full-Smoke
 
-Der strikte Parent-Full-Smoke-Pfad erhält alle NGINX-Provenance-Eingaben als
-ein gemeinsam Framework-synchronisiertes Tupel.
-`ci/tools/sync-framework-component-versions.py` aktualisiert Source-Modus,
-Repository-URL, Release-Tag, Source-Ref, Asset-Name und SHA-256 gemeinsam aus
-`ci/lib/common.sh`; Consumer dürfen kein einzelnes Mitglied manuell ändern.
+Der strikte Parent-Full-Smoke-Pfad hält alle NGINX-Provenance-Eingaben als ein
+unabhängig geprüftes Parent-Tupel. `ci/tools/sync-framework-component-versions.py`
+konsumiert oder schreibt NGINX-Felder bewusst nicht. Stattdessen liest
+`ci/tools/verify-framework-candidate-contract.py` das Candidate-
+`ci/lib/common.sh` als Daten und verlangt vor einer Veröffentlichung durch den
+Submodule-Updater Übereinstimmung mit der unprivilegierten Parent-Übergabe. Der
+Verifier ändert kein NGINX-Feld; eine Aktualisierung dieses Tupels erfordert
+eine atomare, manuell geprüfte Parent-Änderung.
 
-Das synchronisierte Tupel wählt ein direktes, unveränderliches Release-Asset
+Das Tupel wählt ein direktes, unveränderliches Release-Asset
 anstelle eines veränderlichen Release-Selectors.
 Der Full-Smoke-Release-Resolver weist `latest` und `/releases/latest` vor
 Cache-Zugriff, Netzwerkzugriff, Download oder Extraktion ab. Die
@@ -240,7 +244,9 @@ Repository-URL, Tag, Ref, Asset-Name und SHA-256.
 `NGINX_REQUIRE_PINNED_PROVENANCE=1` weist außerdem geerbte native
 Binary-/Modul-Overrides ab. Alle Werte müssen atomar aktualisiert und das
 gesamte Tupel überprüft werden; ein System- oder MRTS-NGINX-Binary ist keine
-Full-Smoke-Evidence.
+Full-Smoke-Evidence. Der geschützte NGINX-Root-Broker besitzt eigene
+unveränderliche Broker- und Framework-Pins und wird durch diese Übergabe nicht
+umgestellt.
 
 #### Statische Framework-Komponenten-Pin-Projektion
 
@@ -254,9 +260,11 @@ Framework-Pins wie Go-FTW-, Albedo-, Python-, Action- und CI-Tool-Pins werden
 ignoriert und erzeugen keine zweite Parent-Autorität.
 
 Für ein registriertes Quellenfeld ist die akzeptierte Assignment-Grammatik
-absichtlich klein: ein direktes Literal, `$NAME`, `${NAME}`, zusammengesetzte
-sichere Literal- und allowlistete Referenzteile sowie die eine kanonische
-Präfixentfernung `${NGINX_RELEASE_TAG#release-}` für das NGINX-Release-Asset.
+absichtlich klein: ein direktes Literal, `$NAME`, `${NAME}` sowie
+zusammengesetzte sichere Literal- und allowlistete Referenzteile. Kein
+NGINX-Feld ist in dieser generischen Projektion registriert und kann daher kein
+Schreibziel werden. Der dedizierte read-only-NGINX-Übergabe-Verifier akzeptiert
+nur die kanonische Beziehung aus Release-Tag, Source-Ref, Asset und Prüfsumme.
 Der einzige erhaltene Self-Default ist der statische
 `NGINX_QUIC_TLS_LIBRARY`-Fallback auf `openssl`; er liest nicht die
 Aufruferumgebung. Command-/Process-Substitution, Backticks, `eval`, Separatoren,

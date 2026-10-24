@@ -97,6 +97,7 @@ or a target must supply the value.
 | <code>CACHE_ROOT</code>, <code>VERIFIED_COMPONENT_CACHE</code>, <code>CONNECTOR_COMPONENT_CACHE</code> | cache | no | <code>cache-v2</code> below the verified root; shared child | absolute directories | Reusable component cache, distinct from a run |
 | <code>VERIFIED_EVIDENCE_ROOT</code>, <code>EVIDENCE_ROOT</code>, <code>RUNTIME_EVIDENCE_ROOT</code> | evidence | no | derived below verified root | absolute directories | Canonical No-CRS and runtime-evidence parent paths |
 | <code>RUNTIME_RUN_ROOT</code>, <code>RUNTIME_LOG_ROOT</code> | runtime | no | derived below verified root | absolute directories | Raw run and per-run log parents |
+| <code>MSCONNECTOR_PRIVATE_SOCKET_ROOT</code> | Envoy/Traefik lifecycle internals | assigned by stage wrapper | unique private child of <code>RUNNER_TEMP</code> or <code>TMPDIR</code> | absolute owner-controlled directory, mode <code>0700</code>; encoded socket path below 108 bytes | Holds invocation-owned Unix sockets separately from long evidence paths; the wrapper verifies process termination before cleanup |
 | <code>VERIFIED_RUN_ID</code> | report run | no | supplied ID, generated UTC/commit ID, or existing manifest ID | filesystem-safe token | Identifies a verified report run |
 | <code>NO_CRS_CONNECTORS</code> | No-CRS selection | no | <code>apache nginx haproxy envoy traefik lighttpd</code> | space-separated connector names | Bounded connector set for aggregate targets |
 | <code>NO_CRS_RUN_ID</code> | No-CRS evidence | yes for evidence checks | none; runners may derive a UTC/commit value | 1–128 ASCII letters/digits plus <code>.</code>, <code>_</code>, <code>-</code>; starts alphanumeric | Canonical evidence namespace |
@@ -216,20 +217,25 @@ table form a group. They have the following common properties:
 
 #### Full-smoke NGINX direct release-asset tuple
 
-The strict Parent full-smoke path receives all NGINX provenance inputs as one
-Framework-synchronized tuple. `ci/tools/sync-framework-component-versions.py`
-updates the source mode, repository URL, release tag, source ref, asset name,
-and SHA-256 together from `ci/lib/common.sh`; consumers must not update an
-individual member manually.
+The strict Parent full-smoke path keeps all NGINX provenance inputs as one
+independently reviewed Parent tuple. `ci/tools/sync-framework-component-versions.py`
+deliberately neither consumes nor writes NGINX fields. Instead,
+`ci/tools/verify-framework-candidate-contract.py` reads the candidate
+`ci/lib/common.sh` as data and requires the unprotected Parent handoff to
+match before the submodule updater can publish. The verifier never changes an
+NGINX field; updating this tuple requires one atomic, manually reviewed Parent
+change.
 
-The synchronized tuple selects a direct, immutable release asset rather than a
+The tuple selects a direct, immutable release asset rather than a
 mutable release selector.
 The full-smoke release resolver rejects `latest` and `/releases/latest` before
 cache access, network access, download, or extraction. Cache reuse is bound to
 the entire tuple: source mode, repository URL, tag, ref, asset name, and
 SHA-256. `NGINX_REQUIRE_PINNED_PROVENANCE=1` also rejects inherited native
 binary/module overrides. Update every value atomically and review the whole
-tuple; a system or MRTS NGINX binary is not full-smoke evidence.
+tuple; a system or MRTS NGINX binary is not full-smoke evidence. The protected
+NGINX root-broker has its own immutable broker and Framework pins and is not
+retargeted by this handoff.
 
 #### Static Framework component-pin projection
 
@@ -242,11 +248,13 @@ unconsumed Framework-only pins such as Go-FTW, Albedo, Python, Action, and CI
 tool pins are ignored and do not create a second Parent authority.
 
 For a registered source field, the accepted assignment grammar is deliberately
-small: a direct literal, `$NAME`, `${NAME}`, concatenated safe literal and
-allowlisted-reference pieces, and the one canonical prefix removal
-`${NGINX_RELEASE_TAG#release-}` for the NGINX release asset. The only retained
-self-default is the static `NGINX_QUIC_TLS_LIBRARY` fallback to `openssl`; it
-does not read the caller environment. Command/process substitution, backticks,
+small: a direct literal, `$NAME`, `${NAME}`, and concatenated safe literal and
+allowlisted-reference pieces. No NGINX field is registered by this generic
+projection, so it cannot become a write target. The dedicated read-only NGINX
+handoff verifier accepts only its canonical release-tag, source-ref, asset,
+and checksum relationship. The only retained self-default is the static
+`NGINX_QUIC_TLS_LIBRARY` fallback to `openssl`; it does not read the caller
+environment. Command/process substitution, backticks,
 `eval`, separators, pipes, redirections, CR/LF, arithmetic expansion,
 unsupported parameter operators, unknown or non-allowlisted references,
 duplicates, cycles, missing/empty fields, and malformed tuples fail closed

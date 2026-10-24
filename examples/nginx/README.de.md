@@ -5,9 +5,11 @@
 ## Integration und Grenze
 
 Integrationsmodus: natives NGINX-HTTP-Modul.
-[minimal/nginx.conf](minimal/nginx.conf) ist Request-only.
-[safe/nginx.conf](safe/nginx.conf) ist die begrenzte HTTP/1.1-P1--P4-Safe-
-Referenz. [strict/nginx.conf](strict/nginx.conf) dokumentiert eine
+[off/nginx.conf](off/nginx.conf), [safe/nginx.conf](safe/nginx.conf)
+und [strict/nginx.conf](strict/nginx.conf) sowie [all/nginx.conf](all/nginx.conf)
+decken den begrenzten HTTP/1.1-P1--P4-Vertrag ab. `all` ist ein umfassendes
+Konfigurationslayout mit einer echten Strict-P4-Policy, kein vierter
+P4-Policy-Wert. Strict dokumentiert eine
 parser-unterstützte Konfigurationsform, nicht die Behauptung eines beobachteten
 späten Abbruchs oder Statuswechsels.
 
@@ -17,13 +19,22 @@ Die Referenz schaltet gzip aus, bis die Byte-Repräsentation des installierten
 Moduls validiert wurde. Sie verspricht weder P4-Bewertung pro Chunk noch einen
 vollständigen Connector-Response-Buffer.
 
+Der Lebenszyklus des nativen Ereignis-Sinks wird – sofern verfügbar – im
+separat kontrollierten gehosteten Functional-A-Pfad validiert. Protected-B-
+Attestierung ist eine getrennte Vertrauensgrenze und wird durch diese Beispiele
+nicht impliziert; hier wird kein aktueller Laufzeitnachweis behauptet.
+`modsecurity_use_error_log on|off` steuert ausschließlich die Weiterleitung von
+libmodsecurity-Meldungen an das NGINX-Fehlerlog und ändert nicht die
+Regelauswertung.
+
 ## Dateien
 
 | Pfad | Typ | Zweck |
 | --- | --- | --- |
-| [minimal/nginx.conf](minimal/nginx.conf) | Host-Konfiguration | Request-only-Referenz des nativen Moduls. |
+| [off/nginx.conf](off/nginx.conf) | Host-Konfiguration | Begrenzte native P1--P4-Referenz mit nativer Interventionsbehandlung. |
 | [safe/nginx.conf](safe/nginx.conf) | Host-Konfiguration | Begrenzte P1--P4-Safe-Referenz. |
 | [strict/nginx.conf](strict/nginx.conf) | Host-Konfiguration | Explizit begrenzte Strict-Konfigurationsform. |
+| [all/nginx.conf](all/nginx.conf) | Host-Konfiguration | Umfassende native Konfiguration mit allen quellenbasierten Direktiven und `modsecurity_phase4_mode strict`. |
 | [detection-only/nginx.conf](detection-only/nginx.conf) | Host-Konfiguration | Nativer Connector mit DetectionOnly-Engine-Regeln; siehe [DetectionOnly-Profil](#detectiononly-profil). |
 | [disabled/nginx.conf](disabled/nginx.conf) | Host-Konfiguration | Auf NGINX-Ebene deaktivierter Connector; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
 | [rules/request-only.conf](rules/request-only.conf) | Regeln | Request-only-Einstellungen. |
@@ -42,11 +53,14 @@ Logs, Listener und Upstream-Werte darin sind Hostbeispiele.
 | --- | --- | --- | --- |
 | load_module-Pfad | Installiertes dynamisches NGINX-Modul | Pflicht; kein Repository-Default; Betreiber; Main-Scope | modules/ngx_http_modsecurity_module.so. Das Modul muss zur exakten NGINX-ABI passen. |
 | modsecurity_rules_file | Lesbare libmodsecurity-Regeldatei | Pflicht; kein Repository-Default; Host-Konfiguration; http-Scope | /etc/modsecurity/modsecurity-phase4.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
-| modsecurity_phase4_mode | P4-Policy: minimal, safe oder strict | Für Safe- oder Strict-Datei Pflicht; Host-Konfiguration; http-Scope | safe in safe/nginx.conf. Strict ist hier nur Konfiguration. |
-| modsecurity_phase4_content_types_file | Explizite Liste der Response-MIME-Typen | Optional; Host-Konfiguration; http-Scope | /etc/modsecurity/phase4-content-types.conf. Fehlende Datei lässt Validierung fehlschlagen. |
-| modsecurity_phase4_log | Ziel für Decision-JSONL | Optional; Host-Konfiguration; http-Scope | /var/log/modsecurity/nginx-phase4.jsonl. Request-Metadaten schützen und rotieren. |
+| modsecurity_phase4_mode | P4-Policy: off, safe oder strict | Für Safe-, Strict- oder all-Datei Pflicht; Host-Konfiguration; http-Scope | safe in safe/nginx.conf; all wählt strict. Strict ist hier nur Konfiguration. |
+| modsecurity_phase4_log | Nativer, dem Connector gehörender P4-JSONL-Ereignis-Sink | Optional; http/server/location; bei Auslassung geerbt | Der Common-No-Follow-Helper verlangt ein sicheres Elternverzeichnis, ein reguläres Blatt, geeignete Eigentümer und den privaten Deskriptor-Modus `0600`. Für Rotation ein validiertes Konfigurations-Reload verwenden; das generische NGINX-`USR1`-Erneutöffnen wird nicht unterstützt. |
+| modsecurity_phase4_body_limit | Alter Connector-Kompatibilitätswert | Optional; Host-Konfiguration; http/server/location-Scope | Wird für die Migration weiter akzeptiert; kein gültiger Phase-4-Modus erzwingt ihn als WAF-Response-Inspection-Policy. In Regeln SecResponseBodyLimit/SecResponseBodyLimitAction verwenden. |
+| modsecurity_use_error_log | Engine-Meldungen an NGINX-Error-Log weiterleiten | Optional; Host-Konfiguration; http/server/location-Scope | In allen Lifecycle-Profilen on. |
+| modsecurity_transaction_id | Requestbezogener Transaktionsausdruck | Optional; Host-Konfiguration; http/server/location-Scope | Standardmäßig kommentiert, weil `$request_id` eine Host-Request-ID-Variable voraussetzt. Nur einen eindeutigen, servergenerierten Wert aktivieren; URI- oder Header-abgeleitete Werte eignen sich nicht zur Korrelation. |
+| modsecurity_rules_remote | Schlüssel und URL für Remote-Regeln | Optional; Host-Konfiguration; http/server/location-Scope | Standardmäßig kommentiert, weil Zugangsdaten und Endpunkt betreiberabhängig sind. |
 | app_backend und 127.0.0.1:8081 | Upstream-Gruppe und lokaler TCP-Endpunkt | Für diese Proxy-Referenzen Pflicht; Host-Konfiguration; http-Scope | Durch gewünschten Upstream ersetzen. Loopback vermeidet unbeabsichtigte Freigabe beim lokalen Test. |
-| listen 8080 und server_name example.test | Listener und Virtual-Host-Selektor | In diesen Dateien Pflicht; Host-Konfiguration; Server-Scope | Für installierten Host ersetzen; ein öffentlicher Bind verändert die Exponierung. |
+| listen 127.0.0.1:8080 und server_name example.test | Listener und Virtual-Host-Selektor | In diesen Dateien Pflicht; Host-Konfiguration; Server-Scope | Für installierten Host ersetzen; ein öffentlicher Bind verändert die Exponierung. |
 | SecResponseBodyLimit | Positives P4-Byte-Limit | Für begrenzte P4-Regeln Pflicht; Regeldatei; Rule-Engine-Scope | 1048576 Bytes. Aus dieser Referenz kein unbegrenztes Verhalten ableiten. |
 
 Regel-ID 9001801 ist nur illustrativ, weder OWASP-CRS- noch No-CRS-Baseline-ID;

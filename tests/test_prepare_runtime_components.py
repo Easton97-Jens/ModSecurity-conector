@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
+import urllib.response
 import unittest
 from unittest import mock
 
@@ -20,17 +23,17 @@ PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
 PINNED_NGINX_RELEASE_TUPLE = {
     "NGINX_SOURCE_MODE": "github-release",
     "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-    "NGINX_RELEASE_TAG": "release-1.31.3",
-    "NGINX_SOURCE_GIT_REF": "release-1.31.3",
-    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.3.tar.gz",
-    "NGINX_SHA256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+    "NGINX_RELEASE_TAG": "release-1.31.6",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.6",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.6.tar.gz",
+    "NGINX_SHA256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
 }
 PINNED_NGINX_RELEASE_ASSET_URL = (
-    "https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz"
+    "https://github.com/nginx/nginx/releases/download/release-1.31.6/nginx-1.31.6.tar.gz"
 )
-TEST_HAPROXY_LOCKED_VERSION = "3.2.22"
-TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz"
-TEST_HAPROXY_LOCKED_SHA256 = "afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"
+TEST_HAPROXY_LOCKED_VERSION = "3.2.25"
+TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.25.tar.gz"
+TEST_HAPROXY_LOCKED_SHA256 = "d59a68d0daef7b5c596b019b742089788ff1748513ef96e71fe7b3943577866e"
 TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION = "3.2.9001"
 TEST_HAPROXY_UNAPPROVED_FUTURE_SOURCE_URL = (
     "https://www.haproxy.org/download/3.2/src/haproxy-3.2.9001.tar.gz"
@@ -77,6 +80,391 @@ components = load_parent_prepare_runtime_components()
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
+    def test_nginx_build_environment_preserves_canonical_non_h3_quic_pins(self) -> None:
+        canonical_quic_tls = {
+            "NGINX_QUIC_TLS_LIBRARY": "openssl",
+            "NGINX_QUIC_TLS_VERSION": "4.0.1",
+            "NGINX_QUIC_TLS_SOURCE_URL": (
+                "https://github.com/openssl/openssl/releases/download/"
+                "openssl-4.0.1/openssl-4.0.1.tar.gz"
+            ),
+            "NGINX_QUIC_TLS_SOURCE_SHA256": (
+                "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            context = {
+                "nginx_build_root": root / "nginx-build",
+                "nginx_prefix": root / "nginx",
+                "local_nginx_bin": root / "nginx/sbin/nginx",
+                "local_module": root / "nginx/modules/ngx_http_modsecurity_module.so",
+            }
+
+            def child_environment(
+                base_env: dict[str, str],
+                protocol_inputs: dict[str, object],
+            ) -> dict[str, str]:
+                return components.nginx_build_environment(
+                    base_env,
+                    components.NginxBuildEnvironmentInputs(
+                        connector_root=root / "connector",
+                        framework_root=root / "framework",
+                        cache_root=root / "cache",
+                        build_root=root / "work",
+                        sources_root=root / "sources",
+                        archives_root=root / "archives",
+                        modsecurity={
+                            "prefix": str(root / "modsecurity"),
+                            "build_id": "modsecurity",
+                        },
+                        protocol_inputs=protocol_inputs,
+                        protocol_profile=str(protocol_inputs["profile"]),
+                        quic_tls_archive=str(root / "archives/nginx/openssl-4.0.1.tar.gz"),
+                        common_build_source_root=root / "common-src",
+                        profile_registry_build_root=root / "profile-registry",
+                        context=context,
+                    ),
+                )
+
+            for profile in ("h1", "h1-h2"):
+                with self.subTest(profile=profile):
+                    protocol_inputs = components.nginx_protocol_build_inputs(
+                        {"NGINX_PROTOCOL_PROFILE": profile}
+                    )
+                    child_env = child_environment(
+                        {
+                            **canonical_quic_tls,
+                            "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
+                            "TAR_OPTIONS": "--same-owner",
+                        },
+                        protocol_inputs,
+                    )
+                    self.assertFalse(protocol_inputs["quic_enabled"])
+                    self.assertEqual(
+                        {key: child_env[key] for key in canonical_quic_tls},
+                        canonical_quic_tls,
+                    )
+                    self.assertEqual(
+                        child_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"],
+                        str(root / "profile-registry"),
+                    )
+                    self.assertEqual(child_env["TAR_OPTIONS"], "--no-same-owner")
+
+            h3_inputs = components.nginx_protocol_build_inputs(
+                {"NGINX_PROTOCOL_PROFILE": "h1-h2-h3-quic", **canonical_quic_tls}
+            )
+            h3_child_env = child_environment(
+                {
+                    "NGINX_QUIC_TLS_LIBRARY": "hostile-library",
+                    "NGINX_QUIC_TLS_VERSION": "0.0.0",
+                    "NGINX_QUIC_TLS_SOURCE_URL": "https://example.invalid/hostile.tar.gz",
+                    "NGINX_QUIC_TLS_SOURCE_SHA256": "f" * 64,
+                    "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
+                    "TAR_OPTIONS": "--same-owner",
+                },
+                h3_inputs,
+            )
+            self.assertTrue(h3_inputs["quic_enabled"])
+            self.assertEqual(
+                {key: h3_child_env[key] for key in canonical_quic_tls},
+                canonical_quic_tls,
+            )
+            self.assertEqual(
+                h3_child_env["MSCONNECTOR_PROFILE_REGISTRY_ROOT"],
+                str(root / "profile-registry"),
+            )
+            self.assertEqual(h3_child_env["TAR_OPTIONS"], "--no-same-owner")
+
+            protocol_cases = (
+                ("h1", components.nginx_protocol_build_inputs({"NGINX_PROTOCOL_PROFILE": "h1"})),
+                (
+                    "h1-h2",
+                    components.nginx_protocol_build_inputs(
+                        {"NGINX_PROTOCOL_PROFILE": "h1-h2"}
+                    ),
+                ),
+                ("h1-h2-h3-quic", h3_inputs),
+            )
+            for inherited_tar_options in (
+                "--same-owner --warning=no-unknown-keyword",
+                None,
+            ):
+                for profile, protocol_inputs in protocol_cases:
+                    with self.subTest(
+                        child_sink_profile=profile,
+                        inherited_tar_options=inherited_tar_options,
+                    ):
+                        base_env = {}
+                        if inherited_tar_options is not None:
+                            base_env["TAR_OPTIONS"] = inherited_tar_options
+                        completed = subprocess.CompletedProcess(
+                            args=["prepare-nginx-build.sh"],
+                            returncode=0,
+                            stdout="",
+                            stderr="",
+                        )
+                        record: dict[str, object] = {}
+                        sink_context = {**context, "local_artifacts": {}}
+                        with (
+                            mock.patch.object(
+                                components,
+                                "copy_nginx_common_sources",
+                                return_value=root / "common-src",
+                            ),
+                            mock.patch.object(
+                                components,
+                                "copy_nginx_profile_registry_sources",
+                                return_value=root / "profile-registry",
+                            ),
+                            mock.patch.object(components, "run_build", return_value=completed) as run_build,
+                            mock.patch.object(components, "nginx_refresh_build_artifacts"),
+                            mock.patch.object(
+                                components, "artifact_status", return_value=(True, [])
+                            ),
+                        ):
+                            ready, missing, built = components.build_nginx_source(
+                                base_env,
+                                root / "connector",
+                                root / "framework",
+                                root / "cache",
+                                root / "work",
+                                root / "sources",
+                                root / "archives",
+                                {
+                                    "prefix": str(root / "modsecurity"),
+                                    "build_id": "modsecurity",
+                                },
+                                {},
+                                protocol_inputs,
+                                str(root / "archives/nginx/openssl-4.0.1.tar.gz"),
+                                sink_context,
+                                record,
+                            )
+
+                        self.assertTrue(ready)
+                        self.assertEqual(missing, [])
+                        self.assertTrue(built)
+                        run_build.assert_called_once()
+                        child_env = run_build.call_args.args[1]
+                        self.assertEqual(child_env["TAR_OPTIONS"], "--no-same-owner")
+
+    def test_nginx_staged_make_log_diagnostics_requires_current_managed_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            components.ensure_managed_cache_root(cache_root)
+            staging_root = cache_root / "builds/connectors/nginx/.capture"
+            cache_key = "nginx-make-log-capture"
+            components.mark_managed_cache_entry(
+                staging_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=cache_key,
+            )
+            staging_root.mkdir(parents=True)
+            make_log = staging_root / components.NGINX_STAGED_MAKE_LOG_RELATIVE_PATH
+            make_log.parent.mkdir(parents=True)
+            make_log.write_text("compiler failure: missing symbol\n", encoding="utf-8")
+            outer_log = root / "build/logs/runtime-components/nginx-build.log"
+            outer_log.parent.mkdir(parents=True)
+            outer_log.write_text("wrapper output\n", encoding="utf-8")
+            plan = {
+                "root": str(staging_root),
+                "cache_key": cache_key,
+                "build_root": str(staging_root / "build"),
+            }
+            context = {"nginx_build_root": staging_root / "build"}
+
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            captured = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_tail_truncated=false", captured)
+            self.assertIn("compiler failure: missing symbol", captured)
+
+            outer_log.write_text("", encoding="utf-8")
+            make_log.unlink()
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            missing = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_missing", missing)
+
+            outer_log.write_text("", encoding="utf-8")
+            context["nginx_build_root"] = root / "outside"
+            make_log.write_text("outside-build-root-canary\n", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=staging_identity", rejected)
+            self.assertNotIn("outside-build-root-canary", rejected)
+
+            loop = root / "nginx-build-loop"
+            loop.symlink_to(loop.name)
+            context["nginx_build_root"] = loop
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            loop_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=staging_identity", loop_rejected)
+            self.assertNotIn("outside-build-root-canary", loop_rejected)
+
+    def test_nginx_staged_make_log_diagnostics_bounds_and_rejects_links(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache_root = root / "cache"
+            components.ensure_managed_cache_root(cache_root)
+            staging_root = cache_root / "builds/connectors/nginx/.capture"
+            cache_key = "nginx-make-log-adversarial"
+            components.mark_managed_cache_entry(
+                staging_root,
+                cache_root,
+                component="connector:nginx",
+                cache_key=cache_key,
+            )
+            staging_root.mkdir(parents=True)
+            make_log = staging_root / components.NGINX_STAGED_MAKE_LOG_RELATIVE_PATH
+            make_log.parent.mkdir(parents=True)
+            make_log.write_bytes(
+                b"discarded-line\n"
+                + b"x" * (70 * 1024)
+                + b"\n::warning:: \x1b[31mcompiler failure "
+                + b"z" * 1024
+                + b"\n"
+            )
+            outer_log = root / "build/logs/runtime-components/nginx-build.log"
+            outer_log.parent.mkdir(parents=True)
+            outer_log.write_text("wrapper output\n", encoding="utf-8")
+            plan = {
+                "root": str(staging_root),
+                "cache_key": cache_key,
+                "build_root": str(staging_root / "build"),
+            }
+            context = {"nginx_build_root": staging_root / "build"}
+
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            bounded = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_tail_truncated=true", bounded)
+            self.assertIn(": :warning: : ?[31mcompiler failure", bounded)
+            self.assertNotIn("\x1b", bounded)
+            staged_log_lines = [
+                line
+                for line in bounded.splitlines()
+                if line.startswith(components.NGINX_STAGED_MAKE_LOG_LINE_PREFIX)
+            ]
+            self.assertEqual(len(staged_log_lines), 1)
+            self.assertEqual(len(staged_log_lines[0]), 512)
+
+            outside = root / "outside"
+            outside.write_text("outside-canary\n", encoding="utf-8")
+            make_log.unlink()
+            make_log.symlink_to(outside)
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            symlink_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_symlink", symlink_rejected)
+            self.assertNotIn("outside-canary", symlink_rejected)
+
+            make_log.unlink()
+            os.link(outside, make_log)
+            outer_log.write_text("", encoding="utf-8")
+            components.append_nginx_staged_make_log_diagnostics(
+                outer_log,
+                plan,
+                cache_root,
+                context,
+            )
+            hardlink_rejected = outer_log.read_text(encoding="utf-8")
+            self.assertIn("inner_make_log_unavailable=inner_make_log_hardlink", hardlink_rejected)
+            self.assertNotIn("outside-canary", hardlink_rejected)
+
+    def test_nginx_failed_build_preserves_primary_result_after_diagnostic_append(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            cache_root = root / "cache"
+            plan = {"cache_key": "nginx-primary-failure"}
+            context = {"local_artifacts": {}}
+            record: dict[str, object] = {}
+            failed = subprocess.CompletedProcess(
+                args=["prepare-nginx-build.sh"],
+                returncode=2,
+                stdout="src/module.c:1: error: missing symbol\n",
+                stderr="",
+            )
+
+            with (
+                mock.patch.object(components, "copy_nginx_common_sources", return_value=root / "common"),
+                mock.patch.object(
+                    components,
+                    "copy_nginx_profile_registry_sources",
+                    return_value=root / "profile-registry",
+                ),
+                mock.patch.object(components, "nginx_build_environment", return_value={}),
+                mock.patch.object(components, "run_build", return_value=failed),
+                mock.patch.object(components, "append_nginx_staged_make_log_diagnostics") as append,
+                mock.patch.object(components, "nginx_refresh_build_artifacts"),
+                mock.patch.object(
+                    components,
+                    "artifact_status",
+                    return_value=(False, ["nginx_bin"]),
+                ),
+            ):
+                ready, missing, built = components.build_nginx_source(
+                    {},
+                    root / "connector",
+                    root / "framework",
+                    cache_root,
+                    build_root,
+                    root / "sources",
+                    root / "archives",
+                    {},
+                    plan,
+                    {"profile": "h1"},
+                    "",
+                    context,
+                    record,
+                )
+
+        self.assertFalse(ready)
+        self.assertEqual(missing, ["nginx_bin"])
+        self.assertFalse(built)
+        self.assertEqual(record["build_exit_code"], 2)
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "nginx_connector_build_failed")
+        self.assertEqual(record["build_log"], str(build_root / "logs/runtime-components/nginx-build.log"))
+        append.assert_called_once_with(
+            build_root / "logs/runtime-components/nginx-build.log",
+            plan,
+            cache_root,
+            context,
+        )
+
     def test_nginx_common_source_staging_includes_required_private_header(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             connector_root = Path(temporary) / "connector"
@@ -110,6 +498,263 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             )
             self.assertFalse((staged / "not-a-build-input.txt").exists())
 
+    def test_nginx_profile_registry_staging_is_regular_and_scoped(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text(
+                "const char *profile_registry(void) { return \"nginx\"; }\n",
+                encoding="utf-8",
+            )
+            (registry_source_root / "profile_registry.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
+            (registry_source_root / "unrelated.c").write_text("int unrelated;\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            plan = {"root": str(plan_root)}
+
+            staged = components.copy_nginx_profile_registry_sources(connector_root, plan)
+
+            self.assertEqual(
+                (staged / "connectors/profile_registry.c").read_text(encoding="utf-8"),
+                "const char *profile_registry(void) { return \"nginx\"; }\n",
+            )
+            self.assertEqual(
+                (staged / "connectors/profile_registry.h").read_text(encoding="utf-8"),
+                "#pragma once\n",
+            )
+            self.assertFalse((staged / "connectors/unrelated.c").exists())
+
+            (registry_source_root / "profile_registry.c").unlink()
+            (registry_source_root / "profile_registry.c").symlink_to("profile_registry.h")
+            with self.assertRaisesRegex(RuntimeError, "nginx_profile_registry_source_unsafe"):
+                components.copy_nginx_profile_registry_sources(connector_root, plan)
+
+    def test_nginx_profile_registry_staging_rejects_source_replacement_race(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            source = registry_source_root / "profile_registry.c"
+            source.write_text("const char *profile = \"trusted\";\n", encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            replacement = registry_source_root / "replacement.c"
+            replacement.write_text("const char *profile = \"replacement\";\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            original_open = components.os.open
+            replaced = False
+
+            def replace_source_before_open(
+                path: object,
+                flags: int,
+                mode: int = 0o777,
+                *,
+                dir_fd: int | None = None,
+            ) -> int:
+                nonlocal replaced
+                if not replaced and path == "profile_registry.c" and dir_fd is not None:
+                    os.replace(replacement, source)
+                    replaced = True
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(components.os, "open", side_effect=replace_source_before_open):
+                with self.assertRaisesRegex(RuntimeError, "nginx_profile_registry_source_changed"):
+                    components.copy_nginx_profile_registry_sources(
+                        connector_root,
+                        {"root": str(plan_root)},
+                    )
+
+            self.assertTrue(replaced)
+            self.assertEqual(source.read_text(encoding="utf-8"), "const char *profile = \"replacement\";\n")
+
+    def test_nginx_profile_registry_staging_rejects_hardlinked_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            source = registry_source_root / "profile_registry.c"
+            source.write_text("const char *profile = \"nginx\";\n", encoding="utf-8")
+            os.link(source, registry_source_root / "profile_registry.alias.c")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+
+            with self.assertRaisesRegex(RuntimeError, "nginx_profile_registry_source_unsafe"):
+                components.copy_nginx_profile_registry_sources(
+                    connector_root,
+                    {"root": str(plan_root)},
+                )
+
+            self.assertFalse((plan_root / "profile-registry/connectors/profile_registry.c").exists())
+
+    def test_nginx_profile_registry_staging_rejects_destination_directory_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text("const char *profile;\n", encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            outside = Path(temporary) / "outside"
+            outside.mkdir()
+            sentinel = outside / "sentinel"
+            sentinel.write_text("outside\n", encoding="utf-8")
+            (plan_root / "profile-registry").symlink_to(outside, target_is_directory=True)
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "nginx_profile_registry_destination_directory_unsafe",
+            ):
+                components.copy_nginx_profile_registry_sources(
+                    connector_root,
+                    {"root": str(plan_root)},
+                )
+
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "outside\n")
+            self.assertFalse((outside / "connectors").exists())
+
+    def test_nginx_profile_registry_staging_replaces_destination_file_symlink_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            expected_source = "const char *profile = \"nginx\";\n"
+            (registry_source_root / "profile_registry.c").write_text(expected_source, encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            staged_connectors = plan_root / "profile-registry/connectors"
+            staged_connectors.mkdir(parents=True)
+            outside = Path(temporary) / "outside-canary.c"
+            outside.write_text("outside\n", encoding="utf-8")
+            destination = staged_connectors / "profile_registry.c"
+            destination.symlink_to(outside)
+
+            components.copy_nginx_profile_registry_sources(
+                connector_root,
+                {"root": str(plan_root)},
+            )
+
+            self.assertFalse(destination.is_symlink())
+            self.assertEqual(destination.read_text(encoding="utf-8"), expected_source)
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside\n")
+            self.assertFalse(any(path.name.endswith(".tmp") for path in staged_connectors.iterdir()))
+
+    def test_nginx_profile_registry_staging_keeps_temporary_descriptor_for_close_failure_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text(
+                "const char *profile = \"nginx\";\n",
+                encoding="utf-8",
+            )
+            (registry_source_root / "profile_registry.h").write_text(
+                "#pragma once\n",
+                encoding="utf-8",
+            )
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            staged_connectors = plan_root / "profile-registry/connectors"
+
+            with mock.patch.object(
+                components,
+                "_close_nginx_profile_registry_temporary_descriptor",
+                side_effect=RuntimeError("nginx_profile_registry_destination_write_failed"),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "nginx_profile_registry_destination_write_failed",
+                ):
+                    components.copy_nginx_profile_registry_sources(
+                        connector_root,
+                        {"root": str(plan_root)},
+                    )
+
+            self.assertTrue(staged_connectors.is_dir())
+            self.assertFalse(any(path.name.endswith(".tmp") for path in staged_connectors.iterdir()))
+
+    def test_nginx_profile_registry_staging_rejects_destination_directory_replacement_race(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            registry_source_root = connector_root / "connectors"
+            registry_source_root.mkdir(parents=True)
+            (registry_source_root / "profile_registry.c").write_text("const char *profile;\n", encoding="utf-8")
+            (registry_source_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+            plan_root = Path(temporary) / "build"
+            plan_root.mkdir()
+            outside = Path(temporary) / "outside"
+            outside.mkdir()
+            sentinel = outside / "sentinel"
+            sentinel.write_text("outside\n", encoding="utf-8")
+            original_open = components.os.open
+            replaced = False
+
+            def replace_destination_before_open(
+                path: object,
+                flags: int,
+                mode: int = 0o777,
+                *,
+                dir_fd: int | None = None,
+            ) -> int:
+                nonlocal replaced
+                staged_registry = plan_root / "profile-registry"
+                if (
+                    not replaced
+                    and path == "connectors"
+                    and dir_fd is not None
+                    and staged_registry.is_dir()
+                    and os.fstat(dir_fd).st_ino == staged_registry.stat().st_ino
+                ):
+                    staged_connectors = staged_registry / "connectors"
+                    os.rmdir(staged_connectors)
+                    staged_connectors.symlink_to(outside, target_is_directory=True)
+                    replaced = True
+                return original_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(
+                components.os,
+                "open",
+                side_effect=replace_destination_before_open,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "nginx_profile_registry_destination_directory_unsafe",
+                ):
+                    components.copy_nginx_profile_registry_sources(
+                        connector_root,
+                        {"root": str(plan_root)},
+                    )
+
+            self.assertTrue(replaced)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "outside\n")
+            self.assertFalse((outside / "profile_registry.c").exists())
+
+    def test_nginx_profile_registry_inputs_change_source_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            connector_root = Path(temporary) / "connector"
+            framework_root = Path(temporary) / "framework"
+            (connector_root / "connectors/nginx").mkdir(parents=True)
+            (connector_root / "common/include").mkdir(parents=True)
+            (connector_root / "common/src").mkdir(parents=True)
+            registry_root = connector_root / "connectors"
+            (registry_root / "profile_registry.c").write_text("const char *profile = \"one\";\n", encoding="utf-8")
+            (registry_root / "profile_registry.h").write_text("#pragma once\n", encoding="utf-8")
+
+            source_paths = components.connector_input_paths(connector_root, framework_root, "nginx")
+            baseline = components.hash_input_paths(source_paths)
+            (registry_root / "profile_registry.c").write_text("const char *profile = \"two\";\n", encoding="utf-8")
+            after_source_change = components.hash_input_paths(source_paths)
+            (registry_root / "profile_registry.h").write_text("#define PROFILE_REGISTRY 1\n", encoding="utf-8")
+            after_header_change = components.hash_input_paths(source_paths)
+
+            self.assertNotEqual(baseline, after_source_change)
+            self.assertNotEqual(after_source_change, after_header_change)
+
     def test_require_staging_path_rejects_absence_and_preserves_path(self) -> None:
         staging_path = Path("staging")
 
@@ -122,7 +767,19 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             components.require_full_immutable_git_commit(PINNED_EXPAT_COMMIT, "EXPAT_GIT_REF"),
             PINNED_EXPAT_COMMIT,
         )
-        for mutable_or_abbreviated_ref in ("master", "R_2_8_2", "refs/tags/R_2_8_2", "c61098d"):
+        sha256_commit = "A" * 64
+        self.assertEqual(
+            components.require_full_immutable_git_commit(sha256_commit, "EXPAT_GIT_REF"),
+            sha256_commit,
+        )
+        for mutable_or_abbreviated_ref in (
+            "master",
+            "R_2_8_2",
+            "refs/tags/R_2_8_2",
+            "c61098d",
+            "a" * 41,
+            "b" * 63,
+        ):
             with self.subTest(ref=mutable_or_abbreviated_ref):
                 with self.assertRaisesRegex(RuntimeError, "full immutable Git commit ID"):
                     components.require_full_immutable_git_commit(
@@ -174,8 +831,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
             "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
             **PINNED_NGINX_RELEASE_TUPLE,
-            "NGINX_RELEASE_TAG": "release-1.31.4",
-            "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+            "NGINX_RELEASE_TAG": "release-1.31.3",
+            "NGINX_SOURCE_GIT_REF": "release-1.31.3",
         }
         all_env = {
             **non_nginx_env,
@@ -193,7 +850,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 with self.subTest(target_connector=target_connector):
                     values = components.required_runtime_component_sources(
                         non_nginx_env,
-                        strict=False,
                         target_connector=target_connector,
                     )
                     self.assertEqual(values["expat_git_ref"], PINNED_EXPAT_COMMIT)
@@ -201,16 +857,23 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     self.assertNotIn("go_ftw_source_url", values)
                     self.assertNotIn("albedo_source_url", values)
 
+                    with self.assertRaisesRegex(RuntimeError, "full immutable Git commit ID"):
+                        components.required_runtime_component_sources(
+                            {
+                                **non_nginx_env,
+                                "EXPAT_GIT_REF": "master",
+                            },
+                            target_connector=target_connector,
+                        )
+
             with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
                 components.required_runtime_component_sources(
                     non_nginx_env,
-                    strict=False,
                     target_connector="nginx",
                 )
             with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
                 components.required_runtime_component_sources(
                     all_env,
-                    strict=False,
                     target_connector="all",
                 )
 
@@ -227,7 +890,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "EXPAT_SOURCE_URL": "https://github.com/libexpat/libexpat",
                         "EXPAT_GIT_REF": PINNED_EXPAT_COMMIT,
                     },
-                    strict=False,
                     target_connector="all",
                 )
 
@@ -244,7 +906,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "invalid_runtime_source_url"):
                         components.required_runtime_component_sources(
                             {},
-                            strict=False,
                             target_connector=target_connector,
                         )
 
@@ -278,13 +939,169 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["status"], "present")
         self.assertEqual(records[0]["url"], PINNED_NGINX_RELEASE_ASSET_URL)
-        self.assertEqual(records[0]["release_tag"], "release-1.31.3")
-        self.assertEqual(records[0]["source_ref"], "release-1.31.3")
-        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.3.tar.gz")
+        self.assertEqual(records[0]["release_tag"], "release-1.31.6")
+        self.assertEqual(records[0]["source_ref"], "release-1.31.6")
+        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.6.tar.gz")
         self.assertEqual(
             records[0]["expected_sha256"],
             PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"],
         )
+
+    @staticmethod
+    def httpd_fixture_archive() -> bytes:
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode="w:bz2") as archive:
+            content = b"approved HTTPD source\n"
+            member = tarfile.TarInfo("httpd-2.4.68/README")
+            member.size = len(content)
+            archive.addfile(member, io.BytesIO(content))
+        return stream.getvalue()
+
+    @staticmethod
+    def httpd_transport(requested: list[str], responses: dict[str, object]):
+        """Use the real urllib opener/redirect handlers with offline HTTPS I/O."""
+        def transport(request):
+            url = request.full_url
+            requested.append(url)
+            response = responses[url]
+            if isinstance(response, BaseException):
+                raise response
+            if isinstance(response, tuple):
+                code, headers, payload = response
+            else:
+                code, headers, payload = 200, {}, response
+            result = urllib.response.addinfourl(io.BytesIO(payload), headers, url, code)
+            result.msg = "fixture response"
+            return result
+        return transport
+
+    def prepare_httpd_fixture(self, root: Path, expected_sha: str, *, url: str | None = None):
+        source_url = url or "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        return components.prepare_archive(
+            "httpd", source_url, expected_sha, source_url + ".sha256",
+            root / "cache/archives/apache", root / "cache",
+            required_literal_sha256=True,
+            verify_digest_before_archive_list=True,
+            allow_httpd_source_recovery=True,
+        )
+
+    def test_httpd_direct_404_recovers_verified_archive_with_canonical_cache_identity(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        archived_url = "https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2"
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        requests: list[str] = []
+        responses = {source_url: (404, {}, b"not found"), archived_url: payload}
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            with mock.patch.object(
+                components.urllib.request.HTTPSHandler, "https_open",
+                side_effect=self.httpd_transport(requests, responses),
+            ), mock.patch.object(components, "expected_sha_from_url") as digest_lookup:
+                record = self.prepare_httpd_fixture(root, digest)
+            self.assertEqual(record["status"], "present", record)
+            self.assertEqual(requests, [source_url, archived_url])
+            self.assertEqual(record["url"], source_url)
+            self.assertEqual(record["download_url"], archived_url)
+            self.assertEqual(record["source_recovery"], "official_httpd_archive_after_direct_404")
+            self.assertEqual(record["checksum_status"], "PASS")
+            self.assertEqual(record["expected_sha256"], digest)
+            expected_identity = components.archive_cache_identity("httpd", source_url, digest, source_url + ".sha256")
+            marker = components.read_json(components.cache_entry_marker_path(Path(record["path"]), root / "cache"))
+            self.assertEqual(marker["cache_key"], expected_identity["cache_key"])
+            self.assertEqual(Path(record["path"]).read_bytes(), payload)
+            digest_lookup.assert_not_called()
+            with mock.patch.object(components.urllib.request.HTTPSHandler, "https_open") as network:
+                cached = self.prepare_httpd_fixture(root, digest)
+            self.assertEqual(cached["status"], "present", cached)
+            marker_after = components.read_json(components.cache_entry_marker_path(Path(cached["path"]), root / "cache"))
+            self.assertEqual(marker_after["cache_key"], expected_identity["cache_key"])
+            network.assert_not_called()
+
+    def test_httpd_recovery_rejects_redirects_non404_and_foreign404(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        archived_url = "https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2"
+        for label, response in (
+            ("redirect", (302, {"Location": archived_url}, b"")),
+            ("authentication", (403, {}, b"forbidden")),
+            ("server error", (503, {}, b"unavailable")),
+            ("timeout", TimeoutError("timeout")),
+            ("foreign404", components.urllib.error.HTTPError("https://foreign.invalid/not-found", 404, "not found", {}, None)),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as raw:
+                requested: list[str] = []
+                with mock.patch.object(
+                    components.urllib.request.HTTPSHandler, "https_open",
+                    side_effect=self.httpd_transport(requested, {source_url: response}),
+                ):
+                    record = self.prepare_httpd_fixture(Path(raw), "a" * 64)
+                self.assertEqual(record["status"], "blocked", record)
+                self.assertEqual(requested, [source_url])
+                self.assertNotIn("source_recovery", record)
+
+    def test_httpd_recovery_rejects_archived_redirect_and_corruption_before_archive_listing(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        archived_url = "https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2"
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        for label, response, expected_sha, expected_status, inspect_calls in (
+            ("archive redirect", (302, {"Location": source_url}, b""), digest, "blocked", 0),
+            ("archive auth", (403, {}, b""), digest, "blocked", 0),
+            ("digest mismatch", payload + b"changed", digest, "corrupt", 0),
+            ("corrupt tar", b"not a tar archive", hashlib.sha256(b"not a tar archive").hexdigest(), "corrupt", 1),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as raw:
+                requested: list[str] = []
+                with mock.patch.object(
+                    components.urllib.request.HTTPSHandler, "https_open",
+                    side_effect=self.httpd_transport(requested, {source_url: (404, {}, b""), archived_url: response}),
+                ), mock.patch.object(components, "archive_can_list", wraps=components.archive_can_list) as inspect_archive:
+                    record = self.prepare_httpd_fixture(Path(raw), expected_sha)
+                self.assertEqual(record["status"], expected_status, record)
+                self.assertEqual(requested, [source_url, archived_url])
+                self.assertEqual(inspect_archive.call_count, inspect_calls)
+                self.assertFalse(Path(record["path"]).exists())
+
+    def test_httpd_recovery_rejects_noncanonical_or_unpinned_inputs_before_side_effects(self) -> None:
+        source_url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"
+        for url, digest in (
+            ("https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2?mirror=other", "a" * 64),
+            ("https://foreign.invalid/httpd/httpd-2.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-٢.4.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.４.68.tar.bz2", "a" * 64),
+            ("https://downloads.apache.org/httpd/httpd-2.4.６８.tar.bz2", "a" * 64),
+            (source_url, ""), (source_url, "not-a-digest"),
+        ):
+            with self.subTest(url=url, digest=digest), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                with mock.patch.object(components.urllib.request.HTTPSHandler, "https_open") as network:
+                    record = self.prepare_httpd_fixture(root, digest, url=url)
+                self.assertEqual(record["status"], "blocked", record)
+                network.assert_not_called()
+                self.assertFalse((root / "cache").exists())
+
+    def test_httpd_source_recovery_is_an_explicit_single_component_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            with mock.patch.object(components, "prepare_archive", return_value={}) as prepare, mock.patch.object(
+                components, "apr_util_archive_cache_identity", return_value={}
+            ):
+                components.apache_archive_records({}, root / "archives", root / "cache")
+            calls = prepare.call_args_list
+            self.assertEqual(calls[0].args[0], "httpd")
+            self.assertTrue(calls[0].kwargs["allow_httpd_source_recovery"])
+            self.assertTrue(calls[0].kwargs["required_literal_sha256"])
+            self.assertTrue(calls[0].kwargs["verify_digest_before_archive_list"])
+            self.assertTrue(all(not call.kwargs.get("allow_httpd_source_recovery") for call in calls[1:]))
+            with mock.patch.object(components.urllib.request.HTTPSHandler, "https_open") as network:
+                record = components.prepare_archive(
+                    "apr", "https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2", "a" * 64, "",
+                    root / "archives", required_literal_sha256=True,
+                    verify_digest_before_archive_list=True, allow_httpd_source_recovery=True,
+                )
+            self.assertEqual(record["status"], "blocked", record)
+            network.assert_not_called()
 
     def test_nginx_archive_records_reject_invalid_provenance_before_side_effects(self) -> None:
         invalid_cases: dict[str, dict[str, str]] = {
@@ -342,17 +1159,19 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
     def test_required_runtime_component_sources_scopes_nginx_preflight_to_nginx_targets(
         self,
     ) -> None:
+        def required_source_value(_: dict[str, str], key: str) -> str:
+            return PINNED_EXPAT_COMMIT if key == "EXPAT_GIT_REF" else "required-source"
+
         mismatched_nginx = dict(PINNED_NGINX_RELEASE_TUPLE)
         mismatched_nginx.update(
             {
-                "NGINX_RELEASE_TAG": "release-1.31.4",
-                "NGINX_SOURCE_GIT_REF": "release-1.31.4",
+                "NGINX_RELEASE_TAG": "release-1.31.3",
+                "NGINX_SOURCE_GIT_REF": "release-1.31.3",
             }
         )
         with self.assertRaisesRegex(RuntimeError, "unsupported_runtime_component_target:unknown"):
             components.required_runtime_component_sources(
                 {},
-                strict=False,
                 target_connector="unknown",
             )
         for target in ("shared", "apache", "haproxy"):
@@ -364,7 +1183,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(components, "require_env_value", side_effect=required_source_value),
                     mock.patch.object(
                         components,
                         "nginx_protocol_build_inputs",
@@ -375,7 +1194,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 ):
                     values = components.required_runtime_component_sources(
                         mismatched_nginx,
-                        strict=False,
                         target_connector=target,
                     )
 
@@ -392,13 +1210,12 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(components, "require_env_value", side_effect=required_source_value),
                     mock.patch.object(components, "nginx_protocol_build_inputs") as nginx_protocol,
                 ):
                     with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
                         components.required_runtime_component_sources(
                             mismatched_nginx,
-                            strict=False,
                             target_connector=target,
                         )
 
@@ -413,7 +1230,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(components, "require_env_value", return_value="required-source"),
+                    mock.patch.object(components, "require_env_value", side_effect=required_source_value),
                     mock.patch.object(
                         components,
                         "nginx_protocol_build_inputs",
@@ -423,7 +1240,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "nginx_protocol_validation"):
                         components.required_runtime_component_sources(
                             dict(PINNED_NGINX_RELEASE_TUPLE),
-                            strict=False,
                             target_connector=target,
                         )
 
@@ -482,7 +1298,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             else:
                 self.assertEqual(records["nginx_plan"], {})
 
-    def test_runtime_component_report_describes_strict_expat_and_cache_fsck_accurately(self) -> None:
+    def test_runtime_component_report_describes_immutable_expat_and_cache_fsck_accurately(self) -> None:
         report = components.markdown_report(
             {
                 "generated_at": "2026-07-26T00:00:00Z",
@@ -494,7 +1310,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "go-ftw and albedo use release-tag resolution; Expat uses release resolution only outside strict evidence runs.",
+            "go-ftw and albedo use release-tag resolution; Expat always uses its configured immutable commit.",
             report,
         )
         self.assertIn(
@@ -599,7 +1415,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             record = components.prepare_expat_git_component(
                 "https://github.com/libexpat/libexpat",
                 PINNED_EXPAT_COMMIT,
-                "master",
                 Path("cache/git/libexpat"),
                 {},
                 strict=True,
@@ -617,35 +1432,52 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         prepare_release.assert_not_called()
         self.assertTrue(record["immutable_commit_verified"])
 
-    def test_non_strict_expat_path_preserves_release_resolution_compatibility(self) -> None:
+    def test_non_strict_expat_path_uses_only_the_immutable_component_preparer(self) -> None:
         with (
-            mock.patch.object(components, "prepare_immutable_git_component") as prepare_immutable,
             mock.patch.object(
                 components,
-                "prepare_release_git_component",
-                return_value={"status": "present", "release_tag": "R_2_8_2"},
-            ) as prepare_release,
+                "prepare_immutable_git_component",
+                return_value={"status": "present", "immutable_commit_verified": True},
+            ) as prepare_immutable,
+            mock.patch.object(components, "prepare_release_git_component") as prepare_release,
         ):
             record = components.prepare_expat_git_component(
                 "https://github.com/libexpat/libexpat",
-                "master",
+                PINNED_EXPAT_COMMIT,
+                Path("cache/git/libexpat"),
+                {},
+                strict=False,
+            )
+
+        prepare_immutable.assert_called_once_with(
+            "expat",
+            "https://github.com/libexpat/libexpat",
+            PINNED_EXPAT_COMMIT,
+            Path("cache/git/libexpat"),
+            {},
+            False,
+            cache_root=None,
+        )
+        prepare_release.assert_not_called()
+        self.assertTrue(record["immutable_commit_verified"])
+
+    def test_non_strict_expat_path_rejects_mutable_ref_before_git_or_release_lookup(self) -> None:
+        with (
+            mock.patch.object(components, "prepare_git_component") as prepare_git,
+            mock.patch.object(components, "resolve_latest_github_release_tag") as resolve_latest,
+        ):
+            record = components.prepare_expat_git_component(
+                "https://github.com/libexpat/libexpat",
                 "master",
                 Path("cache/git/libexpat"),
                 {},
                 strict=False,
             )
 
-        prepare_immutable.assert_not_called()
-        prepare_release.assert_called_once_with(
-            "expat",
-            "https://github.com/libexpat/libexpat",
-            "master",
-            Path("cache/git/libexpat"),
-            {},
-            False,
-            cache_root=None,
-        )
-        self.assertEqual(record["release_tag"], "R_2_8_2")
+        self.assertEqual(record["status"], "blocked")
+        self.assertIn("full immutable Git commit ID", record["blocker_reason"])
+        prepare_git.assert_not_called()
+        resolve_latest.assert_not_called()
 
     def test_optional_release_components_still_resolve_the_latest_release(self) -> None:
         for name in ("go-ftw", "albedo"):
@@ -710,6 +1542,179 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             components.map_apache_blocker(compiler_error, []),
             "missing_expat_headers",
         )
+
+    def test_apache_blocker_keeps_profile_registry_compile_failure_distinct_from_libmodsecurity(self) -> None:
+        compiler_error = (
+            "gcc -L/cache/modsecurity/lib -lmodsecurity -c src/mod_security3.c\n"
+            "src/mod_security3.c:14:10: fatal error: connectors/profile_registry.h: "
+            "No such file or directory\n"
+        )
+
+        self.assertEqual(
+            components.map_apache_blocker(compiler_error, []),
+            "apache_connector_build_failed",
+        )
+
+    def test_apache_blocker_detects_a_real_missing_libmodsecurity_linker_error(self) -> None:
+        compiler_error = "/usr/bin/ld: cannot find -lmodsecurity\n"
+
+        self.assertEqual(
+            components.map_apache_blocker(compiler_error, []),
+            "missing_libmodsecurity_build",
+        )
+
+    def test_apache_build_environment_disables_archive_owner_restoration(self) -> None:
+        environment = components.apache_build_environment(
+            {"TAR_OPTIONS": "--same-owner"},
+            Path("/connector"),
+            Path("/framework"),
+            Path("/cache"),
+            Path("/build"),
+            Path("/sources"),
+            Path("/archives"),
+            {"prefix": "/modsecurity-prefix", "build_id": "modsecurity-build"},
+            {
+                "expat_lib_dir": "/expat/lib",
+                "expat_pkg_config_path": "/expat/lib/pkgconfig",
+                "apache_build_root": Path("/apache-build"),
+                "httpd_prefix": Path("/httpd-prefix"),
+                "expat_cppflags": "-I/expat/include",
+                "expat_ldflags": "-L/expat/lib",
+                "apache_libs": "-lexpat",
+                "crypt_link_arg": "-lcrypt",
+            },
+        )
+
+        self.assertEqual(environment["TAR_OPTIONS"], "--no-same-owner")
+
+    def assert_modsecurity_preflight_statuses(self, preflight, *args) -> None:
+        non_ready_statuses = (
+            ("blocked", "shared_modsecurity_blocked"),
+            ("failed", "shared_modsecurity_failed"),
+            ("unknown", "shared_modsecurity_unknown"),
+            ("corrupt", "shared_modsecurity_corrupt"),
+            ("blocked_optional", "shared_modsecurity_optional"),
+            ("not_selected", ""),
+            (None, ""),
+        )
+        for status, blocker_reason in non_ready_statuses:
+            with self.subTest(status=status):
+                modsecurity: dict[str, object] = {
+                    "build_id": "modsecurity-build",
+                    "blocker_reason": blocker_reason,
+                }
+                if status is not None:
+                    modsecurity["status"] = status
+                record: dict[str, object] = {}
+
+                self.assertTrue(preflight(record, modsecurity, *args))
+                self.assertEqual(record["status"], "blocked")
+                self.assertEqual(
+                    record["blocker_reason"],
+                    blocker_reason or "modsecurity_build_failed",
+                )
+        for status in components.READY_COMPONENT_STATUSES:
+            with self.subTest(status=status):
+                self.assertFalse(preflight({}, {"status": status}, *args))
+
+    def test_apache_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        self.assert_modsecurity_preflight_statuses(components.apache_preflight_blocked, "")
+
+    def test_nginx_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        context = {
+            "require_pinned_provenance": False,
+            "override_bin": "",
+            "override_module_dir": "",
+            "managed_local_artifacts_match_plan": True,
+        }
+        self.assert_modsecurity_preflight_statuses(components.nginx_preflight_blocked, context)
+
+    def test_apache_failed_modsecurity_stops_before_host_build(self) -> None:
+        record: dict[str, object] = {}
+        modsecurity = {
+            "status": "failed",
+            "build_id": "modsecurity-build",
+            "blocker_reason": "modsecurity_build_failed",
+        }
+        with tempfile.TemporaryDirectory(prefix="apache-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            with mock.patch.object(
+                components,
+                "apache_runtime_context",
+                return_value={"override_apachectl": ""},
+            ), mock.patch.object(
+                components,
+                "apache_runtime_record",
+                return_value=record,
+            ), mock.patch.object(components, "build_apache_source") as build:
+                result = components._prepare_apache_httpd_for_plan(
+                    {},
+                    ROOT,
+                    ROOT,
+                    root / "cache",
+                    root / "build",
+                    root / "sources",
+                    root / "archives",
+                    {},
+                    modsecurity,
+                    {},
+                )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["blocker_reason"], "modsecurity_build_failed")
+        build.assert_not_called()
+
+    def test_nginx_failed_modsecurity_stops_before_host_build(self) -> None:
+        record: dict[str, object] = {}
+        modsecurity = {
+            "status": "failed",
+            "build_id": "modsecurity-build",
+            "blocker_reason": "modsecurity_build_failed",
+        }
+        context = {
+            "require_pinned_provenance": False,
+            "override_bin": "",
+            "override_module_dir": "",
+            "managed_local_artifacts_match_plan": True,
+        }
+        with tempfile.TemporaryDirectory(prefix="nginx-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            with mock.patch.object(components, "nginx_pinned_provenance"), mock.patch.object(
+                components,
+                "nginx_pinned_provenance_required",
+                return_value=False,
+            ), mock.patch.object(
+                components,
+                "nginx_protocol_context",
+                return_value=({}, "h1", "", ""),
+            ), mock.patch.object(
+                components,
+                "nginx_runtime_context",
+                return_value=context,
+            ), mock.patch.object(
+                components,
+                "nginx_runtime_record",
+                return_value=record,
+            ), mock.patch.object(
+                components,
+                "nginx_archive_preflight_blocked",
+                return_value=False,
+            ), mock.patch.object(components, "nginx_prepare_or_reuse_runtime") as prepare:
+                result = components._prepare_nginx_runtime_for_plan(
+                    {},
+                    ROOT,
+                    ROOT,
+                    root / "cache",
+                    root / "build",
+                    root / "sources",
+                    root / "archives",
+                    modsecurity,
+                    {},
+                )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["blocker_reason"], "modsecurity_build_failed")
+        prepare.assert_not_called()
 
     def test_expat_autotools_stops_when_autoreconf_fails(self) -> None:
         with tempfile.TemporaryDirectory(prefix="expat-autoreconf-") as temporary:
@@ -1476,6 +2481,64 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             self.assertFalse(any(path.name.startswith(f".{cache_key}.tmp-") for path in connector_build.parent.iterdir()))
             return record
 
+    def prepare_haproxy_binding_failure_with(
+        self,
+        returncode: int,
+        output: str,
+    ) -> tuple[dict[str, object], str, tuple[tuple[Path, bool], ...]]:
+        with tempfile.TemporaryDirectory(prefix="haproxy-binding-failure-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            prep = subprocess.CompletedProcess(
+                args=["prepare-haproxy-runtime.sh"],
+                returncode=0,
+                stdout="haproxy_prepare: ready\n",
+                stderr="",
+            )
+            binding = subprocess.CompletedProcess(
+                args=["make"],
+                returncode=returncode,
+                stdout="",
+                stderr=output,
+            )
+
+            def prepare_with_runtime_binary(
+                _script: Path,
+                environment: dict[str, str],
+                _cwd: Path,
+                _log_path: Path,
+            ) -> subprocess.CompletedProcess[str]:
+                binary = Path(environment["HAPROXY_BIN"])
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_text("#!/bin/sh\n", encoding="utf-8")
+                binary.chmod(0o700)
+                return prep
+
+            with mock.patch.object(components, "run_build", side_effect=prepare_with_runtime_binary), mock.patch.object(
+                components, "run_haproxy_binding_build", return_value=binding
+            ), mock.patch.object(components, "safe_remove_dir", wraps=components.safe_remove_dir) as cleanup, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                record = components.prepare_haproxy_runtime(
+                    {},
+                    ROOT,
+                    ROOT / "modules/ModSecurity-test-Framework",
+                    cache,
+                    root / "build",
+                    cache / "sources",
+                    cache / "archives",
+                    {"status": "built", "build_id": "modsecurity-build"},
+                    plan,
+                )
+                diagnostic = stderr.getvalue()
+                cleanup_observations = tuple(
+                    (Path(call.args[0]), Path(call.args[0]).exists())
+                    for call in cleanup.call_args_list
+                )
+        return record, diagnostic, cleanup_observations
+
     def haproxy_runtime_plan(
         self,
         cache_root: Path,
@@ -1532,6 +2595,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             ).resolve()
             self.assertEqual(context["root"], expected_root)
             self.assertEqual(prep_env["BUILD_ROOT"], str(build_root.resolve()))
+            self.assertEqual(prep_env["LOG_DIR"], str(context["framework_log_dir"]))
             self.assertEqual(
                 components.connector_output_layout(
                     "haproxy",
@@ -1550,6 +2614,8 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 context["spoa_bin"],
                 context["paths_env"],
                 context["log_path"],
+                context["framework_log_dir"],
+                context["framework_build_log"],
             )
             for path in mutable_paths:
                 with self.subTest(path=path):
@@ -1671,6 +2737,645 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         )
         self.assertEqual(record["status"], "failed")
         self.assertEqual(record["build_exit_code"], 77)
+
+    def test_haproxy_preflight_blocks_non_ready_modsecurity_statuses(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-non-ready-modsecurity-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            context = components.haproxy_runtime_context(plan, root / "build")
+            non_ready_statuses = (
+                ("blocked", "shared_modsecurity_blocked"),
+                ("failed", "shared_modsecurity_failed"),
+                ("unknown", "shared_modsecurity_unknown"),
+                ("corrupt", "shared_modsecurity_corrupt"),
+                ("blocked_optional", "shared_modsecurity_optional"),
+                ("not_selected", ""),
+                (None, ""),
+            )
+            for status, blocker_reason in non_ready_statuses:
+                with self.subTest(status=status):
+                    modsecurity: dict[str, object] = {
+                        "build_id": "modsecurity-build",
+                        "blocker_reason": blocker_reason,
+                    }
+                    if status is not None:
+                        modsecurity["status"] = status
+                    record = components.haproxy_runtime_record(plan, modsecurity, context)
+
+                    self.assertTrue(
+                        components.haproxy_preflight_blocked(record, modsecurity, cache, context)
+                    )
+                    self.assertEqual(record["status"], "blocked")
+                    self.assertEqual(
+                        record["blocker_reason"],
+                        blocker_reason or "modsecurity_build_failed",
+                    )
+            for status in components.READY_COMPONENT_STATUSES:
+                with self.subTest(status=status):
+                    modsecurity = {"status": status, "build_id": "modsecurity-build"}
+                    record = components.haproxy_runtime_record(plan, modsecurity, context)
+
+                    self.assertFalse(
+                        components.haproxy_preflight_blocked(record, modsecurity, cache, context)
+                    )
+
+    def test_haproxy_failed_modsecurity_stops_before_host_build(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="haproxy-failed-modsecurity-") as temporary:
+            root = Path(temporary)
+            cache = root / "cache"
+            components.ensure_managed_cache_root(cache)
+            plan = self.haproxy_runtime_plan(cache)
+            modsecurity = {
+                "status": "failed",
+                "build_id": "modsecurity-build",
+                "blocker_reason": "modsecurity_build_failed",
+            }
+            with mock.patch.object(components, "run_build") as prepare, mock.patch.object(
+                components, "run_haproxy_binding_build"
+            ) as binding, mock.patch.object(
+                components,
+                "write_haproxy_record",
+                side_effect=lambda _plan, record: record,
+            ):
+                record = components.prepare_haproxy_runtime(
+                    {},
+                    ROOT,
+                    ROOT / "modules/ModSecurity-test-Framework",
+                    cache,
+                    root / "build",
+                    cache / "sources",
+                    cache / "archives",
+                    modsecurity,
+                    plan,
+                    _transactional=True,
+                )
+
+            self.assertEqual(record["status"], "blocked")
+            self.assertEqual(record["blocker_reason"], "modsecurity_build_failed")
+            prepare.assert_not_called()
+            binding.assert_not_called()
+
+    def test_haproxy_binding_failure_diagnostic_is_bounded_and_opaque(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "cc1: fatal error: modsecurity/transaction.h: No such file or directory "
+                "Authorization: Bearer hidden\x1b[31m\N{RIGHT-TO-LEFT OVERRIDE}\n"
+                "FAIL: binding compile failed error: -DAPI_SECRET=super-secret-token "
+                "body=must-not-appear https://example.invalid/private\x00\n"
+            ),
+            stderr="FAIL: HAProxy ModSecurity binding source did not compile\n",
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+        rendered = "\n".join(diagnostics)
+
+        self.assertIn("classification=compiler_fatal_error", rendered)
+        self.assertIn("missing_header=transaction.h", rendered)
+        self.assertIn("classification=compiler_error", rendered)
+        self.assertIn("build_step=modsecurity_binding_source_compile", rendered)
+        self.assertNotIn("super-secret-token", rendered)
+        self.assertNotIn("must-not-appear", rendered)
+        self.assertNotIn("https://example.invalid/private", rendered)
+        self.assertNotIn("hidden", rendered)
+        self.assertNotIn("\x1b", rendered)
+        self.assertNotIn("\N{RIGHT-TO-LEFT OVERRIDE}", rendered)
+        self.assertNotIn("\x00", rendered)
+        self.assertLessEqual(len(diagnostics), components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES)
+
+    def test_haproxy_binding_failure_preserves_status_and_emits_safe_summary(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(
+            23,
+            "FAIL: HAProxy ModSecurity binding self-test source did not compile\n"
+            "Authorization: Bearer hidden \x1b[31mhttps://example.invalid/private"
+            "\N{RIGHT-TO-LEFT OVERRIDE}\n",
+        )
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "haproxy_connector_build_failed")
+        self.assertEqual(record["build_exit_code"], 23)
+        self.assertIn("target=build-modsecurity-binding build-spoa-runtime", diagnostic)
+        self.assertIn("build_log=private_task_owned_haproxy-build.log", diagnostic)
+        self.assertIn("build_step=modsecurity_binding_self_test_source_compile", diagnostic)
+        self.assertNotIn("hidden", diagnostic)
+        self.assertNotIn("https://example.invalid/private", diagnostic)
+        self.assertNotIn("\x1b", diagnostic)
+        self.assertNotIn("\N{RIGHT-TO-LEFT OVERRIDE}", diagnostic)
+
+    def test_haproxy_binding_missing_artifacts_remain_failure(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(0, "unclassified output\n")
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["blocker_reason"], "haproxy_connector_build_failed")
+        self.assertEqual(record["build_exit_code"], 0)
+        self.assertIn("missing_artifact=spoa_runtime_binary", diagnostic)
+        self.assertIn("missing_artifact=modsecurity_binding_paths", diagnostic)
+        self.assertNotIn("unclassified output", diagnostic)
+
+    def test_haproxy_binding_failure_cleans_transactional_staging(self) -> None:
+        record, _, cleanup_observations = self.prepare_haproxy_binding_failure_with(
+            2,
+            "fatal error: required-header.h: No such file or directory\n",
+        )
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(len(cleanup_observations), 1)
+        cleanup_path, exists_after_cleanup = cleanup_observations[0]
+        self.assertIn(".tmp-", cleanup_path.name)
+        self.assertFalse(exists_after_cleanup)
+
+    def test_haproxy_binding_failure_diagnostic_limits_classifications_and_handles_empty_output(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "fatal error: modsecurity/modsecurity.h: No such file or directory\n"
+                "fatal error: modsecurity/rules_set.h: No such file or directory\n"
+                "fatal error: modsecurity/transaction.h: No such file or directory\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding self-test source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding self-test did not link\n"
+            ),
+            stderr=None,
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(len(diagnostics), components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES)
+        self.assertEqual(diagnostics[-1], "[classification list truncated]")
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(
+                subprocess.CompletedProcess(args=["make"], returncode=2, stdout=None, stderr=None)
+            ),
+            [],
+        )
+
+    def test_haproxy_binding_failure_diagnostic_keeps_order_at_exact_limit(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "fatal error: modsecurity/modsecurity.h: No such file or directory\n"
+                "fatal error: modsecurity/rules_set.h: No such file or directory\n"
+                "fatal error: modsecurity/transaction.h: No such file or directory\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime\n"
+                "FAIL: HAProxy ModSecurity SPOA runtime source did not compile\n"
+                "FAIL: HAProxy ModSecurity binding source did not compile\n"
+            ),
+            stderr=None,
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(proc),
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR,
+                "missing_header=modsecurity.h",
+                "missing_header=rules_set.h",
+                "missing_header=transaction.h",
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=spoa_binding_source_compile",
+                "build_step=spoa_runtime_source_compile",
+                "build_step=modsecurity_binding_source_compile",
+            ],
+        )
+
+    def test_haproxy_binding_failure_diagnostic_accepts_known_stdout_or_stderr_only(self) -> None:
+        known_message = "FAIL: HAProxy ModSecurity SPOA runtime source did not compile\n"
+        expected = {"classification=compiler_error", "build_step=spoa_runtime_source_compile"}
+
+        for output_name in ("stdout", "stderr"):
+            with self.subTest(output_name=output_name):
+                proc = subprocess.CompletedProcess(
+                    args=["make"],
+                    returncode=2,
+                    stdout=known_message if output_name == "stdout" else "",
+                    stderr=known_message if output_name == "stderr" else "",
+                )
+                self.assertEqual(set(components.haproxy_failure_diagnostic_lines(proc)), expected)
+
+        rejected = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "FAIL: build https://example.invalid/Authorization: Bearer hidden\n"
+                "error: body=must-not-appear API_SECRET=super-secret-token\n"
+            ),
+            stderr=None,
+        )
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
+
+    def test_haproxy_binding_build_replaces_invalid_tool_output_without_broadening_run_env(self) -> None:
+        command = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stderr.buffer.write(bytes([255]) + b'\\nFAIL: HAProxy Common SDK source did not compile: /private/source.c\\n'); raise SystemExit(2)",
+        ]
+
+        with self.assertRaises(UnicodeDecodeError):
+            components.run_env(command)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tools = root / "tools"
+            tools.mkdir()
+            fake_make = tools / "make"
+            fake_make.write_text(
+                "#!" + sys.executable + "\n" + command[2] + "\n",
+                encoding="utf-8",
+            )
+            fake_make.chmod(0o700)
+            log_path = root / "private-build.log"
+
+            proc = components.run_haproxy_binding_build(
+                root / "connector",
+                {"PATH": str(tools)},
+                log_path,
+            )
+            logged_output = log_path.read_text(encoding="utf-8")
+
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(proc.stdout, "")
+        self.assertEqual(proc.stderr, "\ufffd\nFAIL: HAProxy Common SDK source did not compile: /private/source.c\n")
+        self.assertIn("\ufffd", logged_output)
+        self.assertEqual(
+            components.haproxy_failure_diagnostic_lines(proc),
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+            ],
+        )
+
+    def test_haproxy_binding_failure_diagnostic_scans_stderr_before_stdout_with_fixed_values(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity\n"
+                "Authorization: Bearer hidden\n"
+            ),
+            stderr=(
+                "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token\n"
+                "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+            ),
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(
+            diagnostics,
+            [
+                components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+                "build_step=modsecurity_resolver",
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+                components.HAPROXY_DIAGNOSTIC_LINKER_ERROR,
+                "build_step=spoa_runtime_link",
+            ],
+        )
+        rendered = "\n".join(diagnostics)
+        self.assertNotIn("/private", rendered)
+        self.assertNotIn("hidden", rendered)
+
+    def test_haproxy_binding_failure_diagnostic_maps_only_exact_resolver_sentinel_on_stderr(self) -> None:
+        generic_resolver_diagnostics = [
+            components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+            "build_step=modsecurity_resolver",
+        ]
+
+        for exact_sentinel, exact_diagnostics in (
+            components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.items()
+        ):
+            expected_exact_diagnostics = list(exact_diagnostics)
+            cases = (
+                ("exact_stderr", "", exact_sentinel, expected_exact_diagnostics),
+                ("crlf_stderr", "", exact_sentinel + "\r\n", expected_exact_diagnostics),
+                (
+                    "double_cr_suffix",
+                    "",
+                    exact_sentinel + "\r\r\n",
+                    generic_resolver_diagnostics,
+                ),
+                (
+                    "untrusted_suffix",
+                    "",
+                    exact_sentinel + " Authorization: Bearer hidden body=private",
+                    generic_resolver_diagnostics,
+                ),
+                ("exact_stdout", exact_sentinel, "", generic_resolver_diagnostics),
+                (
+                    "unknown_stderr",
+                    "",
+                    "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token",
+                    generic_resolver_diagnostics,
+                ),
+            )
+
+            for name, stdout, stderr, expected in cases:
+                with self.subTest(sentinel=exact_sentinel, name=name):
+                    diagnostics = components.haproxy_failure_diagnostic_lines(
+                        subprocess.CompletedProcess(
+                            args=["make"], returncode=77, stdout=stdout, stderr=stderr
+                        )
+                    )
+
+                    self.assertEqual(diagnostics, expected)
+                    rendered = "\n".join(diagnostics)
+                    self.assertNotIn("hidden", rendered)
+                    self.assertNotIn("private", rendered)
+
+    def test_haproxy_resolver_cause_diagnostics_rejects_unknown_cause(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown HAProxy resolver diagnostic cause"):
+            components.haproxy_resolver_cause_diagnostics("untrusted-cause")
+
+    def test_haproxy_multi_header_resolver_sentinels_are_exact_and_fixed(self) -> None:
+        causes = (
+            "headers_modsecurity_h_and_rules_set_h_missing",
+            "headers_modsecurity_h_and_transaction_h_missing",
+            "headers_rules_set_h_and_transaction_h_missing",
+            "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+        )
+        for cause in causes:
+            with self.subTest(cause=cause):
+                sentinel = components.HAPROXY_RESOLVER_SENTINEL_PREFIX + cause
+                self.assertEqual(
+                    components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS[sentinel],
+                    (
+                        components.HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+                        "build_step=modsecurity_resolver",
+                        f"resolver_cause={cause}",
+                    ),
+                )
+
+    def test_haproxy_binding_failure_diagnostic_emits_only_safe_resolver_annotation(self) -> None:
+        exact_sentinel, exact_diagnostics = next(
+            iter(components.HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.items())
+        )
+        expected_annotation = (
+            "::error title=HAProxy resolver diagnostic::" f"{exact_diagnostics[-1]}"
+        )
+        cases = (
+            (
+                "exact_stderr",
+                "",
+                exact_sentinel + "\nBLOCKED: HAProxy libModSecurity resolver: /private/detail",
+                True,
+            ),
+            (
+                "suffix_stderr",
+                "",
+                exact_sentinel + " Authorization: Bearer hidden body=private",
+                False,
+            ),
+            ("stdout_only", exact_sentinel, "", False),
+            (
+                "unknown_stderr",
+                "",
+                "BLOCKED: HAProxy libModSecurity resolver: /private/resolver-token",
+                False,
+            ),
+            (
+                "overlong_stderr",
+                "",
+                exact_sentinel + "x" * components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS,
+                False,
+            ),
+        )
+
+        for name, stdout, stderr, expect_annotation in cases:
+            with self.subTest(name=name):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=77, stdout=stdout, stderr=stderr
+                )
+                with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+                    with mock.patch.object(components.sys, "stderr", new_callable=io.StringIO) as output:
+                        components.emit_haproxy_binding_failure_diagnostic(proc, ())
+                rendered = output.getvalue()
+
+                if expect_annotation:
+                    self.assertIn(expected_annotation, rendered)
+                    self.assertEqual(rendered.count("::error title=HAProxy resolver diagnostic::"), 1)
+                else:
+                    self.assertNotIn("::error title=HAProxy resolver diagnostic::", rendered)
+                self.assertNotIn("hidden", rendered)
+                self.assertNotIn("/private", rendered)
+                self.assertNotIn("resolver-token", rendered)
+
+    def test_haproxy_binding_failure_diagnostic_stops_after_bounded_untrusted_output(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="FAIL: HAProxy Common SDK source did not compile: /private/stdout-source.c\n",
+            stderr=(
+                "Authorization: Bearer hidden\n"
+                * components.HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES
+                + "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+            ),
+        )
+
+        diagnostics = components.haproxy_failure_diagnostic_lines(proc)
+
+        self.assertEqual(
+            diagnostics,
+            [
+                components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+                "build_step=modsecurity_common_sdk_source_compile",
+            ],
+        )
+        self.assertNotIn("hidden", "\n".join(diagnostics))
+
+    def test_haproxy_binding_failure_diagnostic_accepts_maximum_line_and_stops_on_overlong_line(self) -> None:
+        marker = "FAIL: HAProxy Common SDK source did not compile: /private/source.c\n"
+        maximum_line = "x" * components.HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS
+        expected = [
+            components.HAPROXY_DIAGNOSTIC_COMPILER_ERROR,
+            "build_step=modsecurity_common_sdk_source_compile",
+        ]
+
+        accepted = subprocess.CompletedProcess(
+            args=["make"], returncode=2, stdout="", stderr=f"{maximum_line}\n{marker}"
+        )
+        rejected = subprocess.CompletedProcess(
+            args=["make"], returncode=2, stdout="", stderr=f"{maximum_line}x\n{marker}"
+        )
+
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(accepted), expected)
+        self.assertEqual(components.haproxy_failure_diagnostic_lines(rejected), [])
+
+    def test_haproxy_binding_failure_footer_emits_first_allowlisted_target(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout=(
+                "make: *** [Makefile:12: build-spoa-runtime] Error 2\n"
+            ),
+            stderr=(
+                "make[1]: *** [build-modsecurity-binding] Error 2\n"
+                "make: *** [Makefile:13: build-spoa-runtime] Error 2\n"
+            ),
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(proc),
+            "build-modsecurity-binding",
+        )
+        self.assertIn(
+            "target_failure=build-modsecurity-binding",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_accepts_exact_make_grammar(self) -> None:
+        expected_target_paths = {
+            "build-modsecurity-binding": "/task/haproxy-modsecurity-binding-self-test",
+            "build-spoa-runtime": "/task/haproxy-modsecurity-spoa",
+        }
+        cases = (
+            ("make: *** [build-modsecurity-binding] Error 2", "build-modsecurity-binding"),
+            ("make[001]: *** [Makefile:7:\tbuild-spoa-runtime] Error 12", "build-spoa-runtime"),
+            (
+                "make[0]: *** [Makefile:224:/task/haproxy-modsecurity-binding-self-test] Error 2",
+                "build-modsecurity-binding",
+            ),
+            ("make: *** [Makefile:198:/task/haproxy-modsecurity-spoa] Error 2", "build-spoa-runtime"),
+        )
+
+        for footer, expected_target in cases:
+            with self.subTest(footer=footer):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=2, stdout="", stderr=f"{footer}\n"
+                )
+                self.assertEqual(
+                    components.haproxy_failure_target_from_footers(proc, expected_target_paths),
+                    expected_target,
+                )
+
+    def test_haproxy_binding_failure_footer_rejects_malformed_or_adversarial_grammar(self) -> None:
+        adversarial_prefix = "location:1:" * 2048
+        footers = (
+            "make[one]: *** [build-modsecurity-binding] Error 2",
+            "make[１２]: *** [build-modsecurity-binding] Error 2",
+            "make: *** [build-modsecurity-binding] Error ٢",
+            "make: *** [build-modsecurity-binding] Error",
+            "make: *** [build-modsecurity-binding] Error 2 unexpected",
+            f"make: *** [{adversarial_prefix}build-modsecurity-binding Error 2",
+        )
+
+        for footer in footers:
+            with self.subTest(footer=footer[:80]):
+                proc = subprocess.CompletedProcess(
+                    args=["make"], returncode=2, stdout="", stderr=f"{footer}\n"
+                )
+                self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+                self.assertNotIn("target_failure=", components.haproxy_failure_diagnostic_lines(proc))
+
+    def test_haproxy_binding_failure_footer_maps_only_the_expected_output_path(self) -> None:
+        expected_target_paths = {
+            "build-modsecurity-binding": "/task/build/haproxy-modsecurity-binding/"
+            "haproxy-modsecurity-binding-self-test",
+            "build-spoa-runtime": "/task/build/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+        }
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:224: /task/build/haproxy-modsecurity-binding/"
+                "haproxy-modsecurity-binding-self-test] Error 2\n"
+            ),
+        )
+        spoa = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:198: /task/build/haproxy-spoa-runtime/"
+                "haproxy-modsecurity-spoa] Error 2\n"
+            ),
+        )
+        ordered = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=proc.stderr + spoa.stderr,
+        )
+        rejected = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "make: *** [Makefile:224: /other/build/haproxy-modsecurity-binding/"
+                "haproxy-modsecurity-binding-self-test] Error 2\n"
+            ),
+        )
+
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(proc, expected_target_paths),
+            "build-modsecurity-binding",
+        )
+        self.assertIn(
+            "target_failure=build-modsecurity-binding",
+            components.haproxy_failure_diagnostic_lines(proc, expected_target_paths),
+        )
+        self.assertIsNone(
+            components.haproxy_failure_target_from_footers(rejected, expected_target_paths)
+        )
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(rejected, expected_target_paths),
+        )
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(spoa, expected_target_paths),
+            "build-spoa-runtime",
+        )
+        self.assertEqual(
+            components.haproxy_failure_target_from_footers(ordered, expected_target_paths),
+            "build-modsecurity-binding",
+        )
+
+    def test_haproxy_binding_failure_footer_ignores_stdout_target_like_text(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="make: *** [Makefile:12: build-modsecurity-binding] Error 2\n",
+            stderr="compiler output only\n",
+        )
+
+        self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_rejects_unallowlisted_or_hostile_target(self) -> None:
+        proc = subprocess.CompletedProcess(
+            args=["make"],
+            returncode=2,
+            stdout="make: *** [Makefile:11: build-spoa-runtime] Error 2\n",
+            stderr=(
+                "make: *** [Makefile:12: not-allowlisted] Error 2\n"
+                "make: *** [Makefile:13: build-modsecurity-binding; touch /tmp/pwned] Error 2\n"
+            ),
+        )
+
+        self.assertIsNone(components.haproxy_failure_target_from_footers(proc))
+        self.assertNotIn(
+            "target_failure=",
+            components.haproxy_failure_diagnostic_lines(proc),
+        )
+
+    def test_haproxy_binding_failure_footer_keeps_failed_status_exit_and_safe_summary(self) -> None:
+        record, diagnostic, _ = self.prepare_haproxy_binding_failure_with(
+            17,
+            "make: *** [Makefile:24: build-modsecurity-binding] Error 2\n"
+            "Authorization: Bearer hidden\n",
+        )
+
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["build_exit_code"], 17)
+        self.assertIn("target_failure=build-modsecurity-binding", diagnostic)
+        self.assertNotIn("Makefile:24", diagnostic)
+        self.assertNotIn("hidden", diagnostic)
 
     def test_haproxy_missing_prerequisite_remains_blocked(self) -> None:
         record = self.prepare_haproxy_with(

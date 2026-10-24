@@ -143,6 +143,11 @@ RUNTIME_CONFIG_ESCAPED=$(escape_lighttpd_string "$RUNTIME_CONFIG")
     printf 'server.upload-dirs = ( "%s" )\n' "$UPLOAD_DIR_ESCAPED"
     printf 'msconnector.enabled = "enable"\n'
     printf 'msconnector.config-file = "%s"\n' "$RUNTIME_CONFIG_ESCAPED"
+    if [ "$REQUEST_BODY_MODE" = streaming ]; then
+        # Patched P2 is a preventive gate: the module must not enable
+        # lighttpd's request-stream forwarding flag while body EOS is pending.
+        printf 'msconnector.request-body-gate = "pre-upstream"\n'
+    fi
     if [ "$EXPOSE_HOST_TRANSACTION_ID" = 1 ]; then
         # This is harness-only evidence plumbing.  The module emits the
         # server-generated host transaction ID; it never reflects a request

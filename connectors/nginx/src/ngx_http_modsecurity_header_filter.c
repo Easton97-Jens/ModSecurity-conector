@@ -14,6 +14,7 @@
  */
 
 #include <ngx_config.h>
+#include <stdint.h>
 
 #ifndef MODSECURITY_DDEBUG
 #define MODSECURITY_DDEBUG 0
@@ -24,6 +25,7 @@
 #include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
+#include "msconnector/phase4_budget.h"
 
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 
@@ -179,7 +181,7 @@ ngx_http_modsecurity_resolv_header_server(ngx_http_request_t *r, ngx_str_t name,
     ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) value.data,
@@ -209,7 +211,7 @@ ngx_http_modsecurity_resolv_header_date(ngx_http_request_t *r, ngx_str_t name, o
     ngx_http_modsecurity_store_ctx_header(r, &name, &date);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) date.data,
@@ -236,7 +238,7 @@ ngx_http_modsecurity_resolv_header_content_length(ngx_http_request_t *r, ngx_str
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
         ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) value.data,
@@ -262,7 +264,7 @@ ngx_http_modsecurity_resolv_header_content_type(ngx_http_request_t *r, ngx_str_t
         ngx_http_modsecurity_store_ctx_header(r, &name, &r->headers_out.content_type);
 #endif
 
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) r->headers_out.content_type.data,
@@ -297,7 +299,7 @@ ngx_http_modsecurity_resolv_header_last_modified(ngx_http_request_t *r, ngx_str_
     ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) value.data,
@@ -351,13 +353,14 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
             ngx_http_modsecurity_store_ctx_header(r, &name2, &value);
 #endif
 
-            if (msc_add_n_response_header(ctx->modsec_transaction,
+            if (ngx_http_modsecurity_add_n_response_header(ctx,
                     (const unsigned char *) name2.data,
                     name2.len,
                     (const unsigned char *) value.data,
                     value.len) != 1) {
                 ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                     "ModSecurity: failed to add synthetic response header for inspection");
+                return NGX_ERROR;
             }
         }
     } else {
@@ -371,7 +374,7 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
     ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-    return msc_add_n_response_header(ctx->modsec_transaction,
+    return ngx_http_modsecurity_add_n_response_header(ctx,
         (const unsigned char *) name.data,
         name.len,
         (const unsigned char *) value.data,
@@ -409,7 +412,7 @@ ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_
         ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) value.data,
@@ -437,7 +440,7 @@ ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, o
         ngx_http_modsecurity_store_ctx_header(r, &name, &value);
 #endif
 
-        return msc_add_n_response_header(ctx->modsec_transaction,
+        return ngx_http_modsecurity_add_n_response_header(ctx,
             (const unsigned char *) name.data,
             name.len,
             (const unsigned char *) value.data,
@@ -500,12 +503,13 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
         "phase3");
 }
 
-static void
+static ngx_int_t
 ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
     ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
+    ngx_table_elt_t *header;
     ngx_uint_t i;
 
     for (i = 0; ngx_http_modsecurity_headers_out[i].name.len; i++) {
@@ -518,34 +522,39 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
                 ngx_http_modsecurity_headers_out[i].offset) != 1) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ModSecurity: failed to add synthetic response header for inspection");
+            return NGX_ERROR;
         }
     }
 
-    for (i = 0; ; i++) {
-        if (i >= part->nelts) {
-            if (part->next == NULL) {
-                break;
-            }
-
-            part = part->next;
-            data = part->elts;
-            i = 0;
-        }
+    i = 0U;
+    while ((header = ngx_http_modsecurity_next_header(&part, &data,
+            &i)) != NULL) {
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
-        ngx_http_modsecurity_store_ctx_header(r, &data[i].key, &data[i].value);
+        ngx_http_modsecurity_store_ctx_header(r, &header->key, &header->value);
 #endif
 
         /* Doing this ugly cast here, explanation on the request header. */
-        if (msc_add_n_response_header(ctx->modsec_transaction,
-                (const unsigned char *) data[i].key.data,
-                data[i].key.len,
-                (const unsigned char *) data[i].value.data,
-                data[i].value.len) != 1) {
+        if (ngx_http_modsecurity_add_n_response_header(ctx,
+                (const unsigned char *)header->key.data,
+                header->key.len,
+                (const unsigned char *)header->value.data,
+                header->value.len) != 1) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ModSecurity: failed to add response header for inspection");
+            return NGX_ERROR;
         }
     }
+
+    return NGX_OK;
+}
+
+static ngx_int_t
+ngx_http_modsecurity_response_header_metrics(ngx_http_request_t *r,
+    size_t *count, size_t *bytes)
+{
+    return ngx_http_modsecurity_header_metrics(r == NULL ? NULL
+        : &r->headers_out.headers, count, bytes);
 }
 
 static ngx_int_t
@@ -554,18 +563,21 @@ ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
 {
     ngx_http_modsecurity_conf_t *mcf;
     const char *wanted;
+    msconnector_nginx_intervention_disposition disposition;
 
-    if (ret < 0) {
+    disposition = ngx_http_modsecurity_intervention_disposition(ret,
+        r->error_page);
+    if (disposition == MSCONNECTOR_NGINX_INTERVENTION_FAILURE) {
         /* A disruptive intervention can no longer be materialized safely
          * after headers have committed.  Do not pass it through as an allow
          * and do not synthesize a second response. */
         ctx->intervention_triggered = 1;
         return NGX_ERROR;
     }
-    if (r->error_page) {
+    if (disposition == MSCONNECTOR_NGINX_INTERVENTION_BYPASS) {
         return ngx_http_next_header_filter(r);
     }
-    if (ret == 0) {
+    if (disposition == MSCONNECTOR_NGINX_INTERVENTION_ALLOW) {
         return ngx_http_next_header_filter(r);
     }
 
@@ -594,6 +606,19 @@ ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
         ret);
 }
 
+/* Keep metadata accounting consistent with the body planner. SIZE_MAX is an
+ * arithmetic ceiling only; it is never a response allocation request. */
+static size_t
+ngx_http_modsecurity_response_body_limit(
+    const ngx_http_modsecurity_conf_t *mcf)
+{
+    if (mcf == NULL) {
+        return 0U;
+    }
+    return msconnector_phase4_effective_body_limit(
+        mcf->phase4_mode, mcf->common_config.phase4_body_limit);
+}
+
 ngx_int_t
 ngx_http_modsecurity_header_filter_init(void)
 {
@@ -612,6 +637,10 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     ngx_uint_t status;
     char *http_response_ver;
     ngx_pool_t *old_pool;
+    ngx_http_modsecurity_conf_t *mcf;
+    size_t response_header_count;
+    size_t response_header_bytes;
+    char *response_content_type = NULL;
 
 
 /* XXX: if NOT_MODIFIED, do we need to process it at all?  see xslt_header_filter() */
@@ -624,6 +653,10 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     {
         dd("something really bad happened or ModSecurity is disabled. going to the next filter.");
         return ngx_http_next_header_filter(r);
+    }
+
+    if (ctx->response_headers_processing_failed) {
+        return NGX_ERROR;
     }
 
     if (ctx->intervention_triggered) {
@@ -661,14 +694,38 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
      * and later we look into the ngx_list_part_t. The ngx_list_part_t must be
      * checked. Other module(s) in the chain may added some content to it.
      *
-     */
-    ngx_http_modsecurity_add_response_headers(r, ctx);
+    */
+    if (ngx_http_modsecurity_add_response_headers(r, ctx) != NGX_OK) {
+        ctx->response_headers_processing_failed = 1;
+        ctx->intervention_triggered = 1;
+        return NGX_ERROR;
+    }
 
     /* prepare extra paramters for msc_process_response_headers() */
     if (r->err_status) {
         status = r->err_status;
     } else {
         status = r->headers_out.status;
+    }
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (r->headers_out.content_type.len > 0U) {
+        response_content_type = ngx_str_to_char(r->headers_out.content_type,
+            r->pool);
+    }
+    /* The contract tracks body bytes for overflow/lifecycle integrity only;
+     * libModSecurity owns response-inspection limits in every P4 mode. */
+    if (mcf == NULL || response_content_type == (char *)-1 ||
+        ngx_http_modsecurity_response_header_metrics(r, &response_header_count,
+            &response_header_bytes) != NGX_OK ||
+        msconnector_transaction_contract_record_response_metadata(
+            &ctx->contract, (int)status, response_content_type,
+            response_header_count, response_header_bytes,
+            ngx_http_modsecurity_response_body_limit(mcf)) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ctx->response_headers_processing_failed = 1;
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: failed to record canonical response metadata");
+        return NGX_ERROR;
     }
 
     /* The WAF-visible response version must match the negotiated request
@@ -686,7 +743,37 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
 #endif
 
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
-    msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    if (ngx_http_modsecurity_contract_begin(ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P3 transition");
+        return NGX_ERROR;
+    }
+    ret = msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    if (ret != 1) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        ctx->intervention_triggered = 1;
+        if (msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: invalid canonical P3 native-error transition");
+        }
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: native response header processing failed");
+        return NGX_ERROR;
+    }
+    if (ngx_http_modsecurity_contract_complete(ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P3 completion");
+        return NGX_ERROR;
+    }
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
     ctx->response_headers_seen = 1;
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);

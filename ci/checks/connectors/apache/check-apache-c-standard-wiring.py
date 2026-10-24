@@ -81,6 +81,7 @@ required_script_terms = {
     "central APXS provision helper": "require_or_provision_apxs",
     "central command blocker helper": "require_command_or_blocked",
     "central libmodsecurity header provision helper": "modsecurity_include_flags_or_provision",
+    "shared intervention source": "common/src/intervention.c",
     "optional skip wording": "SKIPPED: optional Apache C23 check",
     "future-C skip wording": "SKIPPED: optional Apache future-C check",
 }

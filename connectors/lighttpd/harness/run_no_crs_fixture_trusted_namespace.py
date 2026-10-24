@@ -34,6 +34,14 @@ import time
 from typing import Mapping, Sequence
 
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CI_LIB = REPO_ROOT / "ci" / "lib"
+if str(CI_LIB) not in sys.path:
+    sys.path.insert(0, str(CI_LIB))
+
+from verified_run_id import VerifiedRunIdError, validate_verified_run_id  # noqa: E402
+
+
 EXIT_BLOCKED = 77
 EXIT_TIMEOUT = 124
 DEFAULT_TIMEOUT_SECONDS = 300.0
@@ -253,6 +261,7 @@ class ProductionRuntimePaths:
     verified_root: Path
     evidence: Path
     parent_host: Path | None
+    run_id: str
 
 
 def _required_environment_value(environment: Mapping[str, str], name: str) -> str:
@@ -459,30 +468,58 @@ def _child_environment(
 
 
 def _production_runtime_paths(environment: Mapping[str, str]) -> ProductionRuntimePaths:
+    try:
+        run_id = validate_verified_run_id(
+            _required_environment_value(environment, "NO_CRS_RUN_ID")
+        )
+    except VerifiedRunIdError as error:
+        raise NamespaceUnavailable("No-CRS namespace run ID is unsafe") from error
     paths = ProductionRuntimePaths(
-        runtime_root=Path(_required_environment_value(environment, "RUNTIME_ROOT")),
-        smoke_root=Path(
-            _required_environment_value(environment, "LIGHTTPD_PATCHED_SMOKE_DIR")
+        runtime_root=_normalized_production_path(environment, "RUNTIME_ROOT"),
+        smoke_root=_normalized_production_path(
+            environment, "LIGHTTPD_PATCHED_SMOKE_DIR"
         ),
-        verified_root=Path(_required_environment_value(environment, "VERIFIED_RUN_ROOT")),
-        evidence=Path(
-            _required_environment_value(environment, "FULL_LIFECYCLE_EVIDENCE_OUTPUT")
+        verified_root=_normalized_production_path(environment, "VERIFIED_RUN_ROOT"),
+        evidence=_normalized_production_path(
+            environment, "FULL_LIFECYCLE_EVIDENCE_OUTPUT"
         ),
-        parent_host=Path(environment["PARENT_HOST_RUNTIME_ROOT"])
+        parent_host=_normalized_production_path(
+            environment, "PARENT_HOST_RUNTIME_ROOT"
+        )
         if environment.get("PARENT_HOST_RUNTIME_ROOT")
         else None,
+        run_id=run_id,
     )
-    all_paths = (paths.runtime_root, paths.smoke_root, paths.verified_root, paths.evidence)
-    if not all(path.is_absolute() for path in all_paths):
-        raise NamespaceUnavailable("No-CRS namespace runtime roots must be absolute")
-    if paths.parent_host is not None and not paths.parent_host.is_absolute():
-        raise NamespaceUnavailable("No-CRS namespace Parent host runtime root must be absolute")
     return paths
+
+
+def _normalized_production_path(environment: Mapping[str, str], name: str) -> Path:
+    """Accept one absolute runtime path without lexical parent traversal.
+
+    The canonical resolver already rejects ``..`` components. Repeat that
+    boundary here because these values determine the sole writable bwrap bind;
+    accepting a lexically equivalent parent path would let normalization widen
+    the intended Parent-owned runtime namespace.
+    """
+
+    path = Path(_required_environment_value(environment, name))
+    if not path.is_absolute() or ".." in path.parts:
+        raise NamespaceUnavailable("No-CRS namespace runtime roots must be normalized absolute paths")
+    return path
 
 
 def _expected_production_smoke_root(paths: ProductionRuntimePaths) -> Path:
     with_crs_smoke = paths.runtime_root / "host"
-    no_crs_smoke = paths.verified_root / "lighttpd-runtime"
+    # The canonical No-CRS resolver owns this exact connector-run root. Keep
+    # the run identifier a validated single segment so a caller cannot widen
+    # the only writable namespace bind to a sibling or arbitrary descendant.
+    no_crs_smoke = (
+        paths.verified_root
+        / "runs"
+        / "lighttpd"
+        / paths.run_id
+        / "lighttpd-runtime"
+    )
     if paths.smoke_root == with_crs_smoke and paths.parent_host == with_crs_smoke:
         return with_crs_smoke
     if paths.smoke_root == no_crs_smoke and paths.parent_host is None:

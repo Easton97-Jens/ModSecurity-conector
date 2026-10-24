@@ -18,7 +18,9 @@
 #ifndef MODSECURITY_DDEBUG
 #define MODSECURITY_DDEBUG 0
 #endif
+
 #include "ddebug.h"
+#include "connectors/profile_registry.h"
 
 #include "ngx_http_modsecurity_common.h"
 #include "msconnector/config.h"
@@ -26,6 +28,7 @@
 #include "msconnector/directive_adapter.h"
 #include "msconnector/directive_spec.h"
 #include "msconnector/directives.h"
+#include "msconnector/intervention.h"
 #include "msconnector/options.h"
 #include "msconnector/rule_id.h"
 #include "stdio.h"
@@ -44,15 +47,10 @@ static void *ngx_http_modsecurity_create_conf(ngx_conf_t *cf);
 static char *ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child);
 static void ngx_http_modsecurity_cleanup_instance(void *data);
 static void ngx_http_modsecurity_cleanup_rules(void *data);
+static void ngx_http_modsecurity_cleanup_phase4_log(void *data);
 static char *ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static char *ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static char *ngx_http_modsecurity_phase4_set_default_content_types(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf);
-static char *ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path);
-static ngx_int_t ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len);
-static ngx_int_t ngx_http_modsecurity_is_mime_char(unsigned char c);
-static ngx_int_t ngx_http_modsecurity_validate_strict_mime_token(const char *token);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
@@ -60,6 +58,72 @@ static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
 static ngx_int_t ngx_http_modsecurity_process_status_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     ModSecurityIntervention *intervention, ngx_int_t early_log);
+static ngx_int_t ngx_http_modsecurity_contract_record_intervention(
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    const ModSecurityIntervention *intervention);
+
+int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase)
+{
+    if (ctx == NULL || !ctx->contract_initialized)
+        return NGX_ERROR;
+    return msconnector_transaction_contract_begin_phase(&ctx->contract,
+        phase, 0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK
+        ? NGX_OK : NGX_ERROR;
+}
+
+int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase)
+{
+    if (ctx == NULL || !ctx->contract_initialized)
+        return NGX_ERROR;
+    return msconnector_transaction_contract_complete_phase(&ctx->contract,
+        phase, 0U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK
+        ? NGX_OK : NGX_ERROR;
+}
+
+/* Keep native redirect/status delivery as a small host translation. The
+ * shared contract owns the canonical terminal meaning and rejects a missing
+ * required rule correlation before NGINX emits a host-visible decision. */
+static ngx_int_t
+ngx_http_modsecurity_contract_record_intervention(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx,
+    const ModSecurityIntervention *intervention)
+{
+    msconnector_transaction_decision_kind kind;
+
+    if (r == NULL || ctx == NULL || intervention == NULL) {
+        return NGX_ERROR;
+    }
+    if (!ctx->contract_initialized) {
+        return NGX_OK;
+    }
+    if (ctx->native_request_body_limit_rejection) {
+        if (msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: canonical request body limit decision is invalid");
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+    if (msconnector_intervention_has_redirect_url(intervention->url)) {
+        kind = MSCONNECTOR_TRANSACTION_DECISION_REDIRECT;
+    } else if (intervention->status == NGX_HTTP_TOO_MANY_REQUESTS) {
+        kind = MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;
+    } else {
+        kind = MSCONNECTOR_TRANSACTION_DECISION_BLOCK;
+    }
+    if (msconnector_transaction_contract_record_decision(&ctx->contract, kind,
+            ctx->last_intervention_rule_id, 0U) !=
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: canonical intervention decision is invalid");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
 
 /*
  * PCRE malloc/free workaround, based on
@@ -263,9 +327,11 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 {
     const char *log = NULL;
     ModSecurityIntervention intervention;
+    msconnector_intervention common_intervention;
     ngx_int_t result = 0;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_modsecurity_conf_t  *mcf;
+    int request_body_limit_rejection;
 
     ngx_memzero(&intervention, sizeof(intervention));
     intervention.status = 200;
@@ -278,26 +344,45 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         result = NGX_HTTP_INTERNAL_SERVER_ERROR;
         goto cleanup;
     }
+    ctx->native_request_body_limit_rejection = 0;
 
     if (msc_intervention(transaction, &intervention) == 0) {
         dd("nothing to do");
         goto cleanup;
     }
-    ctx->last_intervention_status = intervention.status;
-    ctx->last_intervention_rule_id[0] = '\0';
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (mcf == NULL) {
         result = NGX_HTTP_INTERNAL_SERVER_ERROR;
         goto cleanup;
     }
+    common_intervention = msconnector_intervention_make(
+        intervention.disruptive, intervention.status, intervention.url,
+        intervention.log);
+    request_body_limit_rejection =
+        msconnector_intervention_is_request_body_limit_rejection(
+            ctx->native_event_phase, &common_intervention);
+    ctx->native_request_body_limit_rejection =
+        request_body_limit_rejection != 0;
+    intervention.status = request_body_limit_rejection
+        ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE
+        : msconnector_intervention_normalize_status(intervention.url,
+            intervention.status, mcf->common_config.default_block_status);
+    ctx->last_intervention_status = intervention.status;
+    ctx->last_intervention_rule_id[0] = '\0';
 
     /* Extract only the bounded rule ID before libmodsecurity's message is
      * released.  Phase-4 evidence is metadata-only, so retaining a complete
      * intervention message in the request pool is unnecessary. */
-    if (mcf->phase4_log_file != NULL && intervention.log != NULL) {
+    if (intervention.log != NULL) {
         (void)msconnector_rule_id_extract_from_message(intervention.log,
             ctx->last_intervention_rule_id,
             sizeof(ctx->last_intervention_rule_id));
+    }
+
+    if (ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)
+        != NGX_OK) {
+        result = NGX_ERROR;
+        goto cleanup;
     }
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
@@ -309,7 +394,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
     }
 
-    if (intervention.url != NULL && intervention.url[0] != '\0')
+    if (msconnector_intervention_has_redirect_url(intervention.url))
     {
         result = ngx_http_modsecurity_process_redirect_intervention(r, ctx,
             &intervention);
@@ -339,6 +424,11 @@ ngx_http_modsecurity_cleanup(void *data)
         return;
     }
 
+    if (ctx->contract_initialized) {
+        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
+        ctx->contract_initialized = 0;
+    }
+
     if (ctx->modsec_transaction != NULL) {
         msc_transaction_cleanup(ctx->modsec_transaction);
         ctx->modsec_transaction = NULL;
@@ -366,6 +456,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     ngx_http_modsecurity_ctx_t        *ctx;
     ngx_http_modsecurity_conf_t       *mcf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
+    const msconnector_transaction_profile *profile;
 
     ctx = ngx_pcalloc(r->pool, sizeof(ngx_http_modsecurity_ctx_t));
     if (ctx == NULL)
@@ -388,7 +479,18 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         s.data = NULL;
     }
 
-    if (s.len > 0U && s.data != NULL) {
+    if (s.len > 0U) {
+        /* A complex value may be request-derived. Validate its exact NGINX
+         * length before request-pool retention or native ModSecurity use so
+         * the engine and event correlation can never see a value that the
+         * shared transaction contract would later reject. */
+        if (s.data == NULL ||
+            !msconnector_transaction_contract_validate_transaction_id_bytes(
+                (const char *) s.data, s.len)) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: invalid canonical transaction identifier");
+            return NULL;
+        }
         transaction_id = ngx_pnalloc(r->pool, s.len + 1U);
         if (transaction_id == NULL) {
             return NULL;
@@ -410,6 +512,24 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         ctx->event_transaction_id.len = (size_t) (transaction_id_end - transaction_id);
     }
 
+    /* Establish the bounded Common owner before the native transaction is
+     * created. A native allocation failure below can then deterministically
+     * clean the unpublished contract instead of leaving a divergent ID path. */
+    profile = msconnector_profile_registry_find("nginx");
+    if (profile == NULL || msconnector_transaction_contract_init(
+            &ctx->contract, profile,
+            (const char *)ctx->event_transaction_id.data,
+            "nginx", "nginx",
+            mcf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT
+                ? MSCONNECTOR_TRANSACTION_MODE_STRICT
+                : MSCONNECTOR_TRANSACTION_MODE_SAFE,
+            0U) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: failed to initialize canonical transaction contract");
+        return NULL;
+    }
+    ctx->contract_initialized = 1;
+
     if (ctx->event_transaction_id.len > 0U) {
         ctx->modsec_transaction = msc_new_transaction_with_id(mmcf->modsec,
             mcf->rules_set, (char *) ctx->event_transaction_id.data,
@@ -422,6 +542,8 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (ctx->modsec_transaction == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: failed to create transaction");
+        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
+        ctx->contract_initialized = 0;
         return NULL;
     }
 
@@ -550,41 +672,10 @@ ngx_conf_set_rules_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 char *
 ngx_conf_set_rules_remote(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cf;
     (void)cmd;
-    int                                res;
-    ngx_str_t                         *value;
-    const char                        *error;
-    const char                        *rules_remote_key;
-    const char                        *rules_remote_server;
-    ngx_pool_t                        *old_pool;
-    ngx_http_modsecurity_conf_t       *mcf = conf;
-    ngx_http_modsecurity_main_conf_t  *mmcf;
-
-    value = cf->args->elts;
-    rules_remote_key = ngx_str_to_char(value[1], cf->pool);
-    rules_remote_server = ngx_str_to_char(value[2], cf->pool);
-
-    if (rules_remote_server == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-
-    if (rules_remote_key == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-
-    old_pool = ngx_http_modsecurity_pcre_malloc_init(cf->pool);
-    res = msc_rules_add_remote(mcf->rules_set, rules_remote_key, rules_remote_server, &error);
-    ngx_http_modsecurity_pcre_malloc_done(old_pool);
-
-    if (res < 0) {
-        dd("Failed to load the rules from: '%s'  - reason: '%s'", rules_remote_server, error);
-        return strdup(error);
-    }
-
-    mmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_modsecurity_module);
-    mmcf->rules_remote += res;
-
-    return NGX_CONF_OK;
+    (void)conf;
+    return "remote rule loading is disabled by security policy";
 }
 
 
@@ -602,7 +693,10 @@ char *ngx_conf_set_transaction_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     ccv.cf = cf;
     ccv.value = &value[1];
     ccv.complex_value = &cv;
-    ccv.zero = 1;
+    /* ngx_http_complex_value() reports every generated byte in s.len. The
+     * request path validates those exact bytes and adds its own C terminator
+     * after copying, so do not inject a synthetic NUL into the value. */
+    ccv.zero = 0;
 
     if (ngx_http_compile_complex_value(&ccv) != NGX_OK) {
         return NGX_CONF_ERROR;
@@ -634,7 +728,7 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
     if (!msconnector_parse_phase4_mode(mode, &parsed)) {
-        return "invalid value for modsecurity_phase4_mode (expected minimal|safe|strict)";
+        return "invalid value for modsecurity_phase4_mode (expected off|safe|strict)";
     }
     mcf->common_config.phase4_mode = parsed;
     mcf->phase4_mode = (ngx_uint_t) parsed;
@@ -642,222 +736,65 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 static char *
-ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    (void)cmd;
-    ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    mcf->phase4_content_types_file = value[1];
-    mcf->common_config.phase4_content_types_file = ngx_str_to_char(value[1], cf->pool);
-    if (mcf->common_config.phase4_content_types_file == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-    return ngx_http_modsecurity_phase4_load_content_types_file(cf, mcf, &value[1]);
-}
-
-static char *
 ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
+    ngx_open_file_t *event_file;
+    ngx_pool_cleanup_t *cleanup;
+    char *path;
+    int fd = -1;
+
+    (void)cmd;
+
+    if (mcf->phase4_log_file != NGX_CONF_UNSET_PTR) {
+        return "is duplicate";
+    }
+    if (value[1].len == 0U || value[1].data == NULL ||
+        ngx_strlchr(value[1].data, value[1].data + value[1].len, '\0') != NULL) {
+        return "invalid modsecurity_phase4_log path";
+    }
+
+    path = ngx_str_to_char(value[1], cf->pool);
+    if (path == (char *)-1 || path == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    event_file = ngx_pcalloc(cf->pool, sizeof(*event_file));
+    if (event_file == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    event_file->fd = NGX_INVALID_FILE;
+
+    /* The cleanup is installed before ownership can transfer from Common, so
+     * every successful open has exactly one owning cleanup in this cycle.
+     * It is deliberately not registered in cycle->open_files: NGINX's
+     * generic reopen routine would re-open the pathname without Common's
+     * no-follow, regular-file, ownership, and 0600 checks. */
+    cleanup = ngx_pool_cleanup_add(cf->pool, 0);
+    if (cleanup == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    cleanup->handler = ngx_http_modsecurity_cleanup_phase4_log;
+    cleanup->data = event_file;
+
+    if (!msconnector_open_private_event_file(path, &fd)) {
+        cleanup->handler = NULL;
+        cleanup->data = NULL;
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+            "modsecurity_phase4_log \"%V\" is not a secure private event file",
+            &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    event_file->fd = (ngx_fd_t)fd;
+    event_file->name = value[1];
     mcf->phase4_log_path = value[1];
-    mcf->common_config.phase4_log_path = ngx_str_to_char(value[1], cf->pool);
-    if (mcf->common_config.phase4_log_path == (char *)-1) {
-        return NGX_CONF_ERROR;
-    }
-    mcf->phase4_log_file = ngx_conf_open_file(cf->cycle, &mcf->phase4_log_path);
-    if (mcf->phase4_log_file == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    mcf->phase4_log_file = event_file;
+    mcf->common_config.phase4_log_path = path;
+
     return NGX_CONF_OK;
 }
-
-static ngx_int_t
-ngx_http_modsecurity_is_mime_char(unsigned char c)
-{
-    return ((c >= 'a' && c <= 'z') ||
-            (c >= 'A' && c <= 'Z') ||
-            (c >= '0' && c <= '9') ||
-            c == '-' || c == '.' || c == '_' || c == '+') ? NGX_OK : NGX_ERROR;
-}
-
-static ngx_int_t
-ngx_http_modsecurity_validate_strict_mime_token(const char *token)
-{
-    size_t index;
-    size_t slash = (size_t)-1;
-
-    if (token == NULL || token[0] == '\0') {
-        return NGX_ERROR;
-    }
-
-    for (index = 0; token[index] != '\0'; index++) {
-        unsigned char c = (unsigned char) token[index];
-        if (c == '/') {
-            if (slash != (size_t)-1 || index == 0) {
-                return NGX_ERROR;
-            }
-            slash = index;
-            continue;
-        }
-        if (c == '*' || ngx_http_modsecurity_is_mime_char(c) != NGX_OK) {
-            return NGX_ERROR;
-        }
-    }
-
-    if (slash == (size_t)-1 || token[slash + 1] == '\0') {
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
-}
-
-static ngx_int_t
-ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len)
-{
-    char token[256];
-
-    if (len == 0 || len >= sizeof(token)) return NGX_ERROR;
-    ngx_memcpy(token, s, len);
-    token[len] = '\0';
-    if (!msconnector_validate_content_type_token(token)) {
-        return NGX_ERROR;
-    }
-    return ngx_http_modsecurity_validate_strict_mime_token(token);
-}
-
-static char *
-ngx_http_modsecurity_phase4_set_default_content_types(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf)
-{
-    static const char *defs[] = {"text/html","text/plain","application/json","application/xml","text/xml","application/xhtml+xml"};
-    ngx_uint_t i;
-    if (mcf->phase4_content_types != NULL) return NGX_CONF_OK;
-    mcf->phase4_content_types = ngx_array_create(cf->pool, 6, sizeof(ngx_str_t));
-    if (mcf->phase4_content_types == NULL) return NGX_CONF_ERROR;
-    for (i = 0; i < 6; i++) {
-        ngx_str_t *ct = ngx_array_push(mcf->phase4_content_types);
-        if (ct == NULL) return NGX_CONF_ERROR;
-        ct->len = ngx_strlen(defs[i]);
-        ct->data = ngx_pnalloc(cf->pool, ct->len);
-        if (ct->data == NULL) return NGX_CONF_ERROR;
-        ngx_memcpy(ct->data, defs[i], ct->len);
-    }
-    return NGX_CONF_OK;
-}
-
-static ngx_int_t
-ngx_http_modsecurity_phase4_push_content_type(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf,
-    u_char *line, u_char *end, ngx_str_t *path)
-{
-    ngx_str_t *ct;
-
-    ngx_strlow(line, line, end - line);
-    if (ngx_http_modsecurity_phase4_validate_content_type(line, end - line) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid content-type entry in modsecurity_phase4_content_types_file \"%V\": \"%s\" (wildcard content types are not supported for modsecurity_phase4_content_types_file)", path, line);
-        return NGX_ERROR;
-    }
-
-    ct = ngx_array_push(mcf->phase4_content_types);
-    if (ct == NULL) {
-        return NGX_ERROR;
-    }
-    ct->len = end - line;
-    ct->data = ngx_pnalloc(cf->pool, ct->len);
-    if (ct->data == NULL) {
-        return NGX_ERROR;
-    }
-    ngx_memcpy(ct->data, line, ct->len);
-
-    return NGX_OK;
-}
-
-static void
-ngx_http_modsecurity_phase4_trim_line(u_char **line, u_char **end)
-{
-    while (*line < *end && isspace((unsigned char)**line)) {
-        (*line)++;
-    }
-
-    while (*end > *line && isspace((unsigned char)*((*end) - 1))) {
-        (*end)--;
-    }
-
-    **end = '\0';
-}
-
-static void
-ngx_http_modsecurity_phase4_strip_inline_comment(u_char *line)
-{
-    u_char *hash = (u_char *) ngx_strchr(line, '#');
-    u_char *semi = (u_char *) ngx_strchr(line, ';');
-
-    if (hash && (!semi || hash < semi)) {
-        *hash = '\0';
-    }
-    if (semi) {
-        *semi = '\0';
-    }
-}
-
-static char *
-ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path)
-{
-    ngx_file_t file;
-    ngx_file_info_t fi;
-    u_char *buf;
-    u_char *p;
-    u_char *line;
-    u_char *end;
-    ssize_t n;
-    if (ngx_file_info(path->data, &fi) == NGX_FILE_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno, "modsecurity_phase4_content_types_file \"%V\" stat() failed", path);
-        return NGX_CONF_ERROR;
-    }
-    buf = ngx_pnalloc(cf->pool, ngx_file_size(&fi) + 1);
-    if (buf == NULL) return NGX_CONF_ERROR;
-    ngx_memzero(&file, sizeof(file));
-    file.name = *path;
-    file.log = cf->log;
-    file.fd = ngx_open_file(path->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
-    if (file.fd == NGX_INVALID_FILE) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno, "modsecurity_phase4_content_types_file \"%V\" open() failed", path);
-        return NGX_CONF_ERROR;
-    }
-    n = ngx_read_file(&file, buf, ngx_file_size(&fi), 0);
-    ngx_close_file(file.fd);
-    if (n < 0) return NGX_CONF_ERROR;
-    buf[n] = '\0';
-    mcf->phase4_content_types = ngx_array_create(cf->pool, 8, sizeof(ngx_str_t));
-    if (mcf->phase4_content_types == NULL) return NGX_CONF_ERROR;
-    for (p = buf, line = buf; p <= buf + n; p++) {
-        if (p == buf + n || *p == '\n' || *p == '\r') {
-            *p = '\0';
-            end = p;
-
-            ngx_http_modsecurity_phase4_trim_line(&line, &end);
-            if (line[0] == '\0' || line[0] == '#') {
-                line = p + 1;
-                continue;
-            }
-
-            ngx_http_modsecurity_phase4_strip_inline_comment(line);
-            end = line + ngx_strlen(line);
-            ngx_http_modsecurity_phase4_trim_line(&line, &end);
-            if (line[0] == '\0') {
-                line = p + 1;
-                continue;
-            }
-
-            if (ngx_http_modsecurity_phase4_push_content_type(cf, mcf, line, end, path) != NGX_OK) {
-                return NGX_CONF_ERROR;
-            }
-            line = p + 1;
-        }
-    }
-    return NGX_CONF_OK;
-}
-
 
 static char *
 ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -950,14 +887,6 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_MODE),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_mode,
-    NGX_HTTP_LOC_CONF_OFFSET,
-    0,
-    NULL
-  },
-  {
-    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
-    ngx_conf_set_phase4_content_types_file,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL
@@ -1169,9 +1098,6 @@ ngx_http_modsecurity_create_conf(ngx_conf_t *cf)
     /* These values are inherited with ngx_conf_merge_ptr_value().  They must
      * use NGINX's unset sentinel here: NULL is a valid merged value for the
      * log and causes a child location to suppress a server-level setting. */
-    conf->phase4_content_types = NGX_CONF_UNSET_PTR;
-    conf->phase4_content_types_file.len = 0;
-    conf->phase4_content_types_file.data = NULL;
     conf->phase4_log_file = NGX_CONF_UNSET_PTR;
     conf->phase4_log_path.len = 0;
     conf->phase4_log_path.data = NULL;
@@ -1224,8 +1150,20 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_ptr_value(c->transaction_id, p->transaction_id, NULL);
     ngx_conf_merge_value(c->use_error_log, p->use_error_log, c->common_config.use_error_log);
     ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, (ngx_uint_t) c->common_config.phase4_mode);
-    ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);
-    ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);
+    if (c->phase4_log_file == NGX_CONF_UNSET_PTR) {
+        if (p->phase4_log_file == NGX_CONF_UNSET_PTR) {
+            c->phase4_log_file = NULL;
+            c->phase4_log_path.len = 0U;
+            c->phase4_log_path.data = NULL;
+        } else {
+            /* Inherited children borrow the one descriptor owned by the
+             * parent-cycle cleanup. A child directive owns a separate
+             * descriptor and cleanup, so no child cleanup can close a parent
+             * descriptor during overlapping reload lifetimes. */
+            c->phase4_log_file = p->phase4_log_file;
+            c->phase4_log_path = p->phase4_log_path;
+        }
+    }
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
     ngx_conf_merge_value(c->sanity_checks_enabled, p->sanity_checks_enabled, 0);
 #endif
@@ -1246,9 +1184,6 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     dd("NEW CHILD RULES");
     msc_rules_dump(c->rules_set);
 #endif
-    if (c->phase4_content_types == NULL) {
-        return ngx_http_modsecurity_phase4_set_default_content_types(cf, c);
-    }
     return NGX_CONF_OK;
 }
 
@@ -1282,6 +1217,26 @@ ngx_http_modsecurity_cleanup_rules(void *data)
     old_pool = ngx_http_modsecurity_pcre_malloc_init(mcf->pool);
     msc_rules_cleanup(mcf->rules_set);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
+}
+
+
+static void
+ngx_http_modsecurity_cleanup_phase4_log(void *data)
+{
+    ngx_open_file_t *event_file = data;
+    ngx_fd_t fd;
+
+    if (event_file == NULL || event_file->fd == NGX_INVALID_FILE) {
+        return;
+    }
+
+    /* Set the state invalid before close so repeated pool cleanup or an
+     * error-path invocation cannot close a recycled descriptor. Each process
+     * has its own inherited copy after fork; closing this copy cannot revoke a
+     * draining worker's still-valid copy. */
+    fd = event_file->fd;
+    event_file->fd = NGX_INVALID_FILE;
+    (void)ngx_close_file(fd);
 }
 
 

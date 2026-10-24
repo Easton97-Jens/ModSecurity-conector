@@ -193,7 +193,10 @@ if ! grep -Fq "HAProxy version $HAPROXY_HTX_VERSION" "$VERSION_FILE"; then
 fi
 
 upstream_port=$(helper free-port)
-helper serve-upstream --port "$upstream_port" --request-log "$UPSTREAM_LOG" \
+# Invoke the existing Python server entry point directly so the background PID
+# is the identity-bound server process, not a shell wrapper around helper().
+"$PYTHON_BIN" "$HELPER" serve-upstream --port "$upstream_port" \
+    --request-log "$UPSTREAM_LOG" --runtime-root "$RUNTIME_ROOT" \
     >"$RUNTIME_ROOT/upstream.stdout.log" 2>"$RUNTIME_ROOT/upstream.stderr.log" &
 upstream_pid=$!
 phase2_upstream_request_count=not_observed
@@ -288,11 +291,22 @@ run_case() {
                 --evidence-path "$probe_file")
             expected_log="modsecurity-htx: request-body intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=2 status=403 rule_id=$rule_id action=deny"
             ;;
+        phase2_bodyless_eos)
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/request-body" \
+                --method POST --header 'Content-Length: 0' \
+                --header 'X-Request-Id: haproxy-htx-phase2-bodyless-eos' \
+                --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --evidence-path "$probe_file")
+            ;;
         phase3_403)
             status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/response-header" \
                 --header 'X-Request-Id: haproxy-htx-phase3-403' --tls-certificate "$TLS_CA_CERTIFICATE_PATH" \
                 --evidence-path "$probe_file")
             expected_log="modsecurity-htx: response-header intervention observed; transaction_id=[A-Za-z0-9._-]+ phase=3 status=403 rule_id=$rule_id action=deny"
+            ;;
+        phase4_bodyless_eos)
+            status=$(helper probe --url "https://127.0.0.1:$listener_port/no-crs/response-body" \
+                --method HEAD --header 'X-Request-Id: haproxy-htx-phase4-bodyless-eos' \
+                --tls-certificate "$TLS_CA_CERTIFICATE_PATH" --evidence-path "$probe_file")
             ;;
         *) echo "haproxy_htx_runtime: FAIL - unknown case: $case_name" >&2; exit 1 ;;
     esac
@@ -368,6 +382,18 @@ run_case() {
                 exit 1
             fi
             ;;
+        observed_only)
+            # Empty-body EOS controls exercise the native phase transition
+            # without creating a policy decision or a promotion-eligible
+            # event.  Do not let another case silently reuse this action.
+            case "$case_name:$phase:$rule_id:$status:$actual_upstream_requests" in
+                phase2_bodyless_eos:2:0:200:1|phase4_bodyless_eos:4:0:200:1) ;;
+                *)
+                    echo "haproxy_htx_runtime: FAIL - observed-only host action is reserved for bodyless EOS controls" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
         *)
             echo "haproxy_htx_runtime: FAIL - unsupported host action: $host_action" >&2
             exit 1
@@ -391,6 +417,7 @@ run_phase4_safe_barrier() {
     server_evidence_file="$case_root/upstream-server.json"
     client_first_byte_file="$case_root/client-first-byte.json"
     client_probe_file="$case_root/client-probe.json"
+    case_first_byte_evidence="$case_root/first-byte-evidence.json"
 
     mkdir -p "$case_root"
     rm -f "$ready_file" "$paused_file" "$release_file" "$server_evidence_file" \
@@ -480,8 +507,9 @@ run_phase4_safe_barrier() {
         exit 1
     fi
     helper write-first-byte-evidence \
-        --path "$FIRST_BYTE_EVIDENCE_PATH" --paused-path "$paused_file" \
-        --client-first-byte-path "$client_first_byte_file"
+        --path "$case_first_byte_evidence" --paused-path "$paused_file" \
+        --client-first-byte-path "$client_first_byte_file" \
+        --published-path "$FIRST_BYTE_EVIDENCE_PATH"
 
     : > "$release_file"
     if ! wait "$streaming_client_pid"; then
@@ -515,7 +543,7 @@ run_phase4_safe_barrier() {
         --upstream-requests 1 --host-action safe_log_only --decision-log "$log_file"
     helper write-phase4-safe-event --path "$EVENT_LOG_PATH" \
         --decision-log "$log_file" --probe-path "$client_probe_file" \
-        --first-byte-evidence "$FIRST_BYTE_EVIDENCE_PATH" --run-id "$RUN_ID" \
+        --first-byte-evidence "$case_first_byte_evidence" --run-id "$RUN_ID" \
         --transport-case-id phase4_first_byte_before_response_end
     phase4_safe_status=$status
 }
@@ -524,7 +552,9 @@ run_case allow 1 0 200 ordinary 1 forwarded
 run_case phase1_403 1 1100001 403 ordinary 0 enforced_reply
 run_case phase1_429 1 1100002 429 ordinary 0 enforced_reply
 run_case phase2_client_deny 2 1100101 403 phase2 0-or-1 enforced_reply
+run_case phase2_bodyless_eos 2 0 200 phase2 1 observed_only
 run_case phase3_403 3 1100201 403 phase3 1 enforced_reply
+run_case phase4_bodyless_eos 4 0 200 phase4 1 observed_only
 run_phase4_safe_barrier
 # Append the no-rule allow event after the Phase-4 evidence.  The canonical
 # selector uses the final matching HTTP 200 event for a no-rule case, so this
@@ -534,11 +564,11 @@ helper write-allow-event --path "$EVENT_LOG_PATH" \
     --upstream-log "$UPSTREAM_LOG" --transaction-id haproxy-htx-allow
 
 if [ "$(wc -l < "$EVENT_LOG_PATH")" -ne 6 ]; then
-    echo "haproxy_htx_runtime: FAIL - expected six host-confirmed HTX events" >&2
+    echo "haproxy_htx_runtime: FAIL - expected six decision events (EOS controls remain observation-only)" >&2
     exit 1
 fi
-if [ "$(wc -l < "$HOST_EVIDENCE_LOG_PATH")" -ne 6 ]; then
-    echo "haproxy_htx_runtime: FAIL - expected six host-runtime evidence records" >&2
+if [ "$(wc -l < "$HOST_EVIDENCE_LOG_PATH")" -ne 8 ]; then
+    echo "haproxy_htx_runtime: FAIL - expected eight host-runtime evidence records" >&2
     exit 1
 fi
 if grep -Fq 'no-crs-request-body-marker' "$EVENT_LOG_PATH" || \
@@ -569,6 +599,10 @@ fi
     printf 'phase2_upstream_request_count=%s\n' "$phase2_upstream_request_count"
     printf 'phase2_request_dispatch_observed=%s\n' "$phase2_request_dispatch_observed"
     printf 'phase2_incremental_forwarding_claimed=false\n'
+    printf 'phase2_bodyless_eos_status=200\n'
+    printf 'phase2_bodyless_eos_host_action=observed_only\n'
+    printf 'phase4_bodyless_eos_status=200\n'
+    printf 'phase4_bodyless_eos_host_action=observed_only\n'
     printf 'phase4_safe_status=%s\n' "$phase4_safe_status"
     printf 'phase4_end_of_stream_evaluation_status=%s\n' "$phase4_safe_status"
     printf 'phase4_first_byte_before_response_end_status=%s\n' "$phase4_safe_status"

@@ -2,6 +2,10 @@
   "schema_version": 1,
   "connector": "haproxy",
   "host_name": "haproxy",
+  "transaction_contract_profiles": [
+    "haproxy-htx",
+    "haproxy-spoe-spop"
+  ],
   "integration_mode": "spoe-spop-agent",
   "metadata_source": "connectors/haproxy/metadata.c",
   "source_contract": [
@@ -128,7 +132,7 @@
     },
     "config_remote_rules": {
       "state": "not_implemented",
-      "reason": "The production HAProxy/SPOP configuration has no remote-rules option."
+      "reason": "Remote rule loading is disabled by the common security policy; only inline and local file rules are supported."
     },
     "transport_metadata": {
       "state": "not_implemented",

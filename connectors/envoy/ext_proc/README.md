@@ -26,6 +26,10 @@ separate evidence-review decision.
 - downstream protocol and endpoints mapped from requested Envoy attributes,
   never inferred from the Envoy-to-service gRPC socket;
 - matching `HeadersResponse` / `BodyResponse` messages for `STREAMED` mode;
+- a process-wide cap of 128 active `Process` streams, enforced before stream
+  state or a Common transaction is allocated; excess streams receive gRPC
+  `ResourceExhausted` rather than expanding native transaction capacity across
+  multiple transports;
 - EOS cleanup, gRPC-context cancellation cleanup, and bounded graceful stop;
 - pre-commit request and response decisions mapped to `ImmediateResponse`,
   with Common host-action metadata recorded only after the matching gRPC send
@@ -35,6 +39,70 @@ separate evidence-review decision.
   the Common event stream;
 - unit and CGo lifecycle tests covering P1/P2/P3/P4, incremental EOS,
   cancellation, commit ordering, and parallel transactions.
+
+## Listener and stream admission safety
+
+The unauthenticated ext_proc gRPC endpoint accepts only numeric loopback
+listener addresses (`127.0.0.0/8` or `::1`). Hostnames, wildcard addresses,
+and other interface addresses fail configuration validation, including through
+the `--listen` override. The required service JSON fields
+`max_concurrent_streams` (1–1024) and `stream_idle_timeout_ms` provide the
+two independent stream availability controls. The first is applied both to
+each HTTP/2 connection and to process-wide `Process` admission. A process-wide
+rejection returns `ResourceExhausted` before stream state or a Common
+transaction is allocated.
+
+`stream_idle_timeout_ms` is a server-side inactivity limit, not an engine
+timeout. Its clock begins while the service waits for the first or next complete
+Envoy `ProcessingRequest`; every received request is stream activity, and the
+next interval begins after that request's engine work and response send finish.
+Consequently a long-lived streamed request or response remains legitimate when
+it continues to send messages within the interval. On expiry the service
+returns gRPC `DeadlineExceeded`, records `grpc_stream_idle_timeout`, closes the
+transaction with its separate `cleanup_timeout_ms`, and releases admission for
+a following stream. `engine_timeout_ms` independently bounds every engine
+operation: it covers both waiting for the serialized Common-Runtime mutex and
+the remaining callback execution after that mutex is acquired. It neither
+substitutes for nor restarts the stream-idle clock. If that context expires
+before native entry, the current stream receives gRPC `DeadlineExceeded`, its
+completion evidence is `processor_error`, it emits no allow response, and the
+normal per-stream cleanup and admission release permit a following stream. A
+native CGo call that had already entered an uninterruptible section remains a
+separate controlled-restart case; the timeout never claims to cancel it in
+place.
+
+`stream_max_lifetime_ms` is a separate server-side absolute lifetime for every
+admitted stream. It starts at admission and is not extended by activity; it
+prevents a peer from retaining a concurrency slot indefinitely by sending
+messages just before each idle deadline. Expiry returns gRPC `DeadlineExceeded`,
+records `grpc_stream_max_lifetime`, cancels receive and engine work, runs the
+normal bounded cleanup, and releases the slot for a following stream. A gRPC
+`Send` that was already in flight at expiry receives at most the separate
+`cleanup_timeout_ms` grace to return. A confirmed successful late `Send` first
+records the matching response-commit or host-action evidence through a bounded
+post-send context, then returns `DeadlineExceeded` and puts the service into
+the controlled-restart state; a Send that remains unresolved after that grace
+does the same without claiming an action. In both terminal cases new streams
+receive gRPC `Unavailable` while `main` stops the listener. Set the lifetime
+long enough for legitimate streamed transactions; it is not a replacement for
+the idle or per-operation engine timeout.
+
+The pending-`Recv` lifecycle is covered by an actual gRPC bufconn test: an idle
+stream leaves exactly one bounded receive wait, cancellation releases it, and a
+follow-up stream is admitted successfully. Server shutdown cancels active
+streams, releases their transactions and admission slots, and the forced-stop
+path has its own deadline. Lock acquisition and cleanup are likewise
+deadline-bounded. A native CGo call or destructor that has already entered an
+uninterruptible native section cannot be canceled in place; the service reports
+a terminal cleanup failure to `main`. The current stream fails, new streams
+receive gRPC `Unavailable`, `main` stops the gRPC listener with its bounded
+forced-stop path, and the process exits nonzero for supervisor restart rather
+than claiming in-process cancellation or reusing native state.
+
+gRPC context cancellation (including server shutdown) follows the same
+per-stream cleanup path and is recorded as
+`grpc_context_canceled_unattributed`; it does not claim whether Envoy observed
+a downstream client or upstream reset.
 
 The pinned dependency is the official generated Envoy Go API module in
 `go.mod`/`go.sum`. `../config/envoy-ext-proc-versions.env` records the intended
@@ -46,16 +114,21 @@ only `STREAMED` body modes, never `BUFFERED`.
 The module keeps the following minimum stable selections for the currently
 triaged dependency advisories:
 
-- `google.golang.org/grpc` `v1.82.1` or later;
-- `golang.org/x/net` `v0.56.0` or later;
-- `golang.org/x/sys` `v0.46.0` or later; and
-- `golang.org/x/text` `v0.39.0` or later.
+- `google.golang.org/grpc` `v1.83.2` or later;
+- `golang.org/x/net` `v0.58.0` or later;
+- `golang.org/x/sys` `v0.47.0` or later; and
+- `golang.org/x/text` `v0.41.0` or later.
 
 `tests/test_ci_security_workflows.py` checks these as semantic-version floors,
 so a later stable security update remains valid while a downgrade fails the
 focused CI-security contract. The floor proves the selected module versions;
 it does not itself establish advisory reachability, replace Go module tests,
 or claim that a hosted Dependabot, OSV, or Scorecard alert has refreshed.
+
+The bounded Go updater may advance this component only as the fixed security
+bundle from `grpc` `v1.83.1` to `v1.83.2`, `x/sys` `v0.46.0` to `v0.47.0`,
+`x/net` `v0.56.0` to `v0.58.0`, and `x/text` `v0.39.0` to `v0.41.0`. It rejects
+unlisted dependency, path, mode, and checksum changes.
 
 ## Explicit non-claims and late-action behavior
 
@@ -68,16 +141,25 @@ The service uses the conservative response-commit boundary: only a successful
 response-header `CONTINUE` send marks a response as committed. For a disruptive
 decision found later:
 
-- `minimal` and `safe` record a real Common host outcome `log_only` and
+- `off` preserves native intervention handling without the additional late policy;
+- `safe` records a real Common host outcome `log_only` and
   continue with the original visible response status;
-- `strict` records `strict_abort_not_attempted` and continues.
+- `strict` is rejected at Common Runtime startup for the `envoy-ext-proc`
+  profile. Its immutable `strict_post_commit_action` capability is zero until
+  a deterministic post-commit host action is proven; no traffic is served and
+  no late decision is silently downgraded.
 
-`strict` intentionally does not turn into a gRPC error, `ImmediateResponse`, or
-a claimed reset. Those mechanisms do not independently prove a deterministic
-client-visible abort in Envoy. A canceled gRPC context and an observed gRPC
-peer EOF are recorded respectively as `grpc_context_canceled_unattributed` and
-`grpc_peer_eof`; neither label can honestly be treated as a downstream client
-reset or an upstream reset.
+The adapter intentionally does not use `ImmediateResponse` or a gRPC error as
+an HTTP-reset surrogate after response commitment. A canceled gRPC context and
+an observed gRPC peer EOF are recorded respectively as
+`grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can be
+treated as a downstream client reset or an upstream reset.
+
+The active-stream cap is aggregate resource containment, not an idle deadline:
+a valid but silent admitted stream retains one bounded slot until Envoy sends a
+message/EOF or cancels its gRPC context. A separate per-stream idle policy must
+not be added without proving that it preserves legitimate streaming and leaves
+no blocked receive goroutine or native transaction behind.
 
 ## Local source/build commands
 
@@ -97,10 +179,24 @@ P3 redirect, and P4 post-commit safe/log-only behavior. It remains
 non-promoted until the canonical collector and capability review accept the
 raw host evidence.
 
+## Response companion peer identity
+
+The separate response-observer executable authenticates the connected
+response-companion UDS server with Linux `SO_PEERCRED` before sending
+`CLAIM`. Its `--expected-companion-uid` and `--expected-companion-gid`
+flags default to the observer's effective UID and GID. Set both flags when
+the companion uses a different identity, including an explicit value of
+`0`. A missing or mismatched peer credential fails closed; non-Linux
+platforms have no credential fallback. Keep the companion socket in a
+private directory whose full ancestor chain resists cross-UID replacement.
+Matching Unix IDs are one trust domain: `SO_PEERCRED` does not attest binary
+integrity, security labels, or user-namespace mapping.
+
 ## Remaining promotion boundary
 
 The service does not claim a deterministic post-commit reset or a client-byte
-observation. A late P4 rule is deliberately recorded as host-confirmed
-`log_only`; `strict` remains `strict_abort_not_attempted`. Those limits, and
-the canonical collector's independent validation of the raw Common JSONL, are
-the remaining promotion boundary.
+observation. A late P4 rule is recorded as host-confirmed `log_only` in Safe.
+Strict is a deliberate startup rejection until a deterministic Envoy host
+action is demonstrated; it is not an `ImmediateResponse`, a gRPC error, or a
+claimed reset. Canonical collector validation of the raw Common JSONL remains
+a promotion boundary.

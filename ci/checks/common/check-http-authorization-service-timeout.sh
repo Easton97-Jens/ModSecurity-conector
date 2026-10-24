@@ -12,6 +12,8 @@ MSCONNECTOR_CFLAGS="${MSCONNECTOR_CFLAGS:--std=$MSCONNECTOR_C_STD -Wall -Wextra 
 OUT_DIR="$BUILD_ROOT/http-authorization-service-timeout-smoke"
 TEST_SOURCE="$REPO_ROOT/ci/checks/common/http_authorization_service_timeout_smoke.c"
 TEST_BINARY="$OUT_DIR/http_authorization_service_timeout_smoke"
+COMPANION_SOURCE="$REPO_ROOT/tests/http_authorization_service_response_companion_lifecycle_smoke.c"
+COMPANION_BINARY="$OUT_DIR/http_authorization_service_response_companion_lifecycle_smoke"
 
 case "$BUILD_ROOT" in
     /*) ;;
@@ -43,5 +45,14 @@ mkdir -p "$OUT_DIR"
     "$REPO_ROOT"/common/src/*.c \
     -o "$TEST_BINARY"
 "$TEST_BINARY"
+
+"$CC_BIN" $MSCONNECTOR_CFLAGS -pthread \
+    -I "$REPO_ROOT" \
+    -I "$REPO_ROOT/common/include" \
+    -I "$REPO_ROOT/common/runtime" \
+    "$COMPANION_SOURCE" \
+    "$REPO_ROOT"/common/src/*.c \
+    -o "$COMPANION_BINARY"
+"$COMPANION_BINARY"
 
 printf 'http_authorization_service_timeout_smoke: pass output=%s\n' "$OUT_DIR"

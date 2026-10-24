@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import json
+import shlex
 from pathlib import Path
 import stat
 import subprocess
@@ -115,6 +117,61 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             env=environment,
         )
 
+    def test_case_metadata_uses_validated_private_work_root_and_rejects_escapes(self) -> None:
+        framework = ROOT / "modules/ModSecurity-test-Framework"
+        case = framework / "tests/cases/phases/phase2/phase2_args_block.yaml"
+        source = HARNESS.read_text()
+        function = "write_case_result() {" + source.split("write_case_result() {", 1)[1].split(
+            "\nrequire_bounded_positive_decimal", 1
+        )[0]
+        with tempfile.TemporaryDirectory(prefix="nginx-case-output-root-") as temporary:
+            verified = Path(temporary) / "verified"
+            build = verified / "build"
+            parent = verified / "nginx-harness"
+            private = parent / "private-work"
+            logs = private / "logs"
+            validator = self.run_validator("--verified-run-root", str(verified),
+                "--directory", "BUILD_ROOT", str(build),
+                "--directory", "NGINX_HARNESS_PARENT", str(parent),
+                "--directory", "NGINX_HARNESS_WORK_ROOT", str(private),
+                "--directory", "LOG_DIR", str(logs), "--quiet")
+            self.assertEqual(validator.returncode, 0, validator.stderr)
+            env = {**os.environ, "PYTHON_BIN": sys.executable,
+                   "CASE_CLI": str(framework / "tests/runners/case_cli.py"),
+                   "BUILD_ROOT": str(build), "NGINX_HARNESS_WORK_ROOT": str(private),
+                   "MODSECURITY_TEST_VARIANT": "no-crs", "PYTHONDONTWRITEBYTECODE": "1"}
+
+            def write_metadata(output: Path, actual_status: str) -> subprocess.CompletedProcess[str]:
+                arguments = (str(case), "blocked" if not actual_status else "pass", actual_status,
+                             str(output), "http_status", "host preflight blocked" if not actual_status else "")
+                return subprocess.run(["sh", "-eu", "-c", function + "\nwrite_case_result " +
+                    " ".join(shlex.quote(argument) for argument in arguments)],
+                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
+
+            for actual_status in ("", "403"):
+                output = logs / ("blocked" if not actual_status else "observed") / "result.json"
+                result = write_metadata(output, actual_status)
+                with self.subTest(actual_status=actual_status):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    data = json.loads(output.read_text())
+                    self.assertEqual(data["status"], "blocked" if not actual_status else "pass")
+                    self.assertEqual(data["executed_connector"], "nginx")
+            outside = verified / "outside-private-work"
+            escape = private / "escape"
+            escape.symlink_to(outside, target_is_directory=True)
+            for output in (outside / "result.json", escape / "result.json"):
+                result = write_metadata(output, "")
+                with self.subTest(output=output):
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("write path escapes output root", result.stderr)
+                    self.assertFalse(outside.exists())
+            self.assertTrue(escape.is_symlink())
+        # The real entrypoint validates the work root before the multi-case
+        # parent can project metadata for a blocked child process.
+        entry = source.split("initialize_nginx_harness_paths\n", 1)[1]
+        self.assertLess(entry.index("if [ \"$RUN_ONE_CASE\" != \"1\" ]"), entry.index("TEST_CASE=$(resolve_case_path"))
+        self.assertIn("validate_nginx_harness_outer_paths", source.split("initialize_nginx_harness_paths() {", 1)[1].split("\n}\n", 1)[0])
+
     def test_system_root_is_rejected_before_any_output_is_authorized(self) -> None:
         result = self.run_validator(
             "--verified-run-root",
@@ -158,6 +215,26 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
             )
             self.assertEqual(escape_result.returncode, 2, escape_result.stderr)
             self.assertFalse(sibling.exists())
+
+    def test_synchronized_upstream_control_root_escape_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="nginx-path-authority-") as temporary:
+            base = Path(temporary)
+            verified_root = base / "ModSecurity-conector-verified"
+            outside_root = base / "outside-synchronized-control"
+            verified_root.mkdir()
+
+            result = self.run_validator(
+                "--verified-run-root",
+                str(verified_root),
+                "--directory",
+                "SYNCHRONIZED_UPSTREAM_CONTROL_ROOT",
+                str(outside_root),
+                "--quiet",
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("must be below the runtime root", result.stderr)
+            self.assertFalse(outside_root.exists())
 
     def test_verified_runtime_descendants_and_direct_log_child_are_accepted(self) -> None:
         with tempfile.TemporaryDirectory(prefix="nginx-path-authority-") as temporary:
@@ -432,6 +509,64 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
         ]
         self.assertNotIn("mkdir", blocked_definition)
 
+    def test_worker_path_authority_precedes_the_non_root_handoff(self) -> None:
+        """Keep generic current-owner validation before worker-owned leaves exist."""
+
+        harness = HARNESS.read_text(encoding="utf-8")
+        worker_state_path_assigned = harness.index(
+            'NGINX_WORKER_STATE_ROOT="$NGINX_HARNESS_WORK_ROOT/worker-state/$case_name"'
+        )
+        server_log_path_assigned = harness.index(
+            'NGINX_SERVER_LOG_ROOT="$NGINX_HARNESS_WORK_ROOT/server-logs/$case_name"'
+        )
+        authority_call = harness.rindex("validate_nginx_generated_path_authority")
+        first_root_mutation = harness.index('ensure_dir_755 "$NGINX_HARNESS_WORK_ROOT"')
+        first_worker_handoff = harness.index(
+            "prepare_nginx_worker_paths", first_root_mutation
+        )
+
+        self.assertLess(worker_state_path_assigned, authority_call)
+        self.assertLess(server_log_path_assigned, authority_call)
+        self.assertLess(authority_call, first_root_mutation)
+        self.assertLess(authority_call, first_worker_handoff)
+        self.assertEqual(
+            harness.find("validate_nginx_generated_path_authority", first_worker_handoff),
+            -1,
+        )
+
+        authority_function_start = harness.index(
+            "validate_nginx_generated_path_authority() {"
+        )
+        authority_function = harness[
+            authority_function_start : harness.index(
+                "\n}\n\nvalidate_nginx_external_projection_authority()",
+                authority_function_start,
+            )
+        ]
+        self.assertIn(
+            '--directory NGINX_WORKER_STATE_ROOT "$NGINX_WORKER_STATE_ROOT"',
+            authority_function,
+        )
+        self.assertIn(
+            '--directory NGINX_SERVER_LOG_ROOT "$NGINX_SERVER_LOG_ROOT"',
+            authority_function,
+        )
+        self.assertLess(
+            authority_function.index('if ! "$@"; then'),
+            authority_function.index('chown root:root "$NGINX_HARNESS_PARENT"'),
+        )
+
+        worker_handoff = harness[
+            harness.index("prepare_nginx_worker_paths() {") : harness.index(
+                "\n}\n\nresolve_nginx_worker_identity()"
+            )
+        ]
+        self.assertIn(
+            'chown "$NGINX_WORKER_RESOLVED_USER:$worker_group" "$path"',
+            worker_handoff,
+        )
+        self.assertIn('chmod 700 "$path"', worker_handoff)
+
     def test_worker_preflight_uses_the_rendered_nginx_group(self) -> None:
         harness = HARNESS.read_text(encoding="utf-8")
         worker_access = harness[
@@ -444,13 +579,34 @@ class NginxHarnessPathAuthorityTests(unittest.TestCase):
         ]
 
         self.assertIn(
-            'runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" --',
+            'nginx_worker_runuser -u "$NGINX_WORKER_USER" -g "$NGINX_WORKER_RESOLVED_GROUP" --',
             worker_access,
         )
         self.assertIn(
             'user $NGINX_WORKER_RESOLVED_USER $NGINX_WORKER_RESOLVED_GROUP;',
             render_config,
         )
+
+    def test_worker_helpers_use_only_fixed_runuser_capabilities(self) -> None:
+        harness = HARNESS.read_text(encoding="utf-8")
+        availability = harness[
+            harness.index("nginx_worker_runuser_is_available() {") : harness.index(
+                "\n}\n\nnginx_worker_runuser()"
+            )
+        ]
+        invocation = harness[
+            harness.index("nginx_worker_runuser() {") : harness.index(
+                "\n}\n\nnginx_worker_can_access()"
+            )
+        ]
+
+        self.assertIn("[ -x /usr/sbin/runuser ] || [ -x /usr/bin/runuser ]", availability)
+        self.assertIn('/usr/sbin/runuser "$@"', invocation)
+        self.assertIn('/usr/bin/runuser "$@"', invocation)
+        worker_helpers = availability + invocation
+        self.assertNotIn("command -v runuser", worker_helpers)
+        self.assertNotIn("PATH=", worker_helpers)
+        self.assertNotIn("RUNUSER_BIN", worker_helpers)
 
 
 if __name__ == "__main__":

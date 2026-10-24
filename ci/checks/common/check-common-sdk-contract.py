@@ -326,8 +326,14 @@ if "backend.add_inline" not in rule_loader_source or "msconnector_rule_load_stat
     fail("rule_loader.c must use backend callbacks and rule_load_stats")
 if "modsecurity/" in engine_source.lower() or "modsecurity.h" in engine_source.lower():
     fail("modsecurity_engine.c must not include libmodsecurity headers directly")
-if "ops." not in engine_source or "msconnector_transaction_state_mark_phase" not in engine_source:
-    fail("modsecurity_engine.c must use backend ops and mark transaction phases")
+if "ops." not in engine_source:
+    fail("modsecurity_engine.c must use backend ops")
+if "msconnector_transaction_contract_begin_phase" not in engine_source or \
+        "msconnector_transaction_contract_complete_phase" not in engine_source or \
+        "msconnector_transaction_state_note_phase" not in engine_source:
+    fail("modsecurity_engine.c must drive the canonical transaction contract and retain legacy phase flags")
+if "msconnector_transaction_state_mark_phase" in engine_source:
+    fail("modsecurity_engine.c must not bypass canonical transaction phase validation")
 if "\\n" not in transaction_id_source and "< 32U" not in transaction_id_source:
     fail("transaction_id.c must reject CR/LF/control characters")
 if "expr_eval" not in transaction_id_source:

@@ -60,6 +60,29 @@ are in the [HAProxy configuration reference](../../examples/haproxy/configuratio
 Host filter configuration, Common Runtime key/value settings, and ModSecurity
 Engine rules remain separate layers.
 
+## HTX payload-append failure policy
+
+The HTX binding treats a native body-append result as successful only when its
+adapter returns `0` (which requires the underlying C API to report exact
+success). Any other result means that the current borrowed HTX slice is no
+longer certified as inspected. The filter aborts only the affected transaction
+and returns `-1` to HAProxy; it must not return the positive slice length and
+thereby authorize an uninspected pass-through.
+
+| Failure class | Fail mode and host action | Event evidence | Cleanup and subsequent request |
+| --- | --- | --- | --- |
+| Request body append failure (V10, pre-commit) | Fail closed. HAProxy receives `-1`; the retained HTTP/1.1 HAProxy `3.2.22` control observed `400` and zero backend dispatches. | No dedicated structured connector-error event is emitted for this native callback failure. The payload-free evidence is the client status, zero upstream count, and retained host receipt. | The transaction is aborted once. The same HAProxy process accepted a one-byte POST Allow control with `200`; both task-owned listeners were absent after cleanup. |
+| Response body append failure (V11, response path) | Fail closed at the transport boundary. HAProxy receives `-1` and terminates only the affected response stream. Where response handling has begun, no synthetic replacement HTTP status is promised. The retained control observed no HTTP response (`000`) and `curl_exit=52`. | No dedicated structured connector-error event is emitted for this native callback failure. The payload-free evidence is the client transport result, one upstream fault request, and retained host receipt. | The transaction is aborted once. The same HAProxy process accepted a HEAD Allow control with `200`; both task-owned listeners were absent after cleanup. |
+
+This is a documented HTX-specific safety decision: a `ProcessPartial`-derived
+native append failure is terminal for the borrowed slice because this binding
+cannot certify inspection of it. It does not silently select the different
+semantics of another connector. The retained bounded run is
+`haproxy-htx-append-failure-20260825T131500Z`, SHA-256
+`12e4d30c68ff46f45f2f8481d810eb53099f6512f384520e3942fadb0434da9c`; it proves
+these V10/V11 HTTP/1.1 cases only, not HTTP/2, HTTP/3, reload, a full FD audit,
+or the complete failure matrix.
+
 ## P1--P4 lifecycle and Safe boundary
 
 The selected native host smoke can observe P1, P2, P3, and P4 through the HTX
@@ -77,13 +100,45 @@ host/client evidence.
 | Strict late result | Explicit host action and client/transport evidence, not a legacy sample |
 | Streaming/first-byte property | Dedicated source and transport artifacts for that property |
 
+## Logical SPOE/SPOP response companion boundary
+
+The separate SPOE/SPOP process can own the request-side P1/P2 transaction, but
+its request protocol does not carry the HTX response-body stream or response
+EOS. The repository therefore models response processing as one logical
+transaction across two host components: SPOP creates a bounded opaque
+`response_handle` after P2, and the native HTX filter uses the private response
+companion to claim that handle, process P3, pass bounded P4 chunks, and close
+P4 at HTX EOS. Missing, expired, malformed, or unclaimed correlation must
+fail closed and clean up the transaction; it must not silently become a
+request-only result.
+
+The repository-native combined harness builds the current MRC1-v2 SPOP agent
+and HTX overlay and has locally observed ordered P1/P2 acknowledgement, P3
+claim, P4 DATA/EOS, cancellation, TTL, missing-correlation, and cleanup cases.
+It is qualified local runtime evidence, not a production-readiness or broad
+deployment claim. Production activation remains explicit: the private companion
+socket, matching uid/gid, and bounded response-body limit are mandatory. The
+default `response-companion=none` compatibility path continues to reject
+response-body activation because it cannot transport response EOS. The selected
+native HTX route above remains independently available.
+
+### SPOP request-ID byte boundary
+
+The SPOP `request_id` is a correlation key, not a display string. The runtime
+validates its original length-delimited bytes before copying it into a C string.
+Empty, embedded-NUL, control-byte, non-ASCII, and overlong values are rejected;
+for example, `A\0X` can never collapse to `A` and address the same transaction
+cache slot. A nonempty printable-ASCII ID, including the normal UUID form,
+remains accepted. A malformed `request_id` fails the notification extraction
+and does not create, replace, or claim a transaction.
+
 ## Historical SPOE/SPOP compatibility
 
-The former SPOE/SPOP material is **documentation-only**:
-<code>implementation_status: not_started</code> and
-<code>runtime_verified: false</code>. It is not the selected native HTX route.
-Its historical example files remain separated under
-<code>examples/haproxy/compatibility-spoe/</code>; they must not be used to
+The files under <code>examples/haproxy/compatibility-spoe/</code> are
+historical request/header compatibility examples. They are not the logical
+response-companion bridge described above and are not the selected native HTX
+route. In particular, their `http-response send-spoe-group` examples do not
+transport response-body chunks or response EOS. They must not be used to
 claim native HTX behavior, P4 response-body handling, Safe/Strict late
 behavior, first-byte behavior, or no-full-response-buffer behavior.
 

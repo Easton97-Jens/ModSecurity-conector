@@ -245,10 +245,10 @@ EXPECTED_CALLER_JOB_NAMES = frozenset(
 # building and the bundle builder cross-checks its literals again. They are
 # deliberately not caller inputs and never select a moving reference.
 CRS_APPROVED_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
-CRS_RELEASE_TAG = "v4.29.0"
-CRS_APPROVED_COMMIT = "ab3ccd5fcd691424ba3f320d4040c61417270193"
-NGINX_PINNED_VERSION = "1.31.3"
-NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
+CRS_RELEASE_TAG = "v4.30.0"
+CRS_APPROVED_COMMIT = "e03a4f6dabc7a30ebd8c52c97d28a154f590a48f"
+NGINX_PINNED_VERSION = "1.31.4"
+NGINX_PINNED_RELEASE_TAG = "release-1.31.4"
 CRS_EXPECTED_RULE_ID = "949110"
 CRS_SMOKE_REQUEST_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
 CRS_ALLOW_REQUEST_PATH = "/"
@@ -468,6 +468,10 @@ class RestrictedYamlParser:
             return self.child_value(index + 1, parent_indent, depth)
         if self.is_block_scalar(raw_value):
             return self.block_scalar(index + 1, parent_indent)
+        # The deny-default permission contract uses this exact empty mapping.
+        # Nonempty flow mappings and flow sequences remain unsupported.
+        if raw_value.strip() == "{}":
+            return {}, index + 1
         return self.scalar(raw_value, line_number), index + 1
 
     def parse_mapping(self, index: int, indent: int, depth: int) -> tuple[dict[str, Any], int]:
@@ -706,8 +710,8 @@ def validate_caller_top_level_contract(document: dict[str, Any]) -> None:
     if parent_head["required"] != "true" or parent_head["type"] != "string":
         fail("caller workflow parent_head_sha input is not required string data")
     permissions = required_yaml_mapping(document["permissions"], "top-level permissions")
-    if permissions != {"contents": "read"}:
-        fail("caller workflow top-level permissions must be exactly contents: read")
+    if permissions != {}:
+        fail("caller workflow top-level permissions must be exactly deny-default")
     concurrency = required_yaml_mapping(document["concurrency"], "concurrency")
     if concurrency != EXPECTED_CALLER_CONCURRENCY:
         fail("caller workflow has an unexpected concurrency contract")

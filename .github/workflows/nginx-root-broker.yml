@@ -28,8 +28,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   trusted-root-smoke:
@@ -59,10 +58,10 @@ jobs:
       BUILD_NGINX_FROM_SOURCE: "1"
       NGINX_SOURCE_MODE: github-release
       NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
-      NGINX_RELEASE_TAG: release-1.31.3
-      NGINX_SOURCE_GIT_REF: release-1.31.3
-      NGINX_RELEASE_ASSET_NAME: nginx-1.31.3.tar.gz
-      NGINX_SHA256: a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525
+      NGINX_RELEASE_TAG: release-1.31.4
+      NGINX_SOURCE_GIT_REF: release-1.31.4
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.4.tar.gz
+      NGINX_SHA256: e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3
       NGINX_REQUIRE_PINNED_PROVENANCE: "1"
     steps:
       - name: Verify protected caller context and immutable broker input
@@ -203,7 +202,7 @@ jobs:
             --framework-sha "$EXPECTED_FRAMEWORK_SHA"
 
       - name: Download declarative caller manifest
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.caller_manifest_artifact }}
           path: ${{ runner.temp }}/trusted-nginx-broker-caller-${{ inputs.run_id }}
@@ -303,6 +302,22 @@ jobs:
           if [ "$fetch_status" -ne 0 ]; then
             exit "$fetch_status"
           fi
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          # The broker independently acquires the protected release tag even
+          # when the pinned Framework provisioner fetches only the commit.
+          # Select provenance from the blob-verified broker, never caller data.
+          broker_crs_contract="$(.venv/bin/python -I -c 'import runpy; broker = runpy.run_path("ci/runtime/broker/nginx_root_broker.py"); print(broker["CRS_APPROVED_REPOSITORY"], broker["CRS_RELEASE_TAG"], broker["CRS_APPROVED_COMMIT"])')"
+          read -r broker_crs_repository broker_crs_tag broker_crs_commit broker_crs_extra <<< "$broker_crs_contract"
+          test -n "$broker_crs_repository"
+          test -n "$broker_crs_tag"
+          test -n "$broker_crs_commit"
+          test -z "$broker_crs_extra"
+          test "$(git -C "$CRS_SOURCE_DIR" config --get remote.origin.url)" = "$broker_crs_repository"
+          test "$(git -C "$CRS_SOURCE_DIR" rev-parse HEAD)" = "$broker_crs_commit"
+          git -c core.hooksPath=/dev/null -c protocol.file.allow=never -C "$CRS_SOURCE_DIR" \
+            fetch --depth 1 --no-tags "$broker_crs_repository" "refs/tags/$broker_crs_tag:refs/tags/$broker_crs_tag"
+          test "$(git -C "$CRS_SOURCE_DIR" rev-parse --verify "refs/tags/$broker_crs_tag^{}")" = "$broker_crs_commit"
           verify_broker_source .github/workflows/nginx-root-broker.yml
           verify_broker_source ci/runtime/broker/nginx_root_broker.py
           .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-crs-bundle \
@@ -491,7 +506,7 @@ jobs:
 
       - name: Upload bounded root-to-user evidence
         if: ${{ always() && env.BROKER_ARTIFACT_EVIDENCE != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trusted-nginx-root-broker-${{ inputs.run_id }}
           retention-days: 1

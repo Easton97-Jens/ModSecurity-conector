@@ -30,6 +30,9 @@ und protokolliert ohne disruptive Regelaktionen anzuwenden.
 
 ## Profile und spätes Verhalten
 
+Die Auswahl der Response-MIME-Typen gehört zu ModSecurity und erfolgt über Engine-Direktiven wie `SecResponseBodyMimeType`; Connectoren führen keine zweite Phase-4-MIME-Allowlist. Die Phase-4-Policy steuert die Behandlung einer disruptiven Entscheidung in der Response-Phase, nicht die von der Engine untersuchten MIME-Typen.
+
+
 | Profil | Vorgesehene Verwendung | Grenze |
 | --- | --- | --- |
 | Minimal | Kleinste ausgewählte Host-/Serviceform | Es ist ein Syntax-/Konfigurationsausgangspunkt, kein Lifecycle-Nachweis |
@@ -82,7 +85,8 @@ angegebene Grenze.
 
 | Oberfläche | Apache | NGINX | Grenze |
 | --- | --- | --- |
-| <code>modsecurity</code>, Regeln, Regelfiles, Remote-Regeln | Registrierte Hostdirektiven | Registrierte Hostdirektiven | Rule-Load bleibt connector-eigen |
+| <code>modsecurity</code>, Regeln, Regelfiles | Registrierte Hostdirektiven | Registrierte Hostdirektiven | Lokales Rule-Loading bleibt connector-eigen |
+| <code>modsecurity_rules_remote</code> | Registriert, aber durch die gemeinsame Sicherheitsrichtlinie abgelehnt | Registriert, aber durch die gemeinsame Sicherheitsrichtlinie abgelehnt | Remote-Regelladen ist vor Fetch oder nativem Remote-API-Aufruf deaktiviert |
 | <code>modsecurity_transaction_id</code> | Statische-String-Semantik | Per-Request-Complex-Value-Semantik | Gleicher Name bedeutet nicht gleiche Auswertung |
 | <code>modsecurity_transaction_id_expr</code> | Registrierte Apache-Ausdrucksdirektive | Nicht registriert | Apache-Ausdruckssyntax nicht nach NGINX kopieren |
 | Begrenzte P4-Kontrollen | Registrierte Hostdirektiven | Registrierte Hostdirektiven | Body-Limit/Scope befördert keine vollständige Response-Body-Unterstützung |

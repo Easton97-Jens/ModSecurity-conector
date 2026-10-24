@@ -40,6 +40,10 @@ static void verify_header_parser_controls(void) {
         {content_length_name, sizeof(content_length_name) - 1U, one_value, sizeof(one_value) - 1U},
         {content_length_name, sizeof(content_length_name) - 1U, two_value, sizeof(two_value) - 1U},
     };
+    const msconnector_header duplicate_headers[] = {
+        {content_length_name, sizeof(content_length_name) - 1U, one_value, sizeof(one_value) - 1U},
+        {content_length_name, sizeof(content_length_name) - 1U, one_value, sizeof(one_value) - 1U},
+    };
     size_t content_length = 0U;
 
     require_control(msconnector_headers_parse_content_length(valid_header, 1U, &content_length) == 1);
@@ -47,6 +51,7 @@ static void verify_header_parser_controls(void) {
     require_control(msconnector_headers_parse_content_length(malformed_header, 1U, &content_length) == -1);
     require_control(msconnector_headers_parse_content_length(overflow_header, 1U, &content_length) == -1);
     require_control(msconnector_headers_parse_content_length(conflicting_headers, 2U, &content_length) == -1);
+    require_control(msconnector_headers_parse_content_length(duplicate_headers, 2U, &content_length) == -1);
 }
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {

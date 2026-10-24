@@ -16,12 +16,18 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`filter modsecurity-htx`](#filter-modsecurity-htx) | Host / Connector | HAProxy-Filterdeklaration | ja | nicht anwendbar; ein Filter ist nur aktiv, wenn er deklariert ist | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Native HTX-Filterdeklaration für den vollständigen Lebenszyklus. |
 | [`log`](#log) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`mode`](#mode) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
-| [`phase4-mode`](#phase4-mode) | Host / Connector | Aufzählung | nein | safe | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Native HTX-Argument für die späte P4-Policy. |
+| [`option`](#option) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
+| [`phase4-mode`](#phase4-mode) | Host / Connector | Aufzählung | nein | off | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Native HTX-Argument für die späte P4-Policy. |
 | [`rules-file`](#rules-file) | Host / Connector | Pfad | ja | kein Wert; erforderlich | Die ausgewählte und eingecheckte native Nutzung ist ein HAProxy-Frontend. Der lokale Parser legt keine weiteren Host-Geltungsbereiche fest. | Erforderliches rules-file-Argument des nativen HTX. |
 | [`server`](#server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
+| [`spoe-agent:response-companion`](#spoe-agent-response-companion) | Kompatibilität | Aufzählung | nein | none | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
+| [`spoe-agent:response-companion-gid`](#spoe-agent-response-companion-gid) | Kompatibilität | Ganzzahl | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
+| [`spoe-agent:response-companion-socket`](#spoe-agent-response-companion-socket) | Kompatibilität | Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
+| [`spoe-agent:response-companion-uid`](#spoe-agent-response-companion-uid) | Kompatibilität | Ganzzahl | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung. |
 | [`timeout client`](#timeout-client) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`timeout connect`](#timeout-connect) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`timeout server`](#timeout-server) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
+| [`tune.bufsize`](#tune-bufsize) | Host | hosteigenes Konfigurationsfeld | nein | Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt. | Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich. | Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive. |
 | [`filter spoe`](#filter-spoe) | Kompatibilität | Kompatibilitätsfilter | nein | nicht Teil des nativen HTX-Pfads | nur Kompatibilitäts-Frontend | SPOE-Filter nur für die Kompatibilität. |
 | [`legacy-phase4-strict-abort`](#legacy-phase4-strict-abort) | Kompatibilität | historische Konfiguration | nein | nicht verfügbar | nur historische Kompatibilitätsdokumentation | Deaktiviertes historisches Kompatibilitätsmaterial. |
 | [`spoe-agent:audit-log`](#spoe-agent-audit-log) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
@@ -35,7 +41,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`spoe-agent:host`](#spoe-agent-host) | Kompatibilität | Zeichenkette/Pfad | nein | 127.0.0.1 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:listen`](#spoe-agent-listen) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:log-file`](#spoe-agent-log-file) | Kompatibilität | Zeichenkette/Pfad | nein | - | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:max-transactions`](#spoe-agent-max-transactions) | Kompatibilität | Ganzzahl | nein | 4096 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
+| [`spoe-agent:max-transactions`](#spoe-agent-max-transactions) | Kompatibilität | Ganzzahl | nein | 4096 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze. |
 | [`spoe-agent:mode`](#spoe-agent-mode) | Kompatibilität | Kompatibilitäts-Policy-Zeichenkette | nein | block | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:modsecurity-conf`](#spoe-agent-modsecurity-conf) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:pid-file`](#spoe-agent-pid-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
@@ -44,14 +50,14 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`spoe-agent:ready-file`](#spoe-agent-ready-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:request-body-limit`](#spoe-agent-request-body-limit) | Kompatibilität | Ganzzahl | nein | 65532 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:response-body-limit`](#spoe-agent-response-body-limit) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
-| [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
+| [`spoe-agent:response-body-timeout`](#spoe-agent-response-body-timeout) | Kompatibilität | Ganzzahl | nein | 0 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit. |
 | [`spoe-agent:response-phases`](#spoe-agent-response-phases) | Kompatibilität | Boolescher Wert | nein | false | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung. |
 | [`spoe-agent:rules-dir`](#spoe-agent-rules-dir) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:rules-file`](#spoe-agent-rules-file) | Kompatibilität | Zeichenkette/Pfad | nein | nicht gesetzt, sofern nicht konfiguriert | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
 | [`spoe-agent:runtime-mode`](#spoe-agent-runtime-mode) | Kompatibilität | Kompatibilitäts-Policy-Zeichenkette | nein | production | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Kompatibilität | Ganzzahl | nein | 2000 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
+| [`spoe-agent:spoe-timeout`](#spoe-agent-spoe-timeout) | Kompatibilität | Ganzzahl | nein | 2000 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen. |
 | [`spoe-agent:variant`](#spoe-agent-variant) | Kompatibilität | Zeichenkette/Pfad | nein | - | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
-| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Kompatibilität | Ganzzahl | nein | 1 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption. |
+| [`spoe-agent:worker-count`](#spoe-agent-worker-count) | Kompatibilität | Ganzzahl | nein | 8 | SPOE/SPOP-Kompatibilitätsagent-key=value-Datei | Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert. |
 
 ## Trennung der Ebenen
 
@@ -75,9 +81,9 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/haproxy-htx.cfg](minimal/haproxy-htx.cfg) | Aktive Startkonfiguration |
+| Off / Kompatibilität | [off/haproxy-htx.cfg](off/haproxy-htx.cfg) | Aktive Startkonfiguration |
 | Sicherer vollständiger Lebenszyklus | [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Ausgewählte begrenzte Referenz |
-| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Strikt | [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -224,7 +230,7 @@ Native HTX-Filterdeklaration für den vollständigen Lebenszyklus.
 ### Syntax
 
 ```text
-filter modsecurity-htx rules-file <path> [phase4-mode minimal|safe|strict]
+filter modsecurity-htx rules-file <path> [phase4-mode off|safe|strict]
 ```
 
 ### Gültige Kontexte
@@ -379,6 +385,61 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="option"></a>
+## `option`
+
+### Kurzbeschreibung
+
+Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive.
+
+### Syntax
+
+```text
+option <host-specific-value>
+```
+
+### Gültige Kontexte
+
+- Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich.
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| hosteigenes Konfigurationsfeld | der explizite Wert im ausgewählten eingecheckten Beispiel | nein |
+
+### Standardwert
+
+Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt.
+
+Quelle: `aktive Beispielkonfiguration`.
+
+### Vererbung und Zusammenführung
+
+Hostdefiniert; nicht durch diesen Connector implementiert.
+
+Zusammenführung: Hostdefiniert; nicht durch diesen Connector implementiert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Hosteinrichtung/Routing/Logging; konfiguriert selbst keine Phasen der ModSecurity-Regel-Engine.
+
+Stellt die umgebende Hosteinrichtung bereit, die vom ausgewählten Connector-Beispiel verwendet wird.
+
+### Validierung und Fehler
+
+haproxy -c -f <config>
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/haproxy/safe/haproxy-htx.cfg).
+
+### Sicherheit und Betrieb
+
+Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
+
 <a id="phase4-mode"></a>
 ## `phase4-mode`
 
@@ -389,7 +450,7 @@ Native HTX-Argument für die späte P4-Policy.
 ### Syntax
 
 ```text
-phase4-mode minimal | safe | strict
+phase4-mode off | safe | strict
 ```
 
 ### Gültige Kontexte
@@ -400,11 +461,11 @@ phase4-mode minimal | safe | strict
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Aufzählung | minimal \| safe \| strict | nein |
+| Aufzählung | off \| safe \| strict | nein |
 
 ### Standardwert
 
-safe
+off
 
 Quelle: `common/include/msconnector/options.h:MSCONNECTOR_DEFAULT_PHASE4_MODE`.
 
@@ -416,7 +477,7 @@ Zusammenführung: Kein Connector-lokaler Merge; Filterargumente initialisieren e
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Nur P4. Die aktuelle HTX-Hostaktion unterscheidet strict von nicht-strict; minimal und safe teilen den späten nicht-strict-log_only-Pfad.
+P1–P4-Relevanz: Nur P4. off bewahrt die native HTX-Interventionsbehandlung; safe verwendet den nicht disruptiven späten Pfad; strict fordert den unterstützten Host-Abbruchpfad an.
 
 Initialisiert common_config.phase4_mode für den Filter.
 
@@ -544,6 +605,226 @@ Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../example
 
 Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
 
+<a id="spoe-agent-response-companion"></a>
+## `spoe-agent:response-companion`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Aufzählung | none \| native-htx | nein |
+
+### Standardwert
+
+none
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
+<a id="spoe-agent-response-companion-gid"></a>
+## `spoe-agent:response-companion-gid`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion-gid=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | dezimale Ganzzahl | nein |
+
+### Standardwert
+
+nicht gesetzt, sofern nicht konfiguriert
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
+<a id="spoe-agent-response-companion-socket"></a>
+## `spoe-agent:response-companion-socket`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion-socket=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Pfad | privater UNIX-Domain-Socket-Pfad | nein |
+
+### Standardwert
+
+nicht gesetzt, sofern nicht konfiguriert
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
+<a id="spoe-agent-response-companion-uid"></a>
+## `spoe-agent:response-companion-uid`
+
+### Kurzbeschreibung
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Syntax
+
+```text
+response-companion-uid=<value>
+```
+
+### Gültige Kontexte
+
+- SPOE/SPOP-Kompatibilitätsagent-key=value-Datei
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | dezimale Ganzzahl | nein |
+
+### Standardwert
+
+nicht gesetzt, sofern nicht konfiguriert
+
+Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
+
+### Vererbung und Zusammenführung
+
+Keine native HTX-Vererbung; eine Konfigurationsdatei des Kompatibilitätsagenten.
+
+Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: native-htx ist der erforderliche P3/P4-Begleiter für das logische HAProxy-SPOE/SPOP-Profil; none weist die Aktivierung von Response-Phasen zurück, weil reines SPOE/SPOP kein Response-EOS besitzt.
+
+SPOP-Owner-Konfiguration für den erforderlichen nativen-HTX-MRC1-Response-Begleiter. native-htx veröffentlicht einen begrenzten opaken Handle für die HTX-P3/P4-Verarbeitung.
+
+### Validierung und Fehler
+
+Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/compatibility-spoe/modsecurity-agent.conf](../../examples/haproxy/compatibility-spoe/modsecurity-agent.conf).
+
+### Sicherheit und Betrieb
+
+Der Begleiter muss einen expliziten privaten UDS-Socket, passende Service-UID/GID, ein begrenztes Response-Body-Limit und eine fail-closed-Korrelation über einen opaken Handle verwenden.
+
 <a id="timeout-client"></a>
 ## `timeout client`
 
@@ -665,6 +946,61 @@ Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive.
 
 ```text
 timeout server <host-specific-value>
+```
+
+### Gültige Kontexte
+
+- Der im eingecheckten Beispiel gezeigte Kontext; für alle hostspezifischen Kontexte ist die festgelegte Hostdokumentation maßgeblich.
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| hosteigenes Konfigurationsfeld | der explizite Wert im ausgewählten eingecheckten Beispiel | nein |
+
+### Standardwert
+
+Kein Connector-Standardwert; dieses Hostfeld ist im Beispiel explizit gesetzt.
+
+Quelle: `aktive Beispielkonfiguration`.
+
+### Vererbung und Zusammenführung
+
+Hostdefiniert; nicht durch diesen Connector implementiert.
+
+Zusammenführung: Hostdefiniert; nicht durch diesen Connector implementiert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Hosteinrichtung/Routing/Logging; konfiguriert selbst keine Phasen der ModSecurity-Regel-Engine.
+
+Stellt die umgebende Hosteinrichtung bereit, die vom ausgewählten Connector-Beispiel verwendet wird.
+
+### Validierung und Fehler
+
+haproxy -c -f <config>
+
+### Beispiel
+
+Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
+
+Quellenbasiertes Beispiel: [examples/haproxy/safe/haproxy-htx.cfg](../../examples/haproxy/safe/haproxy-htx.cfg).
+
+### Sicherheit und Betrieb
+
+Netzwerkadressen, Pfade und Logging-Ziele müssen durch den Betreiber gewählt und zugriffsgesteuert werden.
+
+<a id="tune-bufsize"></a>
+## `tune.bufsize`
+
+### Kurzbeschreibung
+
+Hosteigenes Feld im eingecheckten Beispiel; keine Connector-Direktive.
+
+### Syntax
+
+```text
+tune.bufsize <host-specific-value>
 ```
 
 ### Gültige Kontexte
@@ -1429,7 +1765,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze.
 
 ### Syntax
 
@@ -1445,7 +1781,7 @@ max-transactions=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | dezimale Ganzzahl, 1..4096; worker-count * max-transactions <= 65536 | nein |
 
 ### Standardwert
 
@@ -1463,11 +1799,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt die vom SPOE/SPOP-Kompatibilitätsagenten zugelassenen Transaktionsslots einschließlich der kombinierten Worker-/Transaktionsobergrenze.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -1924,7 +2260,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung.
+Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit.
 
 ### Syntax
 
@@ -1940,7 +2276,7 @@ response-body-timeout=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | vorzeichenlose dezimale Millisekunden, 0..60000; müssen bei response-companion=none 0 sein | nein |
 
 ### Standardwert
 
@@ -1958,11 +2294,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-Kompatibilitäts-Response-Steuerung. Die ausgewählten SPOE-Nachrichten liefern keinen Response-Body; dies ist daher keine native P4-Unterstützung.
+Kompatibilitäts-Timeout für die Response-Steuerung; reines SPOE/SPOP überträgt keinen Response-Body und ist daher kein natives P4-Stream-Idle-Limit.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2199,7 +2535,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen.
 
 ### Syntax
 
@@ -2215,7 +2551,7 @@ spoe-timeout=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | positive dezimale Millisekunden, 1..60000 | nein |
 
 ### Standardwert
 
@@ -2233,11 +2569,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt jede SPOE/SPOP-Engine-Transaktion; null, negative, fehlerhafte und über dem Limit liegende Werte lassen das Konfigurationsparsen fehlschlagen.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 
@@ -2309,7 +2645,7 @@ Kompatibilitätslogs, Ports, Regeln und Fail-Policy benötigen eine Betreiberpr�
 
 ### Kurzbeschreibung
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert.
 
 ### Syntax
 
@@ -2325,11 +2661,11 @@ worker-count=<value>
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| Ganzzahl | dezimale Ganzzahl | nein |
+| Ganzzahl | dezimale Ganzzahl, 2..64; worker-count * max-transactions <= 65536 | nein |
 
 ### Standardwert
 
-1
+8
 
 Quelle: `config_init(), sofern angegeben; andernfalls Initialisierung mit null/leeren Werten`.
 
@@ -2343,11 +2679,11 @@ Zusammenführung: Kein Merge; config_set übernimmt einen geparsten Wert.
 
 P1–P4-Relevanz: Nur Kompatibilitäts-Request-/Response-Headerpfad; keine Aussage zum nativen Response-Body-Lebenszyklus.
 
-SPOP-Kompatibilitätsagent-Konfiguration; dies ist keine native HTX-Filteroption.
+Begrenzt isolierte parallele SPOE/SPOP-Peer-Handler; mindestens zwei Worker verhindern, dass ein langsamer Handshake die Accept-Schleife monopolisiert.
 
 ### Validierung und Fehler
 
-Unbekannte Schlüssel lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
+spoe-timeout akzeptiert nur dezimale Millisekunden in 1..60000; worker-count akzeptiert 2..64; max-transactions akzeptiert 1..4096; worker-count * max-transactions darf 65536 nicht überschreiten; response-body-timeout akzeptiert vorzeichenlose dezimale Millisekunden in 0..60000 und muss bei response-companion=none 0 sein; unbekannte Schlüssel und fehlerhafte Werte lassen das Parsen der Konfiguration des Kompatibilitätsagenten fehlschlagen.
 
 ### Beispiel
 

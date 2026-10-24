@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 import hashlib
 import json
 import os
@@ -25,10 +25,11 @@ from pathlib import Path
 _CI_ROOT = next(parent for parent in Path(__file__).resolve().parents if parent.name == "ci")
 if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlsplit
 
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+from nginx_exact_head_diagnostics import DiagnosticInputError, bounded_fixed_log_tail
 from runtime_path_utils import is_system_write_path
 
 
@@ -97,13 +98,144 @@ NGINX_RUNTIME_COMPONENT_TARGETS = frozenset({"all", "nginx"})
 
 
 NGINX_PROTOCOL_PROFILES = ("h1", "h1-h2", "h1-h2-h3-quic")
+NGINX_STAGED_MAKE_LOG_RELATIVE_PATH = Path("build/logs/nginx/nginx-make.log")
+NGINX_STAGED_MAKE_LOG_PREFIX = "nginx staged make diagnostics:"
+NGINX_STAGED_MAKE_LOG_LINE_PREFIX = f"{NGINX_STAGED_MAKE_LOG_PREFIX} log: "
 DEFAULT_NGINX_QUIC_TLS_LIBRARY = "openssl"
 DEFAULT_NGINX_QUIC_TLS_VERSION = "4.0.1"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_URL = "https://github.com/openssl/openssl/releases/download/openssl-4.0.1/openssl-4.0.1.tar.gz"
 DEFAULT_NGINX_QUIC_TLS_SOURCE_SHA256 = "2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
 PATH_POLICY_ENV = dict(os.environ)
-FULL_GIT_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40,64}")
+FULL_GIT_COMMIT_ID = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 SAFE_RUNTIME_BUILD_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+HAPROXY_BINDING_BUILD_TARGETS = ("build-modsecurity-binding", "build-spoa-runtime")
+HAPROXY_BINDING_FAILURE_OUTPUT_NAMES = {
+    "build-modsecurity-binding": "haproxy-modsecurity-binding-self-test",
+    "build-spoa-runtime": "haproxy-modsecurity-spoa",
+}
+HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES = 8
+HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES = 512
+HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS = 4096
+HAPROXY_FAILURE_FOOTER_MARKER = ": *** ["
+HAPROXY_FAILURE_FOOTER_SUFFIX = "] Error "
+HAPROXY_FAILURE_FOOTER_WHITESPACE = " \t\f\v"
+HAPROXY_DIAGNOSTIC_RESOLVER_ERROR = "classification=resolver_error"
+HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR = "classification=compiler_fatal_error"
+HAPROXY_DIAGNOSTIC_COMPILER_ERROR = "classification=compiler_error"
+HAPROXY_DIAGNOSTIC_LINKER_ERROR = "classification=linker_error"
+HAPROXY_RESOLVER_SENTINEL_PREFIX = "BLOCKED: HAProxy libModSecurity resolver: sentinel="
+HAPROXY_RESOLVER_SENTINEL_CAUSES = (
+    "invalid_path_syntax",
+    "output_path_not_absolute",
+    "output_path_symlink",
+    "path_contains_whitespace",
+    "headers_not_found",
+    "library_not_found",
+    "headers_missing",
+    "headers_modsecurity_h_and_rules_set_h_missing",
+    "headers_modsecurity_h_and_transaction_h_missing",
+    "headers_rules_set_h_and_transaction_h_missing",
+    "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+    "header_modsecurity_h_missing",
+    "header_rules_set_h_missing",
+    "header_transaction_h_missing",
+    "library_missing",
+    "readlink_missing",
+    "library_target_unresolved",
+    "library_target_not_regular",
+    "file_missing",
+    "architecture_mismatch",
+    "ldd_missing",
+    "unresolved_runtime_dependencies",
+)
+
+
+def haproxy_resolver_cause_diagnostics(cause: str) -> tuple[str, ...]:
+    """Return the closed, payload-free diagnostics for one resolver cause."""
+
+    if cause not in HAPROXY_RESOLVER_SENTINEL_CAUSES:
+        raise ValueError("unknown HAProxy resolver diagnostic cause")
+    return (
+        HAPROXY_DIAGNOSTIC_RESOLVER_ERROR,
+        "build_step=modsecurity_resolver",
+        f"resolver_cause={cause}",
+    )
+
+
+HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS = {
+    f"{HAPROXY_RESOLVER_SENTINEL_PREFIX}{cause}": haproxy_resolver_cause_diagnostics(cause)
+    for cause in HAPROXY_RESOLVER_SENTINEL_CAUSES
+}
+HAPROXY_RESOLVER_CAUSE_VALUES = frozenset(
+    diagnostics[-1] for diagnostics in HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.values()
+)
+HAPROXY_FAILURE_DIAGNOSTIC_RULES = (
+    (
+        re.compile(r"^BLOCKED: HAProxy libModSecurity resolver:", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_RESOLVER_ERROR, "build_step=modsecurity_resolver"),
+    ),
+    (
+        re.compile(
+            r"\bfatal error:\s*modsecurity/modsecurity\.h:\s*No such file or directory\b",
+            re.IGNORECASE | re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=modsecurity.h"),
+    ),
+    (
+        re.compile(
+            r"\bfatal error:\s*modsecurity/rules_set\.h:\s*No such file or directory\b",
+            re.IGNORECASE | re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=rules_set.h"),
+    ),
+    (
+        re.compile(
+            r"\bfatal error:\s*modsecurity/transaction\.h:\s*No such file or directory\b",
+            re.IGNORECASE | re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_FATAL_ERROR, "missing_header=transaction.h"),
+    ),
+    (
+        re.compile(
+            r"^FAIL: HAProxy ModSecurity binding source did not compile for diagnostic SPOP runtime$",
+            re.ASCII,
+        ),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=spoa_binding_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity SPOA runtime source did not compile$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=spoa_runtime_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_LINKER_ERROR, "build_step=spoa_runtime_link"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity binding source did not compile$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_binding_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy Common SDK source did not compile:", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_common_sdk_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity binding self-test source did not compile$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_COMPILER_ERROR, "build_step=modsecurity_binding_self_test_source_compile"),
+    ),
+    (
+        re.compile(r"^FAIL: HAProxy ModSecurity binding self-test did not link$", re.ASCII),
+        (HAPROXY_DIAGNOSTIC_LINKER_ERROR, "build_step=modsecurity_binding_self_test_link"),
+    ),
+    (
+        re.compile(
+            r"^FAIL: The HAProxy connector requires the public libModSecurity API available in version "
+            r"3\.0\.14 or newer\. The detected headers and library do not provide the required baseline "
+            r"API or do not match\.$",
+            re.ASCII,
+        ),
+        ("classification=modsecurity_baseline_api_failure", "build_step=modsecurity_baseline_api_validation"),
+    ),
+)
 
 
 # Bump this whenever the on-disk cache contract or the identity inputs change.
@@ -124,6 +256,11 @@ MODSECURITY_LIBRARY_FILENAME = "libmodsecurity.so"
 # generic prefix keeps the libtool linker alias above, while the protected
 # NGINX broker records only this regular, non-symlinked runtime artifact.
 MODSECURITY_RUNTIME_LIBRARY_FILENAME = "libmodsecurity.so.3"
+MODSECURITY_REQUIRED_PUBLIC_HEADERS = (
+    "modsecurity.h",
+    "rules_set.h",
+    "transaction.h",
+)
 MODSECURITY_OUTPUT_LAYOUT_VERSION = 1
 NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
 NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
@@ -133,12 +270,12 @@ NGINX_REQUIRE_PINNED_PROVENANCE_ENV = "NGINX_REQUIRE_PINNED_PROVENANCE"
 # review, not a runtime override.
 NGINX_PINNED_SOURCE_MODE = "github-release"
 NGINX_PINNED_SOURCE_REPOSITORY = "https://github.com/nginx/nginx"
-NGINX_PINNED_RELEASE_TAG = "release-1.31.3"
-NGINX_PINNED_SOURCE_REF = "release-1.31.3"
-NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.3.tar.gz"
-NGINX_PINNED_RELEASE_ASSET_SHA256 = "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
-NGINX_PINNED_VERSION_READBACK = "nginx/1.31.3"
-DEFAULT_HAPROXY_VERSION = "3.2.22"
+NGINX_PINNED_RELEASE_TAG = "release-1.31.6"
+NGINX_PINNED_SOURCE_REF = "release-1.31.6"
+NGINX_PINNED_RELEASE_ASSET_NAME = "nginx-1.31.6.tar.gz"
+NGINX_PINNED_RELEASE_ASSET_SHA256 = "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
+NGINX_PINNED_VERSION_READBACK = "nginx/1.31.6"
+DEFAULT_HAPROXY_VERSION = "3.2.25"
 NGINX_PINNED_PROVENANCE_SCHEMA_VERSION = 1
 APACHE_APXS_RELATIVE_PATH = "bin/apxs"
 UNMANAGED_CACHE_ENTRY_MARKER_MISSING_PREFIX = "unmanaged_cache_entry_marker_missing: "
@@ -258,8 +395,17 @@ def run_env(
     cwd: Path | None = None,
     env: dict[str, str] | None = None,
     check: bool = False,
+    errors: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        env=env,
+        text=True,
+        errors=errors,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if check and proc.returncode != 0:
         raise RuntimeError((proc.stdout + proc.stderr).strip() or f"command failed: {' '.join(cmd)}")
     return proc
@@ -2340,27 +2486,21 @@ def prepare_immutable_git_component(
 def prepare_expat_git_component(
     source_url: str,
     expected_ref: str,
-    expected_prompt_latest: str,
     path: Path,
     previous_records: dict[str, dict[str, Any]],
     strict: bool,
     cache_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Use immutable Expat provenance only for the strict evidence path."""
-    if strict:
-        return prepare_immutable_git_component(
-            "expat",
-            source_url,
-            expected_ref,
-            path,
-            previous_records,
-            strict,
-            cache_root=cache_root,
-        )
-    return prepare_release_git_component(
+    """Prepare Expat from its configured immutable commit in every mode.
+
+    ``strict`` still controls the cache/fsck policy of the shared Git
+    preparer.  It must not change Expat provenance into a latest-release
+    lookup.
+    """
+    return prepare_immutable_git_component(
         "expat",
         source_url,
-        expected_prompt_latest,
+        expected_ref,
         path,
         previous_records,
         strict,
@@ -2380,6 +2520,52 @@ def archive_can_list(path: Path) -> bool:
 def download(url: str, dest: Path) -> None:
     require_https_url(url, "download URL")
     atomic_write_bytes(dest, urlopen_bytes(url, timeout=60))
+
+
+class HttpdSourceNoRedirect(urllib.request.HTTPRedirectHandler):
+    """A retired HTTPD release may move only through the explicit 404 policy."""
+
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        return None
+
+
+def httpd_archive_recovery_url(url: str, expected_sha: str) -> str:
+    require_literal_sha256(expected_sha, "httpd")
+    match = re.fullmatch(
+        r"https://downloads\.apache\.org/httpd/(httpd-\d+\.\d+\.\d+\.tar\.bz2)",
+        url,
+        flags=re.ASCII,
+    )
+    if match is None:
+        raise RuntimeError("httpd_source_recovery_requires_canonical_release_url")
+    return f"https://archive.apache.org/dist/httpd/{match.group(1)}"
+
+
+def download_httpd_source_archive(url: str, dest: Path, expected_sha: str) -> str:
+    """Recover only an exact canonical HTTPD 404, retaining the reviewed digest."""
+    archived_url = httpd_archive_recovery_url(url, expected_sha)
+    opener = urllib.request.build_opener(HttpdSourceNoRedirect())
+
+    def acquire(selected_url: str) -> bytes:
+        try:
+            with opener.open(selected_url, timeout=60) as response:
+                if response.geturl() != selected_url:
+                    raise RuntimeError("httpd_source_redirect_forbidden")
+                return response.read()
+        except urllib.error.HTTPError as error:
+            error.close()
+            raise
+
+    download_url = url
+    try:
+        payload = acquire(url)
+    except urllib.error.HTTPError as error:
+        if error.code != 404 or error.geturl() != url:
+            raise
+        download_url = archived_url
+        payload = acquire(download_url)
+    atomic_write_bytes(dest, payload)
+    return download_url
 
 
 def expected_sha_from_url(url: str, archive_name: str, dest: Path) -> str:
@@ -2637,7 +2823,8 @@ def download_archive_if_needed(
     *,
     expected_sha: str = "",
     verify_digest_before_archive_list: bool = False,
-) -> None:
+    allow_httpd_source_recovery: bool = False,
+) -> str | None:
     if not archive_requires_download(
         path,
         expected_sha=expected_sha,
@@ -2648,7 +2835,12 @@ def download_archive_if_needed(
         remove_archive_path(path, cache_root)
     if cache_root is not None:
         mark_managed_cache_entry(path, cache_root, component=component, cache_key=cache_key)
+    if allow_httpd_source_recovery:
+        if component != archive_cache_component("httpd"):
+            raise RuntimeError("httpd_source_recovery_component_invalid")
+        return download_httpd_source_archive(url, path, expected_sha)
     download(url, path)
+    return None
 
 
 def corrupt_archive_record(
@@ -2695,6 +2887,7 @@ def prepare_archive_with_lock(
     *,
     cache_identity: dict[str, Any] | None = None,
     verify_digest_before_archive_list: bool = False,
+    allow_httpd_source_recovery: bool = False,
 ) -> dict[str, Any]:
     try:
         with BuildLock(cache_entry_lock_path(managed_root, f"archive-{name}", cache_key)):
@@ -2709,6 +2902,7 @@ def prepare_archive_with_lock(
                 _lock_held=True,
                 cache_identity=cache_identity,
                 verify_digest_before_archive_list=verify_digest_before_archive_list,
+                allow_httpd_source_recovery=allow_httpd_source_recovery,
             )
     except TimeoutError as exc:
         record.update(status="blocked", blocker_reason="cache_lock_timeout", details=str(exc))
@@ -2728,6 +2922,7 @@ def prepare_archive_unlocked(
     archive_identity: dict[str, Any],
     *,
     verify_digest_before_archive_list: bool = False,
+    allow_httpd_source_recovery: bool = False,
 ) -> dict[str, Any]:
     component = archive_cache_component(name)
     cache_key = str(archive_identity["cache_key"])
@@ -2741,7 +2936,7 @@ def prepare_archive_unlocked(
         archive_identity,
     ):
         return record
-    download_archive_if_needed(
+    acquired_url = download_archive_if_needed(
         url,
         path,
         managed_root,
@@ -2749,7 +2944,12 @@ def prepare_archive_unlocked(
         cache_key,
         expected_sha=expected_sha,
         verify_digest_before_archive_list=verify_digest_before_archive_list,
+        allow_httpd_source_recovery=allow_httpd_source_recovery,
     )
+    if acquired_url is not None:
+        record["download_url"] = acquired_url
+        if acquired_url != url:
+            record["source_recovery"] = "official_httpd_archive_after_direct_404"
     size = path.stat().st_size
     if size <= 0:
         return corrupt_archive_record(record, path, managed_root, "empty_archive")
@@ -2787,6 +2987,19 @@ def archive_checksum_matches(record: dict[str, Any], expected_sha: str, actual_s
     return expected_sha == actual_sha
 
 
+def validate_httpd_source_recovery_policy(
+    name: str,
+    url: str,
+    expected_sha: str,
+    *,
+    required_literal_sha256: bool,
+    verify_digest_before_archive_list: bool,
+) -> None:
+    if name != "httpd" or not required_literal_sha256 or not verify_digest_before_archive_list:
+        raise RuntimeError("httpd_source_recovery_policy_invalid")
+    httpd_archive_recovery_url(url, expected_sha)
+
+
 def prepare_archive(
     name: str,
     url: str,
@@ -2799,6 +3012,7 @@ def prepare_archive(
     _lock_held: bool = False,
     cache_identity: dict[str, Any] | None = None,
     verify_digest_before_archive_list: bool = False,
+    allow_httpd_source_recovery: bool = False,
 ) -> dict[str, Any]:
     archive_name = url.rstrip("/").split("/")[-1] if url else ""
     path = dest_dir / archive_name if archive_name else dest_dir / name
@@ -2817,6 +3031,14 @@ def prepare_archive(
         record.update(status="blocked", blocker_reason="system_path_write_forbidden")
         return record
     try:
+        if allow_httpd_source_recovery:
+            validate_httpd_source_recovery_policy(
+                name,
+                url,
+                expected_sha,
+                required_literal_sha256=required_literal_sha256,
+                verify_digest_before_archive_list=verify_digest_before_archive_list,
+            )
         if required_literal_sha256:
             # A reviewed literal digest is required.  A digest URL is retained
             # as metadata but must not turn an absent override into a
@@ -2851,6 +3073,7 @@ def prepare_archive(
                 archive_cache_key,
                 cache_identity=archive_identity,
                 verify_digest_before_archive_list=verify_digest_before_archive_list,
+                allow_httpd_source_recovery=allow_httpd_source_recovery,
             )
         return prepare_archive_unlocked(
             record,
@@ -2864,6 +3087,7 @@ def prepare_archive(
             managed_root,
             archive_identity,
             verify_digest_before_archive_list=verify_digest_before_archive_list,
+            allow_httpd_source_recovery=allow_httpd_source_recovery,
         )
     except Exception as exc:
         record.update(status="blocked", blocker_reason=str(exc))
@@ -4144,8 +4368,18 @@ def modsecurity_lib_file(prefix: Path) -> Path:
     return prefix / "lib" / MODSECURITY_LIBRARY_FILENAME
 
 
+def modsecurity_public_headers_present(include_root: Path) -> bool:
+    return all(
+        (include_root / "modsecurity" / header_name).is_file()
+        for header_name in MODSECURITY_REQUIRED_PUBLIC_HEADERS
+    )
+
+
 def modsecurity_ready(prefix: Path) -> bool:
-    return (prefix / "include/modsecurity/modsecurity.h").is_file() and modsecurity_lib_file(prefix).is_file()
+    return (
+        modsecurity_public_headers_present(prefix / "include")
+        and modsecurity_lib_file(prefix).is_file()
+    )
 
 
 def modsecurity_build_manifest_binds_prefix(
@@ -4538,7 +4772,7 @@ def _copy_verified_modsecurity_runtime_library(
 def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
     headers = source_dir / "headers"
     libs = source_dir / "src/.libs"
-    if not (headers / "modsecurity/modsecurity.h").is_file():
+    if not modsecurity_public_headers_present(headers):
         raise RuntimeError("modsecurity_headers_missing_after_build")
     terminal_descriptor, terminal_details = _verified_modsecurity_runtime_library(libs)
     include_dir = prefix / "include"
@@ -5572,6 +5806,16 @@ def connector_input_paths(connector_root: Path, framework_root: Path, connector:
     if framework_script:
         paths.append(framework_script)
     if connector == "nginx":
+        # The NGINX module uses the canonical profile registry in addition to
+        # its materialized adapter/Common sources.  Bind both files directly
+        # into the source hash so a registry-only revision cannot reuse an old
+        # connector artifact when connector_commit is intentionally ignored.
+        paths.extend(
+            [
+                connector_root / "connectors/profile_registry.c",
+                connector_root / "connectors/profile_registry.h",
+            ]
+        )
         # common.sh owns the protocol profile defaults and pinned TLS source
         # inputs, so changing it must invalidate an NGINX host build.
         paths.append(framework_root / "ci/lib/common.sh")
@@ -6263,7 +6507,14 @@ def map_apache_blocker(text: str, missing: list[str]) -> str:
         return "missing_expat_headers"
     if "missing required command" in lowered or MISSING_COMMAND_TEXT in lowered:
         return "missing_apache_build_dependency"
-    if any(item.startswith("modsecurity_lib:") for item in missing) or "libmodsecurity" in lowered:
+    if any(item.startswith("modsecurity_lib:") for item in missing) or any(
+        marker in lowered
+        for marker in (
+            "cannot find -lmodsecurity",
+            "cannot find libmodsecurity",
+            "libmodsecurity.so: cannot open shared object file",
+        )
+    ):
         return "missing_libmodsecurity_build"
     if re.search(r"(?m)^.+:\d+(?::\d+)?: (?:fatal )?error:", text) or "apxs:error:" in lowered:
         return "apache_connector_build_failed"
@@ -7164,7 +7415,7 @@ def apache_preflight_blocked(
     modsecurity: dict[str, Any],
     override_apachectl: str,
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
@@ -7297,6 +7548,12 @@ def apache_build_environment(
             if expat_lib_dir
             else env.get("LD_LIBRARY_PATH", "")
         ),
+        # The Framework-owned Apache provisioner extracts verified source
+        # archives.  The task-owned runtime roots can be user namespaces or
+        # id-mapped mounts, where restoring the archive's original owner
+        # fails even though extraction is otherwise valid.  Archive ownership
+        # is not build input, so consistently suppress its restoration.
+        TAR_OPTIONS="--no-same-owner",
         BUILD_HTTPD_FROM_SOURCE="1",
         BUILD_PCRE2_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
@@ -8081,7 +8338,7 @@ def nginx_preflight_blocked(
     modsecurity: dict[str, Any],
     context: dict[str, Any],
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
@@ -8282,49 +8539,434 @@ def copy_nginx_common_sources(connector_root: Path, plan: dict[str, Any]) -> Pat
     return common_build_source_root
 
 
+def _nginx_profile_registry_file_identity(details: os.stat_result) -> tuple[int, ...]:
+    """Return the immutable attributes checked while a registry file is copied."""
+
+    return (
+        details.st_dev,
+        details.st_ino,
+        details.st_mode,
+        details.st_nlink,
+        details.st_size,
+        details.st_mtime_ns,
+        details.st_ctime_ns,
+    )
+
+
+def _open_nginx_profile_registry_directory(directory: Path, failure: str) -> int:
+    """Open a directory without resolving a final symlink component."""
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(directory, flags)
+    except OSError as exc:
+        raise RuntimeError(failure) from exc
+    try:
+        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            raise RuntimeError(failure)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _open_nginx_profile_registry_child_directory(
+    parent_descriptor: int,
+    name: str,
+    *,
+    create: bool,
+    failure: str,
+) -> int:
+    """Open one stable, direct child directory through a held parent descriptor."""
+
+    if create:
+        try:
+            os.mkdir(name, mode=0o700, dir_fd=parent_descriptor)
+        except FileExistsError:
+            pass
+        except OSError as exc:
+            raise RuntimeError(failure) from exc
+    try:
+        before = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        if not stat.S_ISDIR(before.st_mode):
+            raise RuntimeError(failure)
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=parent_descriptor,
+        )
+    except OSError as exc:
+        raise RuntimeError(failure) from exc
+    try:
+        after = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(after.st_mode)
+            or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
+        ):
+            raise RuntimeError(failure)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _open_nginx_profile_registry_source(
+    connector_root: Path, filename: str
+) -> tuple[int, os.stat_result]:
+    """Open one canonical registry input after binding its inode to a descriptor."""
+
+    connector_descriptor = _open_nginx_profile_registry_directory(
+        connector_root, "nginx_profile_registry_source_directory_unsafe"
+    )
+    try:
+        source_directory_descriptor = _open_nginx_profile_registry_child_directory(
+            connector_descriptor,
+            "connectors",
+            create=False,
+            failure="nginx_profile_registry_source_directory_unsafe",
+        )
+    finally:
+        os.close(connector_descriptor)
+    try:
+        before = os.stat(
+            filename,
+            dir_fd=source_directory_descriptor,
+            follow_symlinks=False,
+        )
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise RuntimeError("nginx_profile_registry_source_unsafe")
+        descriptor = os.open(
+            filename,
+            os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=source_directory_descriptor,
+        )
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_source_unsafe") from exc
+    finally:
+        os.close(source_directory_descriptor)
+    try:
+        details = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(details.st_mode)
+            or details.st_nlink != 1
+            or _nginx_profile_registry_file_identity(before)
+            != _nginx_profile_registry_file_identity(details)
+        ):
+            raise RuntimeError("nginx_profile_registry_source_changed")
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor, details
+
+
+def _open_nginx_profile_registry_destination_directory(plan_root: Path) -> int:
+    """Create and hold the private cache destination without path re-resolution."""
+
+    plan_descriptor = _open_nginx_profile_registry_directory(
+        plan_root, "nginx_profile_registry_destination_directory_unsafe"
+    )
+    try:
+        registry_descriptor = _open_nginx_profile_registry_child_directory(
+            plan_descriptor,
+            "profile-registry",
+            create=True,
+            failure="nginx_profile_registry_destination_directory_unsafe",
+        )
+    finally:
+        os.close(plan_descriptor)
+    try:
+        return _open_nginx_profile_registry_child_directory(
+            registry_descriptor,
+            "connectors",
+            create=True,
+            failure="nginx_profile_registry_destination_directory_unsafe",
+        )
+    finally:
+        os.close(registry_descriptor)
+
+
+def _create_nginx_profile_registry_temporary_destination(
+    destination_directory_descriptor: int,
+    filename: str,
+) -> tuple[str, int]:
+    """Create one no-follow temporary output within a held destination directory."""
+
+    creation_flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    for _ in range(32):
+        candidate = f".{filename}.{uuid.uuid4().hex}.tmp"
+        try:
+            descriptor = os.open(
+                candidate,
+                creation_flags,
+                0o600,
+                dir_fd=destination_directory_descriptor,
+            )
+        except FileExistsError:
+            continue
+        except OSError as exc:
+            raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+        return candidate, descriptor
+    raise RuntimeError("nginx_profile_registry_destination_temporary_name_exhausted")
+
+
+def _read_nginx_profile_registry_source_chunk(source_descriptor: int, remaining: int) -> bytes:
+    """Read a bounded source chunk while preserving the staging failure contract."""
+
+    try:
+        return os.read(source_descriptor, min(64 * 1024, remaining))
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_source_changed_during_copy") from exc
+
+
+def _write_nginx_profile_registry_chunk(temporary_descriptor: int, chunk: bytes) -> None:
+    """Write one source chunk completely or fail without publishing it."""
+
+    offset = 0
+    while offset < len(chunk):
+        try:
+            written = os.write(temporary_descriptor, chunk[offset:])
+        except OSError as exc:
+            raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+        if written <= 0:
+            raise RuntimeError("nginx_profile_registry_destination_write_failed")
+        offset += written
+
+
+def _copy_nginx_profile_registry_contents(
+    source_descriptor: int,
+    source_size: int,
+    temporary_descriptor: int,
+) -> None:
+    """Copy exactly the verified source length through held file descriptors."""
+
+    remaining = source_size
+    while remaining:
+        chunk = _read_nginx_profile_registry_source_chunk(source_descriptor, remaining)
+        if not chunk:
+            raise RuntimeError("nginx_profile_registry_source_changed_during_copy")
+        remaining -= len(chunk)
+        _write_nginx_profile_registry_chunk(temporary_descriptor, chunk)
+
+
+def _sync_nginx_profile_registry_temporary_file(
+    source_descriptor: int,
+    source_details: os.stat_result,
+    temporary_descriptor: int,
+) -> os.stat_result:
+    """Sync and bind the temporary output to the previously verified source inode."""
+
+    try:
+        os.fsync(temporary_descriptor)
+        os.fchmod(temporary_descriptor, stat.S_IMODE(source_details.st_mode))
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+    if _nginx_profile_registry_file_identity(os.fstat(source_descriptor)) != _nginx_profile_registry_file_identity(
+        source_details
+    ):
+        raise RuntimeError("nginx_profile_registry_source_changed_during_copy")
+    return os.fstat(temporary_descriptor)
+
+
+def _close_nginx_profile_registry_temporary_descriptor(temporary_descriptor: int) -> None:
+    """Close a temporary file before atomically publishing its stable inode."""
+
+    try:
+        os.close(temporary_descriptor)
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+
+
+def _publish_nginx_profile_registry_temporary_file(
+    destination_directory_descriptor: int,
+    temporary_name: str,
+    filename: str,
+    temporary_details: os.stat_result,
+) -> None:
+    """Atomically replace one destination child and verify the published inode."""
+
+    try:
+        os.replace(
+            temporary_name,
+            filename,
+            src_dir_fd=destination_directory_descriptor,
+            dst_dir_fd=destination_directory_descriptor,
+        )
+        destination_details = os.stat(
+            filename,
+            dir_fd=destination_directory_descriptor,
+            follow_symlinks=False,
+        )
+        os.fsync(destination_directory_descriptor)
+    except OSError as exc:
+        raise RuntimeError("nginx_profile_registry_destination_write_failed") from exc
+    if (
+        not stat.S_ISREG(destination_details.st_mode)
+        or (temporary_details.st_dev, temporary_details.st_ino)
+        != (destination_details.st_dev, destination_details.st_ino)
+    ):
+        raise RuntimeError("nginx_profile_registry_destination_changed_after_copy")
+
+
+def _cleanup_nginx_profile_registry_temporary_file(
+    destination_directory_descriptor: int,
+    temporary_name: str,
+) -> None:
+    """Best-effort descriptor-relative cleanup that cannot mask the primary error."""
+
+    if not temporary_name:
+        return
+    try:
+        os.unlink(temporary_name, dir_fd=destination_directory_descriptor)
+    except OSError:
+        pass
+
+
+def _copy_nginx_profile_registry_source(
+    source_descriptor: int,
+    source_details: os.stat_result,
+    destination_directory_descriptor: int,
+    filename: str,
+) -> None:
+    """Copy one held source descriptor through an atomically replaced child path."""
+
+    temporary_name = ""
+    temporary_descriptor = -1
+    try:
+        temporary_name, temporary_descriptor = _create_nginx_profile_registry_temporary_destination(
+            destination_directory_descriptor,
+            filename,
+        )
+        _copy_nginx_profile_registry_contents(
+            source_descriptor,
+            source_details.st_size,
+            temporary_descriptor,
+        )
+        temporary_details = _sync_nginx_profile_registry_temporary_file(
+            source_descriptor,
+            source_details,
+            temporary_descriptor,
+        )
+        _close_nginx_profile_registry_temporary_descriptor(temporary_descriptor)
+        temporary_descriptor = -1
+        _publish_nginx_profile_registry_temporary_file(
+            destination_directory_descriptor,
+            temporary_name,
+            filename,
+            temporary_details,
+        )
+        temporary_name = ""
+    except Exception:
+        if temporary_descriptor >= 0:
+            try:
+                os.close(temporary_descriptor)
+            except OSError:
+                pass
+        _cleanup_nginx_profile_registry_temporary_file(
+            destination_directory_descriptor,
+            temporary_name,
+        )
+        raise
+
+
+def copy_nginx_profile_registry_sources(connector_root: Path, plan: dict[str, Any]) -> Path:
+    """Stage canonical registry inputs without reopening untrusted path components."""
+
+    plan_root = Path(str(plan["root"]))
+    profile_registry_build_root = plan_root / "profile-registry"
+    destination_directory_descriptor = _open_nginx_profile_registry_destination_directory(plan_root)
+    try:
+        for filename in ("profile_registry.c", "profile_registry.h"):
+            source_descriptor, source_details = _open_nginx_profile_registry_source(
+                connector_root, filename
+            )
+            try:
+                _copy_nginx_profile_registry_source(
+                    source_descriptor,
+                    source_details,
+                    destination_directory_descriptor,
+                    filename,
+                )
+            finally:
+                os.close(source_descriptor)
+    finally:
+        os.close(destination_directory_descriptor)
+    return profile_registry_build_root
+
+
+class NginxBuildEnvironmentInputs(NamedTuple):
+    """Immutable call boundary for one NGINX connector build environment."""
+
+    connector_root: Path
+    framework_root: Path
+    cache_root: Path
+    build_root: Path
+    sources_root: Path
+    archives_root: Path
+    modsecurity: dict[str, Any]
+    protocol_inputs: dict[str, Any]
+    protocol_profile: str
+    quic_tls_archive: str
+    common_build_source_root: Path
+    profile_registry_build_root: Path
+    context: dict[str, Any]
+
+
 def nginx_build_environment(
     env: dict[str, str],
-    connector_root: Path,
-    framework_root: Path,
-    cache_root: Path,
-    build_root: Path,
-    sources_root: Path,
-    archives_root: Path,
-    modsecurity: dict[str, Any],
-    protocol_inputs: dict[str, Any],
-    protocol_profile: str,
-    quic_tls_archive: str,
-    common_build_source_root: Path,
-    context: dict[str, Any],
+    inputs: NginxBuildEnvironmentInputs,
 ) -> dict[str, str]:
+    # Framework common.sh owns the reviewed QUIC TLS pin tuple and validates
+    # inherited values before any source preparation.  H1/H2 metadata uses
+    # empty/not-used TLS fields, but those are output facts, not child-process
+    # pin overrides.  Passing them through would correctly fail Framework's
+    # guard as an attempted empty override.  H3 alone consumes the resolved
+    # tuple as build input, so only it receives an explicit replacement.
+    quic_tls_overrides: dict[str, str] = {}
+    if inputs.protocol_profile == "h1-h2-h3-quic":
+        quic_tls_overrides = {
+            "NGINX_QUIC_TLS_LIBRARY": str(inputs.protocol_inputs.get("tls_library", "")),
+            "NGINX_QUIC_TLS_VERSION": str(inputs.protocol_inputs.get("tls_version", "")),
+            "NGINX_QUIC_TLS_SOURCE_URL": str(inputs.protocol_inputs.get("tls_source_url", "")),
+            "NGINX_QUIC_TLS_SOURCE_SHA256": str(inputs.protocol_inputs.get("tls_source_sha256", "")),
+        }
     return build_env(
         env,
-        FRAMEWORK_ROOT=str(framework_root),
-        CONNECTOR_ROOT=str(connector_root),
-        CONNECTOR_COMPONENT_CACHE=str(cache_root),
-        SOURCE_ROOT=str(sources_root),
-        MODSECURITY_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-        MODSECURITY_V3_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
-        MODSECURITY_V3_ROOT=str(sources_root / "ModSecurity_V3"),
-        BUILD_ROOT=str(cache_root),
-        TMP_ROOT=str(build_root / "tmp"),
-        LOG_ROOT=str(build_root / "logs"),
-        LOG_DIR=str(context["nginx_build_root"] / "logs/nginx"),
-        NGINX_BUILD_DIR=str(context["nginx_build_root"]),
-        NGINX_BUILD_OWNER_ROOT=str(cache_root / "builds" / "connectors"),
-        NGINX_PREFIX=str(context["nginx_prefix"]),
-        NGINX_BINARY=str(context["local_nginx_bin"]),
-        NGINX_MODULE=str(context["local_module"]),
-        NGINX_PROTOCOL_PROFILE=protocol_profile,
-        NGINX_QUIC_TLS_LIBRARY=str(protocol_inputs.get("tls_library", "")),
-        NGINX_QUIC_TLS_VERSION=str(protocol_inputs.get("tls_version", "")),
-        NGINX_QUIC_TLS_SOURCE_URL=str(protocol_inputs.get("tls_source_url", "")),
-        NGINX_QUIC_TLS_SOURCE_SHA256=str(protocol_inputs.get("tls_source_sha256", "")),
-        NGINX_QUIC_TLS_ARCHIVE=quic_tls_archive,
-        NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
-        MSCONNECTOR_COMMON_SRC=str(common_build_source_root),
-        MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
-        MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
+        FRAMEWORK_ROOT=str(inputs.framework_root),
+        CONNECTOR_ROOT=str(inputs.connector_root),
+        CONNECTOR_COMPONENT_CACHE=str(inputs.cache_root),
+        SOURCE_ROOT=str(inputs.sources_root),
+        MODSECURITY_SOURCE_DIR=str(inputs.sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_SOURCE_DIR=str(inputs.sources_root / "ModSecurity_V3"),
+        MODSECURITY_V3_ROOT=str(inputs.sources_root / "ModSecurity_V3"),
+        BUILD_ROOT=str(inputs.cache_root),
+        TMP_ROOT=str(inputs.build_root / "tmp"),
+        LOG_ROOT=str(inputs.build_root / "logs"),
+        LOG_DIR=str(inputs.context["nginx_build_root"] / "logs/nginx"),
+        NGINX_BUILD_DIR=str(inputs.context["nginx_build_root"]),
+        NGINX_BUILD_OWNER_ROOT=str(inputs.cache_root / "builds" / "connectors"),
+        NGINX_PREFIX=str(inputs.context["nginx_prefix"]),
+        NGINX_BINARY=str(inputs.context["local_nginx_bin"]),
+        NGINX_MODULE=str(inputs.context["local_module"]),
+        NGINX_PROTOCOL_PROFILE=inputs.protocol_profile,
+        **quic_tls_overrides,
+        NGINX_QUIC_TLS_ARCHIVE=inputs.quic_tls_archive,
+        NGINX_DOWNLOAD_DIR=str(inputs.archives_root / "nginx"),
+        MSCONNECTOR_COMMON_SRC=str(inputs.common_build_source_root),
+        MSCONNECTOR_PROFILE_REGISTRY_ROOT=str(inputs.profile_registry_build_root),
+        MODSECURITY_SHARED_PREFIX=str(inputs.modsecurity.get("prefix", "")),
+        MODSECURITY_BUILD_ID=str(inputs.modsecurity.get("build_id", "")),
+        # The Framework-owned NGINX provisioner extracts the pinned source
+        # archive. Archive ownership is not build input, and restoring
+        # archive-recorded numeric owners can fail in user namespaces or on
+        # id-mapped mounts. Replace, rather than inherit, TAR_OPTIONS so a
+        # caller cannot re-enable owner restoration for this private route.
+        TAR_OPTIONS="--no-same-owner",
         BUILD_NGINX_FROM_SOURCE="1",
         AUTO_FETCH_SMOKE_SOURCES="0",
         REFRESH="1",
@@ -8354,6 +8996,83 @@ def nginx_refresh_build_artifacts(record: dict[str, Any], context: dict[str, Any
         record["artifacts_readback_error"] = str(exc)
 
 
+def nginx_staged_build_log_root(
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+) -> Path | None:
+    """Return only the current marked staging root that owns the make log."""
+
+    root_value = plan.get("root")
+    build_root_value = plan.get("build_root")
+    cache_key = plan.get("cache_key", plan.get("connector_build_id", ""))
+    context_build_root = context.get("nginx_build_root")
+    if not all(isinstance(value, str) and value for value in (root_value, build_root_value, cache_key)):
+        return None
+    if not isinstance(context_build_root, Path):
+        return None
+    try:
+        staging_root, managed_root = validate_managed_cache_child(Path(root_value), cache_root)
+    except RuntimeError:
+        return None
+    marker = read_json(cache_entry_marker_path(staging_root, managed_root))
+    if (
+        marker.get("component") != "connector:nginx"
+        or marker.get("cache_key") != cache_key
+        or not cache_entry_marker_valid(staging_root, managed_root)
+    ):
+        return None
+    expected_build_root = staging_root / "build"
+    if (
+        Path(build_root_value).resolve(strict=False) != expected_build_root
+        or context_build_root.resolve(strict=False) != expected_build_root
+    ):
+        return None
+    return staging_root
+
+
+def append_nginx_staged_make_log_diagnostics(
+    log_path: Path,
+    plan: dict[str, Any],
+    cache_root: Path,
+    context: dict[str, Any],
+) -> None:
+    """Persist only a bounded sanitized inner make-log tail before cleanup."""
+
+    try:
+        staging_root = nginx_staged_build_log_root(plan, cache_root, context)
+    except (OSError, RuntimeError, ValueError):
+        # This is diagnostic-only after the primary build already failed.
+        staging_root = None
+    if staging_root is None:
+        lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable=staging_identity"]
+    else:
+        try:
+            rendered, truncated = bounded_fixed_log_tail(
+                staging_root,
+                NGINX_STAGED_MAKE_LOG_RELATIVE_PATH,
+                "inner_make_log",
+                output_prefix=NGINX_STAGED_MAKE_LOG_LINE_PREFIX,
+            )
+        except DiagnosticInputError as exc:
+            lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable={exc.reason}"]
+        except OSError:
+            lines = [f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_unavailable=unavailable"]
+        else:
+            lines = [
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} inner_make_log_tail_truncated={'true' if truncated else 'false'}",
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} begin bounded nginx-make.log tail",
+                *(NGINX_STAGED_MAKE_LOG_LINE_PREFIX + line for line in rendered),
+                f"{NGINX_STAGED_MAKE_LOG_PREFIX} end bounded nginx-make.log tail",
+            ]
+    try:
+        with log_path.open("a", encoding="utf-8", errors="replace") as log_file:
+            log_file.write("\n" + "\n".join(lines) + "\n")
+    except OSError:
+        # This is diagnostic-only after the primary build already failed.
+        return
+
+
 def build_nginx_source(
     env: dict[str, str],
     connector_root: Path,
@@ -8370,27 +9089,33 @@ def build_nginx_source(
     record: dict[str, Any],
 ) -> tuple[bool, list[str], bool]:
     common_build_source_root = copy_nginx_common_sources(connector_root, plan)
+    profile_registry_build_root = copy_nginx_profile_registry_sources(connector_root, plan)
     log_path = build_root / "logs/runtime-components/nginx-build.log"
     proc = run_build(
         framework_root / "ci/provisioning/prepare-nginx-build.sh",
         nginx_build_environment(
             env,
-            connector_root,
-            framework_root,
-            cache_root,
-            build_root,
-            sources_root,
-            archives_root,
-            modsecurity,
-            protocol_inputs,
-            str(protocol_inputs.get("profile", "h1")),
-            quic_tls_archive,
-            common_build_source_root,
-            context,
+            NginxBuildEnvironmentInputs(
+                connector_root=connector_root,
+                framework_root=framework_root,
+                cache_root=cache_root,
+                build_root=build_root,
+                sources_root=sources_root,
+                archives_root=archives_root,
+                modsecurity=modsecurity,
+                protocol_inputs=protocol_inputs,
+                protocol_profile=str(protocol_inputs.get("profile", "h1")),
+                quic_tls_archive=quic_tls_archive,
+                common_build_source_root=common_build_source_root,
+                profile_registry_build_root=profile_registry_build_root,
+                context=context,
+            ),
         ),
         connector_root,
         log_path,
     )
+    if proc.returncode != 0:
+        append_nginx_staged_make_log_diagnostics(log_path, plan, cache_root, context)
     record["build_log"] = str(log_path)
     record["build_exit_code"] = proc.returncode
     nginx_refresh_build_artifacts(record, context)
@@ -8686,6 +9411,7 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
     spoa_dir = root / "haproxy-spoa-runtime"
     spoa_bin = spoa_dir / "haproxy-modsecurity-spoa"
     paths_env = binding_dir / "paths.env"
+    framework_log_dir = root / "logs" / "haproxy-prepare"
     return {
         "root": root,
         "build_root": invocation_build_root,
@@ -8699,6 +9425,8 @@ def haproxy_runtime_context(plan: dict[str, Any], build_root: Path) -> dict[str,
         "spoa_bin": spoa_bin,
         "paths_env": paths_env,
         "log_path": root / "logs/haproxy-build.log",
+        "framework_log_dir": framework_log_dir,
+        "framework_build_log": framework_log_dir / "haproxy-build.log",
     }
 
 
@@ -8724,6 +9452,8 @@ def haproxy_runtime_record(
         "spoa_runtime_bin": str(context["spoa_bin"]),
         "modsecurity_binding_dir": str(context["binding_dir"]),
         "paths_env": str(context["paths_env"]),
+        "framework_prepare_log_dir": str(context["framework_log_dir"]),
+        "framework_prepare_build_log": str(context["framework_build_log"]),
         "output_paths": {
             "binary": str(context["haproxy_bin"]),
             "module": str(context["spoa_bin"]),
@@ -8745,7 +9475,7 @@ def haproxy_preflight_blocked(
     cache_root: Path,
     context: dict[str, Any],
 ) -> bool:
-    if modsecurity.get("status") == "blocked":
+    if modsecurity.get("status") not in READY_COMPONENT_STATUSES:
         record.update(
             status="blocked",
             blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed",
@@ -8762,6 +9492,8 @@ def haproxy_preflight_blocked(
         context["spoa_bin"],
         context["paths_env"],
         context["log_path"],
+        context["framework_log_dir"],
+        context["framework_build_log"],
     ):
         if (
             is_system_path(path)
@@ -8878,6 +9610,7 @@ def haproxy_prepare_environment(
         BUILD_ROOT=str(context["build_root"]),
         TMP_ROOT=str(context["root"] / "tmp"),
         LOG_ROOT=str(context["root"] / "logs"),
+        LOG_DIR=str(context["framework_log_dir"]),
         HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
         HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
         HAPROXY_SOURCE_DIR=str(
@@ -8948,16 +9681,206 @@ def run_haproxy_binding_build(
             "make",
             "-C",
             str(connector_root / "connectors/haproxy"),
-            "build-modsecurity-binding",
-            "build-spoa-runtime",
+            *HAPROXY_BINDING_BUILD_TARGETS,
         ],
         env=make_env,
+        errors="replace",
     )
     with log_path.open("a", encoding="utf-8", errors="replace") as handle:
         handle.write("\n[haproxy-modsecurity-binding]\n")
         handle.write(proc.stdout)
         handle.write(proc.stderr)
     return proc
+
+
+def haproxy_failure_diagnostics_for_line(raw_line: str) -> tuple[tuple[str, ...], ...]:
+    """Return the fixed diagnostic values allowlisted for one tool-output line."""
+
+    return tuple(
+        diagnostics
+        for pattern, diagnostics in HAPROXY_FAILURE_DIAGNOSTIC_RULES
+        if pattern.search(raw_line)
+    )
+
+
+def append_haproxy_failure_diagnostics(
+    selected: list[str], diagnostics: tuple[str, ...]
+) -> bool:
+    """Append unseen fixed diagnostics and report whether the bounded list overflowed."""
+
+    for diagnostic in diagnostics:
+        if diagnostic in selected:
+            continue
+        if len(selected) >= HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINES:
+            return True
+        selected.append(diagnostic)
+    return False
+
+
+def haproxy_failure_output_lines(output: str) -> Iterator[str]:
+    """Yield a per-stream bounded prefix of lines for fixed diagnostics only.
+
+    An overlong untrusted line ends the scan for that stream rather than being
+    copied, truncated, or searched beyond the configured bound.
+    """
+
+    position = 0
+    for _ in range(HAPROXY_FAILURE_DIAGNOSTIC_SCAN_MAX_LINES):
+        if position >= len(output):
+            return
+        scan_end = min(len(output), position + HAPROXY_FAILURE_DIAGNOSTIC_MAX_LINE_CHARS + 1)
+        line_end = output.find("\n", position, scan_end)
+        if line_end < 0:
+            if scan_end == len(output):
+                yield output[position:scan_end].removesuffix("\r")
+            return
+        yield output[position:line_end].removesuffix("\r")
+        position = line_end + 1
+
+
+def ascii_decimal(value: str) -> bool:
+    """Return whether ``value`` consists of one or more ASCII decimal digits."""
+
+    return bool(value) and all("0" <= character <= "9" for character in value)
+
+
+def haproxy_make_footer_target_text(footer_target: str) -> str:
+    """Remove the first GNU Make ``:line:`` location prefix, when present."""
+
+    for index, character in enumerate(footer_target):
+        if character != ":":
+            continue
+        line_start = index + 1
+        line_end = line_start
+        while line_end < len(footer_target) and "0" <= footer_target[line_end] <= "9":
+            line_end += 1
+        if line_end == line_start or line_end == len(footer_target):
+            continue
+        if footer_target[line_end] == ":":
+            return footer_target[line_end + 1 :].lstrip(HAPROXY_FAILURE_FOOTER_WHITESPACE)
+    return footer_target
+
+
+def haproxy_make_footer_target(raw_line: str) -> str | None:
+    """Parse one GNU Make footer in linear time without retaining raw output."""
+
+    if not raw_line.startswith("make"):
+        return None
+    footer = raw_line[len("make") :]
+    if footer.startswith("["):
+        level_end = footer.find("]")
+        if level_end <= 1 or not ascii_decimal(footer[1:level_end]):
+            return None
+        footer = footer[level_end + 1 :]
+    if not footer.startswith(HAPROXY_FAILURE_FOOTER_MARKER):
+        return None
+    footer = footer[len(HAPROXY_FAILURE_FOOTER_MARKER) :]
+    target_end = footer.find(HAPROXY_FAILURE_FOOTER_SUFFIX)
+    if target_end <= 0:
+        return None
+    target = footer[:target_end]
+    exit_code = footer[target_end + len(HAPROXY_FAILURE_FOOTER_SUFFIX) :]
+    if "]" in target or not ascii_decimal(exit_code):
+        return None
+    return haproxy_make_footer_target_text(target)
+
+
+def haproxy_failure_target_from_footers(
+    proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
+) -> str | None:
+    """Return the first logical target named by an exact GNU Make stderr footer."""
+
+    # GNU Make writes its failure footer to stderr.  Ignore stdout entirely so
+    # compiler output cannot forge a target label or influence footer order.
+    expected_target_paths = expected_target_paths or {}
+    for raw_line in haproxy_failure_output_lines(str(proc.stderr or "")):
+        target = haproxy_make_footer_target(raw_line)
+        if target is None:
+            continue
+        if target in HAPROXY_BINDING_BUILD_TARGETS:
+            return target
+        for logical_target in HAPROXY_BINDING_BUILD_TARGETS:
+            if target == expected_target_paths.get(logical_target):
+                return logical_target
+    return None
+
+
+def append_haproxy_failure_output_diagnostics(
+    selected: list[str], output: str, is_stderr: bool
+) -> bool:
+    """Append fixed diagnostics for one bounded stream and report truncation."""
+
+    for raw_line in haproxy_failure_output_lines(output):
+        if is_stderr:
+            resolver_diagnostics = HAPROXY_RESOLVER_SENTINEL_DIAGNOSTICS.get(raw_line)
+            if resolver_diagnostics is not None and append_haproxy_failure_diagnostics(
+                selected, resolver_diagnostics
+            ):
+                selected[-1] = "[classification list truncated]"
+                return True
+        for diagnostics in haproxy_failure_diagnostics_for_line(raw_line):
+            if append_haproxy_failure_diagnostics(selected, diagnostics):
+                selected[-1] = "[classification list truncated]"
+                return True
+    return False
+
+
+def haproxy_failure_diagnostic_lines(
+    proc: subprocess.CompletedProcess[str], expected_target_paths: dict[str, str] | None = None
+) -> list[str]:
+    """Return only repository-known diagnostic constants; raw tool output stays private."""
+
+    selected: list[str] = []
+    target_failure = haproxy_failure_target_from_footers(proc, expected_target_paths)
+    if target_failure is not None:
+        selected.append(f"target_failure={target_failure}")
+    for is_stderr, output in ((True, str(proc.stderr or "")), (False, str(proc.stdout or ""))):
+        if append_haproxy_failure_output_diagnostics(selected, output, is_stderr):
+            return selected
+    return selected
+
+
+def haproxy_resolver_cause_annotation(diagnostics: list[str]) -> str | None:
+    """Return one exact resolver cause suitable for a GitHub Actions annotation."""
+
+    matches = [
+        diagnostic for diagnostic in diagnostics if diagnostic in HAPROXY_RESOLVER_CAUSE_VALUES
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def emit_haproxy_binding_failure_diagnostic(
+    proc: subprocess.CompletedProcess[str],
+    missing_artifacts: tuple[str, ...],
+    expected_target_paths: dict[str, str] | None = None,
+) -> None:
+    """Expose a bounded summary while retaining raw compiler output privately."""
+
+    print(
+        "prepare-runtime-components: HAProxy binding build failed "
+        f"target={' '.join(HAPROXY_BINDING_BUILD_TARGETS)} exit_code={proc.returncode} "
+        "build_log=private_task_owned_haproxy-build.log",
+        file=sys.stderr,
+    )
+    for artifact in missing_artifacts:
+        print(
+            f"prepare-runtime-components: HAProxy binding build missing_artifact={artifact}",
+            file=sys.stderr,
+        )
+    diagnostics = haproxy_failure_diagnostic_lines(proc, expected_target_paths)
+    if not diagnostics:
+        diagnostics = ["[no allowlisted compiler or linker failure classification captured]"]
+    for diagnostic in diagnostics:
+        print(
+            f"prepare-runtime-components: HAProxy binding diagnostic: {diagnostic}",
+            file=sys.stderr,
+        )
+    resolver_cause = haproxy_resolver_cause_annotation(diagnostics)
+    if resolver_cause is not None and os.environ.get("GITHUB_ACTIONS") == "true":
+        print(
+            f"::error title=HAProxy resolver diagnostic::{resolver_cause}",
+            file=sys.stderr,
+        )
 
 
 def prepare_haproxy_runtime(
@@ -9043,9 +9966,23 @@ def prepare_haproxy_runtime(
         return write_haproxy_record(plan, record)
     make_env = haproxy_binding_environment(prep_env, connector_root, modsecurity, context)
     proc = run_haproxy_binding_build(connector_root, make_env, context["log_path"])
-    if proc.returncode != 0 or not (
-        executable(context["spoa_bin"]) and context["paths_env"].is_file()
-    ):
+    expected_target_paths = {
+        "build-modsecurity-binding": str(
+            context["binding_dir"]
+            / HAPROXY_BINDING_FAILURE_OUTPUT_NAMES["build-modsecurity-binding"]
+        ),
+        "build-spoa-runtime": str(context["spoa_bin"]),
+    }
+    missing_artifacts = tuple(
+        label
+        for label, available in (
+            ("spoa_runtime_binary", executable(context["spoa_bin"])),
+            ("modsecurity_binding_paths", context["paths_env"].is_file()),
+        )
+        if not available
+    )
+    if proc.returncode != 0 or missing_artifacts:
+        emit_haproxy_binding_failure_diagnostic(proc, missing_artifacts, expected_target_paths)
         record.update(
             status="failed",
             blocker_reason="haproxy_connector_build_failed",
@@ -9565,8 +10502,8 @@ def markdown_report(payload: dict[str, Any]) -> str:
             "- System paths are not used for runtime component writes.",
             "- Runtime writes are constrained to cache/build/runtime roots.",
             "- Native Apache and NGINX use local prepared components when env overrides are absent.",
-            "- go-ftw and albedo use release-tag resolution; Expat uses release resolution only outside strict evidence runs.",
-            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS and an immutable Expat commit pin.",
+            "- go-ftw and albedo use release-tag resolution; Expat always uses its configured immutable commit.",
+            "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` requires a fresh-clone or prior-cache full git fsck PASS; Expat requires an immutable commit pin in every mode.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -9611,7 +10548,7 @@ def parse_runtime_component_args() -> argparse.Namespace:
 
 
 def required_runtime_component_sources(
-    env: dict[str, str], strict: bool, target_connector: str
+    env: dict[str, str], target_connector: str
 ) -> dict[str, Any]:
     target_connector = require_runtime_component_target(target_connector)
     validate_https_url_config(env, target_connector)
@@ -9620,10 +10557,10 @@ def required_runtime_component_sources(
     values = {"apr_util_provenance": require_apr_util_pinned_provenance(env)}
     values.update({
         "expat_source_url": require_env_value(env, "EXPAT_SOURCE_URL"),
-        "expat_git_ref": require_env_value(env, "EXPAT_GIT_REF"),
+        "expat_git_ref": require_full_immutable_git_commit(
+            require_env_value(env, "EXPAT_GIT_REF"), "EXPAT_GIT_REF"
+        ),
     })
-    if strict:
-        values["expat_git_ref"] = require_full_immutable_git_commit(values["expat_git_ref"], "EXPAT_GIT_REF")
     if target_connector == "all":
         # These optional tools are prepared only by the aggregate target; a
         # connector-scoped run must not be blocked by their unrelated source
@@ -9704,7 +10641,7 @@ def runtime_component_context(args: argparse.Namespace) -> tuple[dict[str, Any] 
     PATH_POLICY_ENV = dict(env)
     strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     try:
-        sources = required_runtime_component_sources(env, strict, args.target_connector)
+        sources = required_runtime_component_sources(env, args.target_connector)
     except RuntimeError as exc:
         print(f"prepare-runtime-components: BLOCKED: {exc}")
         return None, 77
@@ -9812,7 +10749,6 @@ def prepare_runtime_git_components(
         prepare_expat_git_component(
             env.get("EXPAT_GIT_URL") or context["expat_source_url"],
             context["expat_git_ref"],
-            env.get("EXPAT_PROMPT_EXPECTED_LATEST") or context["expat_git_ref"],
             paths["git_root"] / "libexpat",
             previous_git,
             context["strict"],
@@ -9870,7 +10806,13 @@ def apache_archive_records(env: dict[str, str], archives_root: Path, cache_root:
     apache_root = archives_root / "apache"
     apr_util_identity = apr_util_archive_cache_identity(env)
     return [
-        prepare_archive("httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""), env.get("HTTPD_SHA256_URL", ""), apache_root, cache_root),
+        prepare_archive(
+            "httpd", env.get("HTTPD_SOURCE_URL", ""), env.get("HTTPD_SHA256", ""),
+            env.get("HTTPD_SHA256_URL", ""), apache_root, cache_root,
+            required_literal_sha256=True,
+            verify_digest_before_archive_list=True,
+            allow_httpd_source_recovery=True,
+        ),
         prepare_archive("apr", env.get("APR_SOURCE_URL", ""), env.get("APR_SHA256", ""), env.get("APR_SHA256_URL", ""), apache_root, cache_root),
         prepare_archive(
             "apr-util",

@@ -590,7 +590,7 @@ func denied(d processor.Decision) *authv3.CheckResponse {
 	d = normalizePolicyDecision(d, nil)
 	denied := &authv3.DeniedHttpResponse{Status: &typev3.HttpStatus{Code: typev3.StatusCode(d.Status)}}
 	if d.Action == processor.ActionRedirect {
-		denied.Headers = []*corev3.HeaderValueOption{{Header: &corev3.HeaderValue{Key: "location", Value: d.RedirectURL}}}
+		denied.Headers = []*corev3.HeaderValueOption{redirectLocationHeader(d.RedirectURL)}
 	}
 	return &authv3.CheckResponse{Status: status.New(codes.PermissionDenied, "request denied").Proto(), HttpResponse: &authv3.CheckResponse_DeniedResponse{DeniedResponse: denied}, DynamicMetadata: terminalBlockMetadata()}
 }
@@ -716,9 +716,19 @@ func sendImmediate(stream extprocv3.ExternalProcessor_ProcessServer, decision pr
 	decision = normalizePolicyDecision(decision, nil)
 	immediate := &extprocv3.ImmediateResponse{Status: &typev3.HttpStatus{Code: typev3.StatusCode(decision.Status)}, Details: "msconnector-composite-fail-closed"}
 	if decision.Action == processor.ActionRedirect {
-		immediate.Headers = &extprocv3.HeaderMutation{SetHeaders: []*corev3.HeaderValueOption{{Header: &corev3.HeaderValue{Key: "location", Value: decision.RedirectURL}}}}
+		immediate.Headers = &extprocv3.HeaderMutation{SetHeaders: []*corev3.HeaderValueOption{redirectLocationHeader(decision.RedirectURL)}}
 	}
 	return stream.Send(&extprocv3.ProcessingResponse{Response: &extprocv3.ProcessingResponse_ImmediateResponse{ImmediateResponse: immediate}})
+}
+
+// redirectLocationHeader uses Envoy's binary-safe representation and replaces
+// a pre-existing Location deterministically. Callers validate the bounded URL
+// before this host-action translation.
+func redirectLocationHeader(target string) *corev3.HeaderValueOption {
+	return &corev3.HeaderValueOption{
+		Header:       &corev3.HeaderValue{Key: "location", RawValue: []byte(target)},
+		AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
+	}
 }
 
 var _ authv3.AuthorizationServer = (*AuthzServer)(nil)

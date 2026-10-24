@@ -37,12 +37,11 @@ The adapter-owned Apache connector currently registers:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`
-- `modsecurity_phase4_mode minimal|safe|strict`
-- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>`
 - `modsecurity_phase4_body_limit <bytes>`
 
@@ -51,21 +50,24 @@ static semantics. `modsecurity_transaction_id_expr` accepts an Apache string
 expression, for example `%{REQUEST_URI}`, and evaluates it per request. The two
 directives are mutually exclusive in the same Apache context; normal
 child-context overrides apply during config merge. If neither directive is set,
-or if the expression evaluates to an empty value or fails, the connector keeps
-the existing `UNIQUE_ID` fallback and then creates a transaction without an
-explicit ID if `UNIQUE_ID` is absent or empty.
+or if the expression evaluates to an empty value, the connector keeps the
+existing `UNIQUE_ID` fallback and then creates a transaction without an
+explicit ID if `UNIQUE_ID` is absent or empty. A runtime expression-evaluation
+failure or an invalid resolved identifier is an enabled primary-request
+construction error: the connector returns HTTP 500, closes keepalive, and does
+not fall back to an uninspected request.
 
 `modsecurity_use_error_log off` suppresses Apache error-log forwarding from the
 libmodsecurity log callback only. It does not change audit logging,
 intervention behavior, request or response handling, hooks, filters, buckets,
 or transaction ownership.
 
-The Phase 4 directives are bounded runtime controls. In particular,
-`modsecurity_phase4_content_types_file` is a deprecated compatibility parser:
-it cannot narrow the Apache all-response pre-commit gate. Use
-`SecResponseBodyMimeType` to select libModSecurity inspection instead. Phase 4
-/ RESPONSE_BODY remains non-promoted; source-level strict-mode wiring does not
-establish a late-abort result.
+The Phase-4 mode controls additional intervention handling only. No mode adds
+a connector-owned cumulative response-inspection budget; configured engine
+inspection remains active. There is no connector-owned MIME allowlist;
+`SecResponseBodyMimeType` and `SecResponseBodyMimeTypesClear` select inspection
+in libModSecurity. Phase 4 / RESPONSE_BODY remains non-promoted; source-level
+strict-mode wiring does not establish a late-abort result.
 
 Primary local reference: `<external-source-root>/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
@@ -175,44 +177,41 @@ full-matrix coverage, or new runtime verification behavior.
 
 ## Canonical Phase-4 boundary
 
-Apache's output filter is an EOS-only all-response enforcement gate. It
-incrementally appends every data bucket to libModSecurity and saves the
-normalized Apache brigade in the request pool across filter calls. It forwards
-no original response byte, including a response that has no data buckets and
-only EOS, until the first EOS has arrived, `msc_process_response_body` has
-completed, and the intervention has been resolved. This deliberately trades
-client-visible progressive response streaming for a complete Phase-4 decision;
-it is not per-chunk rule evaluation.
+Apache's output filter remains EOS-only for Phase-4 rule evaluation, but it is
+now a progressive response path. It appends each data bucket exactly once to
+libModSecurity, preserves pre-EOS FLUSH and Apache metadata, splits at the
+first EOS, and immediately passes the pre-EOS prefix to the next filter. It
+does not save a complete normalized brigade across callbacks. Only the
+terminal EOS fragment waits for `msc_process_response_body` and the late-action
+resolution; this is not per-chunk rule evaluation.
 
-The connector cannot safely query libModSecurity's effective
-`SecResponseBodyMimeType` selection through the C API. It consequently gates
-every response MIME type. `SecResponseBodyMimeType` still selects engine
-inspection, while the deprecated
-`modsecurity_phase4_content_types_file` cannot create an uninspected
-pass-through route. The default `modsecurity_phase4_body_limit` is 1048576
-bytes (1 MiB). A response that exceeds it fails closed before any original
-response byte is released; it is not processed partially and then streamed.
-The byte bound is not the only retained-resource bound: Apache also enforces a
-fixed, non-configurable ceiling of 4,096 normalized buckets retained across
-filter calls. It fails closed before retaining the next bucket, so a highly
-fragmented response can be rejected below the byte limit.
+The connector passes response buckets to libModSecurity independently of MIME
+type; the engine's own `SecResponseBodyMimeType` configuration selects
+inspection. There is no second connector MIME list or MIME-based intervention
+downgrade.
+
+`modsecurity_phase4_body_limit` remains accepted as a legacy compatibility
+value, but no Phase-4 mode enforces it as a cumulative WAF inspection limit.
+libModSecurity owns inspection limits through `SecResponseBodyLimit` and
+`SecResponseBodyLimitAction`. Checked counters, lifecycle/error handling and
+the fixed Apache bucket-count safety ceiling remain active. There is no
+additional whole-response buffer.
 
 At the normal decision boundary, Apache's `r->sent_bodyct` and `eos_sent` are
-not commit proof: upstream modules can set them before this filter has released
-anything. The gate instead uses its own released-EOS state and Apache's
-`r->bytes_sent`. A normal Phase-4 deny discards the saved original brigade,
-preserves the relevant P3 response state, and emits exactly one terminal error
-response before original output can be released. On an allow, the retained
-brigade (including its EOS) is passed once synchronously and the terminal
-output guard is sealed, preventing a later producer from duplicating body or
-EOS output. Errors while saving, appending, or finishing the response discard
-the retained brigade and fail closed; a genuinely post-commit failure aborts
-the connection.
+not commit proof: upstream modules can set them before this filter passes its
+first prefix. The invocation of the next filter is the monotonic source
+commitment boundary, with a separate terminal-EOS guard and Apache's
+`r->bytes_sent` retained as metadata. A downstream error after progressive
+forwarding seals the Phase-4 gate because a body prefix might already be
+visible. P4 finishes exactly once on EOS; duplicate terminal output is
+rejected.
 
-`log_only` in safe/minimal mode and `abort_connection` in strict mode are
-defensive late-intervention fallbacks only when independent commit proof already
-exists. They do not reinterpret a normal, still-gated Phase-4 deny as log-only
-or remove the pre-release deny path.
+Off preserves native intervention handling. `log_only` in safe mode preserves
+an already-forwarded prefix. Strict
+uses `abort_connection` after a disruptive EOS result, rather than attempting
+to replace emitted bytes. Because P4 rule evaluation occurs at EOS, this
+progressive path does not claim a reliable pre-commit P4 HTTP deny or redirect;
+P3 is the response-header decision point before commitment.
 
 A normal `r->prev` internal redirect, including a pre-output ErrorDocument,
 fails closed because a transaction that processed the source URI, headers, and
@@ -230,3 +229,28 @@ evidence exists. The focused H1/H2 evidence placeholder is
 `ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`; record only
 its run-scoped artifacts after execution. This source contract does not label
 either H1 or H2 as passed.
+
+## Phase-4 mode and response-body limit ownership
+
+The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+No valid Phase-4 mode adds a connector-owned cumulative response-inspection
+budget. libModSecurity owns WAF inspection selection and limits through
+`SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`.
+
+This rule applies to native integrations and Common Runtime-backed response
+paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4; selecting a mode does not create a
+missing response path.
+
+Legacy connector/runtime budget settings may remain parseable for
+compatibility, but they must not reject or abort a response solely because a
+legacy inspection-byte count is exceeded. Independent allocation,
+buffered-storage, chunk/message/frame, timeout, overflow and transport limits
+remain active in every mode. A buffered sidecar may therefore still reject a
+response that cannot fit its bounded host storage; that is host capacity, not
+WAF inspection policy.
+
+See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
+for the exact scope, compatibility boundary and validation limitations.

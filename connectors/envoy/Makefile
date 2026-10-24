@@ -67,6 +67,7 @@ unexport ENVOY_HOSTRUNTIME_PROFILE ENVOY_HOSTRUNTIME_LOCK \
 	prepare-envoy-ext-proc-config prepare-envoy-ext-proc-runtime-config \
 	build-modsecurity-bridge check-envoy-config start-smoke-envoy \
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
+	response-phase-smoke-envoy \
 	serve-envoy-ext-proc runtime-smoke-envoy-ext-proc \
 	transport-cancel-smoke-envoy-ext-proc \
 	self-test-modsecurity hostruntime-preflight-envoy hostruntime-preflight-envoy-ext-authz hostruntime-preflight-envoy-ext-proc clean
@@ -147,8 +148,8 @@ test-envoy-ext-proc:
 	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
 	sh build/test_ext_proc.sh
 
-check-envoy-ext-proc-config: build-envoy-ext-proc
-	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)"
+check-envoy-ext-proc-config: build-envoy-ext-proc prepare-envoy-ext-proc-runtime-config
+	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)" --runtime-config "$(EXT_PROC_RUNTIME_CONFIG)"
 
 prepare-envoy-ext-proc-config:
 	OUTPUT_CONFIG="$(EXT_PROC_ENVOY_CONFIG)" \
@@ -211,6 +212,13 @@ runtime-smoke-envoy: build-envoy-connector
 
 no-crs-baseline-envoy: export MSCONNECTOR_NO_CRS_BASELINE := 1
 no-crs-baseline-envoy: runtime-smoke-envoy
+
+# This opt-in companion check is deliberately separate from the P1 default
+# smoke target.  The runner enables its P3/P4 assertions only when the
+# matching response-phase rule fixture is selected explicitly.
+response-phase-smoke-envoy: override RULES_FILE := $(abspath $(CURDIR)/../../common/rules/modsecurity_response_companion_smoke.conf)
+response-phase-smoke-envoy: override export MSCONNECTOR_RESPONSE_PHASE_SMOKE := 1
+response-phase-smoke-envoy: runtime-smoke-envoy
 
 self-test-modsecurity: check-envoy-config
 

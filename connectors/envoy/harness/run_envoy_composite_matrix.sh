@@ -8,6 +8,7 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
 HELPER="$SCRIPT_DIR/envoy_smoke_helper.py"
+PROJECTION_WRITER="$SCRIPT_DIR/write_composite_verifier_projection.py"
 TLS_RENDERER="$CONNECTOR_DIR/config/lib/tls_yaml_render.sh"
 TEMPLATE="$CONNECTOR_DIR/config/envoy-ext-authz-composite.yaml.in"
 VERSION_LOCK="$CONNECTOR_DIR/config/envoy-ext-proc-versions.env"
@@ -20,6 +21,7 @@ VERSION_OUTPUT="${RUNTIME_ROOT:-}/envoy-version.txt"
 STOP_ATTEMPTS=${ENVOY_COMPOSITE_STOP_ATTEMPTS:-20}
 STOP_DELAY_SECONDS=${ENVOY_COMPOSITE_STOP_DELAY_SECONDS:-0.1}
 ENVOY_LOG_LEVEL=${ENVOY_COMPOSITE_LOG_LEVEL:-error}
+P3_REDIRECT_TARGET=/msconnector-p3-redirect-target
 envoy_pid=
 service_pid=
 upstream_pid=
@@ -244,12 +246,12 @@ require_trusted_path "$COMPOSITE_BIN" binary || fail "composite path chain is no
 require_trusted_path "$COMPOSITE_RUNTIME_CONFIG" input || fail "runtime config is not owner-controlled"
 require_file "$TEMPLATE" composite_template
 require_file "$VERSION_LOCK" Envoy_version_lock
+require_file "$PROJECTION_WRITER" Envoy_verifier_projection_writer
 require_trusted_path "$TEMPLATE" input || fail "composite template path chain is not owner-controlled"
 require_trusted_path "$VERSION_LOCK" input || fail "version lock path chain is not owner-controlled"
+require_trusted_path "$PROJECTION_WRITER" input || fail "verifier projection writer path chain is not owner-controlled"
 command -v openssl >/dev/null 2>&1 || blocked "openssl is required"
 
-require_runtime_parent_chain "$RUNTIME_ROOT" || blocked "RUNTIME_ROOT path chain is not trusted"
-"$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$RUNTIME_ROOT" || fail "unsafe RUNTIME_ROOT"
 ensure_directory() {
     "$PYTHON_BIN" - "$1" <<'PY'
 import os, pathlib, stat, sys
@@ -265,6 +267,9 @@ if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
     raise SystemExit("runtime directory is not owner-only")
 PY
 }
+require_runtime_parent_chain "$RUNTIME_ROOT" || blocked "RUNTIME_ROOT path chain is not trusted"
+ensure_directory "$RUNTIME_ROOT" || fail "unsafe RUNTIME_ROOT"
+"$PYTHON_BIN" "$HELPER" prepare-runtime-root --runtime-root "$RUNTIME_ROOT" || fail "unsafe RUNTIME_ROOT"
 "$PYTHON_BIN" - "$RUNTIME_ROOT" <<'PY'
 import os, pathlib, stat, sys
 root = pathlib.Path(sys.argv[1])
@@ -284,25 +289,77 @@ require_trusted_path "$event_log_parent" input || fail "event-log parent path ch
 pinned_envoy_release=$(sed -n 's/^ENVOY_RELEASE=//p' "$VERSION_LOCK")
 [ -n "$pinned_envoy_release" ] || fail "version lock has no ENVOY_RELEASE"
 "$ENVOY_BIN" --version >"$VERSION_OUTPUT" 2>&1 || fail "could not read Envoy version"
+chmod 600 "$VERSION_OUTPUT" || fail "could not restrict Envoy version artifact"
 envoy_version=$(sed -n '/[^[:space:]]/ { p; q; }' "$VERSION_OUTPUT")
 case "$envoy_version" in *"/$pinned_envoy_release/"*|*"version: $pinned_envoy_release"*) ;; *) fail "Envoy does not match pinned $pinned_envoy_release" ;; esac
 . "$TLS_RENDERER"
 create_private_loopback_tls "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" || fail "could not create private TLS"
 
 write_case_record() {
-    "$PYTHON_BIN" - "$1" "$2" "$3" "$4" "$5" "$6" "$7" "${8:-one_fresh_service_and_event_log_per_case}" "${9:-}" <<'PY'
-import json, os, pathlib, sys
-path, case_id, phase, status, event_log, probe, structural, binding, upstream_observation = sys.argv[1:]
+    "$PYTHON_BIN" - "$1" "$2" "$3" "$4" "$5" "$6" "$7" "${8:-one_fresh_service_and_event_log_per_case}" "${9:-}" "$ENVOY_BIN" "$COMPOSITE_BIN" "${10:-}" "${11:-}" "${12:-not_reached}" "${13:-}" "${14:-}" "${15:-not_run}" "$RUNTIME_ROOT" <<'PY'
+import hashlib, json, os, pathlib, stat, sys
+path, case_id, phase, status, event_log, probe, structural, binding, upstream_observation, envoy_binary, composite_binary, config, client_probe, upstream_state, verifier_manifest, verifier_summary, verifier_status, runtime_root_text = sys.argv[1:]
+MAX_BINARY_BYTES = 512 * 1024 * 1024
+MAX_PRIVATE_BYTES = 16 * 1024 * 1024
+runtime_root = pathlib.Path(runtime_root_text).resolve(strict=True)
+
+def artifact(path_text, label, private=False):
+    if not path_text:
+        return None
+    path = pathlib.Path(path_text)
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or (private and (stat.S_IMODE(info.st_mode) & 0o77 or info.st_uid != os.getuid())):
+        raise SystemExit(f"{label} is not an owner-only regular file")
+    if private:
+        try:
+            path.resolve(strict=True).relative_to(runtime_root)
+        except (OSError, ValueError):
+            raise SystemExit(f"{label} escapes RUNTIME_ROOT")
+        if info.st_nlink != 1:
+            raise SystemExit(f"{label} must not be hard-linked")
+    limit = MAX_PRIVATE_BYTES if private else MAX_BINARY_BYTES
+    if info.st_size > limit:
+        raise SystemExit(f"{label} exceeds bounded hash input")
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return {"path": str(path), "sha256": digest.hexdigest(), "size_bytes": info.st_size}
+
+envoy = artifact(envoy_binary, "Envoy binary")
+composite = artifact(composite_binary, "composite binary")
+event_artifact = artifact(event_log, "event JSONL", private=True)
+structural_artifact = artifact(structural, "structural event artifact", private=True)
+config_artifact = artifact(config, "rendered config", private=True)
+probe_artifact = artifact(client_probe or probe, "client probe", private=True)
+upstream_artifact = artifact(upstream_observation, "upstream observation", private=True)
+verifier_manifest_artifact = artifact(verifier_manifest, "shared verifier manifest", private=True)
+verifier_summary_artifact = artifact(verifier_summary, "shared verifier summary", private=True)
 record = {
     "schema_version": 1, "connector": "envoy",
     "integration": "ext_authz_ext_proc_composite", "case_id": case_id,
     "phase": phase, "observed_http_status": None if status == "not_run" else int(status),
     "event_log": event_log, "probe_artifact": probe,
     "structural_event_artifact": structural,
+    "event_log_artifact": event_artifact,
+    "structural_event_artifact_binding": structural_artifact,
     "upstream_observation_artifact": upstream_observation,
+    "started_binary_artifacts": {"envoy": envoy, "composite": composite},
+    "rendered_config_artifact": config_artifact,
+    "client_observation_artifact": probe_artifact,
+    "upstream_observation": upstream_artifact,
+    "causal_binding": "started_binary_config_client_upstream_artifacts" if upstream_artifact else "started_binary_config_client_no_upstream_request_observed",
+    "upstream_observation_state": upstream_state,
+    "client_protocol": "HTTP/1.1",
+    "host_execution_evidence": "real_envoy_http1_client_observation" if status != "not_run" else "not_run",
     "decision_id_binding": binding,
-    "verdict": "deferred_to_shared_verifier",
-    "shared_verifier_manifest": "host_driver_must_map_raw_events_without_inventing_fields",
+    "shared_verifier_manifest_artifact": verifier_manifest_artifact,
+    "shared_verifier_summary_artifact": verifier_summary_artifact,
+    "shared_verifier_status": verifier_status,
+    "verdict": "lifecycle_only_not_catalog_acceptance" if verifier_status == "LIFECYCLE_ONLY" else "deferred_to_shared_verifier",
     "host_execution_status": "structural_input_only",
     "payloads_persisted": False,
 }
@@ -315,9 +372,44 @@ check_event_log() {
     "$PYTHON_BIN" - "$1" "$2" "$3" <<'PY'
 import json, os, pathlib, stat, sys
 event_path, output_path, case_id = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
-st = event_path.lstat()
-if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) & 0o77 or st.st_uid != os.getuid():
-    raise SystemExit("event log is not owner-only regular")
+MAX_EVENT_LOG_BYTES = 256 * 1024
+MAX_EVENT_LINE_BYTES = 16 * 1024
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if not no_follow:
+    raise SystemExit("event log validation requires O_NOFOLLOW")
+descriptor = os.open(event_path, os.O_RDONLY | no_follow)
+try:
+    before = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_IMODE(before.st_mode) != 0o600
+        or before.st_uid != os.getuid()
+        or before.st_nlink != 1
+    ):
+        raise SystemExit("event log is not an owner-private regular file")
+    if before.st_size > MAX_EVENT_LOG_BYTES:
+        raise SystemExit("event log exceeds bounded verifier input")
+    chunks = []
+    total = 0
+    while True:
+        chunk = os.read(descriptor, 64 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_EVENT_LOG_BYTES:
+            raise SystemExit("event log exceeds bounded verifier input")
+        chunks.append(chunk)
+    after = os.fstat(descriptor)
+    if (before.st_dev, before.st_ino, before.st_size, before.st_nlink) != (
+        after.st_dev, after.st_ino, after.st_size, after.st_nlink,
+    ):
+        raise SystemExit("event log changed while being validated")
+finally:
+    os.close(descriptor)
+try:
+    raw_records = b"".join(chunks).decode("utf-8").splitlines(keepends=True)
+except UnicodeDecodeError as exc:
+    raise SystemExit("event log is not UTF-8 metadata") from exc
 allowed = {
     "decision_id", "connector", "rule_id", "phase", "outcome", "reason",
     "requested_action", "actual_host_action", "visible_status", "cleanup_outcome",
@@ -330,12 +422,16 @@ expected_rules = {
     "p1_deny": ("P1", "1101001"),
     "p2_deny": ("P2", "1102001"),
     "p3_deny": ("P3", "1103001"),
+    "p3_redirect": ("P3", "1103002"),
     "p4_safe": ("P4", "1104002"),
     "follow_up_p1_deny": ("P1", "1101001"),
 }
 records = []
-for number, line in enumerate(event_path.read_text(encoding="utf-8").splitlines(), 1):
-    if not line: continue
+for number, line in enumerate(raw_records, 1):
+    if len(line.encode("utf-8")) > MAX_EVENT_LINE_BYTES:
+        raise SystemExit(f"event {number} exceeds bounded verifier input")
+    if not line.strip():
+        raise SystemExit(f"event {number} is blank")
     value = json.loads(line)
     if not isinstance(value, dict) or set(value) - allowed:
         raise SystemExit(f"event {number} contains unsupported or payload fields")
@@ -369,18 +465,92 @@ os.chmod(output_path, 0o600)
 PY
 }
 
+check_client_probe() {
+    "$PYTHON_BIN" - "$1" <<'PY'
+import json, os, pathlib, stat, sys
+path = pathlib.Path(sys.argv[1])
+info = path.lstat()
+if (
+    not stat.S_ISREG(info.st_mode)
+    or stat.S_IMODE(info.st_mode) != 0o600
+    or info.st_uid != os.getuid()
+    or info.st_nlink != 1
+    or info.st_size > 16 * 1024
+):
+    raise SystemExit("client probe is not bounded owner-private metadata")
+value = json.loads(path.read_text(encoding="utf-8"))
+allowed = {
+    "schema_version", "evidence_type", "http_status", "response_bytes",
+    "body_payload_persisted", "redirect_location_verified", "composite_lease_header_present",
+}
+if set(value) - allowed or not {"schema_version", "evidence_type", "http_status", "body_payload_persisted", "redirect_location_verified", "composite_lease_header_present"}.issubset(value):
+    raise SystemExit("client probe has an unexpected metadata schema")
+if value.get("schema_version") != 1 or value.get("evidence_type") != "envoy_http_client_probe":
+    raise SystemExit("client probe has an unexpected identity")
+if type(value.get("http_status")) is not int or not 100 <= value["http_status"] <= 599:
+    raise SystemExit("client probe has an invalid HTTP status")
+if value.get("body_payload_persisted") is not False:
+    raise SystemExit("client probe retained a response payload")
+if type(value.get("redirect_location_verified")) is not bool:
+    raise SystemExit("client probe has an invalid redirect Location attestation")
+if value.get("composite_lease_header_present") is not False:
+    raise SystemExit("client observed a private composite lease header")
+if "response_bytes" in value and (type(value["response_bytes"]) is not int or value["response_bytes"] < 0):
+    raise SystemExit("client probe has an invalid response byte count")
+PY
+}
+
+verifier_case_supported() {
+    case "$1" in
+        p1_allow|p1_deny|p2_allow|p2_deny|p2_oversize|p3_deny|p3_redirect|p4_safe|envoy_response_metadata_omitted) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 wait_for_event_phase() {
-    event_path=$1; expected_phase=$2
+    event_path=$1; expected_phase=$2; expected_reason=${3:-}
     attempt=0
     while [ "$attempt" -lt 100 ]; do
-        if "$PYTHON_BIN" - "$event_path" "$expected_phase" <<'PY' >/dev/null 2>&1
-import json, pathlib, sys
+        if "$PYTHON_BIN" - "$event_path" "$expected_phase" "$expected_reason" <<'PY' >/dev/null 2>&1
+import json, os, pathlib, stat, sys
 path = pathlib.Path(sys.argv[1])
-phase = sys.argv[2]
-if not path.is_file():
+phase, reason = sys.argv[2:]
+maximum_bytes = 256 * 1024
+maximum_line_bytes = 16 * 1024
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if not no_follow or path.is_symlink():
     raise SystemExit(1)
-for line in path.read_text(encoding="utf-8").splitlines():
-    if line and json.loads(line).get("phase") == phase:
+try:
+    descriptor = os.open(path, os.O_RDONLY | no_follow)
+except OSError:
+    raise SystemExit(1)
+try:
+    info = os.fstat(descriptor)
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or info.st_size > maximum_bytes:
+        raise SystemExit(1)
+    chunks = []
+    total = 0
+    while True:
+        chunk = os.read(descriptor, 64 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > maximum_bytes:
+            raise SystemExit(1)
+        chunks.append(chunk)
+    after = os.fstat(descriptor)
+    if (info.st_dev, info.st_ino, info.st_size, info.st_nlink) != (after.st_dev, after.st_ino, after.st_size, after.st_nlink):
+        raise SystemExit(1)
+finally:
+    os.close(descriptor)
+for raw_line in b"".join(chunks).splitlines(keepends=True):
+    if len(raw_line) > maximum_line_bytes:
+        raise SystemExit(1)
+    try:
+        event = json.loads(raw_line.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise SystemExit(1)
+    if event.get("phase") == phase and (not reason or event.get("reason") == reason):
         raise SystemExit(0)
 raise SystemExit(1)
 PY
@@ -413,10 +583,18 @@ with socket.create_connection(("127.0.0.1", int(port)), timeout=timeout) as raw:
             data.extend(chunk)
 status_line = bytes(data).split(b"\r\n", 1)[0].decode("ascii", "replace")
 status = int(status_line.split()[1]) if len(status_line.split()) >= 2 else 0
+header_block = bytes(data).split(b"\r\n\r\n", 1)[0]
+composite_lease_header_present = any(
+    line.lower().startswith(b"x-msconnector-composite-lease:")
+    for line in header_block.split(b"\r\n")[1:]
+)
 pathlib.Path(evidence).write_text(json.dumps({
     "schema_version": 1, "evidence_type": "envoy_http_client_probe",
     "http_status": status, "body_payload_persisted": False,
+    "redirect_location_verified": False,
+    "composite_lease_header_present": composite_lease_header_present,
 }, sort_keys=True) + "\n", encoding="utf-8")
+pathlib.Path(evidence).chmod(0o600)
 print(status)
 PY
 }
@@ -461,11 +639,43 @@ PY
 }
 
 start_catalog_upstream() {
-    "$PYTHON_BIN" - "$1" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" "${4:-0}" "${5:-}" <<'PY' >"$2" 2>"$3" &
-import http.server, pathlib, ssl, sys
+    "$PYTHON_BIN" - "$1" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" "${4:-0}" "${5:-}" "${6:-}" "$RUNTIME_ROOT" <<'PY' >"$2" 2>"$3" &
+import http.server, json, os, pathlib, ssl, stat, sys
 import time
 
-port, certificate, private_key, response_delay, observation_path = int(sys.argv[1]), sys.argv[2], sys.argv[3], float(sys.argv[4]), sys.argv[5]
+port, certificate, private_key, response_delay, request_observation_path, response_observation_path, runtime_root_text = int(sys.argv[1]), sys.argv[2], sys.argv[3], float(sys.argv[4]), sys.argv[5], sys.argv[6], sys.argv[7]
+runtime_root = pathlib.Path(runtime_root_text).resolve(strict=True)
+
+def write_observation(observation_path, request_observed, response_observed, lease_header_present):
+    if not observation_path:
+        return
+    path = pathlib.Path(observation_path)
+    if path.is_symlink() or not path.is_absolute():
+        raise RuntimeError("unsafe upstream observation path")
+    try:
+        path.resolve(strict=False).relative_to(runtime_root)
+    except ValueError as exc:
+        raise RuntimeError("upstream observation escapes runtime root") from exc
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    if not no_follow:
+        raise RuntimeError("upstream observation requires O_NOFOLLOW")
+    payload = json.dumps({
+        "request_observed": request_observed,
+        "response_observed": response_observed,
+        "composite_lease_header_present": lease_header_present,
+    }, sort_keys=True).encode("utf-8") + b"\n"
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow, 0o600)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+            raise RuntimeError("upstream observation is not a private regular file")
+        os.fchmod(descriptor, 0o600)
+        offset = 0
+        while offset < len(payload):
+            offset += os.write(descriptor, payload[offset:])
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -479,13 +689,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.rfile.read(min(length, 65536))
         self.respond()
     def respond(self):
-        if observation_path:
-            pathlib.Path(observation_path).write_text(
-                '{"composite_lease_header_present":%s}\n' % (
-                    "true" if "x-msconnector-composite-lease" in self.headers else "false"
-                ), encoding="ascii"
-            )
-            pathlib.Path(observation_path).chmod(0o600)
+        write_observation(
+            request_observation_path,
+            True,
+            False,
+            "x-msconnector-composite-lease" in self.headers,
+        )
         if response_delay:
             time.sleep(response_delay)
         headers = []
@@ -493,12 +702,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "/vector/allow": b"allow-control-response",
             "/vector/p2-empty": b"empty-body-response",
             "/vector/p3": b"p3-response-body-without-p4-marker",
+            "/vector/p3-redirect": b"p3-redirect-upstream-response",
             "/vector/p4": b"p4-response-msconnector-p4-only",
             "/vector/p4-safe": b"p4-safe-response-msconnector-p4-safe",
             "/vector/p4-strict": b"p4-strict-response-msconnector-p4-strict",
         }
         if self.path == "/vector/p3":
             headers.append(("X-Msconnector-Vector", "msconnector-p3-only"))
+        elif self.path == "/vector/p3-redirect":
+            headers.append(("X-Msconnector-Vector", "msconnector-p3-redirect"))
         body = bodies.get(self.path, b"catalog-upstream-unrecognized-path")
         self.send_response(200)
         for name, value in headers:
@@ -507,6 +719,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+        self.wfile.flush()
+        write_observation(
+            response_observation_path,
+            True,
+            True,
+            "x-msconnector-composite-lease" in self.headers,
+        )
 
 server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -525,9 +744,15 @@ run_case() {
     case_event_log=$(printf '%s' "$EVENT_LOG_PATH" | sed "s/%CASE%/$case_id/g")
     within_runtime "$case_event_log"
     case_probe="$case_dir/probe.json"; case_structural="$case_dir/structural-events.json"
-    case_upstream_observation="$case_dir/upstream-header-observation.json"
+    case_upstream_request_observation="$case_dir/upstream-request-observation.json"
+    case_upstream_response_observation="$case_dir/upstream-response-observation.json"
     case_config="$case_dir/envoy.yaml"; case_record="$case_dir/case-input.json"
-    for artifact in "$case_event_log" "$case_probe" "$case_structural" "$case_upstream_observation" "$case_record" "$case_config"; do
+    case_verifier_events="$case_dir/verifier-events.jsonl"
+    case_verifier_client="$case_dir/verifier-client.observation.json"
+    case_verifier_upstream="$case_dir/verifier-upstream.observation.json"
+    case_verifier_manifest="$case_dir/verifier-manifest.json"
+    case_verifier_summary="$case_dir/verifier-summary.json"
+    for artifact in "$case_event_log" "$case_probe" "$case_structural" "$case_upstream_request_observation" "$case_upstream_response_observation" "$case_record" "$case_config" "$case_verifier_events" "$case_verifier_client" "$case_verifier_upstream" "$case_verifier_manifest" "$case_verifier_summary"; do
         within_runtime "$artifact"; [ ! -L "$artifact" ] || fail "symlink artifact: $artifact"; rm -f "$artifact"
     done
     set -- $("$PYTHON_BIN" "$HELPER" free-ports --count 4)
@@ -536,7 +761,7 @@ run_case() {
     "$ENVOY_BIN" --mode validate -c "$case_config" --base-id "$(($1 + $4))" --disable-hot-restart \
         >"$case_dir/envoy-validate.stdout.log" 2>"$case_dir/envoy-validate.stderr.log" ||
         fail "Envoy rejected config for case $case_id"
-    start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log" "$upstream_delay" "$case_upstream_observation"
+    start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log" "$upstream_delay" "$case_upstream_request_observation" "$case_upstream_response_observation"
     "$COMPOSITE_BIN" --mode envoy --listen "127.0.0.1:$3" --runtime-config "$COMPOSITE_RUNTIME_CONFIG" \
         --event-log "$case_event_log" >"$case_dir/composite.stdout.log" 2>"$case_dir/composite.stderr.log" &
     service_pid=$!; service_start_token=$(start_token "$service_pid") || fail "composite ownership unavailable"
@@ -574,6 +799,11 @@ run_case() {
             --url "https://127.0.0.1:$1$request_path" --method "$method" --data "$request_body" \
             --no-redirect --evidence-path "$case_probe")
         probe_rc=$?
+    elif [ "$case_id" = p3_redirect ]; then
+        observed_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+            --url "https://127.0.0.1:$1$request_path" --method "$method" --no-redirect \
+            --require-response-header "Location: $P3_REDIRECT_TARGET" --evidence-path "$case_probe")
+        probe_rc=$?
     else
         observed_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
             --url "https://127.0.0.1:$1$request_path" --method "$method" --no-redirect \
@@ -583,25 +813,64 @@ run_case() {
     set -e
     [ "$probe_rc" -eq 0 ] || fail "probe failed for case $case_id"
     case "$observed_status" in ''|*[!0-9]*) fail "non-status probe result for $case_id" ;; esac
+    check_client_probe "$case_probe" || fail "client probe evidence failed for $case_id"
+    if [ "$case_id" = p3_redirect ]; then
+        [ "$observed_status" = 302 ] || fail "P3 redirect status was not 302"
+    fi
+    if [ "$case_id" = envoy_response_metadata_omitted ]; then
+        [ "$observed_status" = 503 ] || fail "response metadata omission did not fail closed"
+        wait_for_event_phase "$case_event_log" terminal timeout || fail "response metadata omission did not reach bounded timeout cleanup"
+    fi
     if [ "$case_id" = spoofed_lease_header ]; then
-        "$PYTHON_BIN" - "$case_upstream_observation" <<'PY'
+        "$PYTHON_BIN" - "$case_upstream_response_observation" <<'PY'
 import json, pathlib, stat, sys
 path = pathlib.Path(sys.argv[1])
 info = path.lstat()
 if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600:
     raise SystemExit("upstream observation is not an owner-only regular file")
 value = json.loads(path.read_text(encoding="ascii"))
-if value != {"composite_lease_header_present": False}:
+if value != {
+    "request_observed": True,
+    "response_observed": True,
+    "composite_lease_header_present": False,
+}:
     raise SystemExit("client lease header reached upstream")
 PY
         [ "$observed_status" = 200 ] || fail "spoofed lease header did not allow normally"
     fi
+    upstream_artifact_path=
+    upstream_observation_state=not_reached
+    if [ -f "$case_upstream_request_observation" ]; then
+        upstream_artifact_path=$case_upstream_request_observation
+        upstream_observation_state=request_started
+    fi
+    if [ -f "$case_upstream_response_observation" ]; then
+        upstream_artifact_path=$case_upstream_response_observation
+        upstream_observation_state=response_observed
+    fi
     cleanup || fail "bounded cleanup failed for case $case_id"
     check_event_log "$case_event_log" "$case_structural" "$case_id" || fail "event binding failed for $case_id"
+    case_verifier_status=not_run
+    case_verifier_manifest_artifact=
+    case_verifier_summary_artifact=
+    if verifier_case_supported "$case_id"; then
+        "$PYTHON_BIN" "$PROJECTION_WRITER" \
+            --runtime-root "$RUNTIME_ROOT" \
+            --case-root "$case_dir" \
+            --case "$case_id" \
+            --event-log "$case_event_log" \
+            --probe "$case_probe" \
+            --upstream-request-observation "$case_upstream_request_observation" \
+            --upstream-response-observation "$case_upstream_response_observation" \
+            >/dev/null || fail "shared verifier projection failed for $case_id"
+        case_verifier_status=LIFECYCLE_ONLY
+        case_verifier_manifest_artifact=$case_verifier_manifest
+        case_verifier_summary_artifact=$case_verifier_summary
+    fi
     if [ "$case_id" = spoofed_lease_header ]; then
-        write_case_record "$case_record" "$case_id" "$phase" "$observed_status" "$case_event_log" "$case_probe" "$case_structural" one_fresh_service_and_event_log_per_case "$case_upstream_observation"
+        write_case_record "$case_record" "$case_id" "$phase" "$observed_status" "$case_event_log" "$case_probe" "$case_structural" one_fresh_service_and_event_log_per_case "$upstream_artifact_path" "$case_config" "$case_probe" "$upstream_observation_state" "$case_verifier_manifest_artifact" "$case_verifier_summary_artifact" "$case_verifier_status"
     else
-        write_case_record "$case_record" "$case_id" "$phase" "$observed_status" "$case_event_log" "$case_probe" "$case_structural"
+        write_case_record "$case_record" "$case_id" "$phase" "$observed_status" "$case_event_log" "$case_probe" "$case_structural" one_fresh_service_and_event_log_per_case "$upstream_artifact_path" "$case_config" "$case_probe" "$upstream_observation_state" "$case_verifier_manifest_artifact" "$case_verifier_summary_artifact" "$case_verifier_status"
     fi
     envoy_pid=; service_pid=; upstream_pid=; envoy_start_token=; service_start_token=; upstream_start_token=
 }
@@ -626,7 +895,6 @@ run_follow_up_case() {
     "$COMPOSITE_BIN" --mode envoy --listen "127.0.0.1:$3" --runtime-config "$COMPOSITE_RUNTIME_CONFIG" \
         --event-log "$case_event_log" >"$case_dir/composite.stdout.log" 2>"$case_dir/composite.stderr.log" &
     service_pid=$!; service_start_token=$(start_token "$service_pid") || fail "composite ownership unavailable"
-    follow_service_token=$service_start_token
     wait_for_composite_listener "$3" || fail "composite listener was not ready for case $case_id"
     "$ENVOY_BIN" -c "$case_config" --base-id "$(($1 + $4))" --disable-hot-restart --log-level "$ENVOY_LOG_LEVEL" \
         >"$case_dir/envoy.stdout.log" 2>"$case_dir/envoy.stderr.log" &
@@ -648,13 +916,12 @@ run_follow_up_case() {
     [ "$allow_rc" -eq 0 ] || fail "follow-up allow probe failed"
     [ "$allow_status" = 200 ] || fail "follow-up allow status was not 200: $allow_status"
     cleanup || fail "bounded cleanup failed for case $case_id"
-    "$PYTHON_BIN" - "$case_event_log" "$deny_log" "$allow_log" "$summary" "$follow_service_token" <<'PY'
+    "$PYTHON_BIN" - "$case_event_log" "$deny_log" "$allow_log" "$summary" <<'PY'
 import json, os, pathlib, sys
 source = pathlib.Path(sys.argv[1])
 deny_path = pathlib.Path(sys.argv[2])
 allow_path = pathlib.Path(sys.argv[3])
 summary_path = pathlib.Path(sys.argv[4])
-service_token = sys.argv[5]
 groups = {}
 order = []
 for line in source.read_text(encoding="utf-8").splitlines():
@@ -676,7 +943,7 @@ for path in (deny_path, allow_path):
     os.chmod(path, 0o600)
 summary_path.write_text(json.dumps({
     "schema_version": 1,
-    "same_service_process_start_token": service_token,
+    "same_service_process_verified": True,
     "distinct_server_generated_decision_ids": 2,
     "request_order": ["p1_deny", "p1_allow"],
     "payloads_persisted": False,
@@ -685,8 +952,8 @@ os.chmod(summary_path, 0o600)
 PY
     check_event_log "$deny_log" "$case_dir/p1-deny-structural.json" follow_up_p1_deny || fail "follow-up deny evidence failed"
     check_event_log "$allow_log" "$case_dir/p1-allow-structural.json" follow_up_p1_allow || fail "follow-up allow evidence failed"
-    write_case_record "$case_dir/p1-deny-case-input.json" follow_up_p1_deny P1 "$deny_status" "$deny_log" "$deny_probe" "$case_dir/p1-deny-structural.json" same_service_process_two_sequential_requests
-    write_case_record "$case_dir/p1-allow-case-input.json" follow_up_p1_allow P1 "$allow_status" "$allow_log" "$allow_probe" "$case_dir/p1-allow-structural.json" same_service_process_two_sequential_requests
+    write_case_record "$case_dir/p1-deny-case-input.json" follow_up_p1_deny P1 "$deny_status" "$deny_log" "$deny_probe" "$case_dir/p1-deny-structural.json" same_service_process_two_sequential_requests "" "$case_config" "$deny_probe" not_reached
+    write_case_record "$case_dir/p1-allow-case-input.json" follow_up_p1_allow P1 "$allow_status" "$allow_log" "$allow_probe" "$case_dir/p1-allow-structural.json" same_service_process_two_sequential_requests "" "$case_config" "$allow_probe" not_reached
     envoy_pid=; service_pid=; upstream_pid=; envoy_start_token=; service_start_token=; upstream_start_token=
 }
 
@@ -698,10 +965,13 @@ run_case p2_allow P2 POST /vector/p2-empty "Content-Type: text/plain" ""
 run_case p2_deny P2 POST /vector/p2 "Content-Type: text/plain" "msconnector-p2-only"
 run_case p2_oversize P2 POST /vector/p2-body-limit "Content-Type: text/plain" "msconnector-p2-body-limit;bounded-test-input"
 run_case p3_deny P3 GET /vector/p3 "" ""
+run_case p3_redirect P3 GET /vector/p3-redirect "" ""
 run_case p4_safe P4 GET /vector/p4-safe "" ""
-# Negative host evidence: ext_proc receives no protected lease metadata and
-# must fail closed without any caller-supplied token or correlation header.
-run_case metadata_omitted NEGATIVE_METADATA GET /vector/allow "" "" 0 2 envoy.filters.http.ext_authz_missing
+# Negative host evidence: ext_proc is response-only, so a missing protected
+# metadata namespace is detected before client response commitment after the
+# upstream response exists. The client must receive a fail-closed 503 and the
+# unclaimed retained entry must reach its bounded TTL cleanup.
+run_case envoy_response_metadata_omitted NEGATIVE_RESPONSE_METADATA GET /vector/allow "" "" 0 2 envoy.filters.http.ext_authz_missing
 # Negative host evidence: the controlled delayed upstream lets the server-side
 # lease expire between P2 admission and the first ext_proc response callback.
 run_case lease_expired NEGATIVE_EXPIRY GET /vector/allow "" "" 6 10
@@ -721,10 +991,15 @@ payload = {
     "runtime_config": runtime_config, "event_log_template": event_template,
     "envoy_release": release, "correlation": "server_generated_decision_id_only",
     "case_isolation": "fresh_service_process_and_event_log_per_case",
-    "payloads_persisted": False, "verdict": "deferred_to_shared_verifier",
+    "payloads_persisted": False,
+    "verdict": "lifecycle_only_for_supported_cases_not_catalog_acceptance",
     "host_execution_status": "structural_input_only",
+    "shared_verifier": "verify_matrix_evidence.py",
+    "shared_verifier_cases": ["p1_allow", "p1_deny", "p2_allow", "p2_deny", "p2_oversize", "p3_deny", "p3_redirect", "p4_safe", "envoy_response_metadata_omitted"],
+    "shared_verifier_status": "LIFECYCLE_ONLY_for_supported_cases",
+    "catalog_acceptance": False,
     "p4_strict": "not_run_requires_client_visible_reset_or_abort_proof",
-    "cases": ["p1_allow", "spoofed_lease_header", "p1_deny", "p2_allow", "p2_deny", "p2_oversize", "p3_deny", "p4_safe", "metadata_omitted", "lease_expired", "companion_unavailable", "follow_up_p1_deny", "follow_up_p1_allow", "p4_strict"],
+    "cases": ["p1_allow", "spoofed_lease_header", "p1_deny", "p2_allow", "p2_deny", "p2_oversize", "p3_deny", "p3_redirect", "p4_safe", "envoy_response_metadata_omitted", "lease_expired", "companion_unavailable", "follow_up_p1_deny", "follow_up_p1_allow", "p4_strict"],
     "follow_up_control": "one_service_process_two_sequential_requests_split_by_server_generated_decision_id",
 }
 path = pathlib.Path(output)

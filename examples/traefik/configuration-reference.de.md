@@ -26,12 +26,14 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`http.middlewares.modsecurity-native-streaming`](#http-middlewares-modsecurity-native-streaming) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.middlewares.modsecurity-native-streaming` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin`](#http-middlewares-modsecurity-native-streaming-plugin) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode) | Host / Connector | YAML-Steuerfeld | nein | passthrough | http.middlewares.<name>.plugin.modsecurityNative | Wählt source-only-passthrough oder die persistente UDS-Engine; das ausgewählte regelauswertende Beispiel verwendet uds. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | http.middlewares.<name>.plugin.modsecurityNative | Benennt den privaten UDS-Pfad, den die native Middleware bei engineMode=uds verwendet. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginemode) | Host / Connector | YAML-Steuerfeld | nein | uds | http.middlewares.<name>.plugin.modsecurityNative | Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | YAML-Konfigurationsfeld | nein | keiner (im uds-Modus erforderlich und validiert) | http.middlewares.<name>.plugin.modsecurityNative | Benennt den privaten UDS-Pfad, den die native Middleware bei engineMode=uds verwendet. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheaderbytes) | Host / Connector | YAML-Limitfeld | nein | 65536 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | YAML-Limitfeld | nein | 128 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes) | Host / Connector | Ganzzahliges aggregiertes Request-Body-Limit | nein | 1048576 | http.middlewares.<name>.plugin.modsecurityNative | Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | YAML-Limitfeld | nein | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes) | Host / Connector | YAML-Limitfeld | nein | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis) | Host / Connector | Ganzzahliges Request-Body-Idle-Timeout-Limit | nein | 1000 | http.middlewares.<name>.plugin.modsecurityNative | Begrenzt die Inaktivität zwischen Request-Body-Lesevorgängen unabhängig vom Engine-Timeout und schließt die eigene Quelle bei Ablauf. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader) | Host / Connector | YAML-Steuerfeld | nein | X-Request-Id | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.routers`](#http-routers) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.routers` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.routers` konfiguriert die Request-Routing-Entscheidung. Sie ordnet eingehende Requests einer Route, Middleware oder einem Upstream zu. |
 | [`http.routers.app`](#http-routers-app) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.routers.app` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.routers.app` konfiguriert die Request-Routing-Entscheidung. Sie ordnet eingehende Requests einer Route, Middleware oder einem Upstream zu. |
@@ -123,9 +125,9 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/traefik-static.yaml](minimal/traefik-static.yaml) | Aktive Startkonfiguration |
-| Sicherer vollständiger Lebenszyklus | [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Ausgewählte begrenzte Referenz |
-| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Off / Kompatibilität | [native-uds/off/traefik-static.yaml](native-uds/off/traefik-static.yaml) | Aktive Startkonfiguration |
+| Sicherer vollständiger Lebenszyklus | [native-uds/safe/traefik-static.yaml](native-uds/safe/traefik-static.yaml) | Ausgewählte begrenzte Referenz |
+| Strikt | [native-uds/strict/traefik-static.yaml](native-uds/strict/traefik-static.yaml) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -201,7 +203,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `{}`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -271,7 +273,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -341,7 +343,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -411,7 +413,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `":8080"`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -481,7 +483,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -551,7 +553,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -621,7 +623,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -691,7 +693,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -761,7 +763,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -831,7 +833,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `[]`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -1185,7 +1187,7 @@ Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../ex
 
 ### Sicherheit und Betrieb
 
-Middleware-Referenzen und ihre Reihenfolge müssen erhalten bleiben, damit die geprüfte Sicherheitsverarbeitung nicht umgangen wird.
+Die UDS-Felder und Grenzen sind für die Durchsetzung relevant; Legacy-passthrough wird abgelehnt.
 
 ### Technische Quellmetadaten (unverändert)
 
@@ -1193,11 +1195,10 @@ Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenang
 
 ```text
 value_type: Traefik local-plugin configuration mapping
-allowed_values: the seven native middleware Config fields documented from CreateConfig/normalizedConfig
-default: Plugin CreateConfig supplies bounded defaults; this template explicitly sets all seven selected fields.
+allowed_values: the eight native middleware Config fields documented from CreateConfig/normalizedConfig
+default: Plugin CreateConfig supplies bounded defaults; this template explicitly sets all eight selected fields.
 default_source: connectors/traefik/native_middleware/middleware.go:CreateConfig/normalizedConfig
 phase_relevance: The native middleware is attached to the router; its source-defined streaming callbacks cover P1/P2/P3/P4 when the UDS engine path is running. Configuration alone is not runtime evidence.
-security_relevance: The UDS fields and bounds are enforcement-relevant; passthrough is not rule evaluation.
 runtime_effect: Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.
 description: Groups limits, transaction ID, and engine connection fields passed to the repository native middleware.
 ```
@@ -1207,7 +1208,7 @@ description: Groups limits, transaction ID, and engine connection fields passed 
 
 ### Kurzbeschreibung
 
-Wählt source-only-passthrough oder die persistente UDS-Engine; das ausgewählte regelauswertende Beispiel verwendet uds.
+Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.
 
 ### Syntax
 
@@ -1223,11 +1224,11 @@ http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMod
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| YAML-Steuerfeld | passthrough \| uds | nein |
+| YAML-Steuerfeld | uds | nein |
 
 ### Standardwert
 
-passthrough
+uds
 
 Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
 
@@ -1239,9 +1240,9 @@ Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plug
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Die P1–P4-Relevanz folgt daraus, wie `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineMode` die Middleware-Anbindung konfiguriert.
+P1–P4-Relevanz: uds ist der Engine-Transport für native P1/P2/P3/P4-Callbacks. Legacy-passthrough wird abgelehnt, statt einen Always-Allow-Pfad zu erzeugen.
 
-Wählt source-only-passthrough oder die persistente UDS-Engine; das ausgewählte regelauswertende Beispiel verwendet uds.
+Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.
 
 ### Validierung und Fehler
 
@@ -1255,7 +1256,7 @@ Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../ex
 
 ### Sicherheit und Betrieb
 
-Middleware-Referenzen und ihre Reihenfolge müssen erhalten bleiben, damit die geprüfte Sicherheitsverarbeitung nicht umgangen wird.
+Den privaten uds-Pfad für das ausgewählte regelauswertende Deployment verwenden. Nicht auf einen passthrough-Fallback vertrauen; er wird abgelehnt.
 
 ### Technische Quellmetadaten (unverändert)
 
@@ -1263,8 +1264,6 @@ Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenang
 
 ```text
 value_type: native middleware engine-mode enum
-phase_relevance: passthrough always allows and supplies no rule evaluation; uds is the engine transport for native P1/P2/P3/P4 callbacks.
-security_relevance: Use uds for the selected rule-evaluating path; passthrough is intentionally not enforcement.
 ```
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath"></a>
@@ -1292,7 +1291,7 @@ http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSoc
 
 ### Standardwert
 
-Der Connector definiert für `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest.
+keiner (im uds-Modus erforderlich und validiert)
 
 Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
 
@@ -1328,7 +1327,6 @@ Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenang
 
 ```text
 value_type: absolute Unix-domain socket path
-default: none (ignored outside uds; required and validated in uds mode)
 phase_relevance: Transport endpoint for native P1/P2/P3/P4 engine callbacks when uds mode is selected.
 security_relevance: The socket directory and socket must be private to trusted processes; path traversal and NUL are rejected.
 ```
@@ -1467,6 +1465,61 @@ runtime_effect: Caps the number of request and response headers passed to native
 description: Caps the number of request and response headers passed to native middleware engine callbacks.
 ```
 
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes"></a>
+## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`
+
+### Kurzbeschreibung
+
+Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt.
+
+### Syntax
+
+```text
+http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes: <maxRequestBodyBytes>
+```
+
+### Gültige Kontexte
+
+- http.middlewares.<name>.plugin.modsecurityNative
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahliges aggregiertes Request-Body-Limit | positiv; maximal 1048576 Bytes | nein |
+
+### Standardwert
+
+1048576
+
+Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
+
+### Vererbung und Zusammenführung
+
+Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.
+
+Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plugin normalisiert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: P2-Gesamtlimit für den Request-Body; es ist vom Limit maxRequestChunkBytes pro Chunk getrennt.
+
+Begrenzt die gesamten Request-Body-Bytes über alle gestreamten Request-Chunks; ein Überlauf wird abgelehnt und die Transaktion bereinigt.
+
+### Validierung und Fehler
+
+normalizedConfig weist nichtpositive Werte, Werte über 1048576 und Chunks oberhalb des aggregierten Body-Limits ab.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `1048576`.
+
+Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
+
+### Sicherheit und Betrieb
+
+Ein endliches Gesamtbudget begrenzt die gesamte Request-Body-Verarbeitung, bevor sie die UDS-Engine erreicht.
+
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`
 
@@ -1599,6 +1652,69 @@ phase_relevance: P4 response-body callback bound; a late disruptive result remai
 security_relevance: The UDS wire contract rejects values above 32768; retain the bound for response-stream resource control.
 runtime_effect: Caps each streamed response-body chunk offered to the native middleware engine.
 description: Caps each streamed response-body chunk offered to the native middleware engine.
+```
+
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis"></a>
+## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`
+
+### Kurzbeschreibung
+
+Begrenzt die Inaktivität zwischen Request-Body-Lesevorgängen unabhängig vom Engine-Timeout und schließt die eigene Quelle bei Ablauf.
+
+### Syntax
+
+```text
+http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis: <requestBodyIdleTimeoutMillis>
+```
+
+### Gültige Kontexte
+
+- http.middlewares.<name>.plugin.modsecurityNative
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahliges Request-Body-Idle-Timeout-Limit | positiv; maximal 60000 Millisekunden | nein |
+
+### Standardwert
+
+1000
+
+Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
+
+### Vererbung und Zusammenführung
+
+Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.
+
+Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plugin normalisiert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: P2-Aktivitätsgrenze für den Request-Body vor dem Response-Commit; reguläre Lesevorgänge setzen das Idle-Fenster pro Lesevorgang zurück.
+
+Begrenzt die Inaktivität zwischen Request-Body-Lesevorgängen unabhängig vom Engine-Timeout und schließt die eigene Quelle bei Ablauf.
+
+### Validierung und Fehler
+
+normalizedConfig lehnt nichtpositive Werte und Werte über 60000 Millisekunden einschließlich Integer-Überläufen ab.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `1000`.
+
+Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
+
+### Sicherheit und Betrieb
+
+Ein endliches Idle-Budget pro Lesevorgang verhindert, dass ein langsamer oder blockierter Client eine Transaktion unbegrenzt hält.
+
+### Technische Quellmetadaten (unverändert)
+
+Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenangabe für diesen YAML-Pfad; Namen, konkrete Werte, Defaults und Protokollbegriffe bleiben dadurch vollständig nachvollziehbar.
+
+```text
+default: 1000
 ```
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader"></a>
@@ -2627,7 +2743,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2697,7 +2813,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `INFO`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2767,7 +2883,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2837,7 +2953,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Wert: Syntax oben und quellenbasierte Datei unten verwenden.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2907,7 +3023,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `"./traefik-dynamic.yaml"`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 
@@ -2977,7 +3093,7 @@ traefik check --configFile=<static-config>; die ausgewählte File-Provider-Konfi
 
 Ausgewählter Beispielwert: `false`.
 
-Quellenbasiertes Beispiel: [examples/traefik/minimal/traefik-static.yaml](../../examples/traefik/minimal/traefik-static.yaml).
+Quellenbasiertes Beispiel: [examples/traefik/off/traefik-static.yaml](../../examples/traefik/off/traefik-static.yaml).
 
 ### Sicherheit und Betrieb
 

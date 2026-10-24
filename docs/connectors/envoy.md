@@ -43,6 +43,46 @@ The selected <code>ext_proc</code> profile and the
 <code>compatibility-ext-authz</code> example have separate semantics. Do not
 present ext_authz response visibility as ext_proc P4 support.
 
+
+## ext_authz logical response companion
+
+The <code>ext_authz</code> request protocol does not carry a response stream.
+For the shared contract it transfers the live Common/native transaction after
+completed P1/P2 into a fixed 64-entry, TTL-bounded response companion. The
+authorization service generates a 256-bit opaque response handle with the
+kernel randomness API; it never exposes a transaction ID, connector ID, or
+host ID for correlation. The handle is accepted exactly once over the private
+MRC1 UDS, then the live transaction remains internal to Common Runtime.
+
+The supplied <code>envoy-ext-authz-smoke.yaml.in</code> wires this as one
+logical connector: <code>ext_authz</code> may copy only
+<code>x-msconnector-response-handle</code> onto Envoy's internal upstream-header
+path to the immediately following private-UDS <code>ext_proc</code> response
+observer. That observer claims and immediately removes the header before the
+real application upstream; it receives no request body. It sends P3
+before response commitment, P4 chunks/EOS afterwards, reports the actual host
+outcome, and releases or cancels the handle deterministically. Its default UDS
+and the C companion UDS are below <code>/run/modsecurity</code>; operators must
+provision that parent as a canonical, owner-only <code>0700</code> directory.
+There is no TCP fallback for either private binding.
+
+A missing, malformed, expired, duplicate, or already claimed handle is a
+protocol error. An unavailable observer, malformed MRC1 result, deadline, or
+cleanup failure is fail-closed: the configured <code>ext_proc</code> filter has
+<code>failure_mode_allow: false</code> and prevents routing rather than silently
+claiming P3/P4 coverage. TTL expiry records timeout and destroys the retained
+transaction; cancellation and observer shutdown use the same canonical cleanup
+path. The local harness starts the required observer with isolated owner-only
+sockets and passes the companion socket explicitly to the authorization
+service.
+
+This is source and component evidence only. A deployed Envoy instance still
+needs a configuration-validation and traffic run before it is described as
+host-runtime evidence.
+
+See the [shared transaction and phase contract](../../common/docs/transaction-phase-contract.md)
+for its exact state machine and decision policy.
+
 ## P1--P4 lifecycle and transport hardening
 
 The selected service must preserve bounded message handling, explicit session

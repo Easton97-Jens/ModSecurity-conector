@@ -43,7 +43,14 @@ typedef struct msconnector_modsecurity_engine_ops {
 } msconnector_modsecurity_engine_ops;
 
 typedef struct msconnector_modsecurity_engine { msconnector_modsecurity_engine_ops ops; void *rules_set; int initialized; } msconnector_modsecurity_engine;
-typedef struct msconnector_modsecurity_transaction { msconnector_modsecurity_engine *engine; void *native_transaction; msconnector_transaction_state state; } msconnector_modsecurity_transaction;
+typedef struct msconnector_modsecurity_transaction {
+    msconnector_modsecurity_engine *engine;
+    void *native_transaction;
+    msconnector_transaction_state state;
+    /* Optional owner-owned state. When bound, this is the only P1-P4 state
+     * mutated by the engine wrapper; `state` retains legacy lifecycle flags. */
+    msconnector_transaction_contract *contract;
+} msconnector_modsecurity_transaction;
 
 void msconnector_modsecurity_engine_init(msconnector_modsecurity_engine *engine, const msconnector_modsecurity_engine_ops *ops);
 int msconnector_modsecurity_engine_start(msconnector_modsecurity_engine *engine, msconnector_error *error);
@@ -51,6 +58,9 @@ void msconnector_modsecurity_engine_cleanup(msconnector_modsecurity_engine *engi
 int msconnector_modsecurity_engine_create_rules(msconnector_modsecurity_engine *engine, msconnector_error *error);
 void msconnector_modsecurity_engine_destroy_rules(msconnector_modsecurity_engine *engine);
 int msconnector_modsecurity_transaction_init(msconnector_modsecurity_transaction *tx, msconnector_modsecurity_engine *engine, const char *transaction_id, msconnector_error *error);
+void msconnector_modsecurity_transaction_bind_contract(
+    msconnector_modsecurity_transaction *tx,
+    msconnector_transaction_contract *contract);
 void msconnector_modsecurity_transaction_cleanup(msconnector_modsecurity_transaction *tx);
 int msconnector_modsecurity_process_connection(msconnector_modsecurity_transaction *tx, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_request_headers(msconnector_modsecurity_transaction *tx, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error);
@@ -58,9 +68,24 @@ int msconnector_modsecurity_process_request_body(msconnector_modsecurity_transac
 int msconnector_modsecurity_append_request_body(msconnector_modsecurity_transaction *tx, const unsigned char *data, size_t size, msconnector_error *error);
 int msconnector_modsecurity_finish_request_body(msconnector_modsecurity_transaction *tx, msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_response_headers(msconnector_modsecurity_transaction *tx, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error);
+/* Response-companion variants are reserved for profiles whose request-side
+ * protocol cannot carry P3/P4. They retain the same native transaction and
+ * use the canonical companion route instead of pretending P3/P4 are direct. */
+int msconnector_modsecurity_process_response_headers_companion(
+    msconnector_modsecurity_transaction *tx, const msconnector_response *response,
+    msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_process_response_body(msconnector_modsecurity_transaction *tx, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error);
+int msconnector_modsecurity_process_response_body_companion(
+    msconnector_modsecurity_transaction *tx, const msconnector_response *response,
+    msconnector_decision *decision, msconnector_error *error);
 int msconnector_modsecurity_append_response_body(msconnector_modsecurity_transaction *tx, const unsigned char *data, size_t size, msconnector_error *error);
+int msconnector_modsecurity_append_response_body_companion(
+    msconnector_modsecurity_transaction *tx, const unsigned char *data, size_t size,
+    msconnector_error *error);
 int msconnector_modsecurity_finish_response_body(msconnector_modsecurity_transaction *tx, msconnector_decision *decision, msconnector_error *error);
+int msconnector_modsecurity_finish_response_body_companion(
+    msconnector_modsecurity_transaction *tx, msconnector_decision *decision,
+    msconnector_error *error);
 int msconnector_modsecurity_process_logging(msconnector_modsecurity_transaction *tx, msconnector_error *error);
 
 #ifdef __cplusplus

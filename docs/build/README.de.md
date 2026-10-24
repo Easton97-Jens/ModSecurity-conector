@@ -424,27 +424,37 @@ separat beobachtete Ausführungs-Evidence.
 
 Die eingecheckte Root-<code>.go-version</code> ist der einzige
 maschinenlesbare Go-CI-Toolchain-Selector. Ihr erforderlicher Inhalt ist der
-exakte stabile Patch <code>1.26.5</code>. Die zwei Go-CodeQL-Jobs verwenden:
+exakte stabile numerische Release <code>MAJOR.MINOR.PATCH</code>; in dieser
+Revision lautet er <code>1.27.1</code>. Der Trusted-Base-CodeQL-Selector
+validiert diese Form, und die zwei Go-CodeQL-Jobs verwenden ausschließlich
+seine Ausgabe:
 
 ~~~yaml
-go-version-file: .go-version
+go-version: ${{ needs.trusted-go-version.outputs.version }}
 check-latest: false
 ~~~
 
-Der Selector ersetzt bewusst keine <code>go.mod</code>-Direktive der beiden
-Module. Eine Modul-Direktive bleibt der modul-eigene Go-Sprach- und
-Kompatibilitätsvertrag, und der Updater verändert niemals
-<code>go.mod</code>, <code>go.sum</code>, Abhängigkeiten oder eine
-<code>toolchain</code>-Direktive.
+Der Toolchain-Selector ersetzt bewusst keine <code>go</code>- oder
+<code>toolchain</code>-Direktive eines Moduls; diese bleiben der modul-eigene
+Go-Sprach- und Kompatibilitätsvertrag. Davon getrennt erlaubt der Updater genau
+ein Abhängigkeits-Bundle in <code>connectors/envoy/ext_proc</code>:
+`google.golang.org/grpc` von <code>v1.83.1</code> auf
+<code>v1.83.2</code>, mit den erforderlichen Übergängen
+<code>golang.org/x/sys</code> von <code>v0.46.0</code> auf
+<code>v0.47.0</code>, <code>golang.org/x/net</code> von
+<code>v0.56.0</code> auf <code>v0.58.0</code> und
+<code>golang.org/x/text</code> von <code>v0.39.0</code> auf
+<code>v0.41.0</code>. Beliebige Abhängigkeiten, nicht registrierte Pfade und
+Dateimodus-Änderungen weist er zurück.
 
 <code>.github/workflows/update-go-version.yml</code> folgt derselben
 dreistufigen Trust-Grenze wie der Python-Updater:
 
 | Job | Toolchain und Trust-Grenze | Erforderliches Verhalten |
 | --- | --- | --- |
-| <code>resolve-go-patch</code> | Kanonische <code>.go-version</code>; read-only | Ruft nur den exakten Go-Release-Endpoint <code>https://go.dev/dl/?mode=json</code> auf, weist Redirects sowie fehlerhafte oder zu große Metadaten zurück und akzeptiert nur einen höheren stabilen exakten <code>1.26.N</code>-Patch. |
-| <code>validate-go-patch</code> | Unabhängig aufgelöster Go-Candidate; read-only | Löst den Candidate erneut auf, führt den statischen Vertrag und fokussierte Tests aus und validiert dann jedes tatsächliche Modul mit <code>GOTOOLCHAIN=local</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet</code> und <code>go build -mod=readonly</code>. Es kann weder auf eine heruntergeladene Go-Toolchain zurückfallen noch Moduldateien schreiben. |
-| <code>create-go-update-pr</code> | Kanonisches Python für den begrenzten Updater; enger Publisher | Löst mit <code>--expected-version</code> erneut auf, ändert nur <code>.go-version</code> und darf nur den repository-eigenen Draft PR auf <code>automation/update-go-126</code> erstellen oder sicher aktualisieren. Er hat nur Contents- und Pull-Requests-Write-Berechtigungen. |
+| <code>resolve-go-release</code> | Kanonische <code>.go-version</code> und eingecheckte Komponentenpolicy; <code>contents: read</code> | Ruft nur den exakten Go-Release-Endpoint <code>https://go.dev/dl/?mode=json</code> auf, weist Redirects sowie fehlerhafte oder zu große Metadaten zurück, akzeptiert die höchste stabile exakte numerische Release <code>MAJOR.MINOR.PATCH</code> und löst ausschließlich das feste Envoy-Komponenten-Bundle auf. |
+| <code>validate-go-release</code> | Unabhängig aufgelöster Candidate-Checkout; <code>contents: read</code> | Löst den Candidate erneut auf, führt statischen Vertrag und fokussierte Tests aus, erzeugt den festen Komponenten-Candidate nur bei Freigabe, bindet dessen <code>go.mod</code>/<code>go.sum</code>-Hashes und validiert dann jedes tatsächliche Modul mit <code>GOTOOLCHAIN=local</code>, <code>go mod tidy -diff</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet -mod=readonly</code> und <code>go build -mod=readonly</code>. Es kann weder auf eine heruntergeladene Go-Toolchain zurückfallen noch publizieren oder einen Remote-Branch verändern. |
+| <code>create-go-update-pr</code> | Kanonisches Python für den begrenzten Updater; enger Publisher | Löst mit <code>--expected-version</code> erneut auf, regeneriert ausschließlich den unabhängig validierten Candidate und darf nur <code>.go-version</code> und/oder <code>connectors/envoy/ext_proc/go.mod</code> plus <code>go.sum</code> ändern. Alle anderen Pfad-, Modus- und Content-Hashes weist er zurück, bevor er den repository-eigenen Draft PR auf <code>automation/update-go-release</code> erstellen oder sicher aktualisieren darf. Er hat nur Contents- und Pull-Requests-Write-Berechtigungen. |
 
 Der Updater ist Python, weil der begrenzte, offline-testbare Release-Parser
 eingechecktes Python ist. Jeder Go-Updater-Job verwendet daher zuerst die
@@ -463,15 +473,15 @@ dieser exakten Versionsänderung; sie ändert weder vorhandenen Workflow-Pin
 noch Lock-Eintrag, Berechtigungen, Trigger oder Publisher-Grenze.
 
 Die verfügbaren lokalen Executables sind Python <code>3.14.4</code> und Go
-<code>1.26.0</code>, nicht die geforderten exakten Baselines Python
-<code>3.14.6</code> und Go <code>1.26.5</code>. Sie können nur Source-Level-
-und statische Validierung unterstützen. Ein exakter GitHub-gehosteter
-Workflow-Lauf, der die beiden deklarierten Versionen installiert, ist
-erforderlich, bevor diese Änderung als verifizierte CI-Evidence gelten kann.
-Der verlinkte Change Record hält tatsächliche Befehle, deren Ergebnisse und
-eine etwaige Framework-abhängige Einschränkung der Dokumentationsprüfung fest,
-ohne ein lokales Ergebnis in Connector-Runtime- oder Remote-CI-Evidence
-umzudeuten.
+<code>1.27.1</code>. Go entspricht dem aktuellen
+<code>.go-version</code>-Selector; Python liegt unter dem aktuellen
+<code>.python-version</code>-Selector <code>3.14.7</code>. Die lokale
+Go-Toolchain unterstützt die gewählte Modulvalidierung, aber ein exakter
+GitHub-gehosteter Workflow-Lauf bleibt erforderlich, bevor diese Änderung als
+verifizierte CI-Evidence gelten kann. Der verlinkte Change Record hält
+tatsächliche Befehle, deren Ergebnisse und eine etwaige Framework-abhängige
+Einschränkung der Dokumentationsprüfung fest, ohne ein lokales Ergebnis in
+Connector-Runtime- oder Remote-CI-Evidence umzudeuten.
 
 ## Compiler- und Linker-Variablen
 

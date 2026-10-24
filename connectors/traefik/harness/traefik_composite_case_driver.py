@@ -53,7 +53,7 @@ VECTOR_FOR_CASE = {
     "p2_deny": "p2_only",
     "p2_oversize": "p2_body_limit",
     "p3_deny": "p3_only",
-    "p3_redirect": "p3_only",
+    "p3_redirect": "p3_redirect",
     "p4_safe": "p4_safe",
     "p4_strict": "p4_strict",
     "metadata_omitted": "allow_control",
@@ -65,7 +65,7 @@ ALLOWED_EVENT_KEYS = {
     "cleanup_outcome", "event_time", "rule_id", "request_path",
     "response_path", "transport",
 }
-FORBIDDEN_OUTPUT_KEYS = ("body", "payload", "lease", "credential", "secret", "token", "password")
+FORBIDDEN_OUTPUT_KEYS = ("body", "payload", "lease", "location", "credential", "secret", "token", "password")
 
 
 def fail(message: str) -> NoReturn:
@@ -86,24 +86,15 @@ def load_catalog(runtime: Any, leaf: str) -> dict[str, Any]:
 
 
 def select_case(catalog: dict[str, Any], runtime_root: Path) -> tuple[str, dict[str, Any]]:
+    del runtime_root
     selected = catalog.get("selected_case")
-    if selected is not None:
-        if not isinstance(selected, str) or selected not in CASES:
-            fail("selected_case must name one supported verifier case")
-        candidates = [v for v in catalog["vectors"] if isinstance(v, dict) and v.get("id") == VECTOR_FOR_CASE[selected]]
-        if len(candidates) != 1:
-            fail("selected_case does not resolve to exactly one catalog vector")
-        return selected, candidates[0]
-    name = runtime_root.name
-    matches = [case for case in CASES if re.search(rf"(?:^|[-_.]){re.escape(case)}(?:$|[-_.])", name)]
-    if len(matches) != 1:
-        fail("runtime-root must contain exactly one explicit verifier case name")
-    case = matches[0]
-    vector_id = VECTOR_FOR_CASE[case]
+    if not isinstance(selected, str) or selected not in CASES:
+        fail("selected_case must name one supported verifier case")
+    vector_id = VECTOR_FOR_CASE[selected]
     candidates = [v for v in catalog["vectors"] if isinstance(v, dict) and v.get("id") == vector_id]
     if len(candidates) != 1:
-        fail("runtime-root case does not resolve to exactly one catalog vector")
-    return case, candidates[0]
+        fail("selected_case does not resolve to exactly one catalog vector")
+    return selected, candidates[0]
 
 
 def request_body(vector: dict[str, Any]) -> bytes:
@@ -179,7 +170,27 @@ def _read_response_headers(sock: socket.socket) -> tuple[bytearray, int]:
     return data, separator
 
 
-def _parse_response_headers(header_block: list[bytes]) -> tuple[int, int | None]:
+def _parse_content_length(value: bytes, current: int | None) -> int:
+    if current is not None or not value.strip().isdigit():
+        fail("upstream response content length is invalid")
+    length = int(value.strip())
+    if length > 32 * 1024:
+        fail("upstream response body exceeds the bounded response size")
+    return length
+
+
+def _parse_location(value: bytes) -> bytes:
+    normalized = value.strip(b" \t")
+    if (
+        not normalized
+        or len(normalized) > 2048
+        or any(octet < 0x20 or octet == 0x7F for octet in normalized)
+    ):
+        fail("upstream response Location is invalid")
+    return normalized
+
+
+def _parse_response_headers(header_block: list[bytes]) -> tuple[int, int | None, tuple[bytes, ...]]:
     match = re.fullmatch(rb"HTTP/1\.1 (\d{3})(?: [^\r\n]*)?", header_block[0])
     if not match:
         fail("upstream response status line is invalid")
@@ -187,17 +198,17 @@ def _parse_response_headers(header_block: list[bytes]) -> tuple[int, int | None]
     if not 100 <= status <= 599:
         fail("upstream response status is invalid")
     content_length: int | None = None
+    locations: list[bytes] = []
     for header in header_block[1:]:
         name, header_separator, value = header.partition(b":")
         if not header_separator or not re.fullmatch(rb"[A-Za-z0-9!#$%&'*+.^_`|~-]+", name):
             fail("upstream response header is invalid")
-        if name.lower() == b"content-length":
-            if content_length is not None or not value.strip().isdigit():
-                fail("upstream response content length is invalid")
-            content_length = int(value.strip())
-            if content_length > 32 * 1024:
-                fail("upstream response body exceeds the bounded response size")
-    return status, content_length
+        normalized_name = name.lower()
+        if normalized_name == b"content-length":
+            content_length = _parse_content_length(value, content_length)
+        elif normalized_name == b"location":
+            locations.append(_parse_location(value))
+    return status, content_length, tuple(locations)
 
 
 def _read_response_body(
@@ -216,10 +227,12 @@ def _read_response_body(
         del body[content_length:]
 
 
-def _read_http_response(sock: socket.socket) -> int:
+def _read_http_response(sock: socket.socket, expected_location: bytes | None = None) -> int:
     data, separator = _read_response_headers(sock)
     header_block = bytes(data[:separator]).split(b"\r\n")
-    status, content_length = _parse_response_headers(header_block)
+    status, content_length, locations = _parse_response_headers(header_block)
+    if expected_location is not None and locations != (expected_location,):
+        fail("upstream response does not contain exactly one expected Location")
     body = bytearray(data[separator + 4 :])
     _read_response_body(sock, body, content_length)
     return status
@@ -259,8 +272,31 @@ def _build_request_wire(
     return wire
 
 
+def _expected_redirect_location(case: str, vector: dict[str, Any]) -> bytes | None:
+    if case != "p3_redirect":
+        return None
+    expected = vector.get("expected")
+    if not isinstance(expected, dict):
+        fail("P3 redirect vector expected metadata is invalid")
+    target = expected.get("redirect_target")
+    if (
+        not isinstance(target, str)
+        or not 1 <= len(target) <= 2048
+        or target != target.strip()
+        or not target.startswith("/")
+        or target.startswith("//")
+        or any(ord(character) < 0x20 or ord(character) == 0x7F for character in target)
+    ):
+        fail("P3 redirect vector target is invalid")
+    try:
+        return target.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise RuntimeError("P3 redirect vector target must be ASCII") from exc
+
+
 def http_request(
-    port: int, vector: dict[str, Any], add_client_lease: bool, timeout: float = 5.0
+    port: int, vector: dict[str, Any], add_client_lease: bool, timeout: float = 5.0,
+    expected_location: bytes | None = None,
 ) -> tuple[int | None, bool]:
     if not isinstance(port, int) or not 1 <= port <= 65535:
         fail("port is outside the valid range")
@@ -269,7 +305,7 @@ def http_request(
         with socket.create_connection(("127.0.0.1", port), timeout=timeout) as conn:
             conn.settimeout(timeout)
             conn.sendall(wire)
-            return _read_http_response(conn), True
+            return _read_http_response(conn, expected_location), True
     except (OSError, ValueError, RuntimeError):
         return None, False
 
@@ -278,7 +314,7 @@ def expected_status(case: str) -> set[int] | None:
     return {
         "p1_allow": set(range(200, 300)), "p1_deny": {403},
         "p2_allow": set(range(200, 300)), "p2_deny": {403},
-        "p2_oversize": {413}, "p3_deny": {403}, "p3_redirect": set(range(300, 400)),
+        "p2_oversize": {413}, "p3_deny": {403}, "p3_redirect": {302},
         "p4_safe": {200}, "p4_strict": None,
         "metadata_omitted": {503}, "p2_to_p3_timeout": {503},
     }[case]
@@ -327,8 +363,15 @@ def main(argv: list[str] | None = None) -> int:
         with runtime:
             catalog = load_catalog(runtime, input_leaf)
             case, vector = select_case(catalog, runtime_root)
+            expected_location = _expected_redirect_location(case, vector)
             request_timeout = 10.0 if case == "p2_to_p3_timeout" else 5.0
-            status, response_completed = http_request(args.port, vector, case == "p1_allow", request_timeout)
+            status, response_completed = http_request(
+                args.port,
+                vector,
+                case == "p1_allow",
+                request_timeout,
+                expected_location,
+            )
             allowed = expected_status(case)
             if allowed is not None and status not in allowed:
                 fail(f"{case} returned an unexpected client status")
@@ -343,7 +386,12 @@ def main(argv: list[str] | None = None) -> int:
                 fail("observer phases do not match the selected isolated case")
             client = {
                 "lease_observed": False, "visible_status": status,
-                "p4_outcome": "none", "p4_visible_status": None,
+                "redirect_location_verified": bool(expected_location is not None and response_completed),
+                # The client socket is the bounded source of truth for the
+                # committed P4 Safe status. Do not infer it from the
+                # intermediate P4 deny event or a case/path name.
+                "p4_outcome": "none",
+                "p4_visible_status": status if case == "p4_safe" and response_completed else None,
                 "p4_response_committed": bool(response_completed and case in {"p1_allow", "p2_allow", "p4_safe"}),
             }
             upstream = {

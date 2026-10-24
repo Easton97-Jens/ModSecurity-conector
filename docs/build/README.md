@@ -396,27 +396,36 @@ merge. Those results require separately observed execution evidence.
 ## Parent CI Go-toolchain contract
 
 The committed root <code>.go-version</code> is the sole machine-readable Go
-CI toolchain selector. Its required content is the exact stable patch
-<code>1.26.5</code>. The two Go CodeQL jobs use:
+CI toolchain selector. Its required content is one exact stable numeric
+<code>MAJOR.MINOR.PATCH</code> release; at this revision it is
+<code>1.27.1</code>. The trusted-base CodeQL selector validates that form and
+the two Go CodeQL jobs use only its output:
 
 ~~~yaml
-go-version-file: .go-version
+go-version: ${{ needs.trusted-go-version.outputs.version }}
 check-latest: false
 ~~~
 
-The selector deliberately does not replace either module's <code>go.mod</code>
-directive. A module directive remains the module-owned Go language and
-compatibility contract, and the updater never edits <code>go.mod</code>,
-<code>go.sum</code>, dependencies, or a <code>toolchain</code> directive.
+The toolchain selector deliberately does not replace any module's
+<code>go</code> or <code>toolchain</code> directive; those remain the
+module-owned Go language and compatibility contract. Separately, the updater
+permits exactly one dependency bundle in
+<code>connectors/envoy/ext_proc</code>: `google.golang.org/grpc`
+<code>v1.83.1</code> to <code>v1.83.2</code>, with its required
+<code>golang.org/x/sys</code> <code>v0.46.0</code> to <code>v0.47.0</code>,
+<code>golang.org/x/net</code> <code>v0.56.0</code> to <code>v0.58.0</code>,
+and <code>golang.org/x/text</code> <code>v0.39.0</code> to
+<code>v0.41.0</code> transitions. It rejects arbitrary dependencies,
+unregistered paths, and file-mode changes.
 
 <code>.github/workflows/update-go-version.yml</code> follows the same
 three-stage trust boundary as the Python updater:
 
 | Job | Toolchain and trust boundary | Required behavior |
 | --- | --- | --- |
-| <code>resolve-go-patch</code> | Canonical <code>.go-version</code>; read-only | Calls only the exact Go release endpoint <code>https://go.dev/dl/?mode=json</code>, rejects redirects and malformed or oversized metadata, and accepts only a higher stable exact <code>1.26.N</code> patch. |
-| <code>validate-go-patch</code> | Independently resolved Go candidate; read-only | Re-resolves the candidate, runs the static contract and focused tests, then validates each actual module with <code>GOTOOLCHAIN=local</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet</code>, and <code>go build -mod=readonly</code>. It cannot fall back to a downloaded Go toolchain or write module files. |
-| <code>create-go-update-pr</code> | Canonical Python for the bounded updater; narrow publisher | Re-resolves with <code>--expected-version</code>, changes only <code>.go-version</code>, and may create or safely update only the repository-owned Draft PR on <code>automation/update-go-126</code>. It has only contents and pull-requests write permissions. |
+| <code>resolve-go-release</code> | Canonical <code>.go-version</code> and checked-in component policy; <code>contents: read</code> | Calls only the exact Go release endpoint <code>https://go.dev/dl/?mode=json</code>, rejects redirects and malformed or oversized metadata, accepts the greatest stable exact numeric <code>MAJOR.MINOR.PATCH</code> release, and resolves only the fixed Envoy component bundle. |
+| <code>validate-go-release</code> | Independently resolved candidate checkout; <code>contents: read</code> | Re-resolves the candidate, runs the static contract and focused tests, creates the fixed component candidate only when approved, binds its <code>go.mod</code>/<code>go.sum</code> hashes, then validates every actual module with <code>GOTOOLCHAIN=local</code>, <code>go mod tidy -diff</code>, <code>go mod verify</code>, <code>go test -mod=readonly</code>, <code>go vet -mod=readonly</code>, and <code>go build -mod=readonly</code>. It cannot fall back to a downloaded Go toolchain, publish, or modify a remote branch. |
+| <code>create-go-update-pr</code> | Canonical Python for the bounded updater; narrow publisher | Re-resolves with <code>--expected-version</code>, regenerates only the independently validated candidate, and may change only <code>.go-version</code> and/or <code>connectors/envoy/ext_proc/go.mod</code> plus <code>go.sum</code>. It rejects all other path, mode, and content hashes before it may create or safely update the repository-owned Draft PR on <code>automation/update-go-release</code>. It has only contents and pull-requests write permissions. |
 
 The updater is Python because the bounded, offline-testable release parser is
 checked-in Python. Each Go updater job therefore first uses the existing
@@ -434,13 +443,14 @@ the existing workflow pin, lock entry, permissions, triggers, or publisher
 boundary.
 
 The available local executables are Python <code>3.14.4</code> and Go
-<code>1.26.0</code>, not the required exact Python <code>3.14.6</code> and Go
-<code>1.26.5</code> baselines. They can support source-level and static
-validation only. An exact GitHub-hosted workflow run that installs the two
-declared versions is required before this change can be treated as verified
-CI evidence. The linked Change Record records actual commands, their results,
-and any Framework-dependent documentation-check limitation without turning a
-local result into connector runtime or remote-CI evidence.
+<code>1.27.1</code>. Go matches the current <code>.go-version</code> selector;
+Python is below the current <code>.python-version</code> selector
+<code>3.14.7</code>. The local Go toolchain supports the selected module
+validation, but an exact GitHub-hosted workflow run is still required before
+this change can be treated as verified CI evidence. The linked Change Record
+records actual commands, their results, and any Framework-dependent
+documentation-check limitation without turning a local result into connector
+runtime or remote-CI evidence.
 
 ## Compiler and linker variables
 

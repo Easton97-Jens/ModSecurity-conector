@@ -6,6 +6,8 @@ BUILD_ROOT ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)/Mod
 	build-lighttpd-patched-core build-lighttpd-patched-host \
 	build-lighttpd-patched-connector check-lighttpd-patched-host \
 	runtime-smoke-lighttpd-patched \
+	build-lighttpd-stock-sidecar self-test-lighttpd-stock-sidecar \
+	self-test-lighttpd-stock-real-backend \
 	check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd \
 	no-crs-baseline-lighttpd clean
 
@@ -47,6 +49,25 @@ check-lighttpd-patched-host: build-lighttpd-patched-host
 
 runtime-smoke-lighttpd-patched: build-lighttpd-patched-host
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/run_patched_lifecycle_smoke.sh
+
+build-lighttpd-stock-sidecar:
+	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_stock_sidecar.sh
+
+self-test-lighttpd-stock-sidecar: build-lighttpd-stock-sidecar
+	PYTHONDONTWRITEBYTECODE=1 MSCONNECTOR_STOCK_SIDECAR_BINARY="$(BUILD_ROOT)/lighttpd-stock-sidecar/lighttpd-stock-sidecar" \
+		python3 tests/test_stock_sidecar_contract.py
+
+self-test-lighttpd-stock-real-backend: build-lighttpd-stock-sidecar
+	mkdir -p "$(BUILD_ROOT)/stock-real-backend"
+	chmod 700 "$(BUILD_ROOT)/stock-real-backend"
+	PYTHONDONTWRITEBYTECODE=1 \
+		STOCK_LIGHTTPD_BIN="$(STOCK_LIGHTTPD_BIN)" \
+		STOCK_LIGHTTPD_MODULE_DIR="$(STOCK_LIGHTTPD_MODULE_DIR)" \
+		STOCK_SIDECAR_ARTIFACT_ATTESTATION="$(STOCK_SIDECAR_ARTIFACT_ATTESTATION)" \
+		MSCONNECTOR_STOCK_SIDECAR_BINARY="$(BUILD_ROOT)/lighttpd-stock-sidecar/lighttpd-stock-sidecar" \
+		STOCK_SIDECAR_RUNTIME_ROOT="$(BUILD_ROOT)/stock-real-backend" \
+		STOCK_SIDECAR_RECEIPT_PATH="$(BUILD_ROOT)/stock-real-backend/real-backend-receipt.json" \
+		python3 harness/run_stock_sidecar_real_backend.py
 
 check-lighttpd-config: build-lighttpd-connector
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/check_lighttpd_config.sh

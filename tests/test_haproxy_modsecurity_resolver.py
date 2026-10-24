@@ -6,6 +6,7 @@ import os
 import importlib.util
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -115,6 +116,51 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
             result = self.run_resolver(root / "resolution.env", env)
             self.assertEqual(result.returncode, 77)
             self.assertIn("architecture", result.stderr)
+            self.assertIn("sentinel=architecture_mismatch", result.stderr)
+
+    def test_required_header_failures_are_specific_for_every_header_mask(self) -> None:
+        cases = (
+            (("modsecurity.h",), "header_modsecurity_h_missing"),
+            (("rules_set.h",), "header_rules_set_h_missing"),
+            (("transaction.h",), "header_transaction_h_missing"),
+            (
+                ("modsecurity.h", "rules_set.h"),
+                "headers_modsecurity_h_and_rules_set_h_missing",
+            ),
+            (
+                ("modsecurity.h", "transaction.h"),
+                "headers_modsecurity_h_and_transaction_h_missing",
+            ),
+            (
+                ("rules_set.h", "transaction.h"),
+                "headers_rules_set_h_and_transaction_h_missing",
+            ),
+            (
+                ("modsecurity.h", "rules_set.h", "transaction.h"),
+                "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+            ),
+        )
+        for missing_headers, expected_cause in cases:
+            with self.subTest(missing_headers=missing_headers):
+                with tempfile.TemporaryDirectory(prefix="haproxy-resolver-header-") as temporary:
+                    root = Path(temporary)
+                    include_dir, lib_dir = self.make_installation(root / "installation")
+                    for header in missing_headers:
+                        (include_dir / "modsecurity" / header).unlink()
+                    output = root / "resolution.env"
+                    env = os.environ.copy()
+                    env["MODSECURITY_INCLUDE_DIR"] = str(include_dir)
+                    env["MODSECURITY_LIB_DIR"] = str(lib_dir)
+
+                    result = self.run_resolver(output, env)
+
+                    self.assertEqual(result.returncode, 77)
+                    self.assertEqual(result.stdout, "")
+                    self.assertEqual(
+                        result.stderr.splitlines()[0],
+                        "BLOCKED: HAProxy libModSecurity resolver: sentinel=" + expected_cause,
+                    )
+                    self.assertFalse(output.exists())
 
     def test_shared_library_symlink_is_resolved_for_validation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="haproxy-resolver-symlink-") as temporary:
@@ -151,6 +197,7 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
             result = self.run_resolver(output, env)
             self.assertEqual(result.returncode, 77)
             self.assertIn("libmodsecurity is missing", result.stderr)
+            self.assertIn("sentinel=library_missing", result.stderr)
             self.assertFalse(marker.exists())
             self.assertFalse(output.exists())
 
@@ -164,6 +211,7 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
             env["MODSECURITY_LIB_DIR"] = f"{root}/lib"
             result = self.run_resolver(output, env)
             self.assertEqual(result.returncode, 77)
+            self.assertIn("sentinel=invalid_path_syntax", result.stderr)
             self.assertFalse(marker.exists())
             self.assertFalse(output.exists())
 
@@ -182,6 +230,7 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(result.returncode, 77)
+            self.assertIn("sentinel=invalid_path_syntax", result.stderr)
             self.assertFalse(marker.exists())
 
     def test_contract_mentions_distro_paths_and_htx_provenance(self) -> None:
@@ -193,6 +242,53 @@ class HAProxyModSecurityResolverTests(unittest.TestCase):
         self.assertIn("/usr/lib/x86_64-linux-gnu", resolver)
         self.assertIn("version-contract.json", overlay)
         self.assertIn("HAPROXY_VERSION=$(contract_field version)", overlay)
+
+    def test_resolver_diagnostic_sentinel_contract_is_closed_and_complete(self) -> None:
+        resolver = RESOLVER.read_text(encoding="utf-8")
+        expected_causes = {
+            "invalid_path_syntax",
+            "output_path_not_absolute",
+            "output_path_symlink",
+            "path_contains_whitespace",
+            "headers_not_found",
+            "library_not_found",
+            "headers_missing",
+            "headers_modsecurity_h_and_rules_set_h_missing",
+            "headers_modsecurity_h_and_transaction_h_missing",
+            "headers_rules_set_h_and_transaction_h_missing",
+            "headers_modsecurity_h_and_rules_set_h_and_transaction_h_missing",
+            "header_modsecurity_h_missing",
+            "header_rules_set_h_missing",
+            "header_transaction_h_missing",
+            "library_missing",
+            "readlink_missing",
+            "library_target_unresolved",
+            "library_target_not_regular",
+            "file_missing",
+            "architecture_mismatch",
+            "ldd_missing",
+            "unresolved_runtime_dependencies",
+        }
+        blocked_causes = set(re.findall(r"\bblocked ([a-z_]+) ", resolver))
+        emitted_causes = set(re.findall(r"sentinel=([a-z_]+)'", resolver))
+
+        self.assertEqual(blocked_causes, expected_causes)
+        self.assertEqual(emitted_causes, expected_causes)
+
+    def test_spoa_common_sources_receive_the_resolved_modsecurity_include_dir(self) -> None:
+        makefile = (ROOT / "connectors/haproxy/Makefile").read_text(encoding="utf-8")
+        runtime = (ROOT / "common/runtime/msconnector_runtime.c").read_text(encoding="utf-8")
+        spoa_rule = makefile[
+            makefile.index("$(SPOA_RUNTIME_BIN):") : makefile.index("$(MODSECURITY_BINDING_BIN):")
+        ]
+
+        self.assertIn("$(RESPONSE_COMPANION_SRCS)", spoa_rule)
+        self.assertIn('#include "modsecurity/modsecurity.h"', runtime)
+        self.assertIn(
+            '$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" '
+            '-I"$(REPO_ROOT)/common/runtime" -Isrc -c "$$src" -o "$$obj"',
+            spoa_rule,
+        )
 
     def test_version_contract_accepts_the_repository_contract(self) -> None:
         contract = CONTRACT_MODULE.load_contract(CONTRACT)

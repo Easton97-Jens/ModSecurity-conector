@@ -20,8 +20,8 @@ func configuredEngine(runtimeConfigPath string) (engineRuntime, error) {
 	}
 	return engineRuntime{
 		engine: engine,
-		close: func(context.Context) error {
-			return engine.Close()
+		close: func(ctx context.Context) error {
+			return engine.Close(ctx)
 		},
 	}, nil
 }

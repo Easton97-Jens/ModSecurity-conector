@@ -25,6 +25,11 @@ static const msconnector_error_description msconnector_error_descriptions[] = {
     {MSCONNECTOR_ERROR_MODSECURITY_FAILURE, "modsecurity_failure", "ModSecurity failure"},
     {MSCONNECTOR_ERROR_TIMEOUT, "timeout", "Operation timed out"},
     {MSCONNECTOR_ERROR_IO, "io", "I/O error"},
+    {MSCONNECTOR_ERROR_PROTOCOL, "protocol", "Connector protocol error"},
+    {MSCONNECTOR_ERROR_PHASE_SEQUENCE, "phase_sequence", "Invalid transaction phase sequence"},
+    {MSCONNECTOR_ERROR_CORRELATION_MISSING, "correlation_missing", "Response companion correlation is missing"},
+    {MSCONNECTOR_ERROR_CORRELATION_EXPIRED, "correlation_expired", "Response companion correlation expired"},
+    {MSCONNECTOR_ERROR_CORRELATION_MISMATCH, "correlation_mismatch", "Response companion correlation does not match"},
     {MSCONNECTOR_ERROR_INTERNAL, "internal", "Internal connector error"}
 };
 
@@ -74,10 +79,15 @@ int msconnector_error_http_status(msconnector_error_code code) {
     case MSCONNECTOR_ERROR_EVENT_TOO_LARGE:
     case MSCONNECTOR_ERROR_LOG_MESSAGE_TOO_LARGE: return 413;
     case MSCONNECTOR_ERROR_TIMEOUT: return 504;
+    case MSCONNECTOR_ERROR_CORRELATION_EXPIRED: return 504;
+    case MSCONNECTOR_ERROR_CORRELATION_MISSING:
+    case MSCONNECTOR_ERROR_CORRELATION_MISMATCH: return 502;
+    case MSCONNECTOR_ERROR_PROTOCOL: return 502;
+    case MSCONNECTOR_ERROR_PHASE_SEQUENCE: return MSCONNECTOR_DEFAULT_ERROR_STATUS;
     default: return MSCONNECTOR_DEFAULT_ERROR_STATUS;
     }
 }
-int msconnector_error_is_fatal(msconnector_error_code code) { return code == MSCONNECTOR_ERROR_INVALID_CONFIG || code == MSCONNECTOR_ERROR_RULE_PARSE_FAILED || code == MSCONNECTOR_ERROR_RULE_LOAD_FAILED || code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE || code == MSCONNECTOR_ERROR_HOST_API_FAILURE || code == MSCONNECTOR_ERROR_MODSECURITY_FAILURE || code == MSCONNECTOR_ERROR_TIMEOUT || code == MSCONNECTOR_ERROR_IO || code == MSCONNECTOR_ERROR_INTERNAL; }
+int msconnector_error_is_fatal(msconnector_error_code code) { return code == MSCONNECTOR_ERROR_INVALID_CONFIG || code == MSCONNECTOR_ERROR_RULE_PARSE_FAILED || code == MSCONNECTOR_ERROR_RULE_LOAD_FAILED || code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE || code == MSCONNECTOR_ERROR_HOST_API_FAILURE || code == MSCONNECTOR_ERROR_MODSECURITY_FAILURE || code == MSCONNECTOR_ERROR_TIMEOUT || code == MSCONNECTOR_ERROR_IO || code == MSCONNECTOR_ERROR_PROTOCOL || code == MSCONNECTOR_ERROR_PHASE_SEQUENCE || code == MSCONNECTOR_ERROR_CORRELATION_MISSING || code == MSCONNECTOR_ERROR_CORRELATION_EXPIRED || code == MSCONNECTOR_ERROR_CORRELATION_MISMATCH || code == MSCONNECTOR_ERROR_INTERNAL; }
 int msconnector_error_to_event(const msconnector_error *error, msconnector_event *event, const char *connector, const char *transaction_id) {
     msconnector_error_code code;
     int http_status;

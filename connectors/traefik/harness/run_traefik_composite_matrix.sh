@@ -8,8 +8,8 @@
 # decision_id values; this script never joins a multi-case event stream.
 #
 # Required environment:
-#   RUNTIME_ROOT, TRAEFIK_BIN, TRAEFIK_VERSION, COMPOSITE_BIN,
-#   COMPOSITE_RUNTIME_CONFIG, COMPOSITE_EVENT_LOG, COMPOSITE_SOCKET,
+#   RUNTIME_ROOT, COMPOSITE_SOCKET_PARENT, TRAEFIK_BIN, TRAEFIK_VERSION,
+#   COMPOSITE_BIN, COMPOSITE_RUNTIME_CONFIG, COMPOSITE_EVENT_LOG,
 #   CASE_INPUT, CASE_DRIVER, PYTHON_BIN, UPSTREAM_BIN.
 # CASE_DRIVER contract: accept --input, --port, --manifest, --event-log,
 # --runtime-root, and --connector; drive exactly one case and create the
@@ -29,6 +29,8 @@
 # NON_PASS in this runner; a separate host primitive and independent proof are
 # required before any external acceptance gate can promote it.
 set -eu
+LC_ALL=C
+export LC_ALL
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
@@ -42,11 +44,11 @@ need_env() {
 }
 
 need_env RUNTIME_ROOT
+need_env COMPOSITE_SOCKET_PARENT
 need_env TRAEFIK_BIN
 need_env COMPOSITE_BIN
 need_env COMPOSITE_RUNTIME_CONFIG
 need_env COMPOSITE_EVENT_LOG
-need_env COMPOSITE_SOCKET
 need_env CASE_INPUT
 need_env CASE_DRIVER
 need_env PYTHON_BIN
@@ -54,11 +56,11 @@ need_env TRAEFIK_VERSION
 need_env UPSTREAM_BIN
 
 case "$RUNTIME_ROOT" in /*) ;; *) blocked "RUNTIME_ROOT must be absolute" ;; esac
+case "$COMPOSITE_SOCKET_PARENT" in /*) ;; *) blocked "COMPOSITE_SOCKET_PARENT must be absolute" ;; esac
 case "$TRAEFIK_BIN" in /*) ;; *) blocked "TRAEFIK_BIN must be absolute" ;; esac
 case "$COMPOSITE_BIN" in /*) ;; *) blocked "COMPOSITE_BIN must be absolute" ;; esac
 case "$COMPOSITE_RUNTIME_CONFIG" in /*) ;; *) blocked "COMPOSITE_RUNTIME_CONFIG must be absolute" ;; esac
 case "$COMPOSITE_EVENT_LOG" in /*) ;; *) blocked "COMPOSITE_EVENT_LOG must be absolute" ;; esac
-case "$COMPOSITE_SOCKET" in /*) ;; *) blocked "COMPOSITE_SOCKET must be absolute" ;; esac
 case "$CASE_INPUT" in /*) ;; *) blocked "CASE_INPUT must be absolute" ;; esac
 case "$CASE_DRIVER" in /*) ;; *) blocked "CASE_DRIVER must be absolute" ;; esac
 case "$PYTHON_BIN" in /*) ;; *) blocked "PYTHON_BIN must be absolute" ;; esac
@@ -139,6 +141,81 @@ else
     blocked "RUNTIME_ROOT must pre-exist; this runner will not create it"
 fi
 
+# The runtime root is deliberately kept long enough to make artifact ownership
+# obvious.  Unix-domain sockets have a much smaller kernel path budget, so the
+# caller must explicitly provide a short, private parent for the socket.  Do
+# not silently select /tmp or another shared fallback: that would make the
+# socket namespace an ambient trust boundary.
+case "$COMPOSITE_SOCKET_PARENT" in
+    *//*|*/./*|*/../*|*/.|*/..|*/) blocked "COMPOSITE_SOCKET_PARENT must be canonical" ;;
+    *[![:print:]]*) blocked "COMPOSITE_SOCKET_PARENT contains control or non-ASCII bytes" ;;
+    *) : ;;
+esac
+case "$COMPOSITE_SOCKET_PARENT" in
+    /|/tmp|/var/tmp|/root|/home|/usr|/var|/opt|"$REPO_ROOT"|"$REPO_ROOT"/*)
+        blocked "COMPOSITE_SOCKET_PARENT is too broad or inside the checkout: $COMPOSITE_SOCKET_PARENT" ;;
+    *) : ;;
+esac
+[ -d "$COMPOSITE_SOCKET_PARENT" ] && [ ! -L "$COMPOSITE_SOCKET_PARENT" ] || \
+    blocked "COMPOSITE_SOCKET_PARENT must be a pre-existing, non-symlink directory"
+[ "$(readlink -f -- "$COMPOSITE_SOCKET_PARENT" 2>/dev/null || true)" = "$COMPOSITE_SOCKET_PARENT" ] || \
+    blocked "COMPOSITE_SOCKET_PARENT must already be canonical"
+is_private_dir "$COMPOSITE_SOCKET_PARENT" || \
+    blocked "COMPOSITE_SOCKET_PARENT must be owner-only (0700) and owner-controlled"
+SOCKET_PARENT_DEV=$(stat -c '%d' "$COMPOSITE_SOCKET_PARENT" 2>/dev/null || echo -1)
+SOCKET_PARENT_INO=$(stat -c '%i' "$COMPOSITE_SOCKET_PARENT" 2>/dev/null || echo -1)
+[ "$SOCKET_PARENT_DEV" != -1 ] && [ "$SOCKET_PARENT_INO" != -1 ] || \
+    blocked "could not record composite socket parent identity"
+revalidate_socket_parent() {
+    [ -d "$COMPOSITE_SOCKET_PARENT" ] && [ ! -L "$COMPOSITE_SOCKET_PARENT" ] || return 1
+    [ "$(readlink -f -- "$COMPOSITE_SOCKET_PARENT" 2>/dev/null || true)" = "$COMPOSITE_SOCKET_PARENT" ] || return 1
+    [ "$(stat -c '%d' "$COMPOSITE_SOCKET_PARENT" 2>/dev/null || echo -1)" = "$SOCKET_PARENT_DEV" ] || return 1
+    [ "$(stat -c '%i' "$COMPOSITE_SOCKET_PARENT" 2>/dev/null || echo -1)" = "$SOCKET_PARENT_INO" ] || return 1
+    is_private_dir "$COMPOSITE_SOCKET_PARENT"
+}
+revalidate_socket_parent || blocked "composite socket parent changed before child creation"
+
+SOCKET_CHILD=
+SOCKET_CHILD_DEV=
+SOCKET_CHILD_INO=
+SOCKET_BASENAME=composite.sock
+cleanup_socket_child() {
+    set +e
+    [ -n "$SOCKET_CHILD" ] || return 0
+    if [ -n "$SOCKET_CHILD_DEV" ] && [ -n "$SOCKET_CHILD_INO" ] &&
+        [ -d "$SOCKET_CHILD" ] && [ ! -L "$SOCKET_CHILD" ] &&
+        [ "$(stat -c '%d' "$SOCKET_CHILD" 2>/dev/null || echo -1)" = "$SOCKET_CHILD_DEV" ] &&
+        [ "$(stat -c '%i' "$SOCKET_CHILD" 2>/dev/null || echo -1)" = "$SOCKET_CHILD_INO" ]; then
+        if ! rmdir -- "$SOCKET_CHILD" 2>/dev/null; then
+            echo "traefik_composite_matrix: cleanup failed for exact socket child $SOCKET_CHILD" >&2
+            return 1
+        fi
+    else
+        echo "traefik_composite_matrix: socket child identity changed or unavailable; refusing cleanup $SOCKET_CHILD" >&2
+        return 1
+    fi
+}
+SOCKET_CHILD=$(mktemp -d -- "$COMPOSITE_SOCKET_PARENT/.traefik-composite.XXXXXX") || \
+    blocked "failed to create private composite socket child"
+SOCKET_CHILD_DEV=$(stat -c '%d' "$SOCKET_CHILD" 2>/dev/null || echo -1)
+SOCKET_CHILD_INO=$(stat -c '%i' "$SOCKET_CHILD" 2>/dev/null || echo -1)
+[ "$SOCKET_CHILD_DEV" != -1 ] && [ "$SOCKET_CHILD_INO" != -1 ] || \
+    blocked "could not record composite socket child identity"
+trap cleanup_socket_child EXIT
+chmod 700 "$SOCKET_CHILD" || blocked "failed to restrict composite socket child"
+[ "$(readlink -f -- "$SOCKET_CHILD" 2>/dev/null || true)" = "$SOCKET_CHILD" ] || \
+    blocked "created composite socket child is not canonical"
+is_private_dir "$SOCKET_CHILD" || blocked "created composite socket child is unsafe"
+revalidate_socket_parent || blocked "composite socket parent changed after child creation"
+COMPOSITE_SOCKET="$SOCKET_CHILD/$SOCKET_BASENAME"
+case "$COMPOSITE_SOCKET" in
+    *[![:print:]]*) blocked "COMPOSITE_SOCKET contains control or non-ASCII bytes" ;;
+    *) : ;;
+esac
+[ "$(LC_ALL=C expr length "$COMPOSITE_SOCKET")" -le 100 ] || \
+    blocked "COMPOSITE_SOCKET leaves no safe Unix-socket path budget"
+[ ! -e "$COMPOSITE_SOCKET" ] && [ ! -L "$COMPOSITE_SOCKET" ] || blocked "COMPOSITE_SOCKET already exists"
+
 is_owner_executable "$TRAEFIK_BIN" || blocked "TRAEFIK_BIN must be an owner-controlled executable"
 is_owner_executable "$COMPOSITE_BIN" || blocked "COMPOSITE_BIN must be an owner-controlled executable"
 is_owner_executable "$CASE_DRIVER" || blocked "CASE_DRIVER must be an owner-controlled executable"
@@ -176,8 +253,6 @@ safe_direct_child() {
 }
 safe_direct_child "$RUNTIME_ROOT" "$COMPOSITE_EVENT_LOG" || \
     blocked "COMPOSITE_EVENT_LOG must be a safe direct child of RUNTIME_ROOT"
-safe_direct_child "$RUNTIME_ROOT" "$COMPOSITE_SOCKET" || \
-    blocked "COMPOSITE_SOCKET must be a safe direct child of RUNTIME_ROOT"
 CASE_MANIFEST="$RUNTIME_ROOT/case.manifest.json"
 CASE_INPUT_COPY="$RUNTIME_ROOT/case-input.json"
 safe_direct_child "$RUNTIME_ROOT" "$CASE_MANIFEST" || blocked "CASE_MANIFEST must be a safe direct child of RUNTIME_ROOT"
@@ -195,10 +270,6 @@ safe_direct_child "$RUNTIME_ROOT" "$UPSTREAM_CERTIFICATE" || blocked "UPSTREAM_C
 safe_direct_child "$RUNTIME_ROOT" "$UPSTREAM_KEY" || blocked "UPSTREAM_KEY must be a safe direct child of RUNTIME_ROOT"
 [ ! -e "$UPSTREAM_CERTIFICATE" ] && [ ! -L "$UPSTREAM_CERTIFICATE" ] || blocked "UPSTREAM_CERTIFICATE already exists"
 [ ! -e "$UPSTREAM_KEY" ] && [ ! -L "$UPSTREAM_KEY" ] || blocked "UPSTREAM_KEY already exists"
-[ "${#COMPOSITE_SOCKET}" -le 100 ] || blocked "COMPOSITE_SOCKET leaves no safe Unix-socket path budget"
-SOCKET_PARENT=$(dirname "$COMPOSITE_SOCKET")
-[ "$SOCKET_PARENT" = "$RUNTIME_ROOT" ] || blocked "COMPOSITE_SOCKET parent must be RUNTIME_ROOT"
-[ ! -e "$COMPOSITE_SOCKET" ] && [ ! -L "$COMPOSITE_SOCKET" ] || blocked "COMPOSITE_SOCKET already exists"
 
 case "$TRAEFIK_VERSION" in ''|*[!0-9.]*) blocked "TRAEFIK_VERSION must be a dotted numeric pin" ;; *) : ;; esac
 version_text=$("$TRAEFIK_BIN" version 2>&1 || true)
@@ -230,6 +301,30 @@ chmod 700 "$CONFIG_ROOT" "$UPSTREAM_ROOT" "$LOG_ROOT"
 umask 077
 cp -- "$CASE_INPUT" "$CASE_INPUT_COPY" || blocked "failed to copy CASE_INPUT into private runtime root"
 chmod 600 "$CASE_INPUT_COPY"
+if [ "$(stat -c '%s' "$CASE_INPUT_COPY" 2>/dev/null || echo 0)" -gt 256000 ]; then
+    blocked "CASE_INPUT exceeds the bounded catalog size"
+fi
+# The selected case is an explicit field in the bounded catalog. It is used
+# for the one case-specific transport/configuration exception below; runtime
+# directory names are never a behavioral input.
+SELECTED_CASE=$(
+    "$PYTHON_BIN" - "$CASE_INPUT_COPY" <<'PY'
+import json
+import sys
+
+cases = {
+    "p1_allow", "p1_deny", "p2_allow", "p2_deny", "p2_oversize",
+    "p3_deny", "p3_redirect", "p4_safe", "p4_strict",
+    "metadata_omitted", "p2_to_p3_timeout",
+}
+with open(sys.argv[1], "rb") as handle:
+    catalog = json.load(handle)
+selected = catalog.get("selected_case") if isinstance(catalog, dict) else None
+if not isinstance(selected, str) or selected not in cases:
+    raise SystemExit(1)
+print(selected)
+PY
+) || blocked "CASE_INPUT must contain one supported selected_case"
 : > "$UPSTREAM_OBSERVATION"
 chmod 600 "$UPSTREAM_OBSERVATION"
 cp -R --no-preserve=ownership,mode "$PLUGIN_SOURCE"/. "$PLUGIN_ROOT"/ || die "failed to stage local plugin"
@@ -269,8 +364,8 @@ sed -e "s|__AUTH_ADDRESS__|$AUTH_ESC|g" -e "s|__COMPOSITE_SOCKET__|$SOCKET_ESC|g
 # ForwardAuth request allow-list. The outer plugin still reserves privately,
 # but ForwardAuth receives no lease and fails closed before P1/P2; the UDS
 # disconnect aborts that reservation without creating false phase evidence.
-case "$RUNTIME_ROOT" in
-    *-metadata_omitted|*-metadata_omitted-*)
+case "$SELECTED_CASE" in
+    metadata_omitted)
         sed -i '/^[[:space:]]*-[[:space:]]*X-Msconnector-Composite-Lease[[:space:]]*$/d' "$DYNAMIC_CONFIG"
         ;;
     *) : ;;
@@ -383,6 +478,7 @@ cleanup() {
     [ -n "$TRAEFIK_PID" ] && stop_owned "$TRAEFIK_PID" "$TRAEFIK_BIN" "$TRAEFIK_START"
     [ -n "$COMPOSITE_PID" ] && stop_owned "$COMPOSITE_PID" "$COMPOSITE_BIN" "$COMPOSITE_START"
     [ -n "$UPSTREAM_PID" ] && stop_owned_upstream "$UPSTREAM_PID" "$UPSTREAM_START"
+    cleanup_socket_child
 }
 on_signal() {
     code=$1

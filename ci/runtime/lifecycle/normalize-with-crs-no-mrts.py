@@ -389,6 +389,8 @@ def summary_values(path: Path, runtime_root: Path) -> dict[str, str]:
         if "=" in line:
             key, value = line.split("=", 1)
             if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key):
+                if key in values:
+                    fail(f"runtime summary contains duplicate field: {key}")
                 values[key] = value
     return values
 
@@ -733,10 +735,11 @@ def observed_traefik(runtime_root: Path, run_id: str) -> dict[str, Any]:
         fail("Traefik result lacks observed allow/block/bypass records")
     if (int(allow.get("status", 0)), int(block.get("status", 0)), int(bypass.get("status", 0))) != (200, 403, 403):
         fail("Traefik result statuses are not 200/403/403")
+    allow_id = str(allow.get("request_id", ""))
     block_id = str(block.get("request_id", ""))
     bypass_id = str(bypass.get("request_id", ""))
-    if not block_id or not bypass_id or block_id == bypass_id:
-        fail("Traefik result lacks distinct transaction identities")
+    if not allow_id or not block_id or not bypass_id or len({allow_id, block_id, bypass_id}) != 3:
+        fail("Traefik result lacks distinct allow/block/bypass identities")
     controls = structured_host_controls(result, "Traefik completion")
     block_trigger = structured_integer(block.get("trigger_rule_id"), "Traefik block trigger rule", RULE_ID)
     bypass_trigger = structured_integer(
@@ -777,8 +780,8 @@ def observed_envoy(runtime_root: Path, run_id: str) -> dict[str, Any]:
     block_id = summary.get("block_request_id", "")
     bypass_id = summary.get("bypass_request_id", "")
     allow_id = summary.get("allow_request_id", "")
-    if not block_id or not bypass_id or not allow_id or block_id == bypass_id:
-        fail("Envoy block and bypass reused a transaction id")
+    if not block_id or not bypass_id or not allow_id or len({allow_id, block_id, bypass_id}) != 3:
+        fail("Envoy allow, block, and bypass reused a transaction id")
     controls = structured_host_controls(summary, "Envoy completion")
     allow_value = {
         "request_id": allow_id,
@@ -869,7 +872,22 @@ def lighttpd_wire_for(
     return response_transaction_id, trace_path, headers_path
 
 
+def lighttpd_serialized_event_uri(uri: str) -> tuple[str, bool]:
+    """Return the Common JSONL URI representation expected for one request.
+
+    Wire evidence deliberately keeps the original target for request/CRS
+    correlation.  Common event JSONL must instead replace a non-empty query
+    without decoding or otherwise rewriting the path, matching
+    ``msconnector_event_uri_redact_query_ex``.
+    """
+    path, separator, query = uri.partition("?")
+    if separator and query:
+        return f"{path}?<redacted>", True
+    return uri, False
+
+
 def lighttpd_deny_event(event: dict[str, Any], transaction_id: str, uri: str) -> bool:
+    expected_uri, expected_redaction = lighttpd_serialized_event_uri(uri)
     return (
         event.get("connector") == "lighttpd"
         and event.get("integration_mode") == "patched-native-lighttpd"
@@ -879,7 +897,8 @@ def lighttpd_deny_event(event: dict[str, Any], transaction_id: str, uri: str) ->
         and int(event.get("http_status", 0)) == 403
         and int(event.get("visible_http_status", 0)) == 403
         and event.get("transport_result") == "http_status"
-        and str(event.get("uri")) == uri
+        and str(event.get("uri")) == expected_uri
+        and event.get("redacted") is expected_redaction
         and str(event.get("rule_id")) == "949110"
     )
 
@@ -916,11 +935,13 @@ def observed_lighttpd(runtime_root: Path, run_id: str) -> dict[str, Any]:
         fail("Lighttpd requests reused a server-generated host transaction id")
     block = lighttpd_intervention_event(events, "block", block_id, uris["block"])
     bypass = lighttpd_intervention_event(events, "bypass", bypass_id, uris["bypass"])
+    allow_event_uri, _allow_redacted = lighttpd_serialized_event_uri(uris["allow"])
     if any(
         event.get("connector") == "lighttpd"
         and event.get("integration_mode") == "patched-native-lighttpd"
         and event.get("actual_action") == "deny"
-        and str(event.get("uri")) == uris["allow"]
+        and str(event.get("transaction_id")) == allow_id
+        and str(event.get("uri")) in {uris["allow"], allow_event_uri}
         for event in events
     ):
         fail("Lighttpd allow URI has a correlated deny event")
@@ -1037,13 +1058,15 @@ def framework_pins(framework_root: Path) -> tuple[str, str, str, str]:
     framework = repository_root(framework_root, "Framework")
     common = contained(framework / "ci/lib/common.sh", framework, "Framework common.sh")
     values: dict[str, str] = {}
+    assignment_count = 0
     assignment = re.compile(r"^(CRS_APPROVED_REPO_URL|CRS_RELEASE_TAG|CRS_APPROVED_COMMIT|CRS_RULE_FILE_SHA256)=(?:\"([^\"]*)\"|'([^']*)')$")
     for line in read_bounded(common, framework).decode("utf-8", "strict").splitlines():
         match = assignment.fullmatch(line.strip())
         if match:
+            assignment_count += 1
             values[match.group(1)] = match.group(2) or match.group(3)
     names = ("CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT", "CRS_RULE_FILE_SHA256")
-    if set(values) != set(names):
+    if assignment_count != len(names) or set(values) != set(names):
         fail("Framework CRS pin tuple is incomplete or duplicated")
     if not COMMIT.fullmatch(values[names[2]]) or not re.fullmatch(r"[0-9a-f]{64}", values[names[3]]):
         fail("Framework CRS pin tuple is malformed")

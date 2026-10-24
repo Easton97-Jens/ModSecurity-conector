@@ -65,6 +65,111 @@ def short_socket_temporary_directory() -> tempfile.TemporaryDirectory:
 
 
 class TraefikNativeLocalPluginTest(unittest.TestCase):
+    def test_uds_is_the_only_engine_mode_and_reference_default(self) -> None:
+        source = (PLUGIN / "middleware.go").read_text(encoding="utf-8")
+        reference = (
+            ROOT / "examples/traefik/configuration-reference.md"
+        ).read_text(encoding="utf-8")
+        reference_de = (
+            ROOT / "examples/traefik/configuration-reference.de.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn('EngineMode:                   "uds",', source)
+        self.assertIn('if value.EngineMode != "uds" {', source)
+        self.assertIn("unsupported engineMode", source)
+        self.assertNotIn("| passthrough \\| uds |", reference)
+        self.assertNotIn("| passthrough \\| uds |", reference_de)
+        self.assertIn("Legacy source-only passthrough is rejected", reference)
+        self.assertIn("Legacy-source-only-passthrough wird", reference_de)
+
+    def test_uds_only_contract_is_consistent_in_manifest_manual_docs_and_inventory(self) -> None:
+        manifest = (PLUGIN / ".traefik.yml").read_text(encoding="utf-8")
+        readme = (ROOT / "examples" / "traefik" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        readme_de = (
+            ROOT / "examples" / "traefik" / "README.de.md"
+        ).read_text(encoding="utf-8")
+        generator = (
+            ROOT / "ci" / "checks" / "documentation" / "connector_config_reference.py"
+        ).read_text(encoding="utf-8")
+        inventory = json.loads(
+            (ROOT / "reports" / "connector-configuration-inventory.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertIn("engineMode: uds", manifest)
+        self.assertIn("engineSocketPath: /run/traefik-msconnector/engine.sock", manifest)
+        self.assertNotIn("engineMode: passthrough", manifest)
+        self.assertIn("legacy `passthrough` configuration is", readme)
+        self.assertIn("Legacy-`passthrough`-Konfiguration", readme_de)
+        self.assertIn('ALLOWED_VALUES_TRAEFIK_ENGINE_MODE = "uds"', generator)
+        engine_modes = [
+            option
+            for option in inventory["options"]
+            if option["connector"] == "traefik" and option["name"].endswith("engineMode")
+        ]
+        self.assertTrue(engine_modes)
+        self.assertTrue(
+            all(
+                option["allowed_values"] == "uds" and option["default"] == "uds"
+                for option in engine_modes
+            )
+        )
+
+    def test_native_config_fields_have_bilingual_inventory_parity(self) -> None:
+        source = (PLUGIN / "middleware.go").read_text(encoding="utf-8")
+        reference = (ROOT / "examples/traefik/configuration-reference.md").read_text(
+            encoding="utf-8"
+        )
+        reference_de = (
+            ROOT / "examples/traefik/configuration-reference.de.md"
+        ).read_text(encoding="utf-8")
+        selected_example = (
+            ROOT / "examples/traefik/safe/traefik-dynamic.yaml"
+        ).read_text(encoding="utf-8")
+        inventory = json.loads(
+            (ROOT / "reports/connector-configuration-inventory.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        config_block = re.search(
+            r"(?ms)^type Config struct \{(?P<body>.*?)^\}", source
+        )
+        self.assertIsNotNone(config_block)
+        fields = [
+            tag.split(",", 1)[0]
+            for tag in re.findall(r'`json:"([^"]+)', config_block.group("body"))
+        ]
+        self.assertEqual(len(fields), 9)
+        native_options = {
+            option["name"]
+            for option in inventory["options"]
+            if option.get("connector") == "traefik"
+            and option["name"].startswith(
+                "http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative."
+            )
+        }
+        for field in fields:
+            path = (
+                "http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative."
+                + field
+            )
+            with self.subTest(field=field):
+                self.assertIn(path, reference)
+                self.assertIn(path, reference_de)
+                self.assertIn(path, native_options)
+                self.assertIn(f"{field}:", selected_example)
+        self.assertIn("maximum 1048576 bytes", reference)
+        self.assertIn("maximum 60000 milliseconds", reference)
+        self.assertIn("maximal 1048576 Bytes", reference_de)
+        self.assertIn(
+            '"default": "1048576"',
+            (ROOT / "reports/connector-configuration-inventory.json").read_text(
+                encoding="utf-8"
+            ),
+        )
+
     def test_local_plugin_package_matches_module_suffix(self) -> None:
         module = re.search(
             r"(?m)^module\s+([^\s]+)\s*$",
@@ -713,7 +818,7 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         self.assertNotIn("umask(", source)
         listener_source = source[
             source.index("static int traefik_engine_create_listener") : source.index(
-                "static void traefik_engine_wait_for_workers"
+                "static void traefik_engine_shutdown_active_workers_locked"
             )
         ]
         serve_source = source[
@@ -723,6 +828,22 @@ class TraefikNativeLocalPluginTest(unittest.TestCase):
         ]
         self.assertNotIn("(void)unlink(socket_path);", listener_source)
         self.assertNotIn("(void)unlink(socket_path);", serve_source)
+
+    def test_engine_service_bounds_active_admission_without_lifetime_shutdown(self) -> None:
+        source = (
+            ROOT / "connectors" / "traefik" / "src" / "traefik_engine_service.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("TRAEFIK_ENGINE_DEFAULT_MAX_WORKERS 64U", source)
+        self.assertIn("TRAEFIK_ENGINE_HARD_MAX_WORKERS 256U", source)
+        self.assertIn("service->worker_count >= service->max_workers", source)
+        self.assertIn("TRAEFIK_ENGINE_WORKER_CAPACITY", source)
+        self.assertIn(
+            "worker_result == TRAEFIK_ENGINE_WORKER_CAPACITY", source
+        )
+        self.assertIn("if (max_connections != 0U &&", source)
+        self.assertIn("if (max_connections != 0U) {\n            ++*accepted_connections;", source)
+        self.assertNotIn("TRAEFIK_ENGINE_DEFAULT_MAX_CONNECTIONS", source)
+        self.assertNotIn("max_connections = TRAEFIK_ENGINE_DEFAULT_MAX_CONNECTIONS", source)
 
     def test_crs_requests_send_the_canonical_framework_run_id(self) -> None:
         """The normalizer may only report a run ID that the host received."""

@@ -28,14 +28,25 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
-	defaultMaxHeaderCount        = 128
-	defaultMaxHeaderBytes        = 64 << 10
-	defaultMaxRequestChunkBytes  = 32 << 10
-	defaultMaxResponseChunkBytes = 32 << 10
+	defaultMaxHeaderCount         = 128
+	defaultMaxHeaderBytes         = 64 << 10
+	defaultMaxRequestChunkBytes   = 32 << 10
+	defaultMaxResponseChunkBytes  = 32 << 10
+	defaultRequestBodyIdleTimeout = 1 * time.Second
+	maximumRequestBodyIdleTimeout = 60 * time.Second
+	// Keep the native middleware's aggregate request-body ceiling aligned with
+	// the Common Runtime default hard body-buffer bound. A lower deployment
+	// value is supported; a higher one would make the pre-engine guard weaker
+	// than the repository-wide resource contract.
+	defaultMaxRequestBodyBytes int64 = 1 << 20
+	maximumMaxRequestBodyBytes int64 = 1 << 20
 )
 
 var (
@@ -55,29 +66,33 @@ var (
 // config object Traefik supplies to CreateConfig/New when this package is used
 // as a Go middleware plugin.
 //
-// EngineMode is either "passthrough" or "uds". The latter speaks only to the
-// separately built persistent local engine service; it does not itself promote
-// host-action or capability claims.
+// EngineMode selects the persistent local UDS engine service. The only
+// accepted value is "uds" so an operator-provided configuration cannot turn a
+// loaded security middleware into an always-allow side path.
 type Config struct {
-	MaxHeaderCount        int    `json:"maxHeaderCount,omitempty"`
-	MaxHeaderBytes        int    `json:"maxHeaderBytes,omitempty"`
-	MaxRequestChunkBytes  int    `json:"maxRequestChunkBytes,omitempty"`
-	MaxResponseChunkBytes int    `json:"maxResponseChunkBytes,omitempty"`
-	TransactionIDHeader   string `json:"transactionIDHeader,omitempty"`
-	EngineMode            string `json:"engineMode,omitempty"`
-	EngineSocketPath      string `json:"engineSocketPath,omitempty"`
+	MaxHeaderCount               int    `json:"maxHeaderCount,omitempty"`
+	MaxHeaderBytes               int    `json:"maxHeaderBytes,omitempty"`
+	MaxRequestChunkBytes         int    `json:"maxRequestChunkBytes,omitempty"`
+	MaxRequestBodyBytes          int64  `json:"maxRequestBodyBytes,omitempty"`
+	RequestBodyIdleTimeoutMillis int    `json:"requestBodyIdleTimeoutMillis,omitempty"`
+	MaxResponseChunkBytes        int    `json:"maxResponseChunkBytes,omitempty"`
+	TransactionIDHeader          string `json:"transactionIDHeader,omitempty"`
+	EngineMode                   string `json:"engineMode,omitempty"`
+	EngineSocketPath             string `json:"engineSocketPath,omitempty"`
 }
 
 // CreateConfig returns safe bounded defaults. It is the standard Traefik Go
 // plugin configuration entry point.
 func CreateConfig() *Config {
 	return &Config{
-		MaxHeaderCount:        defaultMaxHeaderCount,
-		MaxHeaderBytes:        defaultMaxHeaderBytes,
-		MaxRequestChunkBytes:  defaultMaxRequestChunkBytes,
-		MaxResponseChunkBytes: defaultMaxResponseChunkBytes,
-		TransactionIDHeader:   "X-Request-Id",
-		EngineMode:            "passthrough",
+		MaxHeaderCount:               defaultMaxHeaderCount,
+		MaxHeaderBytes:               defaultMaxHeaderBytes,
+		MaxRequestChunkBytes:         defaultMaxRequestChunkBytes,
+		MaxRequestBodyBytes:          defaultMaxRequestBodyBytes,
+		RequestBodyIdleTimeoutMillis: int(defaultRequestBodyIdleTimeout / time.Millisecond),
+		MaxResponseChunkBytes:        defaultMaxResponseChunkBytes,
+		TransactionIDHeader:          "X-Request-Id",
+		EngineMode:                   "uds",
 	}
 }
 
@@ -109,6 +124,12 @@ func applyConfigDefaults(value *Config) {
 	if value.MaxRequestChunkBytes == 0 {
 		value.MaxRequestChunkBytes = defaultMaxRequestChunkBytes
 	}
+	if value.MaxRequestBodyBytes == 0 {
+		value.MaxRequestBodyBytes = defaultMaxRequestBodyBytes
+	}
+	if value.RequestBodyIdleTimeoutMillis == 0 {
+		value.RequestBodyIdleTimeoutMillis = int(defaultRequestBodyIdleTimeout / time.Millisecond)
+	}
 	if value.MaxResponseChunkBytes == 0 {
 		value.MaxResponseChunkBytes = defaultMaxResponseChunkBytes
 	}
@@ -116,15 +137,25 @@ func applyConfigDefaults(value *Config) {
 		value.TransactionIDHeader = "X-Request-Id"
 	}
 	if value.EngineMode == "" {
-		value.EngineMode = "passthrough"
+		value.EngineMode = "uds"
 	}
 
 }
 
 func validateConfigLimits(value Config) error {
 	if value.MaxHeaderCount <= 0 || value.MaxHeaderBytes <= 0 ||
-		value.MaxRequestChunkBytes <= 0 || value.MaxResponseChunkBytes <= 0 {
+		value.MaxRequestChunkBytes <= 0 || value.MaxRequestBodyBytes <= 0 ||
+		value.MaxResponseChunkBytes <= 0 {
 		return errors.New("modsecurity native middleware: all limits must be positive")
+	}
+	if value.MaxRequestBodyBytes > maximumMaxRequestBodyBytes {
+		return fmt.Errorf("modsecurity native middleware: maxRequestBodyBytes must not exceed %d", maximumMaxRequestBodyBytes)
+	}
+	if value.RequestBodyIdleTimeoutMillis <= 0 || value.RequestBodyIdleTimeoutMillis > int(maximumRequestBodyIdleTimeout/time.Millisecond) {
+		return fmt.Errorf("modsecurity native middleware: requestBodyIdleTimeoutMillis must be between 1 and %d", int(maximumRequestBodyIdleTimeout/time.Millisecond))
+	}
+	if int64(value.MaxRequestChunkBytes) > value.MaxRequestBodyBytes {
+		return errors.New("modsecurity native middleware: maxRequestChunkBytes must not exceed maxRequestBodyBytes")
 	}
 	if strings.TrimSpace(value.TransactionIDHeader) == "" {
 		return errors.New("modsecurity native middleware: transactionIDHeader is required")
@@ -133,17 +164,16 @@ func validateConfigLimits(value Config) error {
 }
 
 func validateEngineConfig(value Config) error {
-	if value.EngineMode != "passthrough" && value.EngineMode != "uds" {
+	if value.EngineMode != "uds" {
 		return fmt.Errorf("modsecurity native middleware: unsupported engineMode %q", value.EngineMode)
 	}
-	if value.EngineMode == "uds" && !safeUnixSocketPath(value.EngineSocketPath) {
+	if !safeUnixSocketPath(value.EngineSocketPath) {
 		return errors.New("modsecurity native middleware: engineSocketPath must be an absolute private path without parent segments")
 	}
-	if value.EngineMode == "uds" &&
-		(value.MaxHeaderCount > udsMaxHeaders ||
-			value.MaxHeaderBytes > udsMaxPayload ||
-			value.MaxRequestChunkBytes > udsMaxChunk ||
-			value.MaxResponseChunkBytes > udsMaxChunk) {
+	if value.MaxHeaderCount > udsMaxHeaders ||
+		value.MaxHeaderBytes > udsMaxPayload ||
+		value.MaxRequestChunkBytes > udsMaxChunk ||
+		value.MaxResponseChunkBytes > udsMaxChunk {
 		return errors.New("modsecurity native middleware: uds limits exceed the local engine wire contract")
 	}
 	return nil
@@ -234,10 +264,9 @@ type Summary struct {
 	LateAction          string
 }
 
-// TransactionOpener is the explicit bridge seam to Common/libmodsecurity.
-// `uds` selects the persistent local service; PassthroughEngine remains the
-// intentional source-only default. An opener receives bounded, incremental
-// callbacks only and must never retain borrowed body slices.
+// TransactionOpener is the package-local test seam around the UDS bridge. An
+// opener receives bounded, incremental callbacks only and must never retain
+// borrowed body slices.
 type TransactionOpener interface {
 	Open(context.Context, Metadata) (Transaction, error)
 }
@@ -274,31 +303,9 @@ type outcomeAcknowledger interface {
 	AcknowledgeLateLogOnly(context.Context, int) error
 }
 
-// PassthroughEngine is the intentional source-only default. It proves no
-// Common/libmodsecurity integration and always allows traffic.
-type PassthroughEngine struct{}
-
-func (PassthroughEngine) Open(_ context.Context, _ Metadata) (Transaction, error) {
-	return passthroughTransaction{}, nil
-}
-
-type passthroughTransaction struct{}
-
-func (passthroughTransaction) ProcessHeaders(_ context.Context, _ Direction, _ []Header, _ bool) (Decision, error) {
-	return allowDecision(), nil
-}
-
-func (passthroughTransaction) ProcessBody(_ context.Context, _ Direction, _ []byte, _ bool) (Decision, error) {
-	return allowDecision(), nil
-}
-
-func (passthroughTransaction) Close(_ context.Context, _ Summary) {
-	// Intentional no-op: this source-only engine owns no request resources.
-}
-
 // Middleware is an http.Handler suitable for Traefik's Go middleware API.
-// New creates either PassthroughEngine or the configured UDS bridge. Tests may
-// use NewWithEngine to supply an explicit engine implementation.
+// New always creates the configured UDS bridge. Package tests use
+// newWithEngine to supply a recording engine.
 type Middleware struct {
 	next   http.Handler
 	config Config
@@ -317,16 +324,14 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if err != nil {
 		return nil, err
 	}
-	var engine TransactionOpener = PassthroughEngine{}
-	if normalized.EngineMode == "uds" {
-		engine = newUnixSocketEngine(normalized.EngineSocketPath)
-	}
-	return newMiddleware(next, normalized, name, engine)
+	return newMiddleware(next, normalized, name,
+		newUnixSocketEngine(normalized.EngineSocketPath))
 }
 
-// NewWithEngine is an explicit test/future-bridge seam. A nil TransactionOpener is never
-// silently replaced because doing so would hide a missing security integration.
-func NewWithEngine(next http.Handler, config *Config, name string, engine TransactionOpener) (*Middleware, error) {
+// newWithEngine is a package-private test seam. It is deliberately not a
+// Traefik constructor so deployed configurations cannot substitute the UDS
+// Common/libmodsecurity engine with an always-allow implementation.
+func newWithEngine(next http.Handler, config *Config, name string, engine TransactionOpener) (*Middleware, error) {
 	normalized, err := normalizedConfig(config)
 	if err != nil {
 		return nil, err
@@ -350,6 +355,11 @@ func newMiddleware(next http.Handler, config Config, name string, engine Transac
 // chunk before delegating the remaining stream.
 func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	requestContext := request.Context()
+	requestHeaders, err := boundedRequestHeaders(request.Header, request.Host, middleware.config)
+	if err != nil {
+		http.Error(writer, "request headers exceed middleware limits", http.StatusRequestHeaderFieldsTooLarge)
+		return
+	}
 	metadata := Metadata{
 		TransactionID: request.Header.Get(middleware.config.TransactionIDHeader),
 		Method:        request.Method,
@@ -365,8 +375,6 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	metadata.ServerAddress, metadata.ServerPort = endpointFromAddress(request.Host, defaultServerPort)
 	if metadata.ServerAddress == "" {
 		metadata.ServerAddress = request.Host
-	} else {
-		metadata.Hostname = metadata.ServerAddress
 	}
 	transaction, err := middleware.engine.Open(requestContext, metadata)
 	if err != nil {
@@ -381,12 +389,11 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	}
 	defer state.close(requestContext)
 
-	requestHeaders, err := boundedRequestHeaders(request.Header, request.Host, middleware.config)
-	if err != nil {
-		http.Error(writer, "request headers exceed middleware limits", http.StatusRequestHeaderFieldsTooLarge)
-		return
-	}
-	requestEnd := request.Body == nil || request.ContentLength == 0
+	// A zero Content-Length is not by itself proof that Body cannot yield
+	// bytes: test adapters and nonstandard middleware can still provide a
+	// readable body. Only nil or the canonical NoBody sentinel can skip the
+	// bounded P2 reader without leaving a body-bearing bypass.
+	requestEnd := request.Body == nil || request.Body == http.NoBody
 	decision, err := state.processHeaders(requestContext, DirectionRequest, requestHeaders, requestEnd)
 	if err != nil {
 		http.Error(writer, "modsecurity middleware request-header evaluation failed", http.StatusInternalServerError)
@@ -403,7 +410,9 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 	response := newResponseWriter(request, writer, state)
 	originalBody := request.Body
 	if originalBody != nil {
-		request.Body = &inspectingRequestBody{request: request, source: originalBody, state: state}
+		inspectingBody := &inspectingRequestBody{request: request, source: originalBody, state: state}
+		state.requestBody = inspectingBody
+		request.Body = inspectingBody
 		defer func() { request.Body = originalBody }()
 	}
 
@@ -438,6 +447,7 @@ type streamState struct {
 	responseBodyChunks  uint64
 	requestBodyBytes    int64
 	responseBodyBytes   int64
+	requestBody         *inspectingRequestBody
 	requestEOS          bool
 	responseEOS         bool
 	responseIncomplete  bool
@@ -482,6 +492,13 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 	}
 	state.requestBodyChunks++
 	state.requestBodyBytes += int64(len(chunk))
+	// The aggregate body guard is intentionally applied before the engine
+	// callback. Passing an over-limit chunk to the engine would let a P2 body
+	// bypass the repository's reject-before-engine resource policy.
+	if state.requestBodyBytes > state.config.MaxRequestBodyBytes {
+		state.pendingRequestDecision = Decision{Action: ActionDeny, Status: http.StatusRequestEntityTooLarge}
+		return ErrRequestRejected
+	}
 	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
 	if end {
 		state.requestEOS = true
@@ -531,6 +548,70 @@ func (state *streamState) pendingRequestResult() (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	return state.pendingRequestDecision, state.pendingRequestError
+}
+
+// ensureRequestEOS drains a body that the downstream handler did not consume.
+// It is called immediately before response-header evaluation, so P3 and host
+// response commitment cannot run ahead of the request-body phase. The drain
+// uses the same bounded inspecting reader as normal handler reads and fails
+// closed on source errors, cancellation, or an idle source. The timeout
+// callback closes the owned source; no drain goroutine is created. Sources
+// must honor io.ReadCloser's contract that Close unblocks Read. A source that
+// violates that contract remains a host integration risk and cannot produce
+// EOS evidence.
+func (state *streamState) ensureRequestEOS() error {
+	state.mu.Lock()
+	if state.requestEOS {
+		state.mu.Unlock()
+		return nil
+	}
+	body := state.requestBody
+	state.mu.Unlock()
+	if err := state.pendingRequestBlocker(); err != nil {
+		return err
+	}
+	if body == nil {
+		state.markRequestEOS()
+		return nil
+	}
+
+	buffer := make([]byte, state.config.MaxRequestChunkBytes)
+	for {
+		// Read is the single inspection path: it applies the per-read idle
+		// deadline and also records body chunks, limits, decisions, and EOS.
+		count, readErr := body.Read(buffer)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			state.recordRequestError(readErr)
+			return readErr
+		}
+		if errors.Is(readErr, io.EOF) {
+			return nil
+		}
+		if count == 0 {
+			err := errors.New("modsecurity native middleware: request body made no progress")
+			state.recordRequestError(err)
+			return err
+		}
+	}
+}
+
+// pendingRequestBlocker stops all further source reads after a disruptive P2
+// result or request inspection error. In particular, a request that exceeds
+// MaxRequestBodyBytes is not subsequently drained merely because its handler
+// tries to send a response.
+func (state *streamState) pendingRequestBlocker() error {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.pendingRequestDecision.disruptive() {
+		return ErrRequestRejected
+	}
+	return state.pendingRequestError
+}
+
+func (state *streamState) recordRequestError(err error) {
+	state.mu.Lock()
+	state.pendingRequestError = err
+	state.mu.Unlock()
 }
 
 func (state *streamState) markResponseCommit(contextValue context.Context, status int, headersSent bool, bodyStarted bool) error {
@@ -630,16 +711,23 @@ func (state *streamState) close(contextValue context.Context) {
 }
 
 type inspectingRequestBody struct {
-	request *http.Request
-	source  io.ReadCloser
-	state   *streamState
+	request   *http.Request
+	source    io.ReadCloser
+	state     *streamState
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
+	// Read itself owns the bounded idle/cancel watchdog; callers such as the
+	// pre-commit drain must use this method to retain inspection and limits.
+	if err := body.state.pendingRequestBlocker(); err != nil {
+		return 0, err
+	}
 	if len(buffer) > body.state.config.MaxRequestChunkBytes {
 		buffer = buffer[:body.state.config.MaxRequestChunkBytes]
 	}
-	count, readErr := body.source.Read(buffer)
+	count, readErr := body.readWithIdleTimeout(buffer)
 	if count > 0 {
 		end := errors.Is(readErr, io.EOF)
 		if err := body.state.processRequestBody(body.request.Context(), buffer[:count], end); err != nil {
@@ -651,11 +739,33 @@ func (body *inspectingRequestBody) Read(buffer []byte) (int, error) {
 			return 0, err
 		}
 	}
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		body.state.recordRequestError(readErr)
+	}
 	return count, readErr
 }
 
 func (body *inspectingRequestBody) Close() error {
-	return body.source.Close()
+	body.closeOnce.Do(func() { body.closeErr = body.source.Close() })
+	return body.closeErr
+}
+
+func (body *inspectingRequestBody) readWithIdleTimeout(buffer []byte) (int, error) {
+	readContext, cancel := context.WithTimeout(body.request.Context(), time.Duration(body.state.config.RequestBodyIdleTimeoutMillis)*time.Millisecond)
+	defer cancel()
+	var interrupted atomic.Bool
+	stop := context.AfterFunc(readContext, func() {
+		interrupted.Store(true)
+		_ = body.Close()
+	})
+	count, err := body.source.Read(buffer)
+	if !stop() || interrupted.Load() {
+		if body.request.Context().Err() != nil {
+			return 0, body.request.Context().Err()
+		}
+		return 0, errors.New("modsecurity native middleware: request body idle timeout")
+	}
+	return count, err
 }
 
 type responseWriter struct {
@@ -816,6 +926,14 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 func (writer *responseWriter) prepareResponseHeaders(status int) bool {
 	if writer.committed || writer.rejected || writer.responseHeadersEvaluated {
 		return !writer.rejected
+	}
+	if err := writer.state.ensureRequestEOS(); err != nil {
+		if decision, _ := writer.state.pendingRequestResult(); decision.disruptive() {
+			writer.writeDecision(decision)
+		} else {
+			writer.writeFailure()
+		}
+		return false
 	}
 	if decision, err := writer.state.pendingRequestResult(); err != nil {
 		writer.writeFailure()
@@ -1162,7 +1280,13 @@ func boundedHeaders(header http.Header, config Config) ([]Header, error) {
 	values := make([]Header, 0, len(header))
 	totalBytes := 0
 	for _, name := range names {
-		for _, value := range header.Values(name) {
+		if !validHeaderName(name) {
+			return nil, errors.New("invalid header name")
+		}
+		for _, value := range header[name] {
+			if !validHeaderValue(value) {
+				return nil, errors.New("invalid header value")
+			}
 			if len(values) >= config.MaxHeaderCount {
 				return nil, errors.New("header count exceeds middleware limit")
 			}
@@ -1179,25 +1303,35 @@ func boundedHeaders(header http.Header, config Config) ([]Header, error) {
 // boundedRequestHeaders includes the authority from net/http's separate Host
 // field when the incoming Header map does not contain an ordinary Host entry.
 // Server requests normally omit Host from Header, but ModSecurity evaluates
-// it as REQUEST_HEADERS:Host. The authority is copied only after validating
-// it as a bounded header value; an existing Host entry always wins and is
-// never duplicated.
+// it as REQUEST_HEADERS:Host. An ordinary Host entry must exactly match the
+// parsed authority; accepting disagreeing representations would let metadata
+// and rule input describe different request authorities.
 func boundedRequestHeaders(header http.Header, authority string, config Config) ([]Header, error) {
+	if authority == "" {
+		return nil, errors.New("missing Host authority")
+	}
+	if invalidHostAuthority(authority) {
+		return nil, errors.New("invalid Host authority")
+	}
 	hostEntries := 0
+	hostValue := ""
 	for name, values := range header {
 		if !strings.EqualFold(name, "Host") {
 			continue
 		}
 		hostEntries += len(values)
+		if len(values) == 1 {
+			hostValue = values[0]
+		}
 	}
 	if hostEntries > 1 {
 		return nil, errors.New("ambiguous Host header")
 	}
-	if hostEntries == 1 || authority == "" {
+	if hostEntries == 1 {
+		if invalidHostAuthority(hostValue) || hostValue != authority {
+			return nil, errors.New("conflicting Host header")
+		}
 		return boundedHeaders(header, config)
-	}
-	if invalidHostAuthority(authority) {
-		return nil, errors.New("invalid Host authority")
 	}
 	withHost := make(http.Header, len(header)+1)
 	for name, values := range header {
@@ -1208,12 +1342,62 @@ func boundedRequestHeaders(header http.Header, authority string, config Config) 
 }
 
 func invalidHostAuthority(value string) bool {
+	if !utf8.ValidString(value) {
+		return true
+	}
 	if strings.TrimSpace(value) != value {
 		return true
 	}
-	return strings.IndexFunc(value, func(r rune) bool {
+	if strings.IndexFunc(value, func(r rune) bool {
 		return r < 0x20 || r == 0x7f || unicode.IsSpace(r)
-	}) >= 0
+	}) >= 0 {
+		return true
+	}
+	if !strings.Contains(value, ":") {
+		return false
+	}
+	if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+		return net.ParseIP(strings.TrimSuffix(strings.TrimPrefix(value, "["), "]")) == nil
+	}
+	host, portText, err := net.SplitHostPort(value)
+	if err != nil || host == "" || portText == "" {
+		return true
+	}
+	_, err = strconv.ParseUint(portText, 10, 16)
+	return err != nil
+}
+
+func validHeaderName(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if (character >= 'a' && character <= 'z') ||
+			(character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') {
+			continue
+		}
+		switch character {
+		case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func validHeaderValue(value string) bool {
+	if !utf8.ValidString(value) {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		if value[index] < 0x20 || value[index] == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 var (

@@ -29,6 +29,163 @@ UPSTREAM_SPEC.loader.exec_module(UPSTREAM)
 
 
 class CompositeHarnessPathTests(unittest.TestCase):
+  @staticmethod
+  def _catalog(selected: object = "p4_safe") -> dict[str, object]:
+    vector_id = DRIVER.VECTOR_FOR_CASE[selected] if isinstance(selected, str) and selected in DRIVER.CASES else "p4_safe"
+    return {"vectors": [{"id": vector_id, "request": {"method": "GET", "path": "/", "headers": {}}}], "selected_case": selected}
+
+  def test_case_selection_is_catalog_semantic_and_requires_explicit_case(self) -> None:
+    selected, _ = DRIVER.select_case(self._catalog("metadata_omitted"), Path("/runtime-with-p1_allow"))
+    self.assertEqual(selected, "metadata_omitted")
+    missing_case_catalog = {"vectors": self._catalog()["vectors"]}
+    missing_case_runtime = Path("/runtime-metadata_omitted")
+    with self.assertRaisesRegex(RuntimeError, "selected_case"):
+      DRIVER.select_case(missing_case_catalog, missing_case_runtime)
+    unknown_case_catalog = self._catalog("unknown")
+    unknown_case_runtime = Path("/runtime-metadata_omitted")
+    with self.assertRaisesRegex(RuntimeError, "selected_case"):
+      DRIVER.select_case(unknown_case_catalog, unknown_case_runtime)
+
+  def test_p4_safe_receipt_uses_observed_committed_200(self) -> None:
+    source = HARNESS.read_text(encoding="utf-8")
+    self.assertIn('"p4_visible_status": status if case == "p4_safe" and response_completed else None', source)
+    self.assertNotIn('"p4_outcome": "none", "p4_visible_status": None', source)
+
+  def test_receipt_output_allowlist_excludes_sensitive_values(self) -> None:
+    client_keys = {
+        "lease_observed", "visible_status", "redirect_location_verified",
+        "p4_outcome", "p4_visible_status", "p4_response_committed",
+    }
+    upstream_keys = {"lease_observed", "request_terminal", "response_observed"}
+    self.assertTrue(client_keys.isdisjoint(DRIVER.FORBIDDEN_OUTPUT_KEYS))
+    self.assertTrue(upstream_keys.isdisjoint(DRIVER.FORBIDDEN_OUTPUT_KEYS))
+
+  def test_p3_redirect_uses_the_canonical_vector_and_bounded_location(self) -> None:
+    self.assertEqual(DRIVER.VECTOR_FOR_CASE["p3_redirect"], "p3_redirect")
+    self.assertEqual(DRIVER.expected_status("p3_redirect"), {302})
+    vector = {
+        "expected": {"redirect_target": "/msconnector-p3-redirect-target"},
+    }
+    self.assertEqual(
+        DRIVER._expected_redirect_location("p3_redirect", vector),
+        b"/msconnector-p3-redirect-target",
+    )
+    for target in ("", "//other", "/bad\r\nLocation: /other", "/space ", "/snowman-☃"):
+      with self.assertRaises(RuntimeError):
+        DRIVER._expected_redirect_location("p3_redirect", {"expected": {"redirect_target": target}})
+
+  def test_p3_redirect_client_requires_one_exact_location(self) -> None:
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    port = server.getsockname()[1]
+
+    def serve() -> None:
+      connection, _ = server.accept()
+      try:
+        connection.recv(4096)
+        connection.sendall(
+            b"HTTP/1.1 302 Found\r\n"
+            b"Location: /msconnector-p3-redirect-target\r\n"
+            b"Content-Length: 0\r\n\r\n"
+        )
+      finally:
+        connection.close()
+        server.close()
+
+    thread = threading.Thread(target=serve)
+    thread.start()
+    try:
+      status, completed = DRIVER.http_request(
+          port,
+          {"request": {"method": "GET", "path": "/safe", "headers": {}}},
+          False,
+          expected_location=b"/msconnector-p3-redirect-target",
+      )
+    finally:
+      thread.join(timeout=2)
+    self.assertEqual((status, completed), (302, True))
+
+  def test_p3_redirect_client_rejects_missing_mismatched_and_duplicate_locations(self) -> None:
+    for headers in (
+        b"Content-Length: 0\r\n",
+        b"Location: /other\r\nContent-Length: 0\r\n",
+        b"Location: /msconnector-p3-redirect-target\r\nLocation: /other\r\nContent-Length: 0\r\n",
+    ):
+      with self.subTest(headers=headers):
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        port = server.getsockname()[1]
+
+        def serve() -> None:
+          connection, _ = server.accept()
+          try:
+            connection.recv(4096)
+            connection.sendall(b"HTTP/1.1 302 Found\r\n" + headers + b"\r\n")
+          finally:
+            connection.close()
+            server.close()
+
+        thread = threading.Thread(target=serve)
+        thread.start()
+        try:
+          status, completed = DRIVER.http_request(
+              port,
+              {"request": {"method": "GET", "path": "/safe", "headers": {}}},
+              False,
+              expected_location=b"/msconnector-p3-redirect-target",
+          )
+        finally:
+          thread.join(timeout=2)
+        self.assertEqual((status, completed), (None, False))
+
+  def test_socket_requires_explicit_private_parent_and_byte_budget(self) -> None:
+    script = Path(__file__).with_name("run_traefik_composite_matrix.sh").read_text(
+      encoding="utf-8"
+    )
+    self.assertIn("need_env COMPOSITE_SOCKET_PARENT", script)
+    self.assertNotIn("need_env COMPOSITE_SOCKET\n", script)
+    self.assertIn("mktemp -d -- \"$COMPOSITE_SOCKET_PARENT/.traefik-composite.XXXXXX\"", script)
+    self.assertIn('SOCKET_BASENAME=composite.sock', script)
+    self.assertIn('LC_ALL=C expr length "$COMPOSITE_SOCKET"', script)
+    self.assertIn('COMPOSITE_SOCKET_PARENT contains control or non-ASCII bytes', script)
+    self.assertIn('SOCKET_PARENT_DEV=$(stat -c \'%d\'', script)
+    self.assertIn('SOCKET_PARENT_INO=$(stat -c \'%i\'', script)
+    self.assertIn('revalidate_socket_parent || blocked "composite socket parent changed before child creation"', script)
+    self.assertIn('revalidate_socket_parent || blocked "composite socket parent changed after child creation"', script)
+    self.assertNotIn('COMPOSITE_SOCKET_PARENT=${', script)
+    self.assertNotIn('SOCKET_PARENT=$(dirname "$COMPOSITE_SOCKET")', script)
+
+  def test_socket_cleanup_is_identity_bound_and_never_removes_parent(self) -> None:
+    script = Path(__file__).with_name("run_traefik_composite_matrix.sh").read_text(
+      encoding="utf-8"
+    )
+    cleanup = script[script.index("cleanup_socket_child() {"):script.index("trap cleanup_socket_child EXIT")]
+    self.assertIn("SOCKET_CHILD_DEV", cleanup)
+    self.assertIn("SOCKET_CHILD_INO", cleanup)
+    self.assertIn('rmdir -- "$SOCKET_CHILD"', cleanup)
+    self.assertNotIn('rmdir -- "$COMPOSITE_SOCKET_PARENT"', cleanup)
+
+  def test_socket_child_trap_is_installed_before_post_allocation_rejections(self) -> None:
+    script = Path(__file__).with_name("run_traefik_composite_matrix.sh").read_text(
+      encoding="utf-8"
+    )
+    allocation = script.index('SOCKET_CHILD=$(mktemp -d')
+    identity = script.index("SOCKET_CHILD_DEV=$(stat -c '%d'", allocation)
+    trap = script.index('trap cleanup_socket_child EXIT', allocation)
+    first_post_allocation_check = script.index('chmod 700 "$SOCKET_CHILD"', allocation)
+    self.assertLess(allocation, identity)
+    self.assertLess(identity, trap)
+    self.assertLess(trap, first_post_allocation_check)
+    self.assertLess(script.index('cleanup_socket_child() {'), allocation)
+    self.assertIn('socket child identity changed or unavailable; refusing cleanup', script)
+
+  def test_socket_path_limit_is_measured_as_bytes(self) -> None:
+    # The shell uses LC_ALL=C so multibyte input cannot bypass the kernel's
+    # byte-oriented AF_UNIX path limit.
+    self.assertGreater(len("é".encode("utf-8")), len("é"))
+
   def test_safe_ancestor_chain_allows_root_owned_ancestor_but_rejects_writable_one(self) -> None:
     script = Path(__file__).with_name("run_traefik_composite_matrix.sh").read_text(
         encoding="utf-8"

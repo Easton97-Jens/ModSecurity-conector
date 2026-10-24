@@ -4,8 +4,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Deterministic JSON string escaping helper. NULL input is treated as an empty string. */
+/*
+ * Deterministic JSON string escaping helpers. Valid UTF-8 is retained;
+ * malformed bytes are emitted as \u00XX escapes so the result remains valid
+ * UTF-8 JSON. NULL input is treated as an empty string.
+ */
 size_t msconnector_json_escape(const char *src, char *dst, size_t dst_size);
+size_t msconnector_json_escape_n(
+    const char *src,
+    size_t src_size,
+    char *dst,
+    size_t dst_size);
+/* True only when src is valid UTF-8 for the supplied byte count. */
+int msconnector_json_utf8_is_valid_n(const char *src, size_t src_size);
 #ifdef __cplusplus
 }
 #endif

@@ -3,26 +3,50 @@
 **Sprache:** [English](README.md) | Deutsch
 
 Dieses Verzeichnis enthält kleine, repository-relative
-Konfigurationsreferenzen für die sechs ausgewählten Connectorpfade. Sie sind
-Lehrmaterial für Konfigurationen, keine Deployment-Manifeste und für sich
-allein keine Evidence.
+Konfigurationsreferenzen für sechs Host-Wurzeln und die zehn logischen
+Connectorlösungen. Sie sind Lehrmaterial für Konfigurationen, keine
+Deployment-Manifeste und für sich allein keine Evidence.
 
 ## Struktur und Geltungsbereich
 
-| Verzeichnis | Integrationsmodus | Kernreferenz | Kompatibilitätsreferenz |
+| Verzeichnis | Integrationsmodus | Logische Connectorlösungen | Reines Legacy-Material |
 | --- | --- | --- | --- |
-| [apache/](apache/README.de.md) | natives httpd-Modul | Native HTTP/1.1-P1--P4-Safe-Konfiguration | keine |
-| [nginx/](nginx/README.de.md) | natives NGINX-HTTP-Modul | Native HTTP/1.1-P1--P4-Safe-Konfiguration | keine |
-| [haproxy/](haproxy/README.de.md) | nativer HTX-Filter | Native HTTP/1.1-P1--P4-Safe-Konfiguration | [SPOE/SPOP](haproxy/README.de.md#spoespop-kompatibilität) |
-| [envoy/](envoy/README.de.md) | Envoy ext_proc | Gestreamte HTTP/1.1-P1--P4-Safe-Konfiguration | [ext_authz](envoy/README.de.md#ext_authz-kompatibilität) |
-| [traefik/](traefik/README.de.md) | native Traefik-Middleware | Local-Plugin-/UDS-HTTP/1.1-P1--P4-Safe-Konfiguration | [forwardAuth](traefik/README.de.md#forwardauth-kompatibilität) |
-| [lighttpd/](lighttpd/README.de.md) | gepatchtes natives lighttpd-Modul | HTTP/1.1-Identity-Entity-P1--P4-Safe-Referenz | [Sidecar-Proxy](lighttpd/README.de.md#sidecar-kompatibilität) |
+| [apache/](apache/README.de.md) | natives httpd-Modul | Apache | keines |
+| [nginx/](nginx/README.de.md) | natives NGINX-HTTP-Modul | NGINX | keines |
+| [haproxy/](haproxy/README.de.md) | nativer HTX-Filter und SPOE/SPOP-Bridge | HAProxy HTX; HAProxy SPOE/SPOP mit nativem HTX-Response-Companion | [SPOE/SPOP-Kompatibilitätsmaterial](haproxy/README.de.md#spoespop-kompatibilitätsmaterial) |
+| [envoy/](envoy/README.de.md) | externe Prozessoren | Envoy ext_proc; Envoy ext_authz mit privatem Response-Observer | [ext_authz-Kompatibilitätsmaterial](envoy/README.de.md#ext_authz-kompatibilität) |
+| [traefik/](traefik/README.de.md) | Middleware und UDS-Engine | Traefik Native UDS; Traefik forwardAuth mit privatem Response-Observer | [forwardAuth-Kompatibilitätsmaterial](traefik/README.de.md#forwardauth-kompatibilität) |
+| [lighttpd/](lighttpd/README.de.md) | natives Modul und traffic-owning Sidecar | lighttpd Patched; lighttpd Stock-Sidecar | [Sidecar-Kompatibilitätsmaterial](lighttpd/README.de.md#sidecar-kompatibilität) |
 
 Alle Pfade in der Tabelle sind repository-relativ: Sie werden vom Root dieses
 Repositorys aus aufgelöst. Ein Hostpfad wie
 /etc/modsecurity/no-crs-baseline.conf ist ein Installationsbeispiel, kein
 Repositorypfad und kein Wert, der auf jedem Host unverändert übernommen werden
 kann.
+
+## Vier Konfigurationsvarianten
+
+Jede logische Connectorlösung besitzt Artefakte für `off`, `safe`,
+`strict` und `all`. `all` ist ein umfassendes, quellenbasiertes
+Konfigurationslayout: Es verwendet eine echte `strict`-P4-Policy und führt
+keinen nicht unterstützten P4-Modus `all` ein. Werte, die nicht gleichzeitig
+gelten können oder Credentials benötigen, bleiben mit ihrer Auswahlgrenze
+auskommentiert. Ein Strict-Artefakt behauptet keinen client-sichtbaren
+Post-Commit-Abbruch, wenn sein Hosttransport keinen nachweislich sicheren
+Abort-Hook hat.
+
+| Logische Connectorlösung | Off | Safe | Strict | All |
+| --- | --- | --- | --- | --- |
+| Apache | [off](apache/off/httpd.conf) | [safe](apache/safe/httpd.conf) | [strict](apache/strict/httpd.conf) | [all](apache/all/httpd.conf) |
+| NGINX | [off](nginx/off/nginx.conf) | [safe](nginx/safe/nginx.conf) | [strict](nginx/strict/nginx.conf) | [all](nginx/all/nginx.conf) |
+| HAProxy HTX | [off](haproxy/off/haproxy-htx.cfg) | [safe](haproxy/safe/haproxy-htx.cfg) | [strict](haproxy/strict/haproxy-htx.cfg) | [all](haproxy/all/haproxy-htx.cfg) |
+| HAProxy SPOE/SPOP | [off](haproxy/spoe-spop/off/) | [safe](haproxy/spoe-spop/safe/) | [strict](haproxy/spoe-spop/strict/) | [all](haproxy/spoe-spop/all/) |
+| Envoy ext_authz | [off](envoy/ext-authz/off/) | [safe](envoy/ext-authz/safe/) | [strict](envoy/ext-authz/strict/) | [all](envoy/ext-authz/all/) |
+| Envoy ext_proc | [off](envoy/ext-proc/off/) | [safe](envoy/ext-proc/safe/) | [strict](envoy/ext-proc/strict/) | [all](envoy/ext-proc/all/) |
+| Traefik forwardAuth | [off](traefik/forwardauth/off/) | [safe](traefik/forwardauth/safe/) | [strict](traefik/forwardauth/strict/) | [all](traefik/forwardauth/all/) |
+| Traefik Native UDS | [off](traefik/native-uds/off/) | [safe](traefik/native-uds/safe/) | [strict](traefik/native-uds/strict/) | [all](traefik/native-uds/all/) |
+| lighttpd Stock | [off](lighttpd/stock/off/) | [safe](lighttpd/stock/safe/) | [strict](lighttpd/stock/strict/) | [all](lighttpd/stock/all/) |
+| lighttpd Patched | [off](lighttpd/patched/off/) | [safe](lighttpd/patched/safe/) | [strict](lighttpd/patched/strict/) | [all](lighttpd/patched/all/) |
 
 ## P1--P4-Safe-Kern
 

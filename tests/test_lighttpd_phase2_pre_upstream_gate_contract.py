@@ -121,6 +121,26 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
             self.source,
         )
 
+    def test_body_limit_rejections_mark_the_host_rejected_p2_cleanup_path(self) -> None:
+        declared_start = self.prepare.index("if (p->request_body_limit == 0U")
+        declared_end = self.prepare.index("if (r->conf.stream_request_body", declared_start)
+        declared = self.prepare[declared_start:declared_end]
+        streamed_start = self.request_body_hook.index("if (length < 0 ||")
+        streamed_end = self.request_body_hook.index("append.ctx = ctx;", streamed_start)
+        streamed = self.request_body_hook[streamed_start:streamed_end]
+
+        for limit_path in (declared, streamed):
+            with self.subTest(limit_path=limit_path[:32]):
+                marker = limit_path.index("ctx->request_body_gate_rejected = 1;")
+                error_response = limit_path.index("mod_msconnector_error_response(")
+                self.assertLess(marker, error_response)
+                self.assertIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", limit_path)
+        self.assertIn("if (ctx->request_body_gate_rejected) {", self.source)
+        self.assertIn(
+            "msconnector_runtime_transaction_finish_host_rejected_request_body(",
+            self.source,
+        )
+
     def test_gate_rejection_logs_without_synthesizing_request_body_eos(self) -> None:
         logging_start = self.runtime_source.index(
             "static int finish_transaction_with_logging("

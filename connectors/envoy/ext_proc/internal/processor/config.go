@@ -20,30 +20,61 @@ import (
 type LateActionPolicy string
 
 const (
-	LateActionMinimal LateActionPolicy = "minimal"
+	LateActionOff LateActionPolicy = "off"
 	LateActionSafe    LateActionPolicy = "safe"
 	LateActionStrict  LateActionPolicy = "strict"
 )
+
+// LateActionPolicyAdmissionValidator is implemented by a rule-evaluating
+// engine that can prove whether its Common runtime and host adapter support a
+// requested post-commit policy. A connector must not infer that capability
+// from the service JSON alone.
+type LateActionPolicyAdmissionValidator interface {
+	ValidateLateActionPolicy(LateActionPolicy) error
+}
 
 // Config is kept in connector-local JSON so its limits can be inspected without
 // importing Envoy or Common configuration types. Duration values are expressed
 // in milliseconds in the JSON file to avoid ambiguous Go duration encodings.
 type Config struct {
-	ListenAddress        string           `json:"listen_address"`
-	TransactionIDHeader  string           `json:"transaction_id_header"`
-	MaxHeaderCount       int              `json:"max_header_count"`
-	MaxHeaderNameBytes   int              `json:"max_header_name_bytes"`
-	MaxHeaderValueBytes  int              `json:"max_header_value_bytes"`
-	MaxTotalHeaderBytes  int              `json:"max_total_header_bytes"`
-	MaxBodyChunkBytes    int              `json:"max_body_chunk_bytes"`
-	MaxRequestBodyBytes  int64            `json:"max_request_body_bytes"`
-	MaxResponseBodyBytes int64            `json:"max_response_body_bytes"`
-	MaxGRPCMessageBytes  int              `json:"max_grpc_message_bytes"`
-	EngineTimeoutMS      int              `json:"engine_timeout_ms"`
+	ListenAddress        string `json:"listen_address"`
+	TransactionIDHeader  string `json:"transaction_id_header"`
+	MaxHeaderCount       int    `json:"max_header_count"`
+	MaxHeaderNameBytes   int    `json:"max_header_name_bytes"`
+	MaxHeaderValueBytes  int    `json:"max_header_value_bytes"`
+	MaxTotalHeaderBytes  int    `json:"max_total_header_bytes"`
+	MaxBodyChunkBytes    int    `json:"max_body_chunk_bytes"`
+	MaxRequestBodyBytes  int64  `json:"max_request_body_bytes"`
+	MaxResponseBodyBytes int64  `json:"max_response_body_bytes"`
+	MaxGRPCMessageBytes  int    `json:"max_grpc_message_bytes"`
+	EngineTimeoutMS      int    `json:"engine_timeout_ms"`
+	// StreamIdleTimeoutMS bounds inactivity between Envoy ProcessingRequest
+	// messages for one gRPC stream. It is deliberately distinct from the
+	// engine callback budget: normal streamed bodies may remain open longer
+	// when they keep delivering messages within this interval.
+	StreamIdleTimeoutMS int `json:"stream_idle_timeout_ms"`
+	// StreamMaxLifetimeMS bounds the total lifetime of an admitted gRPC stream,
+	// including periods with regular activity. It is distinct from both the
+	// inactivity limit above and the per-operation engine timeout.
+	StreamMaxLifetimeMS int `json:"stream_max_lifetime_ms"`
+	// MaxConcurrentStreams bounds process-wide stream/transaction admission;
+	// it is also applied to every individual HTTP/2 connection by the gRPC
+	// server configuration.
+	MaxConcurrentStreams int              `json:"max_concurrent_streams"`
 	CleanupTimeoutMS     int              `json:"cleanup_timeout_ms"`
 	ShutdownTimeoutMS    int              `json:"shutdown_timeout_ms"`
 	LateActionPolicy     LateActionPolicy `json:"late_action_policy"`
 }
+
+// MaximumConcurrentStreams is a defensive ceiling for operator configuration.
+// It keeps a bad configuration from turning the stream admission control into
+// an unbounded allocation while still allowing a deliberate service-specific
+// limit below it.
+const MaximumConcurrentStreams = 1024
+
+// maxTimeoutMS is the largest millisecond value that can be converted to a
+// time.Duration without overflowing its nanosecond representation.
+const maxTimeoutMS = int64((1<<63)-1) / int64(time.Millisecond)
 
 // LoadConfig decodes and validates a service config without changing it.
 func LoadConfig(path string) (Config, error) {
@@ -74,8 +105,19 @@ func (config Config) Validate() error {
 	if strings.TrimSpace(config.ListenAddress) == "" {
 		return fmt.Errorf("config: listen_address is required")
 	}
-	if _, _, err := net.SplitHostPort(config.ListenAddress); err != nil {
+	host, _, err := net.SplitHostPort(config.ListenAddress)
+	if err != nil {
 		return fmt.Errorf("config: listen_address must be host:port: %w", err)
+	}
+	// The ext_proc gRPC endpoint is an unauthenticated connector-internal
+	// interface. Accept only numeric loopback addresses; rejecting hostnames
+	// avoids resolver-dependent or wildcard binds and keeps the documented
+	// private default fail-closed.
+	if net.ParseIP(host) == nil {
+		return fmt.Errorf("config: listen_address host must be a numeric loopback IP")
+	}
+	if !net.ParseIP(host).IsLoopback() {
+		return fmt.Errorf("config: listen_address host must be a loopback IP")
 	}
 	if strings.TrimSpace(config.TransactionIDHeader) == "" {
 		return fmt.Errorf("config: transaction_id_header is required")
@@ -88,11 +130,20 @@ func (config Config) Validate() error {
 		"max_body_chunk_bytes":   config.MaxBodyChunkBytes,
 		"max_grpc_message_bytes": config.MaxGRPCMessageBytes,
 		"engine_timeout_ms":      config.EngineTimeoutMS,
+		"stream_idle_timeout_ms": config.StreamIdleTimeoutMS,
+		"stream_max_lifetime_ms": config.StreamMaxLifetimeMS,
+		"max_concurrent_streams": config.MaxConcurrentStreams,
 		"cleanup_timeout_ms":     config.CleanupTimeoutMS,
 		"shutdown_timeout_ms":    config.ShutdownTimeoutMS,
 	} {
 		if value <= 0 {
 			return fmt.Errorf("config: %s must be positive", name)
+		}
+		// Every millisecond duration is multiplied into time.Duration below.
+		// Include the absolute stream lifetime as well as fields named timeout;
+		// otherwise a large, locally supplied lifetime can wrap before use.
+		if int64(value) > maxTimeoutMS && strings.HasSuffix(name, "_ms") {
+			return fmt.Errorf("config: %s exceeds maximum of %d milliseconds", name, maxTimeoutMS)
 		}
 	}
 	if config.MaxRequestBodyBytes <= 0 || config.MaxResponseBodyBytes <= 0 {
@@ -101,16 +152,47 @@ func (config Config) Validate() error {
 	if config.MaxGRPCMessageBytes <= config.MaxBodyChunkBytes {
 		return fmt.Errorf("config: max_grpc_message_bytes must exceed max_body_chunk_bytes")
 	}
+	if config.MaxConcurrentStreams > MaximumConcurrentStreams {
+		return fmt.Errorf("config: max_concurrent_streams must not exceed %d", MaximumConcurrentStreams)
+	}
 	switch config.LateActionPolicy {
-	case LateActionMinimal, LateActionSafe, LateActionStrict:
+	case LateActionOff, LateActionSafe, LateActionStrict:
 	default:
-		return fmt.Errorf("config: late_action_policy must be minimal, safe, or strict")
+		return fmt.Errorf("config: late_action_policy must be off, safe, or strict")
+	}
+	return nil
+}
+
+func isLoopbackListenHost(host string) bool {
+	// Reject empty hosts (which make net.Listen bind all interfaces) and names
+	// (whose resolution can change the trust boundary after validation).
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func validateLateActionPolicyAdmission(policy LateActionPolicy, engine TransactionOpener) error {
+	if validator, ok := engine.(LateActionPolicyAdmissionValidator); ok {
+		if err := validator.ValidateLateActionPolicy(policy); err != nil {
+			return fmt.Errorf("config: late_action_policy=%q is not admissible: %w", policy, err)
+		}
+		return nil
+	}
+	if policy == LateActionStrict {
+		return fmt.Errorf("config: late_action_policy=strict requires a rule-evaluating runtime with a proven strict post-commit host action")
 	}
 	return nil
 }
 
 func (config Config) engineTimeout() time.Duration {
 	return time.Duration(config.EngineTimeoutMS) * time.Millisecond
+}
+
+func (config Config) streamIdleTimeout() time.Duration {
+	return time.Duration(config.StreamIdleTimeoutMS) * time.Millisecond
+}
+
+func (config Config) streamMaxLifetime() time.Duration {
+	return time.Duration(config.StreamMaxLifetimeMS) * time.Millisecond
 }
 
 func (config Config) cleanupTimeout() time.Duration {

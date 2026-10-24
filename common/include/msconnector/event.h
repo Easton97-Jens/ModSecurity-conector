@@ -12,12 +12,25 @@ extern "C" {
 
 #define MSCONN_EVENT_REQUEST_BLOCKED "MSCONN_EVENT_REQUEST_BLOCKED"
 #define MSCONN_EVENT_RESPONSE_BLOCKED "MSCONN_EVENT_RESPONSE_BLOCKED"
+#define MSCONN_EVENT_BODY_LIMIT "MSCONN_EVENT_BODY_LIMIT"
 #define MSCONN_EVENT_PHASE4_LATE_INTERVENTION "MSCONN_EVENT_PHASE4_LATE_INTERVENTION"
 #define MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200 "MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200"
 #define MSCONN_EVENT_UNSUPPORTED_CAPABILITY "MSCONN_EVENT_UNSUPPORTED_CAPABILITY"
 #define MSCONN_EVENT_INTERNAL_ERROR "MSCONN_EVENT_INTERNAL_ERROR"
 #define MSCONN_EVENT_CONFIG_ERROR "MSCONN_EVENT_CONFIG_ERROR"
 #define MSCONN_EVENT_RULE_PARSE_ERROR "MSCONN_EVENT_RULE_PARSE_ERROR"
+#define MSCONN_EVENT_ENGINE_TIMEOUT "MSCONN_EVENT_ENGINE_TIMEOUT"
+#define MSCONN_EVENT_ENGINE_UNAVAILABLE "MSCONN_EVENT_ENGINE_UNAVAILABLE"
+#define MSCONN_EVENT_INVALID_ENGINE_RESPONSE "MSCONN_EVENT_INVALID_ENGINE_RESPONSE"
+#define MSCONN_EVENT_CONNECTOR_ERROR "MSCONN_EVENT_CONNECTOR_ERROR"
+#define MSCONN_EVENT_PROTOCOL_ERROR "MSCONN_EVENT_PROTOCOL_ERROR"
+#define MSCONN_EVENT_CLIENT_CANCEL "MSCONN_EVENT_CLIENT_CANCEL"
+#define MSCONN_EVENT_UPSTREAM_DISCONNECT "MSCONN_EVENT_UPSTREAM_DISCONNECT"
+#define MSCONNECTOR_EVENT_URI_REDACTION "<redacted>"
+/* Shared raw-text limit for the URI representation used by JSONL and the
+ * non-cryptographic integrity chain. The serializer escapes that bounded
+ * representation separately. */
+#define MSCONNECTOR_EVENT_URI_SAFE_BUFFER_SIZE 256U
 
 /*
  * Connector-neutral event metadata.
@@ -124,13 +137,15 @@ typedef struct msconnector_event_request {
  */
 typedef struct msconnector_event_integrity {
     unsigned long sequence;
+    /* FNV-derived, process-local correlation values. These are not
+     * cryptographic signatures and must not be treated as tamper evidence. */
     uint64_t previous_hash;
     uint64_t event_hash;
 } msconnector_event_integrity;
 
 typedef struct msconnector_event_flags {
     int late_intervention;
-    /* Optional selected late-action policy (`minimal`, `safe`, or `strict`).
+    /* Optional selected late-action policy (`off`, `safe`, or `strict`).
      * It is metadata, never a request or response body fragment. */
     const char *late_intervention_mode;
     int response_started;
@@ -191,12 +206,30 @@ void msconnector_event_init(msconnector_event *event);
 const char *msconnector_event_status_name(const msconnector_event *event);
 const char *msconnector_event_default_message(const char *message_id);
 const char *msconnector_event_default_level(const char *message_id);
+/* True when every bounded transport provenance value is losslessly serializable. */
+int msconnector_event_transport_provenance_is_valid(const msconnector_event *event);
+/*
+ * A true return means the current serialization is lossless. `truncated`
+ * reports already-authenticated source truncation; it does not make a
+ * lossless current serialization fail.
+ */
 int msconnector_event_write_json_ex(
     const msconnector_event *event,
     char *dst,
     size_t dst_size,
     int *truncated);
 int msconnector_event_write_json(const msconnector_event *event, char *dst, size_t dst_size);
+
+/* Return non-zero when URI serialization must replace a non-empty query. */
+int msconnector_event_uri_query_redacted(const char *uri);
+/* Copy a URI's safe serialized representation without decoding or re-encoding it. */
+int msconnector_event_uri_redact_query(const char *uri, char *dst, size_t dst_size);
+/* As above, and report when the complete safe representation did not fit. */
+int msconnector_event_uri_redact_query_ex(
+    const char *uri,
+    char *dst,
+    size_t dst_size,
+    int *truncated);
 void msconnector_event_set_phase4_hard_abort_after_200(
     msconnector_event *event,
     const char *connector,

@@ -1,0 +1,28 @@
+# Comprehensive ForwardAuth route: P1/P2 use ForwardAuth and the private
+# response observer retains the logical P3/P4 companion.
+http:
+  routers:
+    app:
+      rule: "PathPrefix(`/`)"
+      entryPoints: ["web"]
+      middlewares: ["modsecurity-forwardauth", "modsecurity-response-observer"]
+      service: app
+  middlewares:
+    modsecurity-forwardauth:
+      forwardAuth:
+        address: "http://127.0.0.1:9000/authorize"
+        trustForwardHeader: false
+        forwardBody: true
+        maxBodySize: 4096
+        authRequestHeaders: ["X-Request-Id", "Content-Type", "Content-Length"]
+        authResponseHeaders: ["X-Msconnector-Response-Handle"]
+    modsecurity-response-observer:
+      plugin:
+        modsecurityResponseObserver:
+          socketPath: /run/modsecurity/traefik-forwardauth-companion.sock
+          timeoutMillis: 5000
+  services:
+    app:
+      loadBalancer:
+        servers:
+        - url: "http://127.0.0.1:8081"

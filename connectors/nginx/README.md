@@ -18,6 +18,9 @@ Implemented now:
 - Shared directive-name metadata from `common/include/msconnector/directives.h`.
 - Shared option/default metadata for enablement, error-log forwarding, and
   phase-4 mode from `common/include/msconnector/options.h`.
+- `modsecurity_use_error_log off` also suppresses native libModSecurity
+  callback messages in the NGINX error log; WAF evaluation and event JSONL
+  output remain separate behaviors.
 - Selected source changes from ModSecurity-nginx PR #377
   (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) applied to
   adapter-owned source for phase-4 / late intervention handling.
@@ -57,7 +60,9 @@ selective intake is recorded per file in [the origin map](ORIGIN.md) and
   closed, while `msc_append_request_body()`,
   `msc_request_body_from_file()`, and `msc_append_response_body()` retain
   nonfatal `ProcessPartial` handling because that return signal also denotes
-  by-design limit truncation.
+  engine-level limit handling. That compatibility is separate from the
+  connector-owned Phase-4 body budget: an over-limit current buffer is
+  rejected before it can be forwarded downstream.
 - [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
   at `471a2a54843bb8f560758a7e75b146db2243ab29` supplies selected
   response-header and pre-commit redirect-replacement handling. A task-local
@@ -88,25 +93,35 @@ result is `log_only` with the visible status unchanged, while a Strict late
 result is `abort_connection` after commit rather than a fabricated second
 response.
 
-It also restores a pre-task Parent content-type ingestion regression. Bounded
-response bytes now reach ModSecurity irrespective of configured connector
-Content-Type scope; when that inspection detects an out-of-scope intervention,
-the connector maps it to `log_only` with `content_type_not_in_scope`. This does
-not relax #384: final `msc_process_response_body()` processing remains
-fail-closed for a result other than `1`, while append/from-file
-`ProcessPartial` handling remains intentionally nonfatal.
+Response-body MIME selection and WAF inspection limits belong to
+libModSecurity through `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`. The NGINX connector has no separate MIME
+allowlist and no mode-specific cumulative inspection budget. Response buffers
+are passed incrementally to the engine in every Phase-4 mode; engine policy
+remains authoritative.
 
-The strict isolated rebuild and C17, C23, and c2y passed, and the newly
-materialized build-source SHA matched the task filter. The selected native
-no-CRS/no-MRTS H1 out-of-scope case passed. The selected Parent Safe/Strict
-outcomes were observed as `log_only` with unchanged visible status and
-post-commit `abort_connection`, respectively, but the full selected runner
-exits nonzero due to read-only Framework fixture contradictions
-(`FND-FRAMEWORK-0058`, `blocked`/`out_of_scope`): Safe expects the mode as the
-reason, while Strict jointly expects a stable `403`/obsolete action despite a
-connection abort. No Framework edit is asserted. These focused observations do
-not establish H2/H3, remote-rule, soak, a clean canonical Memcheck, or delivery
-evidence.
+This does not relax #384: final `msc_process_response_body()` processing
+remains fail-closed for a result other than `1`, while append/from-file
+`ProcessPartial` handling remains intentionally nonfatal for accepted engine
+chunks. The legacy `modsecurity_phase4_body_limit` value no longer rejects a
+response in `safe` or `strict`; checked byte accounting, integer-overflow
+guards and bounded file reads remain active.
+
+### Historical pre-migration observations
+
+The following observations predate removal of the connector MIME filter and
+are not validation of the current source. The earlier strict isolated rebuild
+and C17, C23, and c2y passed, and the materialized build-source SHA matched the
+task filter. The selected native no-CRS/no-MRTS H1 out-of-scope case passed.
+Parent Safe/Strict outcomes were observed as `log_only` with unchanged visible
+status and post-commit `abort_connection`, respectively, but that selected
+runner exited nonzero due to read-only Framework fixture contradictions
+(`FND-FRAMEWORK-0058`, `blocked`/`out_of_scope`). At that time Safe expected the
+mode as the reason, while Strict jointly expected a stable `403`/obsolete
+action despite a connection abort. No Framework edit is asserted. These
+historical observations do not establish current-source runtime behavior,
+H2/H3, remote-rule, soak, a clean canonical Memcheck, or delivery evidence.
 
 ### Parent response and harness hardening
 
@@ -256,13 +271,50 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity on|off`
 - `modsecurity_rules`
 - `modsecurity_rules_file`
-- `modsecurity_rules_remote`
+- `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
-- `modsecurity_phase4_mode minimal|safe|strict`
-- `modsecurity_phase4_content_types_file <path>`
-- `modsecurity_phase4_log <path>`
-- `modsecurity_phase4_body_limit <bytes>`
+- `modsecurity_phase4_mode off|safe|strict`
+- `modsecurity_phase4_log <path>` (native P4 JSONL sink; the connector-owned
+  descriptor is opened through the Common no-follow helper and requires a safe
+  parent, regular leaf, suitable ownership, and private `0600` mode)
+- `modsecurity_phase4_body_limit <bytes>` (legacy compatibility value;
+  accepted by current configuration parsing but not enforced as a WAF
+  response-inspection limit)
+
+`modsecurity_phase4_mode` defaults to `off`. `minimal` is no longer accepted.
+The removed `modsecurity_phase4_content_types_file` directive must be removed
+from existing NGINX configurations; configure MIME selection in libModSecurity
+instead.
+
+| Phase-4 mode | Connector WAF body budget | Late intervention handling |
+| --- | --- | --- |
+| `off` (default) | None | Return positive native results; negative results use the pre-PR #377 NGINX error-finalization path with `500`. |
+| `safe` | None | `log_only` after response commitment; the visible status is unchanged. |
+| `strict` | None | `abort_connection` after response commitment; no fabricated second response. |
+
+`off` does not disable ModSecurity or its configured Phase-4 inspection.
+`SecResponseBodyAccess`, `SecResponseBodyMimeType`, `SecResponseBodyMimeTypesClear`,
+and the library's own body-limit settings still apply. This is not a claim that
+all error paths are identical to an earlier upstream release.
+
+`modsecurity_phase4_body_limit` keeps its historical parser/default bounds for
+configuration compatibility, but the value is no longer enforced as a
+connector WAF response limit in any valid Phase-4 mode. Use
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction` for ModSecurity
+inspection policy. Integer-overflow checks, file metadata/read checks, and the
+reusable 32768-byte file scratch buffer remain active. An absent runtime
+configuration still fails with `NGX_ERROR`.
+
+Native NGINX Phase-4 event-file logging is available only through the
+connector-owned descriptor established during configuration. It does not use
+NGINX's generic `cycle->open_files` registry: unsafe symlink/non-regular-file
+targets, unsafe parents/ownership, and insecure modes fail closed. A normal
+configuration reload opens a safe descriptor for the new cycle and is the
+supported rotation mechanism. Generic NGINX `USR1` reopening is deliberately
+not supported for rotation, because it cannot preserve this no-follow contract.
+Runtime proof for the Functional-A path is tracked separately; protected-B
+attestation and the external FND-PARENT-1036 dependency are not claimed here.
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
@@ -316,14 +368,17 @@ directory; binary path, SHA-256, and version readback; configure arguments;
 build, Framework, and Parent identifiers; and generated time. This is the
 required evidence schema, not a claim that a current runtime record exists.
 
-The current NGINX common-header build contract passes:
+The current NGINX Common and profile-registry build contract passes:
 
 ```sh
 MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include
+MSCONNECTOR_PROFILE_REGISTRY_ROOT=$CONNECTOR_ROOT
 ```
 
-`connectors/nginx/config` consumes this value when constructing NGINX include
-paths.
+`connectors/nginx/config` consumes these values when constructing NGINX include
+paths. The managed exact-head build replaces `MSCONNECTOR_PROFILE_REGISTRY_ROOT`
+with its cache-identity-bound staged root; direct source builds use the
+canonical checkout root shown above.
 
 Observed historically on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built
@@ -373,7 +428,7 @@ when NGINX or libmodsecurity headers are unavailable; optional C23/future-C
 checks depend on compiler support. No production, CRS, full-matrix, or runtime
 verification is claimed here.
 
-NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. If unset, the config only falls back to `$ngx_addon_dir/../../common/src` when that path exists.
+NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. They must also set `MSCONNECTOR_PROFILE_REGISTRY_ROOT` to a root containing `connectors/profile_registry.c` and `connectors/profile_registry.h`. The managed exact-head coordinator supplies a cache-identity-bound staged root. If unset, the config only falls back to `$ngx_addon_dir/../..` when both registry files exist there; that fallback is for direct checkout builds, not copied trees.
 
 ## Canonical Phase-4 boundary
 
@@ -387,6 +442,43 @@ after the response-header path.  `response_body_buffered`, `phase4`,
 `implemented_not_asserted` until a current canonical real-host run proves the
 individual behavior.
 
+For a file-only NGINX buffer, the filter reads the visible `file_pos..file_last`
+range through one reusable 32 KiB scratch buffer and offers each bounded chunk
+once to P4. NGINX's memory-first buffer semantics prevent a mixed memory/file
+buffer from being counted twice. Invalid metadata, allocation failure, and a
+short or failed file read return a connector error before that current chain is
+forwarded; neither the scratch bytes nor response payloads enter event JSONL.
+
+`tests/run_nginx_body_buffer_fixture.py` is a test-only native boundary
+fixture. It rebuilds the selected clean connector checkout and a separate
+test-only fixture into a dedicated NGINX test binary against the pinned NGINX
+source, then emits real memory, file-only, and mixed `ngx_buf_t` values through
+the installed filter chain. Its test-only filter is ordered immediately before
+the statically linked connector and records the actual flags at that boundary.
+For file-only and injected file-error controls, it selects the file-only
+representation of that real buffer only for the direct connector call, then
+restores the upstream representation before returning; this is an explicit
+fixture boundary, not a claim about every upstream output filter. The mixed
+control retains both representations and uses distinct file backing: the P4
+rule confirms memory-first inspection while the separately recorded forwarded
+body remains NGINX's file backing. Its test configuration selects the existing
+limit solely to exercise within-limit and reject-before-forwarding cases; it
+does not change a product default. Its allocation-error case changes only the
+test binary: the same test-only boundary enables a fixture wrapper for the
+known 32 KiB `ngx_pnalloc` scratch request and records one wrapper hit. It
+neither changes connector code nor enables a production fault-injection switch.
+The retained result records only the exact head, build identities, verified
+filter ordering, buffer flags, lengths, bounded forwarding hashes, and
+accounting—not response payloads.
+
+The GitHub-hosted Functional-A gate separately publishes one bounded,
+payload-safe `result.json` only after both real `modsecurity_use_error_log`
+On/Off cells pass. It carries the exact head, NGINX archive/build identities,
+redaction/truncation/integrity/transaction facts, raw-WAF-canary observation,
+callback state, and lifecycle facts, but no raw log, target, Canary, payload,
+transaction identifier, timestamp, or absolute path. This is candidate-owned
+integration evidence; it is not the independent protected-host attestation.
+
 A rule match must be reported independently from a visible 403.  Canonical
 events preserve the original host status, requested WAF status, visible client
 status, requested action, actual action, header/commit timing, and connection
@@ -399,7 +491,34 @@ The canonical Phase-4 cases are evidence-gated and include rule observation,
 pre-commit deny, safe log-only, strict abort, and status/action metadata.  No
 response-body payload may enter an event or report.
 
-The final-processing guard is intentionally narrower than body ingestion:
-`ProcessPartial` append/from-file handling does not become a generic 500 path.
-It therefore preserves the existing Safe/Strict Phase-4 outcome model rather
-than turning a partial-body limit decision into a late intervention claim.
+Final processing and body ingestion have different native return contracts.
+`msc_process_response_body()` must return exactly `1`; its failure remains
+fail-closed in every mode. `msc_append_response_body()` rejects negative
+results but retains nonfatal `ProcessPartial` handling for a zero result.
+No valid Phase-4 mode adds a connector-owned cumulative response-inspection
+budget; engine policy and accounting/file-read safety checks continue to apply.
+
+## Phase-4 mode and response-body limit ownership
+
+The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+No valid Phase-4 mode adds a connector-owned cumulative response-inspection
+budget. libModSecurity owns WAF inspection selection and limits through
+`SecResponseBodyAccess`, `SecResponseBodyMimeType`,
+`SecResponseBodyMimeTypesClear`, `SecResponseBodyLimit`, and
+`SecResponseBodyLimitAction`.
+
+This rule applies to native integrations and Common Runtime-backed response
+paths. A request-only route still requires its supported response
+observer/companion to inspect Phase 4; selecting a mode does not create a
+missing response path.
+
+Legacy connector/runtime budget settings may remain parseable for
+compatibility, but they must not reject or abort a response solely because a
+legacy inspection-byte count is exceeded. Independent allocation,
+buffered-storage, chunk/message/frame, timeout, overflow and transport limits
+remain active in every mode. A buffered sidecar may therefore still reject a
+response that cannot fit its bounded host storage; that is host capacity, not
+WAF inspection policy.
+
+See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
+for the exact scope, compatibility boundary and validation limitations.

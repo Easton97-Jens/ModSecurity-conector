@@ -29,9 +29,10 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`admin.address.socket_address.port_value`](#admin-address-socket-address-port-value) | Host / Connector | YAML-Portfeld | nein | Der Connector definiert für `admin.address.socket_address.port_value` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `admin.address.socket_address.port_value` konfiguriert die administrative Envoy-Schnittstelle. Sie konfiguriert die administrative Listener- oder Protokollierungsseite außerhalb des Datenpfads. |
 | [`cleanup_timeout_ms`](#cleanup-timeout-ms) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`engine_timeout_ms`](#engine-timeout-ms) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
-| [`late_action_policy`](#late-action-policy) | Connector-Service | LateActionPolicy | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst. |
+| [`late_action_policy`](#late-action-policy) | Connector-Service | LateActionPolicy | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst. |
 | [`listen_address`](#listen-address) | Connector-Service | Zeichenkette | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_body_chunk_bytes`](#max-body-chunk-bytes) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
+| [`max_concurrent_streams`](#max-concurrent-streams) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_grpc_message_bytes`](#max-grpc-message-bytes) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_header_count`](#max-header-count) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_header_name_bytes`](#max-header-name-bytes) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
@@ -100,6 +101,8 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.route.cluster`](#static-resources-listeners-filter-chains-filters-typed-config-route-config-virtual-hosts-routes-match-route-cluster) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.route.cluster` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `static_resources.listeners[].filter_chains[].filters[].typed_config.route_config.virtual_hosts[].routes[].match.route.cluster` konfiguriert die Listener-Bindung und Netzwerk-Erreichbarkeit. Sie legt fest, an welcher Adresse oder welchem Port der Host Verbindungen annimmt oder einen lokalen Dienst erreicht. |
 | [`static_resources.listeners[].filter_chains[].filters[].typed_config.stat_prefix`](#static-resources-listeners-filter-chains-filters-typed-config-stat-prefix) | Host / Connector | YAML-Kennungsfeld | nein | Der Connector definiert für `static_resources.listeners[].filter_chains[].filters[].typed_config.stat_prefix` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `static_resources.listeners[].filter_chains[].filters[].typed_config.stat_prefix` konfiguriert die Listener-Bindung und Netzwerk-Erreichbarkeit. Sie legt fest, an welcher Adresse oder welchem Port der Host Verbindungen annimmt oder einen lokalen Dienst erreicht. |
 | [`static_resources.listeners[].name`](#static-resources-listeners-name) | Host / Connector | YAML-Kennungsfeld | nein | Der Connector definiert für `static_resources.listeners[].name` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `static_resources.listeners[].name` konfiguriert die Listener-Bindung und Netzwerk-Erreichbarkeit. Sie legt fest, an welcher Adresse oder welchem Port der Host Verbindungen annimmt oder einen lokalen Dienst erreicht. |
+| [`stream_idle_timeout_ms`](#stream-idle-timeout-ms) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
+| [`stream_max_lifetime_ms`](#stream-max-lifetime-ms) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`transaction_id_header`](#transaction-id-header) | Connector-Service | Zeichenkette | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`compatibility.ext_authz.static_resources`](#compatibility-ext-authz-static-resources) | Kompatibilität | YAML-Konfigurationsfeld | nein | Der Connector definiert für `compatibility.ext_authz.static_resources` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | YAML-Pfad `compatibility.ext_authz.static_resources` im ausgewählten Envoy-Template. | Das YAML-Feld `compatibility.ext_authz.static_resources` konfiguriert die Kompatibilitätsintegration. Sie konfiguriert einen getrennten Kompatibilitätspfad außerhalb des ausgewählten nativen Kernpfads. |
 | [`compatibility.ext_authz.static_resources.clusters`](#compatibility-ext-authz-static-resources-clusters) | Kompatibilität | YAML-Liste oder -Zuordnung | nein | Der Connector definiert für `compatibility.ext_authz.static_resources.clusters` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | YAML-Pfad `compatibility.ext_authz.static_resources.clusters` im ausgewählten Envoy-Template. | Das YAML-Feld `compatibility.ext_authz.static_resources.clusters` konfiguriert die Upstream- oder Service-Verbindung. Sie wählt die Zielinstanz, den Transport oder das Zeitlimit für einen Upstream- beziehungsweise Prozessorservice. |
@@ -193,9 +196,9 @@ Siehe [Engine-Referenz](../common/modsecurity-directives.de.md).
 
 | Profil | Datei | Status |
 | --- | --- | --- |
-| Minimal | [minimal/envoy-ext-proc-streaming.yaml.in](minimal/envoy-ext-proc-streaming.yaml.in) | Aktive Startkonfiguration |
-| Sicherer vollständiger Lebenszyklus | [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Ausgewählte begrenzte Referenz |
-| Strikt | [README.de.md#strict-profilgrenze](README.de.md#strict-profilgrenze) | Parserunterstützte oder ausdrücklich optionale Grenze |
+| Off / Kompatibilität | [ext-proc/off/envoy.yaml.in](ext-proc/off/envoy.yaml.in) | Aktive Startkonfiguration |
+| Sicherer vollständiger Lebenszyklus | [ext-proc/safe/envoy.yaml.in](ext-proc/safe/envoy.yaml.in) | Ausgewählte begrenzte Referenz |
+| Strikt | [ext-proc/strict/envoy.yaml.in](ext-proc/strict/envoy.yaml.in) | Parserunterstützte oder ausdrücklich optionale Grenze |
 | DetectionOnly | [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Engine wertet aus/protokolliert ohne disruptive Aktion |
 | Deaktiviert | [disabled/msconnector-runtime.conf](disabled/msconnector-runtime.conf) | Connector- oder Engine-Pfad deaktiviert |
 
@@ -1307,7 +1310,7 @@ Alle Header-, Body-, gRPC- und Timeout-Werte begrenzen; die Listen-Adresse des S
 
 ### Kurzbeschreibung
 
-Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.
+Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.
 
 ### Syntax
 
@@ -1323,7 +1326,7 @@ Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen sp�
 
 | Typ | Zulässige Werte | Erforderlich |
 | --- | --- | --- |
-| LateActionPolicy | minimal \| safe \| strict | ja |
+| LateActionPolicy | off \| safe \| strict | ja |
 
 ### Standardwert
 
@@ -1341,7 +1344,7 @@ Zusammenführung: Kein Merge; ein zweiter JSON-Wert wird nach dem einen Konfigur
 
 P1–P4-Relevanz: Limits und späte Policy beeinflussen das Prozessorverhalten in P1–P4.
 
-Wählt die Protokollierung später Entscheidungen; minimal und safe erfassen späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.
+Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.
 
 ### Validierung und Fehler
 
@@ -1460,6 +1463,61 @@ Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte
 ### Beispiel
 
 Ausgewählter Beispielwert: `1048576`.
+
+Quellenbasiertes Beispiel: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
+
+### Sicherheit und Betrieb
+
+Alle Header-, Body-, gRPC- und Timeout-Werte begrenzen; die Listen-Adresse des Service privat halten.
+
+<a id="max-concurrent-streams"></a>
+## `max_concurrent_streams`
+
+### Kurzbeschreibung
+
+Setzt eine begrenzte ext_proc-Service-Steuerung.
+
+### Syntax
+
+```text
+"max_concurrent_streams": <int>
+```
+
+### Gültige Kontexte
+
+- ext_proc-Service-JSON-Objekt
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | positiver Wert | ja |
+
+### Standardwert
+
+kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld
+
+Quelle: `processor.Config besitzt keine impliziten Feldstandardwerte`.
+
+### Vererbung und Zusammenführung
+
+Keine Vererbung; ein JSON-Objekt wird dekodiert, unbekannte Felder werden abgewiesen.
+
+Zusammenführung: Kein Merge; ein zweiter JSON-Wert wird nach dem einen Konfigurationsobjekt abgewiesen.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Limits und späte Policy beeinflussen das Prozessorverhalten in P1–P4.
+
+Setzt eine begrenzte ext_proc-Service-Steuerung.
+
+### Validierung und Fehler
+
+Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte sowie widersprüchliche gRPC-/Body-Limits ab.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `64`.
 
 Quellenbasiertes Beispiel: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
 
@@ -6097,6 +6155,116 @@ security_relevance: A name is control-plane metadata, but it should not disclose
 runtime_effect: Names the downstream HTTP listener for Envoy configuration and observability.
 description: Names the downstream HTTP listener for Envoy configuration and observability.
 ```
+
+<a id="stream-idle-timeout-ms"></a>
+## `stream_idle_timeout_ms`
+
+### Kurzbeschreibung
+
+Setzt eine begrenzte ext_proc-Service-Steuerung.
+
+### Syntax
+
+```text
+"stream_idle_timeout_ms": <int>
+```
+
+### Gültige Kontexte
+
+- ext_proc-Service-JSON-Objekt
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | positiver Wert | ja |
+
+### Standardwert
+
+kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld
+
+Quelle: `processor.Config besitzt keine impliziten Feldstandardwerte`.
+
+### Vererbung und Zusammenführung
+
+Keine Vererbung; ein JSON-Objekt wird dekodiert, unbekannte Felder werden abgewiesen.
+
+Zusammenführung: Kein Merge; ein zweiter JSON-Wert wird nach dem einen Konfigurationsobjekt abgewiesen.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Limits und späte Policy beeinflussen das Prozessorverhalten in P1–P4.
+
+Setzt eine begrenzte ext_proc-Service-Steuerung.
+
+### Validierung und Fehler
+
+Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte sowie widersprüchliche gRPC-/Body-Limits ab.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `30000`.
+
+Quellenbasiertes Beispiel: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
+
+### Sicherheit und Betrieb
+
+Alle Header-, Body-, gRPC- und Timeout-Werte begrenzen; die Listen-Adresse des Service privat halten.
+
+<a id="stream-max-lifetime-ms"></a>
+## `stream_max_lifetime_ms`
+
+### Kurzbeschreibung
+
+Setzt eine begrenzte ext_proc-Service-Steuerung.
+
+### Syntax
+
+```text
+"stream_max_lifetime_ms": <int>
+```
+
+### Gültige Kontexte
+
+- ext_proc-Service-JSON-Objekt
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Ganzzahl | positiver Wert | ja |
+
+### Standardwert
+
+kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld
+
+Quelle: `processor.Config besitzt keine impliziten Feldstandardwerte`.
+
+### Vererbung und Zusammenführung
+
+Keine Vererbung; ein JSON-Objekt wird dekodiert, unbekannte Felder werden abgewiesen.
+
+Zusammenführung: Kein Merge; ein zweiter JSON-Wert wird nach dem einen Konfigurationsobjekt abgewiesen.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: Limits und späte Policy beeinflussen das Prozessorverhalten in P1–P4.
+
+Setzt eine begrenzte ext_proc-Service-Steuerung.
+
+### Validierung und Fehler
+
+Config.Validate weist leere, nichtpositive, ungültige Enum- und host:port-Werte sowie widersprüchliche gRPC-/Body-Limits ab.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `300000`.
+
+Quellenbasiertes Beispiel: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
+
+### Sicherheit und Betrieb
+
+Alle Header-, Body-, gRPC- und Timeout-Werte begrenzen; die Listen-Adresse des Service privat halten.
 
 <a id="transaction-id-header"></a>
 ## `transaction_id_header`

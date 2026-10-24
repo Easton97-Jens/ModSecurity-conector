@@ -22,6 +22,17 @@ Nur Pfad für Anforderungsheader 200/403.
 - `envoy_smoke_helper.py` bietet nur den abhängigkeitsfreien Upstream und eine
   zertifikatprüfende HTTPS-Sonde; sie trifft keine Sicherheitsentscheidungen.
 
+Der Kompatibilitätseinstieg schreibt zusätzlich das bestehende Legacy-JSONL-
+Format erst nach der Prüfung frischer privater 200/403-Client-Beobachtungen,
+des passenden nativen Regel-`1000001`-/Transaktionsereignisses und gestoppter
+Prozesse. `runtime-result.json` und `targeted-result.json` bezeichnen dieselbe
+tatsächliche Libmodsecurity-Beobachtung mit zwei Requests. Fehlende, veraltete
+oder widersprüchliche Evidence scheitert; vor einem neuen Lauf werden frühere
+PASS-Ausgaben geleert. Dieser Einstieg akzeptiert das Targeted-Paar ohne Body-,
+CRS- oder YAML-Katalog-Claims. Der Parent-Legacy-Launcher liefert das zentral
+vorbereitete Host-Binary sowie Service und Response-Observer aus dem aktuellen
+gemeinsamen Build.
+
 Für den Laufzeitrauch sind `ENVOY_BIN` und der separat gebaute Connector erforderlich
 Dienst. Fehlende Binärdateien geben Exit 77/BLOCKED zurück. Ungültige Konfiguration, früher Prozess
 Exit, Anforderungsfehler, falscher Status oder fehlende Ereignisnachweise geben FAIL zurück.

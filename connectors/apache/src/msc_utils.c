@@ -38,6 +38,11 @@ apr_status_t msc_cleanup_request_transaction(void *data)
     }
 
     msc_discard_response_brigade(msr);
+    if (msr->contract_initialized)
+    {
+        (void)msconnector_transaction_contract_cleanup(&msr->contract, 0U);
+        msr->contract_initialized = 0;
+    }
     transaction = msr->t;
     owner_request = msr->owner_request;
     msr->t = NULL;
@@ -120,18 +125,4 @@ apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status)
      * will notice and do The Right Thing.  So, that is what we do now.
      */
     return APR_EGENERAL;
-}
-
-
-/**
- * Send an input-filter failure through the request output chain.  Returning
- * the output-chain result preserves Apache's AP_FILTER_ERROR signal, so
- * ap_discard_request_body() does not remap a Phase-2 intervention to its
- * generic HTTP 400 fallback.
- */
-apr_status_t send_input_error_bucket(msc_t *msr, ap_filter_t *f, int status)
-{
-    (void)msr;
-
-    return pass_error_bucket(f, status, f->r->output_filters);
 }

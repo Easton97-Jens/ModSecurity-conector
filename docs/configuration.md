@@ -30,9 +30,12 @@ actions.
 
 ## Profiles and late behavior
 
+Response MIME selection belongs to ModSecurity through engine directives such as `SecResponseBodyMimeType`; connectors do not maintain a second Phase-4 MIME allowlist. The Phase-4 policy controls how a disruptive response-phase decision is handled, not which MIME types the engine inspects.
+
+
 | Profile | Intended use | Boundary |
 | --- | --- | --- |
-| Minimal | Smallest selected host/service shape | It is a syntax/configuration starting point, not lifecycle evidence |
+| Off | Phase-4 intervention policy disabled; selected host/service shape remains enabled | Response inspection is controlled by ModSecurity, not by the Phase-4 intervention policy |
 | Safe | Selected P1--P4-safe reference | Post-commit observations remain conservative and payload-safe |
 | Strict | Explicitly separate optional profile | It is not proof of a client-visible late abort |
 | DetectionOnly | Rules evaluate and log | Disruptive rule actions are not applied |
@@ -79,7 +82,8 @@ their examples describe only their stated boundary.
 
 | Surface | Apache | NGINX | Boundary |
 | --- | --- | --- |
-| <code>modsecurity</code>, rules, rules file, remote rules | Registered host directives | Registered host directives | Rule loading remains connector-owned |
+| <code>modsecurity</code>, rules, rules file | Registered host directives | Registered host directives | Local rule loading remains connector-owned |
+| <code>modsecurity_rules_remote</code> | Registered but rejected by the shared security policy | Registered but rejected by the shared security policy | Remote rule loading is disabled before a fetch or native remote API call |
 | <code>modsecurity_transaction_id</code> | Static-string semantics | Per-request complex-value semantics | Same name does not mean identical evaluation |
 | <code>modsecurity_transaction_id_expr</code> | Registered Apache expression directive | Not registered | Do not copy Apache expression syntax to NGINX |
 | Bounded P4 controls | Registered host directives | Registered host directives | Body limit/scope does not promote full response-body support |

@@ -155,18 +155,18 @@ func (h *ForwardAuth) writeRequestDecision(w http.ResponseWriter, r *http.Reques
 	writeDecision(w, decision, status)
 }
 
-func readBounded(r io.Reader, max int64) ([]byte, bool, error) {
+func readBounded(r io.Reader, limit int64) ([]byte, bool, error) {
 	if r == nil {
 		return nil, false, nil
 	}
-	if max < 0 {
+	if limit < 0 {
 		return nil, false, ErrBodyLimit
 	}
-	b, err := io.ReadAll(io.LimitReader(r, max+1))
+	b, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
 		return nil, false, err
 	}
-	if int64(len(b)) > max {
+	if int64(len(b)) > limit {
 		return b, true, nil
 	}
 	return b, false, nil
