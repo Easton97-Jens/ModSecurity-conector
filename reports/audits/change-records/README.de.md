@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260826-http2-http3-protocol-parity](CR-20260826-http2-http3-protocol-parity.de.md) —
+  der aktuelle Benutzer autorisierte diesen unabhängigen Parent-Workstream zur
+  HTTP/2-/HTTP/3-Protokollparität und seine gekoppelte Dokumentation. Er weist
+  nur gelieferte Evidence aus; Runtime-Lücken und der aktuelle Lieferstatus
+  von Draft-PR #348 bleiben ausdrücklich sichtbar.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
   | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
   der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf

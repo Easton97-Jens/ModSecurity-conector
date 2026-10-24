@@ -32,6 +32,17 @@
     }
   },
   "upstream_intake": {
+    "issue401": {
+      "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401",
+      "selection": "Parent-owned adaptation, not an imported upstream commit: expose received raw HTTP/3 authority as one inspection-only Host when no explicit case-insensitive Host exists. Reuse the selector in the request mapper, hostname setter, native P1 header feed and metrics; preserve port/IPv6 and NGINX header-list ownership. Map H3 explicitly to 3.0.",
+      "status": "implemented_not_runtime_verified",
+      "affected_files": [
+        "src/ngx_http_modsecurity_access.c",
+        "src/ngx_http_modsecurity_common.h",
+        "src/ngx_http_modsecurity_mapper.c"
+      ],
+      "validation_limit": "Source review only for the 2026-10-24 update; tests, builds, runtime and CI-green acceptance deferred by the user."
+    },
     "pr387": {
       "url": "https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/387",
       "commit": "4c1f0362ca0f25ef216ce59cad5fa6c9703c1438",

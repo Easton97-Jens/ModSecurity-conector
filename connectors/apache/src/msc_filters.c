@@ -1787,10 +1787,56 @@ static int apache_contract_record_response_metadata(msc_t *msr,
         MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
+/*
+ * r->protocol is the request-line token supplied by the peer.  Response
+ * protocol metadata instead comes from the negotiated connection protocol;
+ * HTTP/1.x uses Apache's normalized version number to retain its minor
+ * version.  Unknown or internally inconsistent state is deliberately not
+ * represented as a silent HTTP/1.1 fallback.
+ */
+static const char *apache_response_protocol(const request_rec *r)
+{
+    const char *connection_protocol;
+
+    if (r == NULL || r->connection == NULL)
+    {
+        return NULL;
+    }
+    connection_protocol = ap_get_protocol(r->connection);
+    if (connection_protocol == NULL || connection_protocol[0] == '\0')
+    {
+        return NULL;
+    }
+    if (strcmp(connection_protocol, "h2") == 0 ||
+        strcmp(connection_protocol, "h2c") == 0)
+    {
+        return "HTTP 2.0";
+    }
+    if (strncmp(connection_protocol, "h3", 2) == 0 &&
+        (connection_protocol[2] == '\0' || connection_protocol[2] == '-'))
+    {
+        return "HTTP 3.0";
+    }
+    if (strcmp(connection_protocol, AP_PROTOCOL_HTTP1) != 0)
+    {
+        return NULL;
+    }
+    switch (r->proto_num)
+    {
+        case HTTP_VERSION(1, 0):
+            return "HTTP 1.0";
+        case HTTP_VERSION(1, 1):
+            return "HTTP 1.1";
+        default:
+            return NULL;
+    }
+}
+
 static apr_status_t apache_output_filter_process_headers(msc_t *msr,
     request_rec *r, ap_filter_t *filter, apr_bucket_brigade *brigade)
 {
     const char *content_type;
+    const char *response_protocol;
     const char *wanted;
     msc_conf_t *conf;
     int original_status;
@@ -1875,7 +1921,15 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
         return apache_send_precommit_terminal_error(msr, filter, brigade,
             HTTP_INTERNAL_SERVER_ERROR);
     }
-    if (msc_process_response_headers(msr->t, original_status, "HTTP 1.1") != 1)
+    response_protocol = apache_response_protocol(r);
+    if (response_protocol == NULL)
+    {
+        ap_remove_output_filter(filter);
+        return apache_send_precommit_terminal_error(msr, filter, brigade,
+            HTTP_INTERNAL_SERVER_ERROR);
+    }
+    if (msc_process_response_headers(msr->t, original_status,
+            response_protocol) != 1)
     {
         (void)msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);

@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260826-http2-http3-protocol-parity](CR-20260826-http2-http3-protocol-parity.md)
+  | [Deutsch](CR-20260826-http2-http3-protocol-parity.de.md) — the current
+  user authorized this independent Parent HTTP/2/HTTP/3 protocol-parity
+  workstream and its paired documentation. It records supplied evidence only;
+  runtime gaps and the current Draft PR #348 delivery state remain explicit.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
   | [Deutsch](CR-20260919-submodule-updater-workflows-capability.de.md) — the
   current user requested this Parent-only correction for GitHub Actions run

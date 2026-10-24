@@ -15,6 +15,7 @@ EXT_PROC_PORT=${EXT_PROC_PORT:-18083}
 ADMIN_PORT=${ADMIN_PORT:-19001}
 TLS_CERTIFICATE=${TLS_CERTIFICATE:-}
 TLS_PRIVATE_KEY=${TLS_PRIVATE_KEY:-}
+DOWNSTREAM_PROTOCOL=${EXT_PROC_DOWNSTREAM_PROTOCOL:-http1}
 
 absolute_existing_file() {
     input=$1
@@ -43,6 +44,22 @@ VERSION_LOCK=$(absolute_existing_file "$VERSION_LOCK") || {
     exit 2
 }
 OUTPUT_CONFIG=$(absolute_path "$OUTPUT_CONFIG")
+case "$DOWNSTREAM_PROTOCOL" in
+    http1)
+        DOWNSTREAM_ALPN_PROTOCOL=http/1.1
+        DOWNSTREAM_CODEC_TYPE=HTTP1
+        DOWNSTREAM_HTTP2_PROTOCOL_OPTIONS=
+        ;;
+    h2)
+        DOWNSTREAM_ALPN_PROTOCOL=h2
+        DOWNSTREAM_CODEC_TYPE=HTTP2
+        DOWNSTREAM_HTTP2_PROTOCOL_OPTIONS='          http2_protocol_options: {}'
+        ;;
+    *)
+        echo "envoy_ext_proc_config: unsupported downstream protocol profile: $DOWNSTREAM_PROTOCOL" >&2
+        exit 2
+        ;;
+esac
 if [ -z "$TLS_CERTIFICATE" ] || [ -z "$TLS_PRIVATE_KEY" ]; then
     echo "envoy_ext_proc_config: TLS certificate and private key paths are required" >&2
     exit 2
@@ -94,6 +111,10 @@ envoy_release=$(sed -n 's/^ENVOY_RELEASE=//p' "$VERSION_LOCK")
 mkdir -p "$(dirname "$OUTPUT_CONFIG")"
 sed \
     -e "s|@ENVOY_RELEASE@|$envoy_release|g" \
+    -e "s|@DOWNSTREAM_PROTOCOL@|$DOWNSTREAM_PROTOCOL|g" \
+    -e "s|@DOWNSTREAM_ALPN_PROTOCOL@|$DOWNSTREAM_ALPN_PROTOCOL|g" \
+    -e "s|@DOWNSTREAM_CODEC_TYPE@|$DOWNSTREAM_CODEC_TYPE|g" \
+    -e "s|@DOWNSTREAM_HTTP2_PROTOCOL_OPTIONS@|$DOWNSTREAM_HTTP2_PROTOCOL_OPTIONS|g" \
     -e "s|@LISTEN_PORT@|$LISTEN_PORT|g" \
     -e "s|@UPSTREAM_PORT@|$UPSTREAM_PORT|g" \
     -e "s|@EXT_PROC_PORT@|$EXT_PROC_PORT|g" \

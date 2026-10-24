@@ -45,6 +45,21 @@ Not implemented:
   post-suppression Memcheck artifact below is pre-hardening, noncanonical
   historical evidence, not final proof of the current connector or harness.
 
+## HTTP/3 authority and inspected Host
+
+The adapter addresses [upstream issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401)
+by exposing the received HTTP/3 `:authority` as an inspection-only `Host` when
+NGINX supplies no explicit Host. The request mapper, hostname, native P1 input,
+and header metrics use the same value; explicit Host always takes precedence,
+including an empty Host that remains subject to validation. The original port
+and bracketed IPv6 authority are preserved. No configured `server_name` or
+normalized routing hostname is substituted, and NGINX's own header list is not
+modified. HTTP/1.x keeps its existing behavior; H3 metadata is `3.0`.
+
+Status: `implemented_not_runtime_verified`. The 2026-10-24 update defers tests,
+builds, and H3 traffic at the user's request; no H1/H2/H3 runtime success is
+claimed. See the [protocol workstream](../../docs/protocol-parity.md).
+
 ## Selective Upstream Security Intake
 
 The adapter-owned source keeps the upstream base
