@@ -38,8 +38,9 @@ import subprocess
 import sys
 import tempfile
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import yaml
 from yaml.tokens import AliasToken, AnchorToken, KeyToken, ScalarToken, TagToken
@@ -224,6 +225,8 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         ".python-version",
         ".go-version",
         ".github/dependabot.yml",
+        "requirements-ci.lock",
+        "requirements-ci-build.lock",
         "requirements-dev.txt",
         "connectors/envoy/ext_proc/go.mod",
         "connectors/envoy/config/envoy-ext-proc-versions.env",
@@ -235,7 +238,9 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "connectors/nginx/harness/nginx_smoke.conf",
         "connectors/nginx/harness/run_nginx_smoke.sh",
         "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "ci/checks/common/check-python-version-contract.py",
         "ci/lib/framework_revision_pins.py",
+        "ci/lib/workflow_action_pins.py",
         "ci/tooling/project-versions.lock.json",
         "ci/fixtures/workflow-permission-contract/safe.yml",
         "ci/fixtures/workflow-permission-contract/unsafe.yml",
@@ -251,6 +256,7 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "ci/tools/fetch_security_tool.py",
         "ci/tools/lint_workflows.py",
         "ci/tools/lint_installed_workflows.py",
+        "ci/tools/install-ci-dependencies.py",
         "ci/tools/read-framework-revisions.py",
         "ci/tools/sync-project-versions.py",
         "ci/tools/prepare-readonly-submodule-validation-sandbox.py",
@@ -274,7 +280,10 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "tests/test_verify_framework_candidate_contract.py",
         "tests/test_ci_security_workflows.py",
         "tests/test_lint_workflows.py",
+        "tests/test_install_ci_dependencies.py",
+        "tests/test_python_version_contract.py",
         "tests/test_nginx_exact_head_gate_contract.py",
+        "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py",
         "tests/test_prepare_readonly_submodule_validation_sandbox.py",
         "tests/test_run_readonly_submodule_validation_namespace.py",
         "tests/test_update_framework_versions.py",
@@ -825,6 +834,8 @@ class OfficialGitHubApi:
     user_agent: str
 
     def repository_url(self, path: str) -> str:
+        if self.origin != GITHUB_API_ORIGIN:
+            raise UpdateError("GitHub metadata requests require the official HTTPS API")
         if not path.startswith("/repos/"):
             raise UpdateError("only repository-scoped GitHub API paths are allowed")
         return f"{self.origin}{path}"
@@ -832,27 +843,49 @@ class OfficialGitHubApi:
     def payload(self, path: str) -> Any:
         request = Request(
             self.repository_url(path),
-            headers={
-                "Accept": "application/vnd.github+json",
-                "User-Agent": self.user_agent,
-            },
+            headers=github_metadata_headers(self.user_agent),
         )
         try:
-            with urlopen(request, timeout=30) as response:
+            opener = build_opener(RejectGitHubMetadataRedirects())
+            with opener.open(request, timeout=30) as response:
                 final = urlparse(response.geturl())
                 if final.scheme != "https" or final.netloc != "api.github.com":
                     raise UpdateError(
                         "GitHub API redirect escaped the official HTTPS API"
                     )
                 return json.loads(response.read().decode("utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise UpdateError(f"official GitHub API request failed: {exc}") from exc
+        except HTTPError as exc:
+            raise UpdateError(
+                f"official GitHub API request failed (HTTP {exc.code})"
+            ) from None
+        except (OSError, UnicodeError, ValueError):
+            raise UpdateError("official GitHub API request or response failed") from None
+
+
+class RejectGitHubMetadataRedirects(HTTPRedirectHandler):
+    """Reject redirects before urllib can forward metadata credentials."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise UpdateError("official GitHub API metadata redirects are not allowed")
+
+
+def github_metadata_headers(user_agent: str) -> dict[str, str]:
+    """Use an optional read-only API token without applying it to asset downloads."""
+
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": user_agent}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token is not None:
+        if not token or any(character in token for character in "\r\n"):
+            raise UpdateError("GITHUB_TOKEN must be a single nonempty header value")
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 
 OFFICIAL_GITHUB_API = OfficialGitHubApi(GITHUB_API_ORIGIN, GITHUB_USER_AGENT)
 
 
 def github_payload(path: str) -> Any:
-    """Read one fixed official GitHub API response without a token."""
+    """Read fixed official API metadata with optional job-scoped authentication."""
 
     return OFFICIAL_GITHUB_API.payload(path)
 

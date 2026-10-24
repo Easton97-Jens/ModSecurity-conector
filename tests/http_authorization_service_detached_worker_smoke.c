@@ -15,7 +15,7 @@
 #include "msconnector/error.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
-#include "fixtures/http_authorization_request_stream_stubs.h"
+#include "fixtures/http_authorization_runtime_lifecycle_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -283,8 +283,6 @@ const char *msconnector_runtime_transaction_id(
     const msconnector_runtime_transaction *transaction) {
     return transaction == NULL ? NULL : "detached-worker-smoke";
 }
-
-#include "fixtures/http_authorization_runtime_lifecycle_stubs.h"
 
 static int map_request(
     const msconnector_generic_request_source *source,

@@ -95,8 +95,8 @@ bleiben außerhalb dieses reduzierten Abschlusses.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Kein zweiter letzter Reparaturlauf, keine historische Matrix, Oracle-Kampagne,
-tiefer Security-Scan, Veröffentlichung, Bereitstellung oder Zusammenführung lief.
+Beim früheren Reparaturlauf liefen keine Wiederholung, historische Matrix,
+Oracle-Kampagne, kein tiefer Security-Scan, Release, Deployment oder Merge.
 Die Retryzahl ist null; Providerchecks starten erst vom gepushten Final-Head.
 
 ## Finaler Diff- und Review-Status
@@ -189,3 +189,65 @@ am veröffentlichten #382-Head bewertet; das grüne #410-Ergebnis überträgt si
 nicht automatisch. Coverage-Import und Runtime-/Lifecycle-Abnahme bleiben von
 diesen Tests getrennt. Kein Master-Merge, Release, Deployment oder historische
 Qualifikation ist freigegeben.
+
+## Gemeinsame Sonar- und Wartungs-Nachkorrektur
+
+GitHub führt #410 als geschlossen/gemergt bei `bba093f5`. Gemeinsamer Head
+`23c583d8` hat 41 erfolgreiche Checks, fünf bedingte Skips und zwei Fehler mit
+demselben Sonar-Inventar von 99 Befunden. Go-Testdateien waren fälschlich
+MAIN/FIL: `*_test.go` bleibt nun als TEST analysiert, Produktivquellen bleiben
+unverändert. Unabhängige Prüfung validiert die Rechteablehnungs- und
+HTTP-Speicher-Fixtures als nicht verwundbare Testkontrollen; keine
+False-Positive-Markierung beim Provider. C-Includes auf oberster Ebene mit
+makrogerechten Prototypen, zwei Const-Deklarationen, Go-Parametergruppierung und
+eine korrekte Fixture mit veränderlicher Fehlerausgabe bearbeiten die kleinen
+übrigen Ursachen. Die zwölf Trusted-HTTP- und drei MSE1-Unit-Varianten bestehen
+mit isoliertem Python 3.15.1 aus offiziell checksumgeprüftem Quellcode.
+
+Der Benutzer erweiterte den Auftrag um Go 1.27.3, Python 3.15.1, alle aktuellen
+Actions und fehlerhafte Update-Workflows. Alle zehn externen Actions wurden
+gegen offizielle Releases und unveränderliche Tag-Commits geprüft;
+setup-python, create-github-app-token und CodeQL steigen auf, ohne Änderungen
+an Node-Runtime oder genutzten Input-Verträgen. Build-Toolchain-Selektoren nutzen
+`.go-version`; Modul-Sprachminima bleiben unverändert. Die gescheiterte alte
+Master-Socket-Fixture des Go-Updaters ist bereits durch `91722137` korrigiert;
+zwei gezielte Kontrollen bestehen mit Go 1.27.3. Pythons statisches Inventar,
+Setup-Verifikation und Erkennung fester Self-Repository-Reusable-Aufrufe sind repariert. Der
+geschützte lighttpd-Namespace behält seinen root-eigenen Systeminterpreter unter
+dem vollständigen eigenen Trust-Vertrag. Normale Jobs nutzen kanonisches Python.
+Action-Verträge lesen den zentralen Lock statt gültige künftige Kandidaten
+durch alte Pins abzulehnen. Vierzehn gezielte Updater-Kontrollen bestehen;
+die erneute Metadaten-Publisher-Schritt-Trennungsprüfung besteht ebenfalls nach
+Korrektur des zweiten Rate-Limit-Pfads.
+
+GitHub-Metadatenautorisierung bleibt auf die zwei Resolver-Schritte mit festem
+Origin begrenzt; Redirects werden vor Credential-Weitergabe abgelehnt, Fehlertexte
+bereinigt und Artefakt-/Git-/PR-Operationen behalten ihre eigenen Credentials.
+Der Benutzer autorisierte ausdrücklich den eng hashgebundenen offiziellen
+PyYAML-6.0.3-Quellbuild für Python 3.15. Parent besitzt dieses Runtime-Artefakt;
+die zwei Parent-Verbraucher prüfen dieselbe Dependency-Version des gepinnten
+Frameworks ohne Framework-Quellen, Locks oder Gitlinks zu ändern. Dies ist keine
+Framework-Zertifizierung. Die anfänglichen lokalen 100-Fall-Ergebnisse bleiben
+revisionsgebunden; nachfolgende Unit-Kontrollen sind separat erfasst. Bestehende
+Scaffold-CI führte 583 Methoden in 14 Batches aus (eine SDK-Klasse übersprungen),
+mehr als die anfängliche Untergrenze von 494 Methoden. Neue Connector-E2E-Fälle
+bleiben null. Live-Veröffentlichung durch Default-Branch-Updater wird in diesem
+PR-Auftrag nicht ausgeführt; sie benötigt spätere vertrauenswürdige
+Master-Integration/Ausführung. Finale Exact-Head-CI-/Sonar-/Review-Fakten bleiben
+in externer Task-Evidence und den aktuellen PR-Checks; das frühere grüne
+#410-Ergebnis wird nicht übertragen.
+
+In der isolierten Python-3.15.1-Umgebung besteht die finale Sprachauswahl
+55 expandierte Unit-Varianten; der Installer besteht 20 eindeutige Unit-Kontrollen.
+Der erste echte Quellbuild/Installationslauf, sicheres Mapping-Laden und
+Ablehnung unbekannter Tags bestehen ebenso wie `pip check`. Das erzeugte reine
+Python-Wheel hat SHA-256
+`779a6918447c67ec85d3862ccf51dc57b3ba665c0a50f2955bab850b75c0fc43`;
+offizieller Quelldigest und alle drei Build-Werkzeug-Digests bleiben im Receipt
+erhalten. Der Candidate-Installationsvertrag des Python-Updaters besteht ebenfalls.
+Dies sind getrennte Nachprüfungen; ursprüngliche Versuche und Quellbindungen
+bleiben erhalten.
+Die echte Wartungsbaseline im kopierten Baum besteht ebenfalls mit Python 3.15.1:
+311 Unit-Methoden, 305 bestanden und sechs Umgebungs-/Snapshot-Skips, keine Fehler.
+Die übersprungenen Kontrollen bleiben explizit; kein Connector-E2E- oder
+Hostnachweis wird daraus abgeleitet.

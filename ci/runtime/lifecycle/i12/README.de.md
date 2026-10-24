@@ -81,7 +81,7 @@ ursprünglichen Identitäten; sie werden nicht als Ergebnisse der neuen Parser
 umgedeutet.
 
 Die automatische Sonar-Analyse klassifiziert Python-Testdateien über
-`.sonarcloud.properties` und verwendet Python `3.14`. Gepflegte Quellen,
+`.sonarcloud.properties` und verwendet Python `3.15`. Gepflegte Quellen,
 Validatoren, Parser und Tests bleiben analysierbar. Für diesen Speicherwechsel
 wird kein Issue-, Quellen- oder Duplikationsausschluss verwendet.
 

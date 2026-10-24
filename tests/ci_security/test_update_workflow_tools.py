@@ -16,8 +16,7 @@ import sys
 import tempfile
 from typing import Any, Callable
 import unittest
-from unittest.mock import call, patch
-
+from unittest.mock import MagicMock, call, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 UPDATER_PATH = ROOT / "ci/tools/update-workflow-tools.py"
@@ -260,6 +259,81 @@ class WorkflowToolUpdaterFixtures:
             yield
 
 class WorkflowToolUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
+    def test_metadata_authentication_is_optional_and_official_origin_only(self) -> None:
+        for token in (None, "test-only"):
+            with self.subTest(authenticated=token is not None):
+                response = MagicMock()
+                response.__enter__.return_value = response
+                response.read.return_value = b'{"ok": true}'
+                response.geturl.return_value = "https://api.github.com/repos/actions/checkout/releases/latest"
+                opener = MagicMock()
+                opener.open.return_value = response
+                environment = {} if token is None else {"GITHUB_TOKEN": token}
+                with (
+                    patch.dict(os.environ, environment, clear=True),
+                    patch.object(UPDATER, "build_opener", return_value=opener) as build,
+                ):
+                    payload = UPDATER.github_payload("/repos/actions/checkout/releases/latest")
+                self.assertEqual(payload, {"ok": True})
+                request = opener.open.call_args.args[0]
+                self.assertEqual(request.full_url, response.geturl.return_value)
+                self.assertEqual(request.get_method(), "GET")
+                self.assertEqual(
+                    request.get_header("Authorization"),
+                    None if token is None else f"Bearer {token}",
+                )
+                self.assertIsInstance(build.call_args.args[0], UPDATER.RejectGitHubMetadataRedirects)
+
+    def test_metadata_redirects_are_rejected_before_following(self) -> None:
+        request = UPDATER.Request(
+            "https://api.github.com/repos/actions/checkout/releases/latest",
+            headers={"Authorization": "Bearer test-only"},
+        )
+        for destination in (
+            "https://api.github.com/repos/other/repository/releases/latest",
+            "https://untrusted.invalid/collect",
+        ):
+            with self.subTest(destination=destination):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "redirects are not allowed"):
+                    UPDATER.RejectGitHubMetadataRedirects().redirect_request(
+                        request, None, 302, "Found", {"Location": destination}, destination
+                    )
+
+    def test_metadata_http_errors_do_not_repeat_token_or_server_reason(self) -> None:
+        opener = MagicMock()
+        opener.open.side_effect = UPDATER.HTTPError(
+            "https://api.github.com/repos/actions/checkout/releases/latest",
+            403, "test-only", {}, None,
+        )
+        with (
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test-only"}),
+            patch.object(UPDATER, "build_opener", return_value=opener),
+            self.assertRaises(UPDATER.UpdateError) as failure,
+        ):
+            UPDATER.github_payload("/repos/actions/checkout/releases/latest")
+        self.assertEqual(str(failure.exception), "official GitHub API request failed (HTTP 403)")
+
+    def test_metadata_rejects_malformed_tokens_before_transport(self) -> None:
+        for token in ("", "test\nonly"):
+            with self.subTest(empty=not token):
+                with (
+                    patch.dict(os.environ, {"GITHUB_TOKEN": token}),
+                    patch.object(UPDATER, "build_opener") as build,
+                    self.assertRaisesRegex(UPDATER.UpdateError, "single nonempty header value"),
+                ):
+                    UPDATER.github_payload("/repos/actions/checkout/releases/latest")
+                build.assert_not_called()
+
+    def test_metadata_rejects_nonofficial_origin_before_transport(self) -> None:
+        client = UPDATER.OfficialGitHubApi("https://untrusted.invalid", "test")
+        with (
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test-only"}),
+            patch.object(UPDATER, "build_opener") as build,
+            self.assertRaisesRegex(UPDATER.UpdateError, "official HTTPS API"),
+        ):
+            client.payload("/repos/actions/checkout/releases/latest")
+        build.assert_not_called()
+
     def test_resolver_uses_only_release_and_tag_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         record = deepcopy(lock["actions"]["actions/checkout"])
@@ -726,8 +800,8 @@ class WorkflowToolUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
             for workflow_path in (root / ".github/workflows").glob("*.yml"):
                 workflow = workflow_path.read_text(encoding="utf-8")
                 for retired_reference in (
-                    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-                    "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                    f"{name}@{lock['actions'][name]['immutable_commit']}"
+                    for name, _version, _commit in action_updates
                 ):
                     with self.subTest(
                         workflow=workflow_path.name, retired_reference=retired_reference
@@ -1481,15 +1555,38 @@ jobs:
                 self.assertIn(marker, workflow)
         _lock_path, lock, _digest = UPDATER.load_lock(ROOT)
         app_token = lock["actions"]["actions/create-github-app-token"]
-        self.assertEqual(app_token["version"], "v3.2.0")
-        self.assertEqual(
-            app_token["immutable_commit"],
-            "bcd2ba49218906704ab6c1aa796996da409d3eb1",
+        self.assertRegex(app_token["version"], r"\Av\d+(?:\.\d+){0,3}\Z")
+        self.assertRegex(app_token["immutable_commit"], r"\A[0-9a-f]{40}\Z")
+        self.assertIn(
+            f"actions/create-github-app-token@{app_token['immutable_commit']}"
+            f" # {app_token['version']}",
+            workflow,
         )
         self.assertEqual(
             app_token["upstream"], "https://github.com/actions/create-github-app-token"
         )
-        self.assertNotIn("${{ github.token }}", workflow)
+        workflow_jobs = UPDATER.yaml.safe_load(workflow)["jobs"]
+        token_steps = [
+            (job_name, step)
+            for job_name, job in workflow_jobs.items()
+            for step in job.get("steps", [])
+            if "GITHUB_TOKEN" in step.get("env", {})
+        ]
+        self.assertEqual(
+            [(job, step["name"]) for job, step in token_steps],
+            [
+                ("resolver", "Resolve official immutable release candidates"),
+                ("publisher", "Re-resolve official immutable release candidates"),
+            ],
+        )
+        for job, step in token_steps:
+            with self.subTest(metadata_read_step=job):
+                self.assertEqual(step["env"], {"GITHUB_TOKEN": "${{ github.token }}"})
+                self.assertIn("update-workflow-tools.py resolve --root .", step["run"])
+                self.assertNotRegex(step["run"], r"\b(?:git|pip|validate|apply|make)\b")
+        for job_name, job in workflow_jobs.items():
+            with self.subTest(no_job_wide_token=job_name):
+                self.assertNotIn("GITHUB_TOKEN", job.get("env", {}))
         for forbidden_marker in ("|| true", "git push --force ", "pull_request_target"):
             with self.subTest(forbidden_marker=forbidden_marker):
                 self.assertNotIn(forbidden_marker, workflow)

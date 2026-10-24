@@ -61,9 +61,10 @@ Remote-CI-Lauf, Pull Request, Review oder Delivery-Erfolg dar.
 
 ### Kanonischer Interpreter und Strategie
 
-Die eingecheckte Root-[`.python-version`](../../.python-version) ist die
-einzige maschinenlesbare Interpreterquelle. Ihr erforderlicher Inhalt ist das
-exakte stabile Release <code>3.14.6</code>. Jeder Python-ausführende Job aus
+Die eingecheckte Root-[`.python-version`](../../.python-version) ist die generierte
+Setup-Action-Ansicht von `python_version` aus der kanonischen
+[`ci/tooling/project-versions.lock.json`](../../ci/tooling/project-versions.lock.json).
+Ihr erforderlicher Inhalt ist das exakte stabile Release <code>3.15.1</code>. Jeder normale Python-ausführende Job aus
 der folgenden Inventarisierung muss vor seiner ersten direkten oder indirekten
 Python-Nutzung `actions/setup-python` ausführen mit:
 
@@ -76,70 +77,93 @@ Das Versionsliteral darf nicht in Workflow-YAML dupliziert werden. Die
 Setup-Action wird separat Action-gepinnt; ein Action-Lock-Record ist keine
 Interpreterversionsquelle. Die akzeptierte Setup-Referenz ist der bereits
 vorhandene unveränderliche Pin
-`actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0`,
+`actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0`,
 der auch in `ci/tooling/security-tools.lock.yml` dokumentiert ist; der
 Contract-Checker muss diese v7-Referenz statt einer veralteten v6-Erwartung
 validieren. Nach dem Setup muss der Workflow-Vertrag validieren, dass `python`
-und `python3` äquivalente konfigurierte Python-<code>3.14.6</code>-Interpreter
+und `python3` äquivalente konfigurierte Python-<code>3.15.1</code>-Interpreter
 auswählen, bevor einer der Namen, ein
 Python-gestütztes Make-Target oder eine indirekte Framework-Prüfung verwendet
-wird. Kein aufgelisteter Job darf auf einen ambienten Runner-, Bootstrap-,
+wird. Kein normaler Job darf auf einen ambienten Runner-, Bootstrap-,
 Virtual-Environment- oder System-`python3`-Interpreter zurückfallen.
 
 | Alternative | Entscheidung | Begründung |
 | --- | --- | --- |
-| Floating `3.14` | Abgelehnt | Eine spätere Runner-/Tool-Cache-Auflösung kann stillschweigend ein anderes Patch-Release auswählen und Patch Drift erzeugen. |
-| Exaktes `3.14.6` aus einer eingecheckten `.python-version` | Ausgewählt | Der exakte stabile Patch ist reviewbar und reproduzierbar, während `python-version-file` allen abgedeckten Jobs dieselbe Quelle gibt. |
+| Floating `3.15` | Abgelehnt | Eine spätere Runner-/Tool-Cache-Auflösung kann stillschweigend ein anderes Patch-Release auswählen und Patch Drift erzeugen. |
+| Exaktes `3.15.1` aus einer eingecheckten `.python-version` | Ausgewählt | Der exakte stabile Patch ist reviewbar und reproduzierbar, während `python-version-file` allen abgedeckten Jobs dieselbe Quelle gibt. |
 | Exakte Version plus permanenter Canary-Workflow | Abgelehnt | Die unabhängige schreibgeschützte Candidate-Validierungs-Stage unten validiert einen vorgeschlagenen Patch vor der Veröffentlichung; ein zusätzlicher Canary würde diese Kontrolle duplizieren, ohne die Publisher-Trust-Grenze zu ändern. |
 
-### Vollständige Parent-Workflow-/Job-Inventarisierung
+Für Python 3.15 werden die Parent-CI-Abhängigkeiten aus einem aufgabeneigenen
+Virtual Environment mit `python ci/tools/install-ci-dependencies.py --build-root "$RUNNER_TEMP"`
+installiert; `RUNNER_TEMP` wählt dabei ein zugelassenes externes Verzeichnis.
+Die geprüfte `requirements-ci.lock` pinnt die offizielle PyYAML-`6.0.3`-Quelle;
+die eigene `requirements-ci-build.lock` pinnt die Builder-Wheels. Dies ist die
+einzige Sourcebuild-Ausnahme, solange offizielle CPython-3.15-Wheels fehlen.
+Der Helper prüft Wheel-Metadaten und Hashes vor der Installation in den gewählten
+Interpreter; der [vollständige Abhängigkeitsbuild-Vertrag](../security/ci-security-tooling.de.md#geprüfter-ci-abhängigkeitsbuild-für-python-315)
+beschreibt Zielschutz, Candidate-Versionen, Framework-Versionsabgleich und die
+Grenze des Netzwerknachweises. Hosted-CI verwendet den ausdrücklich geschützten
+Modus `--ci-toolcache`; sie ersetzt den Setup-Interpreter nicht und ändert `GITHUB_PATH` nicht.
 
-Diese 20-Job-Baseline-Inventarisierung ist die maßgebliche
-Dokumentationstabelle für den verlinkten Change Record. „Vorhandenes
-Minor-only-Setup“ und „Ambientes oder Bootstrap-Python“ beschreiben den
-historischen Einführungspfad vor dem Vertrag; keine der beiden Bezeichnungen
-ist ein aktueller Selector. Im eingecheckten Workflow-Vertrag hat jede Zeile
-dasselbe explizite <code>3.14.6</code>-Setup und dieselbe
-`python`/`python3`-Äquivalenzvalidierung.
+### Aktuelle Parent-Workflow-/Job-Inventarisierung
 
-| Workflow | Job | Python-Ausführungskette | Baseline-Zustand |
-| --- | --- | --- | --- |
-| `reusable-five-connectors-profile.yml` | `resolve-profile` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explizites `.python-version`-Setup |
-| `reusable-five-connectors-profile.yml` | `no-crs` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann Profilvalidierung und Python-gestützte Framework-/Make-Lifecycle-Targets | Explizites `.python-version`-Setup |
-| `reusable-five-connectors-profile.yml` | `aggregate` | Gesperrtes `actions/setup-python`, Interpreter-Contract-Validierung, dann `python3`-Evidence-Validierung und Fünf-Ergebnis-Aggregation | Explizites `.python-version`-Setup |
-| `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
-| `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambientes oder Bootstrap-Python |
-| `ci-security-workflow-lint.yml` | `actionlint` | Python-Tool-Fetcher und `python3 -m unittest` | Ambientes oder Bootstrap-Python |
-| `ci-security-workflow-lint.yml` | `zizmor` | Python-Tool-Fetcher | Ambientes oder Bootstrap-Python |
-| `lint.yml` | `scaffold-lint` | Python-Dokumentationscheck und nicht-PR-Python-gestütztes Setup/Lint | Vorhandenes Minor-only-Setup |
-| `open-connectors-smoke.yml` | `open-connectors-smoke` | Direkte Zusammenfassung plus indirekte Python-Make-Targets | Vorhandenes Minor-only-Setup |
-| `protocol-contract.yml` | `protocol-contract` | `python3 -m unittest` und Protocol-Client-Target | Vorhandenes Minor-only-Setup |
-| `protocol-contract.yml` | `nginx-profile-and-client-preflight` | Inline-`python3` und Client-Make-Target | Vorhandenes Minor-only-Setup |
-| `quick-framework-check.yml` | `quick-check` | Indirekte Setup-, Matrix- und Quick-Check-Python-Arbeit | Vorhandenes Minor-only-Setup |
-| `test-apache.yml` | `apache-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
-| `test-common.yml` | `common-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
-| `test-envoy.yml` | `envoy-contract` | Indirektes Python in Connector-Checks | Ambientes oder Bootstrap-Python |
-| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | `.venv/bin/python -m py_compile` und Python-Make-Pfade | Ambientes oder Bootstrap-Python |
-| `test-lighttpd.yml` | `lighttpd-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
-| `test-nginx.yml` | `nginx-structure` | Bedingtes nicht-PR-Python-Setup und Quick-Check | Vorhandenes Minor-only-Setup |
-| `test-traefik.yml` | `traefik-contract` | Indirektes Python in Connector- und Shared-Checks | Ambientes oder Bootstrap-Python |
-| `update-submodules.yml` | `validate-submodule-update` | Indirektes Python über `make quick-check` | Ambientes oder Bootstrap-Python |
-| `verified-report-governance.yml` | `report-governance` | Indirektes Python über `make report-governance` | Vorhandenes Minor-only-Setup |
+Das geschlossene Inventar im [Python-Workflow-Checker](../../ci/checks/common/check-python-version-contract.py)
+enthält 41 normale Jobs, einen Candidate-Job, zwei unveränderlich gepinnte
+Protected-Aufrufe, einen lokalen wiederverwendbaren Aufrufer und einen geprüften
+System-Python-Namespace-Job. Normale Jobs wählen `.python-version` und prüfen den
+exakten Setup-Interpreter vor der Python-Nutzung. Nicht gelistete Jobs,
+dynamische Executable-Köpfe, veränderliche Action-Referenzen und Selector-Drift
+lassen den Vertrag fehlschlagen.
 
-Die Inventarisierung schließt Jobs ohne nachgewiesene Python-
-Ausführungskette absichtlich aus, etwa Action-only-Security-Scans, Inline-
-JavaScript-Cleanup und Shell-only-Checks. Ein neuer Python-ausführender Job
-muss diesem Vertrag beitreten, bevor er Python verwenden darf. Der statische
-Validator deckt die Workflow-Dateinamen `.yml` und `.yaml` ab.
+| Workflow | Jobs | Interpreter-Vertrag |
+| --- | --- | --- |
+| `ci-findings-regressions.yml` | `nginx-b09-regression` | Kanonisches Python `3.15.1` |
+| `ci-security-codeql.yml` | `trusted-go-version` | Kanonisches Python `3.15.1` |
+| `ci-security-secrets.yml` | `advisory-full-history`, `pull-request-range` | Kanonisches Python `3.15.1` |
+| `ci-security-workflow-lint.yml` | `actionlint`, `apr-util-provenance`, `zizmor` | Kanonisches Python `3.15.1` |
+| `lint.yml` | `scaffold-lint` | Kanonisches Python `3.15.1` |
+| `nginx-root-broker.yml` | `trusted-root-smoke` | Kanonisches Python `3.15.1` |
+| `open-connectors-smoke.yml` | `open-connectors-smoke` | Kanonisches Python `3.15.1` |
+| `protocol-contract.yml` | `nginx-profile-and-client-preflight`, `protocol-contract` | Kanonisches Python `3.15.1` |
+| `quick-framework-check.yml` | `quick-check` | Kanonisches Python `3.15.1` |
+| `reusable-five-connectors-profile.yml` | `aggregate`, `no-crs`, `resolve-profile` | Kanonisches Python `3.15.1` |
+| `run-protected-nginx-root-broker.yml` | `prepare-manifests`, `verify-evidence` | Kanonisches Python `3.15.1` |
+| `test-apache.yml` | `apache-autotools-bootstrap`, `apache-structure` | Kanonisches Python `3.15.1` |
+| `test-common.yml` | `common-structure` | Kanonisches Python `3.15.1` |
+| `test-connectors-with-crs-no-mrts.yml` | `aggregate-with-crs-no-mrts`, `connector-mode` | Kanonisches Python `3.15.1` |
+| `test-envoy.yml` | `envoy-contract` | Kanonisches Python `3.15.1` |
+| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | Kanonisches Python `3.15.1` |
+| `test-haproxy.yml` | `haproxy-structure` | Kanonisches Python `3.15.1` |
+| `test-lighttpd.yml` | `lighttpd-contract` | Kanonisches Python `3.15.1` |
+| `test-nginx-exact-head.yml` | `nginx-exact-head` | Kanonisches Python `3.15.1` |
+| `test-nginx.yml` | `nginx-structure` | Kanonisches Python `3.15.1` |
+| `test-traefik.yml` | `traefik-contract` | Kanonisches Python `3.15.1` |
+| `update-go-version.yml` | `create-go-update-pr`, `resolve-go-release`, `validate-go-release` | Kanonisches Python `3.15.1` |
+| `update-python-version.yml` | `publish-python-update`, `resolve-python-patch` | Kanonisches Python `3.15.1` |
+| `update-submodules.yml` | `create-submodule-update-pr`, `validate-submodule-update` | Kanonisches Python `3.15.1` |
+| `update-workflow-tools.yml` | `publisher`, `resolver`, `validator` | Kanonisches Python `3.15.1` |
+| `verified-report-governance.yml` | `report-governance` | Kanonisches Python `3.15.1` |
+| `update-python-version.yml` | `validate-python-patch` | Unabhängig aufgelöster exakter stabiler `3.15.N`-Candidate; kein Downgrade |
+| `run-protected-nginx-root-broker.yml` | `run-no-crs-broker`, `run-with-crs-broker` | Vorhandenes unveränderlich gepinntes Protected-Reusable-Workflow-Tupel |
+| `all-connectors-no-crs.yml` | `no-crs` | Exakter lokaler Aufrufer `$/.github/workflows/reusable-five-connectors-profile.yml`; sein festes `./`-Äquivalent wird ebenfalls akzeptiert |
+| `run-trusted-lighttpd-namespace-dispatch.yml` | `trusted-lighttpd-namespace` | Geprüftes festes `/usr/bin/python3` im bereinigten, unprivilegierten AppArmor-Namespace |
+
+Die Namespace-Ausnahme verlangt sowohl den literalen geprüften Digest des gesamten
+Workflows als auch den vollständigen eigenen Trust-Validator. Setup/Checkout vor
+seinem privilegierten Bootstrap würde seine Trust-Grenze überschreiten. Dies ist
+keine Python-3.15-Qualifizierung; jede Änderung erfordert einen neuen Profilreview.
+Beide Sprach-Checker lesen reguläre Action-Pins aus der zentralen Security-Tool-Lockdatei.
+SHA und Provenienzkommentar bleiben so auch bei einem vom eingeschränkten Updater
+vorgeschlagenen Release abgestimmt.
 
 ### Vertrag für den sicheren Stable-Patch-Updater
 
-Der Updater ist von den 20 Baseline-Jobs getrennt. Der eingecheckte Workflow
+Der Updater behält seine eigene Candidate-Grenze. Der eingecheckte Workflow
 `.github/workflows/update-python-version.yml` hat genau vier Jobs:
 
 | Job | Interpreter und Trust-Grenze | Erforderliches Verhalten |
 | --- | --- | --- |
-| `resolve-python-patch` | Exakter vertrauenswürdiger Event-SHA und aktuelle kanonische `.python-version`; `contents: read` | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. Seine getestete Schnittstelle `--check --json` gibt `status`, `current_version`, `latest_version` und `update_available` aus; sie schlägt nur einen höheren stabilen `3.14.N`-Patch vor. |
+| `resolve-python-patch` | Exakter vertrauenswürdiger Event-SHA und aktuelle kanonische `.python-version`; `contents: read` | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. Seine getestete Schnittstelle `--check --json` gibt `status`, `current_version`, `latest_version` und `update_available` aus; sie schlägt nur einen höheren stabilen `3.15.N`-Patch vor. |
 | `validate-python-patch` | Exakter vertrauenswürdiger Event-SHA und unabhängig installierter Candidate; `contents: read` | Löst den Candidate mit `--expected-version` erneut auf, prüft den exakten Candidate-Interpreter, installiert hash-gesperrte CI-Abhängigkeiten, führt `pip check`, Compile/Contracts/fokussierte Tests und `make check-ci-security-contract` aus; keine Source- oder Branch-Mutation. |
 | `publish-python-update` | Kanonisches Nicht-Fork-Event auf `master`, aktuelles vertrauenswürdiges `origin/master`; normales `GITHUB_TOKEN` hat `contents: read` | Der einzige App-Secret-Consumer erstellt das vorhandene gepinnte GitHub-App-Token mit nur `Contents: write` und `Pull requests: write`, baut den Wartungs-Branch von aktuellem master neu auf und darf nur den passenden Same-Repository-Draft-PR erstellen oder aktualisieren. |
 | `report-python-update-outcome` | Läuft immer; `permissions: {}` | Schlägt bei inkonsistenten Resolver-/Validator-/Publisher-Resultaten fehl und schreibt für das aktuelle oder unabhängig validierte/veröffentlichte Resultat eine englische/deutsche Zusammenfassung. |
@@ -158,20 +182,20 @@ ist dem Publisher vorbehalten, nachdem die unabhängige Validierung und die
 Expected-Version-Neuauflösung bestanden haben. Versionssyntax gehört zum
 getesteten Updater und wird nicht als Workflow-Regex dupliziert. Der Publisher
 ist kein Updater für beliebige Python-Versionen: Er akzeptiert nur einen vom
-Resolver validierten stabilen <code>3.14.N</code>-Patch, niemals einen
+Resolver validierten stabilen <code>3.15.N</code>-Patch, niemals einen
 niedrigeren Patch, Prerelease, eine alternative Minor-Serie oder
 unstrukturierte/HTML-Release-Daten.
 
 Der Publisher verwendet den konstanten Branch
-`automation/update-python-314` und den stabilen Titel
-`chore(ci): propose Python 3.14 patch update`, den Marker
-`<!-- modsecurity-conector-python-314-updater -->` und nur den festen Pfad
-`.python-version`. Er erstellt einen Draft-PR nur, wenn weder passender Branch
+`automation/update-python-315` und den stabilen Titel
+`chore(ci): propose Python 3.15 patch update`, den Marker
+`<!-- modsecurity-conector-python-315-updater -->` und nur das Feld `python_version`
+in `ci/tooling/project-versions.lock.json` samt seiner `.python-version`-Ansicht. Er erstellt einen Draft-PR nur, wenn weder passender Branch
 noch PR existiert. Einen Branch verwendet er nur wieder, wenn genau ein
 passender Same-Repository-Draft-PR existiert, dessen Titel, Marker, Head/Base
 und deaktivierter Auto-Merge alle geprüft sind. Nach Prüfung seines historischen
 Scopes baut er von aktuellem `origin/master` neu auf, staged nur
-`.python-version` und verwendet für einen verifizierten Ersatz-Branch die
+`ci/tooling/project-versions.lock.json` und `.python-version` und verwendet für einen verifizierten Ersatz-Branch die
 exakte Form
 `--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP`. Er führt
 nie einen unbedingten Force-Push, Default-Branch-Push, Merge oder Auto-Merge
@@ -182,8 +206,8 @@ Nur der Publisher liest `WORKFLOW_UPDATER_APP_CLIENT_ID` und
 und das App-Token fordert nie `Workflows`-, `Actions`- oder `Issues`-
 Schreibrechte an. Der englische/deutsche PR-Body dokumentiert vorherige/
 vorgeschlagene Version, Python.org-Metadaten-URL, Validierungs-Run-URL,
-Framework-Quell-SHA, `.python-version` als einzige geänderte Datei, die
-beibehaltene Python-3.14-Minor-Version und die Pflicht zu manueller Prüfung/
+Framework-Quell-SHA, nur das Lock-Feld `python_version` samt `.python-version`-Ansicht, die
+beibehaltene Python-3.15-Minor-Version und die Pflicht zu manueller Prüfung/
 manuellem Merge.
 
 Die unabhängige Validierungs-Stage ist die Evidence-Grenze für einen
@@ -244,6 +268,14 @@ seine exakten leeren Platzhalter mit nicht-rekursivem `rmdir`, und der
 `EXIT`-Trap des Workflows verwendet für das vertrauenswürdige Namespace-Parent
 ebenfalls nicht-rekursives `rmdir`; die Root-seitige Host-Verifikation folgt
 außerhalb des Candidate-Namespace.
+
+Der Root-Workflow ruft den vertrauenswürdigen Launcher über `sudo -n python3` auf.
+Der Launcher setzt fail-closed `PR_SET_NO_NEW_PRIVS`, leert zusätzliche Gruppen,
+wechselt zur GID und UID von `modsecurity-validator` und verwendet `execve` mit
+einer ausdrücklich festgelegten Umgebung statt der geerbten Runner-Umgebung.
+Im Namespace setzt der Candidate vor jeder Ausgabe `umask 077` und führt das
+unveränderte `make quick-check` unter dieser dedizierten Identität ohne Login-
+oder Sudo-Berechtigung aus.
 
 Dies ersetzt Host-Ahnen-ACL-Handling: Der Candidate erhält keinen Host-seitigen
 Traverse- oder Lese-Grant nur, um `RUNNER_TEMP` zu erreichen. Parent, Framework
@@ -425,7 +457,7 @@ separat beobachtete Ausführungs-Evidence.
 Der zentrale <code>ci/tooling/project-versions.lock.json</code> ist die
 Versionsautorität; die Root-<code>.go-version</code> ist sein generierter
 Go-CI-Selector. Sie enthält eine exakte stabile numerische Release
-<code>MAJOR.MINOR.PATCH</code>, aktuell <code>1.27.2</code>. Der
+<code>MAJOR.MINOR.PATCH</code>, aktuell <code>1.27.3</code>. Der
 Trusted-Base-CodeQL-Selector löst die neueste offizielle stabile Release
 unabhängig auf; seine zwei Go-Jobs verwenden ausschließlich die validierte Ausgabe:
 

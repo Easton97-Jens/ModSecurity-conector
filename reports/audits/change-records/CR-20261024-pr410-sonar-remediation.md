@@ -88,8 +88,8 @@ this reduced closeout.
 
 ## Checks not run and rationale
 
-No second final-repair run, historical matrix, Oracle campaign, deep security
-scan, release, deployment or merge was run. Retry count is zero; provider checks
+In the earlier repair run, no second final-repair run, historical matrix, Oracle
+campaign, deep security scan, release, deployment or merge was run. Retry count is zero; provider checks
 start only from the pushed final head.
 
 ## Final diff and review status
@@ -175,3 +175,57 @@ Current shared-head CI, Sonar processing/gates and reviews are evaluated at the
 published #382 head; source #410's green result does not transfer automatically.
 Coverage import and runtime/lifecycle acceptance are separate from these tests.
 No master integration, release, deployment or historical qualification is granted.
+
+## Joint Sonar and maintenance follow-up
+
+GitHub records #410 closed/merged at `bba093f5`. Joint head `23c583d8` has
+41 successful checks, five conditional skips and two failures sharing Sonar's
+99-finding inventory. Go test files were incorrectly MAIN/FIL: `*_test.go` now
+remains analyzed as TEST, with production source unchanged. Independent review
+validated the permission-rejection and in-memory HTTP test candidates as
+non-vulnerable test controls; no provider false-positive marking was used.
+Top-level C includes with macro-aware prototypes, two const declarations, Go
+parameter grouping and an accurate mutable-error fixture address the small
+remaining causes. The 12 trusted-HTTP and three MSE1 unit variants pass using
+the isolated, official-checksum-verified Python 3.15.1 runtime.
+
+The user expanded this task to Go 1.27.3, Python 3.15.1, all current Actions and
+failed update workflows. All ten external Actions were checked against official
+releases and immutable tag commits; setup-python, create-github-app-token and
+CodeQL advance, without changed Node runtime or used input contracts. Build
+toolchain selectors use `.go-version`; module language minima remain unchanged.
+The Go updater's failed old-master socket fixture is already repaired by
+`91722137`; two targeted controls pass on Go 1.27.3. Python's static inventory,
+setup verification and recognition of fixed self-repository reusable calls are repaired. The protected
+lighttpd namespace retains its root-owned system interpreter under its complete
+dedicated trust contract. Normal jobs use canonical Python. Action contracts now
+read the central lock instead of rejecting valid future candidates via old pins.
+Fourteen focused updater controls pass; the metadata publisher-step separation
+recheck also passes after the second rate-limit path was corrected.
+
+GitHub metadata authorization is confined to the two fixed-origin resolver
+steps; redirects are rejected before credentials can be forwarded, error text
+is sanitized, and artifact/Git/PR operations retain their own credentials.
+The user explicitly authorized the narrowly hash-bound official PyYAML 6.0.3
+source build needed for Python 3.15. Parent owns that runtime artifact; the two
+Parent consumers verify the pinned Framework's same dependency version without
+altering Framework source, locks or gitlinks. This is no Framework certification.
+Initial local 100-case results remain revision-bound; follow-up unit controls
+are separately recorded. Existing scaffold CI executed 583 methods in 14 batches
+(one SDK class skipped), exceeding the initial 494-method lower bound. New
+connector E2E cases remain zero. Live default-branch updater publication is not
+executed by this PR task; it requires later trusted master integration/run.
+Final exact-head CI/Sonar/review facts remain in the external task evidence and
+the current PR checks, without importing #410's earlier green result.
+
+On the isolated Python 3.15.1 environment, the final language selection passes
+55 expanded unit variants; the installer passes 20 distinct unit controls.
+The first real source build/install, safe mapping load and unknown-tag rejection
+all pass, as does `pip check`. The resulting pure wheel has SHA-256
+`779a6918447c67ec85d3862ccf51dc57b3ba665c0a50f2955bab850b75c0fc43`;
+the official source and all three build-tool digests are retained in the receipt.
+The Python updater's candidate-installation contract also passes. These are
+separate follow-ups, with their original attempts and source bindings retained.
+The real copied-tree maintenance baseline also passes on Python 3.15.1:
+311 unit methods, 305 passed and six environment/snapshot skips, no failures.
+The skipped controls remain explicit; no connector E2E or host proof is inferred.

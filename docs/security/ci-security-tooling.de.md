@@ -29,6 +29,16 @@ Validierung einen kurzlebigen, auf das Repository begrenzten GitHub-App-Token.
 Er erstellt ausschließlich Draft-Pull-Requests und erst nach expliziten Pfad-,
 Symlink-, Staging-Scope- und Candidate-SHA-256-Prüfungen.
 
+Nur der Resolver-Schritt und die erneute Metadatenauflösung des Publishers
+erhalten einen jobbezogenen read-only `github.token` für Repository-Metadaten
+an `https://api.github.com`. Git- und PR-Veröffentlichung behalten ihren
+GitHub-App-Token. Redirects werden vor
+dem Folgen abgewiesen; Binärartefakte lädt ein separater Client ohne diesen
+Header. Lokale Metadatenauflösung akzeptiert optional `GITHUB_TOKEN` und verwendet
+ohne diesen anonyme Anfragen. Vertragsassertions binden Workflow-Referenzen an
+den exakten SHA und Tag im zentralen Lock, sodass ein älteres fest kodiertes
+Release keinen gültigen Wartungskandidaten abweisen kann.
+
 Die Workflow-Wartung hat genau einen Besitzer: Dependabot verwaltet hier keine
 `github-actions`. Der Updater löst jeden Lock-Eintrag als Einheit auf,
 aktualisiert jeden passenden Action-Suffix (einschließlich aller
@@ -47,13 +57,13 @@ bestehende Connector-Consumer kein paralleles Lock-Schema benötigen.
 | Action | Version | Unveränderlicher Commit |
 | --- | --- | --- |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `actions/create-github-app-token` | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` |
+| `actions/create-github-app-token` | `v3.3.0` | `64ab729a6294000f5aa4a4bc0b73d1f32bc45510` |
 | `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
 | `actions/github-script` | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
-| `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
+| `actions/setup-python` | `v7.1.0` | `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0` |
 | `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
-| `github/codeql-action` | `v4.38.3` | `24c54180a607b1449ed407dd24f251e4e9147c8d` |
+| `github/codeql-action` | `v4.39.1` | `9b3254085494b55a0f7c4c2b3d2d52cc712ce370` |
 | `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
 | `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
@@ -167,7 +177,31 @@ Archivauflistung oder Extraktion geprüft. Die Cache-Identität bleibt an das
 kanonische Quelltupel gebunden; Metadaten erfassen die tatsächliche Download-URL
 und den ausdrücklichen Wiederherstellungsgrund.
 
-## Eingeschränkter Python-3.14-Patch-Updater
+## Geprüfter CI-Abhängigkeitsbuild für Python 3.15
+
+Für Python `3.15.1` gibt es auf PyPI kein offizielles CPython-3.15-Wheel von
+PyYAML `6.0.3`. Die ausdrücklich geprüfte Ausnahme in
+`ci/tools/install-ci-dependencies.py` verwendet ausschließlich die offizielle
+SHA-256-gepinnte Quelldistribution dieses Releases und die exakten offiziellen
+universellen Build-Tool-Wheels aus `requirements-ci-build.lock`. Sie erstellt
+einen eigenen externen Builder, deaktiviert LibYAML, weist native Erweiterungen
+sowie unerwartete Wheel-Metadaten/Abhängigkeiten zurück und installiert das
+entstandene reine Python-Wheel über seinen berechneten Hash. Andere Sourcebuilds,
+offene Abhängigkeitsauflösung und Downloads durch Build-Isolation sind nicht erlaubt.
+Der Backend-Prozess erhält eine von Zugangsdaten bereinigte Umgebung und eine
+Offline-Abhängigkeitsauflösung; dies belegt keine Netzwerkisolation durch das Betriebssystem.
+
+Lokale Nutzung verlangt ein aufgabeneigenes Virtual Environment. Hosted-Workflows
+übergeben `--ci-toolcache` nur für den gewählten `actions/setup-python`-Interpreter;
+der Python-Candidate-Validator übergibt zusätzlich seine unabhängig geprüfte
+`--expected-version`. Standard bleibt die kanonische `.python-version`.
+Die beiden Parent-Jobs mit bestehender Framework-Lockdatei übergeben
+`--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
+dies weist Abhängigkeits-/Versionsdrift zurück und erhält PyYAML `6.0.3`, während
+der Parent das geprüfte Python-3.15-Artefakt verantwortet. Framework-/MRTS-Repositories
+und Gitlinks bleiben unverändert; dies ist keine Framework-Runtime-Qualifizierung.
+
+## Eingeschränkter Python-3.15-Patch-Updater
 
 `.github/workflows/update-python-version.yml` hat genau vier Jobs:
 `resolve-python-patch`, `validate-python-patch`, `publish-python-update` und
@@ -203,7 +237,7 @@ Workflow-Template-Injection.
 
 Vor einem Schreibzugriff verlangt der Publisher entweder keinen Wartungs-Branch
 und keinen passenden PR oder genau einen Same-Repository-Draft-PR mit festem
-Titel und Marker `<!-- modsecurity-conector-python-314-updater -->`, Basis
+Titel und Marker `<!-- modsecurity-conector-python-315-updater -->`, Basis
 `master` und deaktiviertem automatischen Merge. Er prüft bei einem bestehenden
 Branch dessen historischen Scope, baut danach von aktuellem vertrauenswürdigem
 `origin/master` neu auf, ändert nur das Lock-Feld `python_version` samt

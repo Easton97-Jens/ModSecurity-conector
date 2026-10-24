@@ -1223,7 +1223,7 @@ typedef struct authorization_mapping_error {
 } authorization_mapping_error;
 
 static int authorization_handoff_response_transaction(
-    authorization_service *service,
+    const authorization_service *service,
     msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
     char *response_handle,

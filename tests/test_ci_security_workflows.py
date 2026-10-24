@@ -239,8 +239,7 @@ def assert_hash_locked_ci_test_dependency_installation(
     normalized = normalize_shell_script(validator)
     install_step = "Install hash-locked CI test dependency"
     install_command = (
-        "python3 -m pip install --disable-pip-version-check --no-input "
-        "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+        "python3 ci/tools/install-ci-dependencies.py --ci-toolcache"
     )
     workflow_test = "tests.test_ci_security_workflows"
 
@@ -1868,7 +1867,8 @@ jobs:
         self.assertIn('--parent-sha "$EXPECTED_PARENT_SHA" --format github-output >> "$GITHUB_OUTPUT"', verification)
         self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
         self.assertIn('test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"', job)
-        self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
+        self.assertIn("python3 ci/tools/install-ci-dependencies.py --ci-toolcache", job)
+        self.assertIn("--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock", job)
         self.assertIn('test "${#CRS_RUNTIME_RUN_ID}" -le 48', job)
         self.assertIn("EVIDENCE_ROOT: \"\"", job)
 
@@ -3681,6 +3681,9 @@ sudo -n chmod 0750 "$namespace_parent"
 
         self.assertNotIn("secrets.", jobs["resolve-python-patch"])
         self.assertNotIn("secrets.", jobs["validate-python-patch"])
+        candidate_install = 'python3 ci/tools/install-ci-dependencies.py --ci-toolcache --expected-version "$CANDIDATE_VERSION"'
+        self.assertIn(candidate_install, normalize_shell_script(jobs["validate-python-patch"]))
+        self.assertEqual(workflow.count(candidate_install), 1)
 
         self.assertEqual(job_permissions(jobs["resolve-python-patch"]), {"contents": "read"})
         self.assertEqual(job_permissions(jobs["validate-python-patch"]), {"contents": "read"})
@@ -3714,8 +3717,7 @@ sudo -n chmod 0750 "$namespace_parent"
         publisher_normalized = normalize_shell_script(publisher)
         publisher_install_step = "Install hash-locked CI test dependency"
         publisher_install_command = (
-            "python3 -m pip install --disable-pip-version-check --no-input "
-            "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+            "python3 ci/tools/install-ci-dependencies.py --ci-toolcache"
         )
         self.assertIn(publisher_install_step, publisher)
         self.assertIn(publisher_install_command, publisher_normalized)
@@ -3748,9 +3750,9 @@ sudo -n chmod 0750 "$namespace_parent"
             'python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json',
             publisher,
         )
-        self.assertIn("UPDATE_BRANCH: automation/update-python-314", publisher)
-        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
-        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"', publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-python-315", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.15 patch update"', publisher)
+        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-315-updater -->"', publisher)
         self.assertIn("FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e", publisher)
         self.assertIn(
             'PUBLISH_REMOTE_URL="https://github.com/Easton97-Jens/ModSecurity-conector.git"',
@@ -3834,8 +3836,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("secrets.", outcome)
         self.assertNotIn("publisher_app_token", outcome)
         self.assertIn("case \"$UPDATE_AVAILABLE\" in", outcome)
-        self.assertIn("No Python 3.14 patch update is available.", outcome)
-        self.assertIn("Kein Python-3.14-Patch-Update ist verfügbar.", outcome)
+        self.assertIn("No Python 3.15 patch update is available.", outcome)
+        self.assertIn("Kein Python-3.15-Patch-Update ist verfügbar.", outcome)
 
     def test_go_release_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-go-version.yml"

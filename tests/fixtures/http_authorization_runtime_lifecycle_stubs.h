@@ -1,10 +1,19 @@
 #ifndef MSCONNECTOR_TEST_HTTP_AUTHORIZATION_RUNTIME_LIFECYCLE_STUBS_H
 #define MSCONNECTOR_TEST_HTTP_AUTHORIZATION_RUNTIME_LIFECYCLE_STUBS_H
 
-#include "http_authorization_request_stream_stubs.h"
-
 #include <stdlib.h>
 #include <string.h>
+
+#include "http_authorization_request_stream_stubs.h"
+
+/* The trusted-binding fixture renames these callbacks before including the
+ * legacy model. Declare its selected names before the shared callers. */
+int msconnector_runtime_transaction_begin_request_stream(
+    msconnector_runtime *runtime, const msconnector_request *request,
+    const char *host_request_id, msconnector_runtime_transaction **out,
+    msconnector_decision *decision, msconnector_error *error);
+int msconnector_runtime_transaction_finish(
+    msconnector_runtime_transaction *transaction, msconnector_error *error);
 
 /* Shared lifecycle model for the legacy timeout and detached-worker fixtures.
  * Their runtime accounting/finish implementations remain fixture-specific. */

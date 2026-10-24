@@ -59,9 +59,10 @@ pull request, review, or delivery result.
 
 ### Canonical interpreter and strategy
 
-The committed root [`.python-version`](../../.python-version) is the sole
-machine-readable interpreter source. Its required content is the exact stable
-release <code>3.14.6</code>. Every Python-executing job in the inventory below
+The committed root [`.python-version`](../../.python-version) is the generated
+setup-action view of `python_version` in the canonical
+[`ci/tooling/project-versions.lock.json`](../../ci/tooling/project-versions.lock.json).
+Its required content is the exact stable release <code>3.15.1</code>. Every normal Python-executing job in the inventory below
 must run `actions/setup-python` before its first direct or indirect Python use
 with:
 
@@ -73,68 +74,90 @@ check-latest: false
 The version literal must not be duplicated in workflow YAML. The setup action
 is separately action-pinned; an action-lock record is not an interpreter
 version source. The accepted setup reference is the existing immutable
-`actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0`
+`actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0`
 pin that is also recorded in `ci/tooling/security-tools.lock.yml`; the
 contract checker must validate that same v7 reference rather than a stale v6
 expectation. After setup, the workflow contract must validate that `python`
-and `python3` select equivalent configured Python <code>3.14.6</code>
+and `python3` select equivalent configured Python <code>3.15.1</code>
 interpreters before either name, a Python-backed Make target, or an indirect
-Framework check is used. No listed job may fall back to an ambient runner,
+Framework check is used. No normal job may fall back to an ambient runner,
 bootstrap, virtual-environment, or system `python3` interpreter.
 
 | Alternative | Decision | Rationale |
 | --- | --- | --- |
-| Floating `3.14` | Rejected | A later runner/tool-cache resolution can silently select a different patch release, creating patch drift. |
-| Exact `3.14.6` from one committed `.python-version` file | Selected | The exact stable patch is reviewable and reproducible, while `python-version-file` gives every covered job the same source. |
+| Floating `3.15` | Rejected | A later runner/tool-cache resolution can silently select a different patch release, creating patch drift. |
+| Exact `3.15.1` from one committed `.python-version` file | Selected | The exact stable patch is reviewable and reproducible, while `python-version-file` gives every covered job the same source. |
 | Exact version plus a permanent canary workflow | Rejected | The independent, read-only candidate-validation stage below validates a proposed patch before publication; an additional canary would duplicate that control without changing the publisher trust boundary. |
 
-### Complete Parent workflow/job inventory
+For Python 3.15, install the Parent CI dependency from a task-owned virtual
+environment with `python ci/tools/install-ci-dependencies.py --build-root "$RUNNER_TEMP"`,
+where `RUNNER_TEMP` selects an approved external directory. The reviewed
+`requirements-ci.lock` pins the official PyYAML `6.0.3` source; the separate
+`requirements-ci-build.lock` pins its builder wheels. This is the sole sourcebuild
+exception while official CPython-3.15 wheels are unavailable. The helper checks
+wheel metadata and hashes before installing into the selected interpreter;
+see the [complete dependency-build contract](../security/ci-security-tooling.md#reviewed-python-315-ci-dependency-build)
+for target guards, candidate versions, Framework version alignment and the
+network-evidence boundary. Hosted CI uses the explicit guarded `--ci-toolcache`
+mode; it does not replace the setup interpreter or change `GITHUB_PATH`.
 
-This 20-job baseline inventory is the authoritative documentation table for
-the linked Change Record. “Existing minor-only setup” and “Ambient or
-bootstrapped Python” describe the historical adoption path before the
-contract was introduced; neither is a current selector. In the checked-in
-workflow contract, every row has the same explicit <code>3.14.6</code> setup
-and `python`/`python3` equivalence validation.
+### Current Parent workflow/job inventory
 
-| Workflow | Job | Python execution chain | Baseline condition |
-| --- | --- | --- | --- |
-| `reusable-five-connectors-profile.yml` | `resolve-profile` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3 ci/runtime/lifecycle/five-connector-no-crs-profile.py --emit-github-matrix` | Explicit `.python-version` setup |
-| `reusable-five-connectors-profile.yml` | `no-crs` | Pinned `actions/setup-python`, interpreter-contract verification, then profile validation and Python-backed Framework/Make lifecycle targets | Explicit `.python-version` setup |
-| `reusable-five-connectors-profile.yml` | `aggregate` | Pinned `actions/setup-python`, interpreter-contract verification, then `python3` evidence validation and five-result aggregation | Explicit `.python-version` setup |
-| `ci-security-secrets.yml` | `pull-request-range` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
-| `ci-security-secrets.yml` | `advisory-full-history` | `python3 ci/tools/fetch_security_tool.py` | Ambient or bootstrapped Python |
-| `ci-security-workflow-lint.yml` | `actionlint` | Python tool fetcher and `python3 -m unittest` | Ambient or bootstrapped Python |
-| `ci-security-workflow-lint.yml` | `zizmor` | Python tool fetcher | Ambient or bootstrapped Python |
-| `lint.yml` | `scaffold-lint` | Python documentation check and non-PR Python-backed setup/lint | Existing minor-only setup |
-| `open-connectors-smoke.yml` | `open-connectors-smoke` | Direct summary plus indirect Python Make targets | Existing minor-only setup |
-| `protocol-contract.yml` | `protocol-contract` | `python3 -m unittest` and protocol-client target | Existing minor-only setup |
-| `protocol-contract.yml` | `nginx-profile-and-client-preflight` | Inline `python3` and client Make target | Existing minor-only setup |
-| `quick-framework-check.yml` | `quick-check` | Indirect setup, matrix, and quick-check Python work | Existing minor-only setup |
-| `test-apache.yml` | `apache-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
-| `test-common.yml` | `common-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
-| `test-envoy.yml` | `envoy-contract` | Indirect Python in connector checks | Ambient or bootstrapped Python |
-| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | `.venv/bin/python -m py_compile` and Python Make paths | Ambient or bootstrapped Python |
-| `test-lighttpd.yml` | `lighttpd-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
-| `test-nginx.yml` | `nginx-structure` | Conditional non-PR Python setup and quick-check | Existing minor-only setup |
-| `test-traefik.yml` | `traefik-contract` | Indirect Python in connector and shared checks | Ambient or bootstrapped Python |
-| `update-submodules.yml` | `validate-submodule-update` | Indirect Python through `make quick-check` | Ambient or bootstrapped Python |
-| `verified-report-governance.yml` | `report-governance` | Indirect Python through `make report-governance` | Existing minor-only setup |
+The closed inventory in [the Python workflow checker](../../ci/checks/common/check-python-version-contract.py)
+contains 41 normal jobs, one candidate job, two immutable protected calls, one
+local reusable caller and one reviewed system-Python namespace job. Normal jobs
+select `.python-version` and verify the exact setup interpreter before Python
+use. Unlisted jobs, dynamic executable heads, mutable Action references and
+selector drift fail the contract.
 
-The inventory deliberately excludes jobs that have no proven Python execution
-chain, such as action-only security scans, inline JavaScript cleanup, and
-shell-only checks. A new Python-executing job must join this contract before it
-is allowed to use Python. The static validator covers both `.yml` and `.yaml`
-workflow filenames.
+| Workflow | Jobs | Interpreter contract |
+| --- | --- | --- |
+| `ci-findings-regressions.yml` | `nginx-b09-regression` | Canonical Python `3.15.1` |
+| `ci-security-codeql.yml` | `trusted-go-version` | Canonical Python `3.15.1` |
+| `ci-security-secrets.yml` | `advisory-full-history`, `pull-request-range` | Canonical Python `3.15.1` |
+| `ci-security-workflow-lint.yml` | `actionlint`, `apr-util-provenance`, `zizmor` | Canonical Python `3.15.1` |
+| `lint.yml` | `scaffold-lint` | Canonical Python `3.15.1` |
+| `nginx-root-broker.yml` | `trusted-root-smoke` | Canonical Python `3.15.1` |
+| `open-connectors-smoke.yml` | `open-connectors-smoke` | Canonical Python `3.15.1` |
+| `protocol-contract.yml` | `nginx-profile-and-client-preflight`, `protocol-contract` | Canonical Python `3.15.1` |
+| `quick-framework-check.yml` | `quick-check` | Canonical Python `3.15.1` |
+| `reusable-five-connectors-profile.yml` | `aggregate`, `no-crs`, `resolve-profile` | Canonical Python `3.15.1` |
+| `run-protected-nginx-root-broker.yml` | `prepare-manifests`, `verify-evidence` | Canonical Python `3.15.1` |
+| `test-apache.yml` | `apache-autotools-bootstrap`, `apache-structure` | Canonical Python `3.15.1` |
+| `test-common.yml` | `common-structure` | Canonical Python `3.15.1` |
+| `test-connectors-with-crs-no-mrts.yml` | `aggregate-with-crs-no-mrts`, `connector-mode` | Canonical Python `3.15.1` |
+| `test-envoy.yml` | `envoy-contract` | Canonical Python `3.15.1` |
+| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | Canonical Python `3.15.1` |
+| `test-haproxy.yml` | `haproxy-structure` | Canonical Python `3.15.1` |
+| `test-lighttpd.yml` | `lighttpd-contract` | Canonical Python `3.15.1` |
+| `test-nginx-exact-head.yml` | `nginx-exact-head` | Canonical Python `3.15.1` |
+| `test-nginx.yml` | `nginx-structure` | Canonical Python `3.15.1` |
+| `test-traefik.yml` | `traefik-contract` | Canonical Python `3.15.1` |
+| `update-go-version.yml` | `create-go-update-pr`, `resolve-go-release`, `validate-go-release` | Canonical Python `3.15.1` |
+| `update-python-version.yml` | `publish-python-update`, `resolve-python-patch` | Canonical Python `3.15.1` |
+| `update-submodules.yml` | `create-submodule-update-pr`, `validate-submodule-update` | Canonical Python `3.15.1` |
+| `update-workflow-tools.yml` | `publisher`, `resolver`, `validator` | Canonical Python `3.15.1` |
+| `verified-report-governance.yml` | `report-governance` | Canonical Python `3.15.1` |
+| `update-python-version.yml` | `validate-python-patch` | Independently resolved exact stable `3.15.N` candidate; no downgrade |
+| `run-protected-nginx-root-broker.yml` | `run-no-crs-broker`, `run-with-crs-broker` | Existing immutable protected reusable-workflow tuple |
+| `all-connectors-no-crs.yml` | `no-crs` | Exact local `$/.github/workflows/reusable-five-connectors-profile.yml` caller; its fixed `./` equivalent is also accepted |
+| `run-trusted-lighttpd-namespace-dispatch.yml` | `trusted-lighttpd-namespace` | Reviewed fixed `/usr/bin/python3` inside the cleared, unprivileged AppArmor namespace |
+
+The namespace exception requires both its literal reviewed whole-workflow digest
+and the complete dedicated trust validator. Adding setup/checkout before its
+privileged bootstrap would cross its trust boundary. It is not a Python 3.15
+qualification; any change requires a new profile review. Ordinary Action pins
+are read from the central security-tool lock by both language checkers, keeping
+SHA and provenance comments aligned when the constrained updater proposes a release.
 
 ### Safe stable-patch updater contract
 
-The updater is separate from the 20 baseline jobs. The checked-in
+The updater retains its separate candidate boundary. The checked-in
 `.github/workflows/update-python-version.yml` has exactly four jobs:
 
 | Job | Interpreter and trust boundary | Required behavior |
 | --- | --- | --- |
-| `resolve-python-patch` | Exact trusted event SHA and current canonical `.python-version`; `contents: read` | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. Its tested `--check --json` interface emits `status`, `current_version`, `latest_version`, and `update_available`; it proposes only a higher stable `3.14.N` patch. |
+| `resolve-python-patch` | Exact trusted event SHA and current canonical `.python-version`; `contents: read` | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. Its tested `--check --json` interface emits `status`, `current_version`, `latest_version`, and `update_available`; it proposes only a higher stable `3.15.N` patch. |
 | `validate-python-patch` | Exact trusted event SHA and independently installed candidate; `contents: read` | Re-resolves the candidate with `--expected-version`, verifies the exact candidate interpreter, installs hash-locked CI dependencies, runs `pip check`, compile/contracts/focused tests, and `make check-ci-security-contract`; it performs no source or branch mutation. |
 | `publish-python-update` | Canonical non-fork `master` event, current trusted `origin/master`; normal `GITHUB_TOKEN` has `contents: read` | The sole App-secret consumer mints the existing pinned GitHub App token with only `Contents: write` and `Pull requests: write`, rebuilds the maintenance branch from current master, and may create or update only the matching same-repository Draft PR. |
 | `report-python-update-outcome` | Always runs; `permissions: {}` | Fails closed on inconsistent resolver/validator/publisher results and writes an English/German summary for either the current or independently validated/published result. |
@@ -152,18 +175,18 @@ is reserved for the publisher after the independent validation and expected-
 version re-resolution succeed. Version syntax is owned by the tested updater,
 not duplicated as workflow regexes. The publisher is not an updater for
 arbitrary Python versions: it accepts only a resolver-validated stable
-<code>3.14.N</code> patch, never a lower patch, prerelease, alternate minor
+<code>3.15.N</code> patch, never a lower patch, prerelease, alternate minor
 series, or unstructured/HTML release data.
 
 The publisher uses the constant branch
-`automation/update-python-314` and the stable title
-`chore(ci): propose Python 3.14 patch update`, marker
-`<!-- modsecurity-conector-python-314-updater -->`, and only the fixed
-`.python-version` path. It creates a Draft PR only when neither matching branch
+`automation/update-python-315` and the stable title
+`chore(ci): propose Python 3.15 patch update`, marker
+`<!-- modsecurity-conector-python-315-updater -->`, and only the `python_version`
+field in `ci/tooling/project-versions.lock.json` plus its `.python-version` view. It creates a Draft PR only when neither matching branch
 nor PR exists. It reuses a branch only with exactly one matching same-
 repository Draft PR whose title, marker, head/base, and disabled auto-merge
 state all verify. After checking its historical scope, it rebuilds from current
-`origin/master`, stages only `.python-version`, and uses the exact
+`origin/master`, stages only `ci/tooling/project-versions.lock.json` and `.python-version`, and uses the exact
 `--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP` form for a
 verified replacement branch. It never does an unconditional force push,
 default-branch push, merge, or auto-merge.
@@ -172,8 +195,7 @@ Only the publisher reads `WORKFLOW_UPDATER_APP_CLIENT_ID` and
 `WORKFLOW_UPDATER_APP_PRIVATE_KEY`; its normal job token remains read-only and
 the App token never requests `Workflows`, `Actions`, or `Issues` write access.
 The English/German PR body records the previous/proposed version, Python.org
-metadata URL, validation run URL, Framework source SHA, `.python-version` as
-the only changed file, retained Python 3.14 minor version, and manual review/
+metadata URL, validation run URL, Framework source SHA, only the `python_version` lock field and its `.python-version` view, retained Python 3.15 minor version, and manual review/
 manual merge requirement.
 
 The independent validation stage is the evidence boundary for a proposed
@@ -398,7 +420,7 @@ merge. Those results require separately observed execution evidence.
 The central <code>ci/tooling/project-versions.lock.json</code> is the
 version authority; the root <code>.go-version</code> is its generated Go CI
 selector. It contains one exact stable numeric <code>MAJOR.MINOR.PATCH</code>
-release, currently <code>1.27.2</code>. The trusted-base CodeQL selector
+release, currently <code>1.27.3</code>. The trusted-base CodeQL selector
 independently resolves the latest official stable release and its two Go jobs
 use only the validated output:
 

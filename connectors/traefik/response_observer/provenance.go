@@ -109,7 +109,7 @@ func privateHeaderKey(key string, names []string) bool {
 		privateHeaderName(key[len(http.TrailerPrefix):], names)
 }
 
-func publicTrailerNames(values []string, private []string) []string {
+func publicTrailerNames(values, private []string) []string {
 	kept := []string{}
 	for _, value := range values {
 		for _, name := range strings.Split(value, ",") {

@@ -406,7 +406,7 @@ static int find_slot_snapshot(const msconnector_header *header, int consumed,
     pthread_mutex_lock(&server.lock);
     uint64_t now = now_ms();
     for (size_t i = 0U; i < PROVENANCE_SLOTS; ++i) {
-        reservation *slot = &server.slots[i];
+        const reservation *slot = &server.slots[i];
         if (!slot_accepts_stage(slot, consumed, now) ||
             memcmp(slot->token, header->value, 64U) != 0) continue;
         int fd = fcntl(slot->fd, F_DUPFD_CLOEXEC, 0);

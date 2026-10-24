@@ -13,7 +13,7 @@ gepflegt. Das geschlossene Schema hat genau fünf Schlüssel:
 | `schema_version` | Ganzzahliger Schema-Bezeichner |
 | `framework_sha` | Exakte gewöhnliche Framework-Revision |
 | `mrts_sha` | Exakte verschachtelte MRTS-Revision |
-| `python_version` | Stabile Python-3.14-Patch-Toolchain |
+| `python_version` | Stabile Python-3.15-Patch-Toolchain |
 | `go_version` | Stabile Go-Toolchain |
 
 Die ausgewählten Werte werden direkt aus dem verlinkten JSON-Datensatz gelesen;

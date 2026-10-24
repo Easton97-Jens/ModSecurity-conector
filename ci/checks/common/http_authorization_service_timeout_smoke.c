@@ -7,7 +7,7 @@
 #include "msconnector/error.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
-#include "../../../tests/fixtures/http_authorization_request_stream_stubs.h"
+#include "../../../tests/fixtures/http_authorization_runtime_lifecycle_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -230,8 +230,6 @@ const char *msconnector_runtime_transaction_id(
     const msconnector_runtime_transaction *transaction) {
     return transaction == NULL ? NULL : "timeout-smoke";
 }
-
-#include "../../../tests/fixtures/http_authorization_runtime_lifecycle_stubs.h"
 
 static int smoke_map_request(
     const msconnector_generic_request_source *source,

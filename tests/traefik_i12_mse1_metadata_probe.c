@@ -9,7 +9,7 @@ static int recorded_late;
 static msconnector_decision_action recorded_action;
 static int observe_host_action(const msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision, msconnector_decision_action action,
-    int status, const char *transport, int aborted, const msconnector_error *error);
+    int status, const char *transport, int aborted, msconnector_error *error);
 #define msconnector_runtime_transaction_record_host_action observe_host_action
 #define main traefik_i12_unused_engine_main
 #include "connectors/traefik/src/traefik_engine_service.c"
@@ -18,9 +18,10 @@ static int observe_host_action(const msconnector_runtime_transaction *transactio
 
 static int observe_host_action(const msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision, msconnector_decision_action action,
-    int status, const char *transport, int aborted, const msconnector_error *error)
+    int status, const char *transport, int aborted, msconnector_error *error)
 {
-    (void)error;
+    /* Successful Runtime recording clears its mutable error output. */
+    msconnector_error_init(error);
     assert(transaction != NULL && decision != NULL && transport != NULL);
     assert(!aborted && (status == 200 || status == 403));
     recorded_late = decision->late_intervention;

@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -30,7 +30,7 @@ jobs:
       - name: Set up Go for response observer tests
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: connectors/envoy/ext_proc/go.mod
+          go-version-file: .go-version
           check-latest: false
           cache: false
       - name: Execute Envoy technical-error callers and negative controls
@@ -72,8 +72,9 @@ jobs:
           sudo apt-get install --no-install-recommends --yes \
             build-essential autoconf automake libtool pkg-config bison flex \
             libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
+          # Parent owns the CPython 3.15 artifact; preserve Framework dependency versions.
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
       - name: Compile and execute the real Common and CGo bridge tests
         env:
           GOTOOLCHAIN: local

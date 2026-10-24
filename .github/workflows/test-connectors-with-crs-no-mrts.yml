@@ -98,7 +98,7 @@ jobs:
 
       - name: Set up locked Python toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -131,9 +131,10 @@ jobs:
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
         run: |
           set -euo pipefail
-          "$SETUP_PYTHON_PATH" -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
-          "$SETUP_PYTHON_PATH" -m pip check
+          # Parent owns the CPython 3.15 artifact; preserve Framework dependency versions.
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
 
       - name: Verify exact real-runtime cell
         id: verify-runtime-cell
@@ -1375,6 +1376,18 @@ jobs:
           submodules: recursive
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Set up repository Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify exact PR head and base
         id: verify-revisions

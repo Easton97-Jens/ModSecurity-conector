@@ -1,4 +1,4 @@
-name: Update Python 3.14 patch
+name: Update Python 3.15 patch
 
 on:
   schedule:
@@ -39,7 +39,7 @@ jobs:
 
       - name: Set up canonical Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -49,7 +49,7 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
-      - name: Resolve latest stable Python 3.14 patch
+      - name: Resolve latest stable Python 3.15 patch
         id: resolve
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -114,7 +114,7 @@ jobs:
 
       - name: Set up candidate Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}
           check-latest: false
@@ -128,12 +128,7 @@ jobs:
       - name: Install hash-locked CI test dependency
         run: |
           set -euo pipefail
-          python3 -m pip install \
-            --disable-pip-version-check \
-            --no-input \
-            --only-binary=:all: \
-            --require-hashes \
-            -r requirements-ci.lock
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache --expected-version "$CANDIDATE_VERSION"
           python3 -m pip check
 
       - name: Re-resolve and validate candidate metadata
@@ -174,9 +169,9 @@ jobs:
       CANDIDATE_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
       CURRENT_VERSION: ${{ needs.resolve-python-patch.outputs.current_version }}
       DEFAULT_BRANCH: master
-      UPDATE_BRANCH: automation/update-python-314
-      PR_TITLE: "chore(ci): propose Python 3.14 patch update"
-      PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"
+      UPDATE_BRANCH: automation/update-python-315
+      PR_TITLE: "chore(ci): propose Python 3.15 patch update"
+      PR_MARKER: "<!-- modsecurity-conector-python-315-updater -->"
       FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e
       WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PYTHONDONTWRITEBYTECODE: "1"
@@ -191,7 +186,7 @@ jobs:
 
       - name: Set up canonical Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -204,12 +199,7 @@ jobs:
       - name: Install hash-locked CI test dependency
         run: |
           set -euo pipefail
-          python3 -m pip install \
-            --disable-pip-version-check \
-            --no-input \
-            --only-binary=:all: \
-            --require-hashes \
-            -r requirements-ci.lock
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
           python3 -m pip check
 
       - name: Verify publisher GitHub App configuration
@@ -229,7 +219,7 @@ jobs:
 
       - name: Mint repository-limited Python updater App token
         id: publisher_app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
           private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
@@ -526,7 +516,7 @@ jobs:
               `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
-              "- Changed files: .python-version and ci/tooling/project-versions.lock.json only; Python minor remains 3.14.",
+              "- Changed files: .python-version and ci/tooling/project-versions.lock.json only; Python minor remains 3.15.",
               "- Manual review and manual merge are required. Automatic merge remains disabled.",
               "",
               "## Deutsch",
@@ -537,7 +527,7 @@ jobs:
               `- Validierungsworkflow und Run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework-Architekturreferenz: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Wartungs-Branch: ${process.env.UPDATE_BRANCH}; Basis: ${process.env.DEFAULT_BRANCH}; nur ein Draft-PR aus demselben Repository`,
-              "- Geänderte Dateien: nur .python-version und ci/tooling/project-versions.lock.json; die Python-Minor-Version bleibt 3.14.",
+              "- Geänderte Dateien: nur .python-version und ci/tooling/project-versions.lock.json; die Python-Minor-Version bleibt 3.15.",
               "- Manuelle Prüfung und manueller Merge sind erforderlich. Automatischer Merge bleibt deaktiviert.",
             ].join("\n");
             await github.rest.pulls.create({
@@ -598,7 +588,7 @@ jobs:
               `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
-              "- Changed files: .python-version and ci/tooling/project-versions.lock.json only; Python minor remains 3.14.",
+              "- Changed files: .python-version and ci/tooling/project-versions.lock.json only; Python minor remains 3.15.",
               "- Manual review and manual merge are required. Automatic merge remains disabled.",
               "",
               "## Deutsch",
@@ -609,7 +599,7 @@ jobs:
               `- Validierungsworkflow und Run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework-Architekturreferenz: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Wartungs-Branch: ${process.env.UPDATE_BRANCH}; Basis: ${process.env.DEFAULT_BRANCH}; nur ein Draft-PR aus demselben Repository`,
-              "- Geänderte Dateien: nur .python-version und ci/tooling/project-versions.lock.json; die Python-Minor-Version bleibt 3.14.",
+              "- Geänderte Dateien: nur .python-version und ci/tooling/project-versions.lock.json; die Python-Minor-Version bleibt 3.15.",
               "- Manuelle Prüfung und manueller Merge sind erforderlich. Automatischer Merge bleibt deaktiviert.",
             ].join("\n");
             await github.rest.pulls.update({
@@ -706,9 +696,9 @@ jobs:
               printf '%s\n' \
                 '## Python updater outcome' \
                 '' \
-                'No Python 3.14 patch update is available. Validation and publication were skipped; no maintenance branch, commit, or pull request was created or changed.' \
+                'No Python 3.15 patch update is available. Validation and publication were skipped; no maintenance branch, commit, or pull request was created or changed.' \
                 '' \
-                'Kein Python-3.14-Patch-Update ist verfügbar. Validierung und Veröffentlichung wurden übersprungen; es wurde kein Wartungs-Branch, Commit oder Pull Request erstellt oder geändert.' \
+                'Kein Python-3.15-Patch-Update ist verfügbar. Validierung und Veröffentlichung wurden übersprungen; es wurde kein Wartungs-Branch, Commit oder Pull Request erstellt oder geändert.' \
                 >> "$GITHUB_STEP_SUMMARY"
               ;;
             true)
@@ -723,10 +713,10 @@ jobs:
               printf '%s\n' \
                 '## Python updater outcome' \
                 '' \
-                "Python 3.14 update $CURRENT_VERSION → $LATEST_VERSION was independently validated and published via the constrained maintenance branch automation/update-python-314 and its matching Draft pull request." \
+                "Python 3.15 update $CURRENT_VERSION → $LATEST_VERSION was independently validated and published via the constrained maintenance branch automation/update-python-315 and its matching Draft pull request." \
                 'Manual review and manual merge remain required; automatic merge is disabled.' \
                 '' \
-                "Python-3.14-Update $CURRENT_VERSION → $LATEST_VERSION wurde unabhängig validiert und über den eingeschränkten Wartungs-Branch automation/update-python-314 sowie den passenden Draft Pull Request veröffentlicht." \
+                "Python-3.15-Update $CURRENT_VERSION → $LATEST_VERSION wurde unabhängig validiert und über den eingeschränkten Wartungs-Branch automation/update-python-315 sowie den passenden Draft Pull Request veröffentlicht." \
                 'Manuelle Prüfung und manueller Merge bleiben erforderlich; automatischer Merge ist deaktiviert.' \
                 >> "$GITHUB_STEP_SUMMARY"
               ;;

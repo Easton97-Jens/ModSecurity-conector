@@ -28,6 +28,16 @@ the publisher obtains a short-lived, repository-limited GitHub App token only
 after candidate and proposed-tree validation. It creates Draft pull requests
 only after explicit path, symlink, staged-scope, and candidate-SHA-256 checks.
 
+Only the resolver step and the publisher's metadata re-resolution step receive
+a job-scoped read-only `github.token` for repository metadata requests at
+`https://api.github.com`. Git and PR publication retain their GitHub App token.
+Redirects are rejected before
+following them; binary asset downloads use a separate client without this
+header. Local metadata resolution accepts an optional `GITHUB_TOKEN` and uses
+anonymous requests when it is absent. Contract assertions bind workflow
+references to the exact SHA and tag in the central lock, so an older hardcoded
+release cannot reject a valid maintenance candidate.
+
 Workflow maintenance has one owner: Dependabot does not manage
 `github-actions` here. The updater resolves each lock record as a unit,
 updates every matching Action suffix (including all `github/codeql-action`
@@ -45,13 +55,13 @@ not need a parallel lock schema.
 | Action | Version | Immutable commit |
 | --- | --- | --- |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `actions/create-github-app-token` | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` |
+| `actions/create-github-app-token` | `v3.3.0` | `64ab729a6294000f5aa4a4bc0b73d1f32bc45510` |
 | `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
 | `actions/github-script` | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
-| `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
+| `actions/setup-python` | `v7.1.0` | `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0` |
 | `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
-| `github/codeql-action` | `v4.38.3` | `24c54180a607b1449ed407dd24f251e4e9147c8d` |
+| `github/codeql-action` | `v4.39.1` | `9b3254085494b55a0f7c4c2b3d2d52cc712ce370` |
 | `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
 | `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
@@ -156,7 +166,30 @@ trigger this recovery. The digest is verified before archive listing or
 extraction. Cache identity remains bound to the canonical source tuple; metadata
 records the actual download URL and explicit recovery reason.
 
-## Constrained Python 3.14 patch updater
+## Reviewed Python 3.15 CI dependency build
+
+Python `3.15.1` has no official PyYAML `6.0.3` CPython-3.15 wheel on PyPI.
+The explicitly reviewed exception in `ci/tools/install-ci-dependencies.py`
+uses only that release's official SHA-256-pinned source distribution and the
+exact official universal build-tool wheels in `requirements-ci-build.lock`.
+It creates a separate external builder, disables LibYAML, rejects native
+extensions and unexpected wheel metadata/dependencies, and installs the
+resulting pure-Python wheel through its computed hash. Other source builds,
+open-ended dependency resolution and build isolation downloads are not allowed.
+The backend receives a credential-stripped environment and offline dependency
+resolution; this does not establish operating-system network isolation.
+
+Local use requires a task-owned virtual environment. Hosted workflows pass
+`--ci-toolcache` only for the selected `actions/setup-python` interpreter;
+the Python candidate validator additionally passes its independently checked
+`--expected-version`. The default remains the canonical `.python-version`.
+The two Parent jobs consuming Framework's existing lock pass
+`--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
+this rejects dependency/version drift and preserves PyYAML `6.0.3` while the
+Parent owns the reviewed Python-3.15 artifact. Framework/MRTS repositories and
+gitlinks stay unchanged; this is not Framework runtime qualification.
+
+## Constrained Python 3.15 patch updater
 
 `.github/workflows/update-python-version.yml` has exactly four jobs:
 `resolve-python-patch`, `validate-python-patch`, `publish-python-update`, and
@@ -188,7 +221,7 @@ that keeps the output guard fail-closed and avoids workflow-template injection.
 
 Before it writes, the publisher requires either no maintenance branch and no
 matching PR, or exactly one same-repository Draft PR with the fixed title and
-marker `<!-- modsecurity-conector-python-314-updater -->`, `master` base, and
+marker `<!-- modsecurity-conector-python-315-updater -->`, `master` base, and
 automatic merge disabled. It verifies an existing branch's historical scope,
 then rebuilds from current trusted `origin/master`, applies only the
 `python_version` lock field and its `.python-version` view, stages only those
