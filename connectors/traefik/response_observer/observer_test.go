@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 )
 
 const testHandle = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -529,6 +531,61 @@ func TestMiddlewareCancellationAfterClaimSendsBoundedCancel(t *testing.T) {
 	if got, want := operations.snapshot(), []byte{opClaim, opCancel}; !sameBytes(got, want) {
 		t.Fatalf("operations=%v, want bounded cleanup %v", got, want)
 	}
+}
+
+type deadlineBarrierConn struct {
+	net.Conn
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (c *deadlineBarrierConn) SetDeadline(deadline time.Time) error {
+	if !deadline.After(time.Now()) {
+		close(c.entered)
+		<-c.release
+	}
+	return c.Conn.SetDeadline(deadline)
+}
+
+func TestSessionExchangeJoinsCanceledDeadlineWriter(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client, peer := net.Pipe()
+		defer client.Close()
+		defer peer.Close()
+		conn := &deadlineBarrierConn{Conn: client, entered: make(chan struct{}), release: make(chan struct{})}
+		s := &session{conn: conn, reader: bufio.NewReader(conn), timeout: time.Second}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		exchanged := make(chan error, 1)
+		go func() { _, err := s.exchange(ctx, opClaim, []byte(testHandle)); exchanged <- err }()
+		if op, _, err := readTestFrame(bufio.NewReader(peer)); err != nil || op != opClaim {
+			t.Fatalf("exchange CLAIM frame = %d, %v, want %d, nil", op, err, opClaim)
+		}
+		cancel()
+		<-conn.entered
+		if err := writeTestResult(peer, opClaim, decisionAllow, resultOK); err != nil {
+			t.Fatal(err)
+		}
+		// The reply has been consumed, while the canceled watcher's deadline
+		// update is deliberately suspended. Synthetic scheduling establishes
+		// that exchange cannot release its ownership before the watcher exits.
+		synctest.Wait()
+		select {
+		case err := <-exchanged:
+			t.Errorf("exchange returned %v while its deadline writer remained active", err)
+		default:
+		}
+		close(conn.release)
+		synctest.Wait()
+		select {
+		case err := <-exchanged:
+			if err != nil {
+				t.Errorf("exchange after watcher retirement = %v, want nil", err)
+			}
+		default:
+			t.Error("exchange did not return after its deadline writer exited")
+		}
+	})
 }
 
 func TestMiddlewareUsesClientCancelForDownstreamWriteFailure(t *testing.T) {

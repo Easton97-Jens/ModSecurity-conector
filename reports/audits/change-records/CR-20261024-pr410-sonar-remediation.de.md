@@ -120,6 +120,18 @@ Dieselben vier Guard-Methoden / 13 expandierten Szenarien bestanden einmal in
 Auswahl-Preflight bestätigt die 13 Szenarien als Teilmenge des bestehenden
 75-Fall-Inventars. Aufgabeneigener Befehl, Auswahl, Patch-Digest und Ergebnis
 bleiben unter `/var/tmp/codex/ModSecurity-conector/runs/pr382-integrate410-20261024`
-erhalten. Hosted-3.14.7-Checks und Exact-Head-Sonar dieser unveröffentlichten
-Nachkorrektur stehen aus. Historische Ergebnisse behalten ihre ursprünglichen
-Revisionsbindungen.
+erhalten. Hosted-Python3.14.7-Checks und Exact-Head-Sonar bleiben getrennte
+Nachweise. Historische Ergebnisse behalten ihre ursprünglichen Revisionsbindungen.
+
+Die veröffentlichte Apache-Korrektur `525d3e5e8a0788c46455b0cab4cd775f2190a325`
+zeigte einen Fehler von `TestMiddlewareCancellationAfterClaimSendsBoundedCancel`
+unter Hosted-Go1.27.2 (Job `120833096999`). Ein CLAIM-Cancellation-Watcher konnte
+`session.exchange` überleben und die nachfolgende CANCEL-Deadline beschädigen.
+Die Korrektur in `observer.go` wartet vor dem Unlock auf das Watcher-Ende.
+Der neue deterministische `TestSessionExchangeJoinsCanceledDeadlineWriter`
+scheitert am ursprünglichen Source an der vorgesehenen Assertion und besteht
+mit dem Fix; der bestehende CANCEL-Fall besteht ebenfalls (zwei ausgewählte
+Unit-Szenarien, keine Retries, lokales Go1.27.3). Befehle, Baseline-/Fixlogs und
+Quelldigests bleiben unter derselben Run-Wurzel erhalten. `observer_test.go`
+ergänzt diese Regression ohne Assertions zu entfernen. Die automatische
+Exact-Head-Verifikation dieser zweiten Quellkorrektur steht aus.

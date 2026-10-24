@@ -280,7 +280,9 @@ func (s *session) exchange(ctx context.Context, opcode byte, payload []byte) (re
 	}
 	watchDone := make(chan struct{})
 	if ctx.Done() != nil {
+		watchExited := make(chan struct{})
 		go func() {
+			defer close(watchExited)
 			select {
 			case <-ctx.Done():
 				// Interrupt a blocked read/write promptly. The caller will use
@@ -289,7 +291,12 @@ func (s *session) exchange(ctx context.Context, opcode byte, payload []byte) (re
 			case <-watchDone:
 			}
 		}()
-		defer close(watchDone)
+		defer func() {
+			close(watchDone)
+			// Retire the old deadline writer before releasing session.mu;
+			// it must not poison the next bounded cleanup exchange.
+			<-watchExited
+		}()
 	}
 	deadline := time.Now().Add(s.timeout)
 	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
