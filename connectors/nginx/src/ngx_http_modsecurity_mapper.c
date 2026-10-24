@@ -50,6 +50,9 @@ static char *ngx_http_modsecurity_http_version(ngx_pool_t *pool, ngx_http_reques
 #if defined(nginx_version) && nginx_version >= 1009005
     case NGX_HTTP_VERSION_20: version = "2.0"; break;
 #endif
+#if defined(NGX_HTTP_VERSION_30)
+    case NGX_HTTP_VERSION_30: version = "3.0"; break;
+#endif
     default:
         if (r->http_protocol.len > 5U && ngx_strncmp(r->http_protocol.data, "HTTP/", 5) == 0) {
             return ngx_http_modsecurity_pool_strndup(pool, r->http_protocol.data + 5, r->http_protocol.len - 5U);
@@ -156,6 +159,7 @@ int ngx_http_modsecurity_map_request(ngx_http_request_t *r,
 {
     msconnector_header *headers = NULL;
     size_t header_count = 0U;
+    ngx_str_t authority;
     ngx_str_t local;
 
     if (r == NULL || out == NULL || contract == NULL) {
@@ -164,9 +168,18 @@ int ngx_http_modsecurity_map_request(ngx_http_request_t *r,
     }
 
     msconnector_request_init(out);
-    if (!ngx_http_modsecurity_copy_headers(r->pool, &r->headers_in.headers, 0U, &headers, &header_count)) {
+    authority = ngx_http_modsecurity_http3_authority(r);
+    if (!ngx_http_modsecurity_copy_headers(r->pool, &r->headers_in.headers,
+            authority.len > 0U ? 1U : 0U, &headers, &header_count)) {
         ngx_http_modsecurity_mapper_error(error, error_len, "request header allocation failed");
         return 0;
+    }
+    if (authority.len > 0U) {
+        headers[header_count].name = "Host";
+        headers[header_count].name_size = sizeof("Host") - 1U;
+        headers[header_count].value = (const char *)authority.data;
+        headers[header_count].value_size = authority.len;
+        ++header_count;
     }
 
     out->method = ngx_http_modsecurity_pool_strndup(r->pool, r->method_name.data, r->method_name.len);

@@ -47,6 +47,24 @@ Nicht implementiert:
   kanonische historische Evidence und kein finaler Nachweis für den aktuellen
   Connector oder Harness.
 
+## HTTP/3-Authority und inspizierter Host
+
+Der Adapter behandelt [Upstream-Issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401),
+indem er die empfangene HTTP/3-`:authority` als Inspection-only-`Host`
+bereitstellt, wenn NGINX keinen expliziten Host liefert. Request-Mapper,
+Hostname, native P1-Eingabe und Header-Metriken verwenden denselben Wert;
+ein expliziter Host hat immer Vorrang, einschließlich eines leeren Hosts,
+der weiterhin der Validierung unterliegt. Ursprünglicher Port und geklammerte
+IPv6-Authority bleiben erhalten. Weder ein konfigurierter `server_name` noch
+ein normalisierter Routing-Hostname werden eingesetzt; die NGINX-Headerliste
+wird nicht verändert. HTTP/1.x behält sein bisheriges Verhalten;
+H3-Metadaten sind `3.0`.
+
+Status: `implemented_not_runtime_verified`. Die Aktualisierung vom
+2026-10-24 stellt Tests, Builds und H3-Verkehr auf Benutzerwunsch zurück;
+kein H1-/H2-/H3-Laufzeiterfolg wird behauptet. Siehe den
+[Protokoll-Workstream](../../docs/protocol-parity.de.md).
+
 ## Selektive Upstream-Sicherheitsaufnahme
 
 Der adapter-eigene Source behält die Upstream-Basis

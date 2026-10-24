@@ -93,6 +93,21 @@ untouched.
 
 ## Commands executed
 
+The commands and PASS results in the 2026-08 sections below are historical.
+They have not been rerun or promoted to the merged 2026-10-24 revision. The
+2026-10-24 update used source review, Go formatting, JSON/Python syntax,
+conflict-marker, Git-index, and diff-integrity inspection only. Functional
+tests, builds, runtime traffic, and CI-green acceptance are deferred by the
+current user request.
+
+The Change Record structural contract passed. The bilingual documentation
+checker reports 22 existing missing links into the uninitialized Framework
+checkout, with no new task-owned link error. The full documentation-link target
+requires that dependency and was not run. The task diff against current master
+has no whitespace errors; checking the inherited master delta against the old
+PR base also reports two pre-existing blank lines at EOF in master-owned local
+inheritance templates, which were preserved unchanged.
+
 - `curl --http3` — exits `2`.
 - `rtk proxy env TMPDIR=<registered-run>/tmp GOCACHE=<registered-run>/build/gocache GOMODCACHE=<registered-run>/build/gomodcache GOPATH=<registered-run>/build/gopath GOTOOLCHAIN=local GOFLAGS=-mod=readonly GOPROXY=off go test -run 'Test(EngineErrorAfterCommittedResponseDoesNotInventResponseEOS|IncompleteHostWriteDoesNotInventResponseEOS|LateResponseDecisionDoesNotReplaceCommittedResponse|ReadFromEngineEOSErrorAfterHostCommitDoesNotWriteFailure|ReadFromInitialSourceErrorDoesNotInventResponseEOS)$' .` — passed (focused post-patch Go selection).
 
@@ -272,6 +287,32 @@ fixes have not been promoted to runtime verification. No security finding is
 fully verified.
 
 ## Final diff and review status
+
+**2026-10-24 update:** PR #348 is refreshed from old head
+`81ccd883678c83dda8b4fee61a9acc8a4c4c633c` with current `origin/master`
+`42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` through a normal merge. All nine
+conflicts are reconciled: Envoy processor/test, Traefik middleware/UDS/tests,
+the Apache regression-definition file, and both archive indexes. Current master
+request-body draining, error/cleanup paths, required Envoy Host, documentation,
+and Framework gitlink are retained together with the protocol changes.
+
+[Upstream issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401)
+is integrated as an adapter-owned change in
+`connectors/nginx/src/ngx_http_modsecurity_common.h`,
+`connectors/nginx/src/ngx_http_modsecurity_access.c`, and
+`connectors/nginx/src/ngx_http_modsecurity_mapper.c`. A shared H3-only selector
+exposes raw received authority, preserving port/bracketed IPv6, only when no
+explicit Host exists. It supplies the common mapper, hostname, native P1
+headers, and bounded count/byte accounting without mutating NGINX's header
+list or inventing a configured Host. H3 version metadata is explicitly `3.0`.
+Independent source review found no new validated security issue. Tests/builds
+and runtime remain `not_run` at the user's request; this is not a verified-PR
+or runtime-acceptance claim. Paired protocol, connector, origin-map, and
+machine-readable source-map documentation records the same scope. Delivery
+uses the existing Draft PR and an ordinary push; no PR-to-master merge is
+authorized.
+
+The following paragraphs retain the historical delivery checkpoints.
 
 This is an independent Draft-PR workstream. The paired documentation and
 Change Record report only observed results. Commit

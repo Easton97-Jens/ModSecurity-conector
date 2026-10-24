@@ -2,6 +2,35 @@
 
 **Sprache:** [English](protocol-parity.md) | Deutsch
 
+## Aktualisierung am 2026-10-24: Master-Abgleich und NGINX-Issue #401
+
+PR #348 übernimmt `master`-Revision
+`42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` durch einen normalen Merge.
+Envoy erhält die aktuelle Pflichtvalidierung für Host/Authority zusammen mit
+den strengeren Pseudo-Header- und modernen Protokollprüfungen dieses
+Workstreams. Traefik erhält das aktuelle begrenzte Leeren des Request-Bodys
+und Connection-Cleanup zusammen mit den Incomplete-Response-/EOS-Kontrollen.
+Testdefinitionen und Change-Record-Einträge beider Branches bleiben nach der
+Konfliktauflösung erhalten.
+
+Für [ModSecurity-nginx-Issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401)
+ergänzt der NGINX-Adapter genau einen Inspection-only-`Host` aus einer
+empfangenen HTTP/3-`:authority`, wenn kein Host-Eintrag unabhängig von seiner
+Groß-/Kleinschreibung existiert. Mapper, Request-Hostname, native P1-Header-
+Übergabe und Header-Anzahl-/Byte-Erfassung verwenden dieselbe Authority-
+Auswahl. Ein expliziter Host, auch ein leerer, unterdrückt diesen Fallback.
+Der Adapter verändert weder die NGINX-Headerliste noch leitet er einen Host
+aus der Konfiguration ab. Er erhält Port und geklammerte IPv6-Form der
+ursprünglichen Authority wie der Raw-Authority-Host-Shim von NGINX für HTTP/2.
+Native H3-Versionsmetadaten sind ausdrücklich `3.0`.
+
+Diese Aktualisierung ist im Quellcode geprüft, aber
+`implemented_not_runtime_verified`. Funktionstests, Builds, Protokollverkehr
+und CI-Grünstatus sind auf Benutzerwunsch zurückgestellt. Alle folgenden
+Ergebnisse und Umgebungsproben sind historische Evidenz von 2026-08 und keine
+frische Validierung der zusammengeführten Revision. Der gesamte Workstream
+und die H1-/H2-/H3-Laufzeitmatrix bleiben unvollständig.
+
 Dies ist ein unabhängiger laufender Parent-Workstream. Er dokumentiert die
 aktuelle Evidence für HTTP/2- und HTTP/3-Lifecycle-Parität über die sechs
 ausgewählten Connectoren. Dies ist keine Abschlussbehauptung. HTTP/1.1 bleibt
@@ -31,7 +60,7 @@ keine Runtime-Pässe.
 | Connector | H1 baseline | H2 code | H2 runtime | H3 code/capability | H3 runtime | P1 | P2 | P3 | P4 | Late intervention | Overall |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Apache | contract_verified (source only) | configured_not_exercised | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | contract_verified (source only; protocol from `ap_get_protocol(r->connection)` plus canonical HTTP/1 `r->proto_num`; unknown fails closed) | not_run | not_run | source-level fixed / runtime not verified |
-| NGINX | contract_verified (source only) | implemented_not_asserted | not_run | implemented_not_asserted | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | source-level fixed / runtime not verified |
+| NGINX | contract_verified (historical source only) | implemented_not_asserted | not_run | implemented_not_runtime_verified (authority-to-Host mapping) | runtime_not_verified (deferred) | implemented_not_runtime_verified | not_run | not_run | not_run | not_run | source-level fixed / runtime not verified |
 | HAProxy | not_run | not_implemented | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | not_implemented |
 | Envoy | not_run | configured_not_exercised | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | source-level configured / runtime not verified |
 | Traefik | contract_verified (source only) | not_implemented | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | contract_verified (source only) | source-level fixed / runtime not verified |

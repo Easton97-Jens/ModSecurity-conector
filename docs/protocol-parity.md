@@ -7,6 +7,32 @@ evidence for HTTP/2 and HTTP/3 lifecycle parity across the six selected
 connectors. It is not a completion claim. HTTP/1.1 remains the regression
 baseline.
 
+## Update on 2026-10-24: master synchronization and NGINX issue #401
+
+PR #348 incorporates `master` revision
+`42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` through a normal merge. Envoy
+keeps the current required Host/authority validation together with this
+workstream's stricter pseudo-header and modern-protocol checks. Traefik keeps
+the current bounded request-body drain and connection cleanup together with
+the incomplete-response/EOS controls. Both branches' test definitions and
+Change Record entries are retained after conflict resolution.
+
+For [ModSecurity-nginx issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401),
+the NGINX adapter supplies one inspection-only `Host` from a received HTTP/3
+`:authority` when no case-insensitive Host entry exists. The mapper, request
+hostname, native P1 header feed, and header count/byte accounting use the same
+authority selection. An explicit Host, including an empty one, suppresses this
+fallback. The adapter does not change NGINX's header list or derive a Host from
+configuration. It preserves the original authority's port and bracketed IPv6
+form, matching the raw-authority behavior of NGINX's HTTP/2 Host shim. Native
+H3 version metadata is explicitly `3.0`.
+
+This update is source-reviewed but `implemented_not_runtime_verified`.
+Functional tests, builds, protocol traffic, and CI-green acceptance are deferred
+at the user's request. All results and environment probes below are historical
+2026-08 evidence, not fresh validation of the merged revision. The full
+workstream and H1/H2/H3 runtime matrix remain incomplete.
+
 ## Evidence boundary
 
 The neutral Common model represents `unknown`, H1, H2, and H3 protocol states,
@@ -29,7 +55,7 @@ evidence only and are not runtime passes.
 | Connector | H1 baseline | H2 code | H2 runtime | H3 code/capability | H3 runtime | P1 | P2 | P3 | P4 | Late intervention | Overall |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Apache | contract_verified (source only) | configured_not_exercised | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | contract_verified (source only; protocol from `ap_get_protocol(r->connection)` plus canonical HTTP/1 `r->proto_num`; unknown fails closed) | not_run | not_run | source-level fixed / runtime not verified |
-| NGINX | contract_verified (source only) | implemented_not_asserted | not_run | implemented_not_asserted | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | source-level fixed / runtime not verified |
+| NGINX | contract_verified (historical source only) | implemented_not_asserted | not_run | implemented_not_runtime_verified (authority-to-Host mapping) | runtime_not_verified (deferred) | implemented_not_runtime_verified | not_run | not_run | not_run | not_run | source-level fixed / runtime not verified |
 | HAProxy | not_run | not_implemented | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | not_implemented |
 | Envoy | not_run | configured_not_exercised | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | not_run | source-level configured / runtime not verified |
 | Traefik | contract_verified (source only) | not_implemented | not_run | not_implemented | runtime_skipped_missing_client / runtime_not_verified | not_run | not_run | not_run | not_run | contract_verified (source only) | source-level fixed / runtime not verified |

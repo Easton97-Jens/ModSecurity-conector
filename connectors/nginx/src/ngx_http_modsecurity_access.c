@@ -151,10 +151,10 @@ ngx_http_modsecurity_set_request_hostname(ngx_http_request_t *r,
     const char *host_name;
     ngx_str_t hostname;
 
-    hostname.len = 0U;
+    hostname = ngx_http_modsecurity_http3_authority(r);
     if (r->headers_in.host != NULL && r->headers_in.host->value.len > 0U) {
         hostname = r->headers_in.host->value;
-    } else {
+    } else if (hostname.len == 0U) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: request Host header is required");
         ctx->intervention_triggered = 1;
@@ -262,6 +262,10 @@ ngx_http_modsecurity_request_http_version(ngx_http_request_t *r)
     case NGX_HTTP_VERSION_20:
         return "2.0";
 #endif
+#if defined(NGX_HTTP_VERSION_30)
+    case NGX_HTTP_VERSION_30:
+        return "3.0";
+#endif
     default:
         http_version = ngx_str_to_char(r->http_protocol, r->pool);
         if (http_version == (char *)-1) {
@@ -327,6 +331,7 @@ static ngx_int_t
 ngx_http_modsecurity_add_request_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
+    ngx_str_t authority;
     ngx_list_part_t *part;
     ngx_table_elt_t *data;
     ngx_table_elt_t *header;
@@ -352,6 +357,16 @@ ngx_http_modsecurity_add_request_headers(ngx_http_request_t *r,
         }
     }
 
+    authority = ngx_http_modsecurity_http3_authority(r);
+    if (authority.len > 0U &&
+        ngx_http_modsecurity_add_n_request_header(ctx,
+            (const unsigned char *)"Host", sizeof("Host") - 1U,
+            authority.data, authority.len) != 1) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: failed to add HTTP/3 authority for inspection");
+        return NGX_ERROR;
+    }
+
     return NGX_OK;
 }
 
@@ -359,8 +374,26 @@ static ngx_int_t
 ngx_http_modsecurity_request_header_metrics(ngx_http_request_t *r,
     size_t *count, size_t *bytes)
 {
-    return ngx_http_modsecurity_header_metrics(r == NULL ? NULL
-        : &r->headers_in.headers, count, bytes);
+    ngx_str_t authority;
+
+    if (ngx_http_modsecurity_header_metrics(r == NULL ? NULL
+            : &r->headers_in.headers, count, bytes) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    authority = ngx_http_modsecurity_http3_authority(r);
+    if (authority.len == 0U) {
+        return NGX_OK;
+    }
+    if (*count >= MSCONNECTOR_MAX_HEADER_COUNT ||
+        authority.len > MSCONNECTOR_MAX_HEADER_VALUE_LENGTH ||
+        sizeof("Host") - 1U > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes ||
+        authority.len > MSCONNECTOR_MAX_TOTAL_HEADER_BYTES - *bytes -
+            (sizeof("Host") - 1U)) {
+        return NGX_ERROR;
+    }
+    ++*count;
+    *bytes += sizeof("Host") - 1U + authority.len;
+    return NGX_OK;
 }
 
 static ngx_int_t
