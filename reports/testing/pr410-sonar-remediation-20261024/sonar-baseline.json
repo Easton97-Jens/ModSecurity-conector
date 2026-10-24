@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "project_key": "Easton97-Jens_ModSecurity-conector",
+  "pull_request": "410",
+  "revision": "30d50a181278904a552e295d9a2c1ae1265e8b87",
+  "analysis_uuid": "e18acebb-7e6c-4727-a572-afe02105a43b",
+  "compute_task_id": "AaFrW5KKk-m4lzyjl55H",
+  "analysis_time": "2026-10-24T00:39:09Z",
+  "quality_gate": {
+    "status": "ERROR",
+    "only_failing_condition": "new_security_rating",
+    "actual": 5,
+    "actual_grade": "E",
+    "required": 1,
+    "required_grade": "A"
+  },
+  "open_issues": {
+    "total": 231,
+    "types": {
+      "VULNERABILITY": 90,
+      "CODE_SMELL": 141,
+      "BUG": 0
+    },
+    "severities": {
+      "BLOCKER": 5,
+      "CRITICAL": 121,
+      "MAJOR": 76,
+      "MINOR": 29,
+      "INFO": 0
+    },
+    "software_qualities": {
+      "SECURITY": 90,
+      "MAINTAINABILITY": 140,
+      "RELIABILITY": 1
+    },
+    "rules": {
+      "pythonsecurity:S8707": 45,
+      "python:S1192": 44,
+      "python:S3776": 39,
+      "python:S5443": 17,
+      "python:S5778": 7,
+      "python:S6353": 7,
+      "python:S7494": 5,
+      "pythonsecurity:S6549": 5,
+      "pythonsecurity:S8705": 5,
+      "c:S5350": 5,
+      "pythonsecurity:S2083": 5,
+      "python:S5754": 4,
+      "c:S5443": 4,
+      "c:S3776": 4,
+      "python:S5713": 3,
+      "pythonsecurity:S2631": 3,
+      "c:S1659": 3,
+      "python:S5332": 2,
+      "python:S1186": 2,
+      "python:S3358": 2,
+      "python:S9073": 2,
+      "pythonsecurity:S6350": 2,
+      "python:S1940": 2,
+      "c:S936": 2,
+      "go:S3776": 1,
+      "python:S7500": 1,
+      "pythonsecurity:S6547": 1,
+      "pythonsecurity:S8703": 1,
+      "python:S8786": 1,
+      "python:S3415": 1,
+      "python:S9154": 1,
+      "cpp:S5945": 1,
+      "c:S134": 1,
+      "python:S5899": 1,
+      "c:S1820": 1,
+      "c:S3358": 1
+    },
+    "ownership_groups": [
+      {
+        "paths": "ci/runtime/lifecycle/i12/objects/text/**",
+        "count": 125,
+        "classification": "historical hash-bound source records analyzed as maintained code",
+        "security": 46,
+        "maintainability_or_reliability": 79
+      },
+      {
+        "paths": "ci/evidence/reports/**",
+        "count": 34,
+        "classification": "live Parent evidence generators"
+      },
+      {
+        "paths": "ci/runtime/lifecycle/i12/{lighttpd,nginx,envoy}/** and ci/runtime/lifecycle/i12/*.py",
+        "count": 31,
+        "classification": "live I12 adapter and evidence code"
+      },
+      {
+        "paths": "connectors/{apache,haproxy,traefik}/**",
+        "count": 19,
+        "classification": "live connector harness code"
+      },
+      {
+        "paths": "ci/runtime/lifecycle/** outside the preceding I12 group",
+        "count": 13,
+        "classification": "shared native/Apache lifecycle code"
+      },
+      {
+        "paths": "tests/**",
+        "count": 9,
+        "classification": "maintained regression tests"
+      }
+    ],
+    "cause_split": {
+      "archive_object_issues": 125,
+      "live_security_issues": 44,
+      "live_or_test_maintainability_issues": 62
+    }
+  },
+  "security_hotspots": {
+    "open": 0,
+    "accepted_issues": 0
+  },
+  "duplication": {
+    "duplicated_files": 15,
+    "new_duplicated_blocks": 21,
+    "new_duplicated_lines": 851,
+    "new_duplicated_lines_density": 0.20824055087089086,
+    "archive_object_paths": 14,
+    "archive_block_occurrences": 19,
+    "maintained_test_path": "tests/test_native_lifecycle_observer.py",
+    "maintained_test_block_occurrences": 2
+  },
+  "coverage": {
+    "analyzed_files": 451,
+    "pr_coverage_measure_available": false,
+    "line_coverage_measure_available": false,
+    "branch_coverage_measure_available": false
+  },
+  "scanner_warnings": [
+    "Python version was not explicitly configured.",
+    "Test source classification was not configured.",
+    "Scanner reported an unspecified encoding warning; local tracked-file inventory found only ASCII, UTF-8, or binary files."
+  ],
+  "readback_completeness": {
+    "all_open_issue_pages_read": true,
+    "all_duplication_file_pages_read": true,
+    "all_duplication_blocks_read": true,
+    "all_50_github_annotations_read": true,
+    "analysis_and_compute_task_bound": true
+  }
+}
