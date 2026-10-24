@@ -1,6 +1,7 @@
 """Observe real APR/native SDK semantics and reject unbound oracle corrections."""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -134,9 +135,19 @@ class ApacheOracleOverrideGuardTests(unittest.TestCase):
         environment = patch.dict(os.environ, {"CODEX_TEMP_ROOT": str(self.directory)})
         environment.start()
         self.addCleanup(environment.stop)
-        framework = Path(os.environ.get("FRAMEWORK_ROOT", ROOT / "modules/ModSecurity-test-Framework"))
-        self.case = framework / "tests/cases/no-crs-baseline/duplicate_header_names.yaml"
-        self.framework = self.case.parents[3]
+        registry = json.loads(OVERRIDES.REGISTRY.read_text())
+        record = registry["overrides"]["duplicate_header_names_core_merge"]
+        relative_case = Path(record["case_relative_path"])
+        self.assertFalse(relative_case.is_absolute())
+        self.assertNotIn("..", relative_case.parts)
+        source_framework = Path(os.environ.get(
+            "FRAMEWORK_ROOT", ROOT / "modules/ModSecurity-test-Framework"))
+        case_bytes = (source_framework / relative_case).read_bytes()
+        self.assertEqual(hashlib.sha256(case_bytes).hexdigest(), record["original_case_sha256"])
+        self.framework = self.directory / "framework"
+        self.case = self.framework / relative_case
+        self.case.parent.mkdir(parents=True)
+        self.case.write_bytes(case_bytes)
         self.rules = self.directory / "rules.conf"
         self.rules.write_text("SecRuleEngine On\n" + OVERRIDES.ORIGINAL_RULE + "\n")
         self.identity = self.directory / "identity.json"
@@ -192,11 +203,22 @@ class ApacheOracleOverrideGuardTests(unittest.TestCase):
             self.assertIn(OVERRIDES.CORRECTED_RULE, self.rules.read_text())
             self.assertIsNone(receipt["runtime_retest"])
             self.assertIsNone(receipt["lifecycle_qualification"])
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(ValueError, "original rendered rule block does not match"):
                 self.prepare()
 
     def test_identity_artifact_and_proof_negatives_never_change_original_rules(self):
         record, baseline, registry = self.guard_fixture()
+        expected_errors = {
+            "profile": "override identity mismatch: profile",
+            "apache_version": "override identity mismatch: apache_version",
+            "apr_version": "override identity mismatch: apr_version",
+            "sdk_version": "override identity mismatch: sdk_version",
+            "apache_binary": "override artifact mismatch: apache_binary",
+            "sdk_library": "override artifact mismatch: sdk_library",
+            "missing_proof": "independent core and real APR/native SDK proofs are required",
+            "proof_hash": "independent proof SHA mismatch",
+            "native_observation": "actual APR/native SDK probe does not establish the correction",
+        }
         for change in ("profile", "apache_version", "apr_version", "sdk_version",
                        "apache_binary", "sdk_library", "missing_proof", "proof_hash", "native_observation"):
             with self.subTest(change=change):
@@ -217,8 +239,9 @@ class ApacheOracleOverrideGuardTests(unittest.TestCase):
                 original = self.rules.read_bytes()
                 with patch.object(OVERRIDES, "REGISTRY", registry), patch.object(
                         OVERRIDES.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, record["framework_revision"])):
-                    with self.assertRaises(ValueError):
+                    with self.assertRaises(ValueError) as error:
                         self.prepare()
+                self.assertEqual(str(error.exception), expected_errors[change])
                 self.assertEqual(self.rules.read_bytes(), original)
                 self.assertFalse(self.receipt.exists())
 
