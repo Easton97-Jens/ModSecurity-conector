@@ -76,6 +76,7 @@ provider checks are allowed to start only from the pushed final head.
 
 ## Final diff and review status
 
-Independent static reviews found no source regression after two documentation
-corrections. The docs/report portion is reduced from 482 to 36 changed files;
-the PR remains Draft because the one local closeout did not pass.
+Independent static reviews found no source regression after the documentation
+corrections. Against the actual PR base, the docs/report portion is reduced
+from 193 to 25 changed files; the PR remains Draft because the one local
+closeout did not pass.

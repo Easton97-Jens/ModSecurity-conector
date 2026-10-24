@@ -80,6 +80,7 @@ Final-Head starten.
 
 ## Finaler Diff- und Review-Status
 
-Unabhängige statische Reviews fanden nach zwei Dokumentationskorrekturen keine
-Quellregression. Der Docs-/Report-Anteil ist von 482 auf 36 geänderte Dateien
-reduziert; der PR bleibt Draft, weil der eine lokale Abschlusslauf nicht bestand.
+Unabhängige statische Reviews fanden nach den Dokumentationskorrekturen keine
+Quellregression. Gegenüber der tatsächlichen PR-Basis ist der
+Docs-/Report-Anteil von 193 auf 25 geänderte Dateien reduziert; der PR bleibt
+Draft, weil der eine lokale Abschlusslauf nicht bestand.
