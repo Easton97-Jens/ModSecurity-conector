@@ -1,0 +1,1713 @@
+{
+  "actual_checkout_head_sha_at_review": "f27eb59b53beff6f65384fc2e5037881a3052c01",
+  "capture_contract_seed_sha": "8cc32dceb06121f589150a9794f28878c5e4ba2a",
+  "captures": [
+    {
+      "backend": {
+        "bytes": 10375,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend.jsonl",
+        "sha256": "dd96d796512e9c4cc0dd064de30a1058271db52c352094423d15c32562a2328e"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3473,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-access.log",
+        "sha256": "540f1409e5ae1b9d99c38a3aaa69e94e2153ab88904413ad1964be05ecf1db30"
+      },
+      "host_cleanup": {
+        "bytes": 548,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-cleanup.json",
+        "sha256": "0ae37b3a173c9fad0943d5a4b165f64cc75aaa7caa7598d09aeb3782f1ed1d38"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 76588,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/observations.json",
+        "sha256": "3514dfebbc66cab19d4219b8f9a0b86820e12dab611edcee6807cb36302b0783"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 945,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/runtime.conf",
+          "sha256": "e64760060d16667e14d241b0b43d03619d6aa7da2cd64005d56c5af0f82a5d04"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2276,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/sidecar.stderr",
+          "sha256": "f458a1d3ef6053363dbf218cc5e00479ca5a4ed2f5a08c73315bd4ab0e3178a9"
+        },
+        {
+          "bytes": 738665,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/native.jsonl",
+          "sha256": "da684d4d74289a0d46d343bb28610c1bd3e4301f9125672f519acbed4568664d"
+        },
+        {
+          "bytes": 13973,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/events.jsonl",
+          "sha256": "943fff0de25892b1d8f999e52f4b31285ff3a9be108dc3a009207ed615280787"
+        },
+        {
+          "bytes": 5896,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/host-eos.jsonl",
+          "sha256": "03eee365140bd54dec8581a26294f1aa905678ffe92cc53de29c1fbe0706dd5e"
+        },
+        {
+          "bytes": 76588,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/off/observations.json",
+          "sha256": "3514dfebbc66cab19d4219b8f9a0b86820e12dab611edcee6807cb36302b0783"
+        }
+      ],
+      "profile": "off",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 10375,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend.jsonl",
+        "sha256": "dd96d796512e9c4cc0dd064de30a1058271db52c352094423d15c32562a2328e"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3473,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-access.log",
+        "sha256": "540f1409e5ae1b9d99c38a3aaa69e94e2153ab88904413ad1964be05ecf1db30"
+      },
+      "host_cleanup": {
+        "bytes": 548,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-cleanup.json",
+        "sha256": "0ae37b3a173c9fad0943d5a4b165f64cc75aaa7caa7598d09aeb3782f1ed1d38"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 76198,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/observations.json",
+        "sha256": "ed66a87541a4abb00fb680b478731a89f897ba625412f3d091027c2e8e8a521e"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 900,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/runtime.conf",
+          "sha256": "ae25d9552bcef0d1fc0571daa557b6cc3ac4f8fd789ca79fba449eb0bfdcd491"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2280,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/sidecar.stderr",
+          "sha256": "e619035a61fb077946edd16dd2768302c4cab58ce119162b0f37b06079910e49"
+        },
+        {
+          "bytes": 739384,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/native.jsonl",
+          "sha256": "c5da8ecfab03044422574a3442e227450288db0d5c9a87ba844bedfa873b204a"
+        },
+        {
+          "bytes": 13952,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/events.jsonl",
+          "sha256": "1c48c49a43af007221140808c95fa73ac07334bebb8961fabef546e5be7389fc"
+        },
+        {
+          "bytes": 5896,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/host-eos.jsonl",
+          "sha256": "180d400b4f5c742f724b18584e12339d538d9119646c0b4ff24805980efc691e"
+        },
+        {
+          "bytes": 76198,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/safe/observations.json",
+          "sha256": "ed66a87541a4abb00fb680b478731a89f897ba625412f3d091027c2e8e8a521e"
+        }
+      ],
+      "profile": "safe",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 10375,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend.jsonl",
+        "sha256": "dd96d796512e9c4cc0dd064de30a1058271db52c352094423d15c32562a2328e"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3473,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-access.log",
+        "sha256": "540f1409e5ae1b9d99c38a3aaa69e94e2153ab88904413ad1964be05ecf1db30"
+      },
+      "host_cleanup": {
+        "bytes": 548,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-cleanup.json",
+        "sha256": "0ae37b3a173c9fad0943d5a4b165f64cc75aaa7caa7598d09aeb3782f1ed1d38"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 76518,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/observations.json",
+        "sha256": "60bb6e4222c3d5b151ab7e98eaea11b85f35023fce9f0eeb1818ab36fda786a8"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 901,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/runtime.conf",
+          "sha256": "3b54b37e16aab39454978483d64c538c170bcc0945832c585cdef918f9944efd"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2288,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/sidecar.stderr",
+          "sha256": "a0d5dece4da04559f5aab86c2a5efa7b3373c46db1a33110e3be0d52c81193a1"
+        },
+        {
+          "bytes": 744566,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/native.jsonl",
+          "sha256": "cf85d26367eed4160a1d07b3bed8ef759ca2fc1e25b50738c5cb47acdd63b413"
+        },
+        {
+          "bytes": 14036,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/events.jsonl",
+          "sha256": "cf6c2ff78488200b13f223e4a6f9015a30ac6cfbed62476c0ee349dd4a8f57a7"
+        },
+        {
+          "bytes": 5896,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/host-eos.jsonl",
+          "sha256": "7b155784f0fab1e9df65d315bffafa0bda8b2ee5f066981b7970a6b12002e576"
+        },
+        {
+          "bytes": 76518,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/strict/observations.json",
+          "sha256": "60bb6e4222c3d5b151ab7e98eaea11b85f35023fce9f0eeb1818ab36fda786a8"
+        }
+      ],
+      "profile": "strict",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 10375,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend.jsonl",
+        "sha256": "dd96d796512e9c4cc0dd064de30a1058271db52c352094423d15c32562a2328e"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3473,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-access.log",
+        "sha256": "540f1409e5ae1b9d99c38a3aaa69e94e2153ab88904413ad1964be05ecf1db30"
+      },
+      "host_cleanup": {
+        "bytes": 548,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/host-cleanup.json",
+        "sha256": "0ae37b3a173c9fad0943d5a4b165f64cc75aaa7caa7598d09aeb3782f1ed1d38"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 76592,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/observations.json",
+        "sha256": "f77f64841764b9c7ee8d0ccba155d92b6030052c2f53dd51204687601789defa"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 1112,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/runtime.conf",
+          "sha256": "af892f1bc2a16621390800f9882ac48c346165159c1930d32264f6c9154a1e63"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2278,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/sidecar.stderr",
+          "sha256": "0b428579064fd220e08d73bb8f5543eee35664c35805c1d2beb2b6fa658209a5"
+        },
+        {
+          "bytes": 789974,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/native.jsonl",
+          "sha256": "0f7075f074cb7fe0204fceb3f884485aabf39cdfb8db3f902e000f3ac107689a"
+        },
+        {
+          "bytes": 15114,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/events.jsonl",
+          "sha256": "80e5047a9c812d5d6fd3abfc38cbcef209e1fde948c6d5664c0ccaf0a36e0216"
+        },
+        {
+          "bytes": 6205,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/host-eos.jsonl",
+          "sha256": "fec66bde836ca6aad67d78b2b63683e93f3befc323cdfe6e44fdb0023df27787"
+        },
+        {
+          "bytes": 76592,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/all/observations.json",
+          "sha256": "f77f64841764b9c7ee8d0ccba155d92b6030052c2f53dd51204687601789defa"
+        }
+      ],
+      "profile": "all",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 11487,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend.jsonl",
+        "sha256": "78b87c7b7c88e627c9dbdd32ed98187ff5a7a2a38dbafbd62913986f5bd00ff8"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3845,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-access.log",
+        "sha256": "e2238ba3a51eef2e8ea45a7af3fd5e02028e224ec1013529ec056957d4861f39"
+      },
+      "host_cleanup": {
+        "bytes": 556,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-cleanup.json",
+        "sha256": "88200e404c818ab36a480eaac8ed77560671ca0dc9fc2c3bfdbf949bf9af4ca4"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 76566,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/observations.json",
+        "sha256": "b2065fc5fcc1db9752d2ac1ef7f65b01e142cf05e0a88e2864ad891f237b4105"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 961,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/runtime.conf",
+          "sha256": "6ba1a07fed4323a0036a68dfbbb6764cb0a18c87fafb90338262fb183d273b09"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2885,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/sidecar.stderr",
+          "sha256": "032d08282c67634d4dd8ddab69633e4d6ea5834fe55af1b2b3638030955a64a3"
+        },
+        {
+          "bytes": 769914,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/native.jsonl",
+          "sha256": "d44821130c4787d5c2ce67716bd39aa28f644a1aaf67684c1be75d6769a5c3d0"
+        },
+        {
+          "bytes": 9403,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/events.jsonl",
+          "sha256": "fdfa3225592094c49b1ca6b6989fb5d3583ff01076eb627295c00625f1c86759"
+        },
+        {
+          "bytes": 6208,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/host-eos.jsonl",
+          "sha256": "87d4912e3857c11a22ae1e607dd47c35a8aac5fdd935192315f30c6337192a61"
+        },
+        {
+          "bytes": 76566,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/off/observations.json",
+          "sha256": "b2065fc5fcc1db9752d2ac1ef7f65b01e142cf05e0a88e2864ad891f237b4105"
+        }
+      ],
+      "profile": "off",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 11487,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend.jsonl",
+        "sha256": "78b87c7b7c88e627c9dbdd32ed98187ff5a7a2a38dbafbd62913986f5bd00ff8"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3845,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-access.log",
+        "sha256": "e2238ba3a51eef2e8ea45a7af3fd5e02028e224ec1013529ec056957d4861f39"
+      },
+      "host_cleanup": {
+        "bytes": 556,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-cleanup.json",
+        "sha256": "88200e404c818ab36a480eaac8ed77560671ca0dc9fc2c3bfdbf949bf9af4ca4"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 76574,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/observations.json",
+        "sha256": "05fc6f8991b39507e12c43cc4703d18a81737602552c8245bacec43cbac5c68a"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 916,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/runtime.conf",
+          "sha256": "33e04728cc7aa1531401a4d936ffc7fdb142e25e941b818c49fccb335852b0fb"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2890,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/sidecar.stderr",
+          "sha256": "de06442d3dadc835247f437b31e3958a143bccd333c83f8c648dd6453afc0e19"
+        },
+        {
+          "bytes": 770663,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/native.jsonl",
+          "sha256": "ef1e54f3ca0ec3deaa03e996bf41e20d22be04280784db39d34b5a2227bf5464"
+        },
+        {
+          "bytes": 9389,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/events.jsonl",
+          "sha256": "d6c95105822b0936da7bced11037a91a792cce384166d37ef905f2cf920dcbd5"
+        },
+        {
+          "bytes": 6208,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/host-eos.jsonl",
+          "sha256": "7d618360929b7f3baa5198c3c3e78be9fc2927a4fa9d504cdfdfeb1006940f39"
+        },
+        {
+          "bytes": 76574,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/safe/observations.json",
+          "sha256": "05fc6f8991b39507e12c43cc4703d18a81737602552c8245bacec43cbac5c68a"
+        }
+      ],
+      "profile": "safe",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 11487,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend.jsonl",
+        "sha256": "78b87c7b7c88e627c9dbdd32ed98187ff5a7a2a38dbafbd62913986f5bd00ff8"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3845,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-access.log",
+        "sha256": "e2238ba3a51eef2e8ea45a7af3fd5e02028e224ec1013529ec056957d4861f39"
+      },
+      "host_cleanup": {
+        "bytes": 556,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-cleanup.json",
+        "sha256": "88200e404c818ab36a480eaac8ed77560671ca0dc9fc2c3bfdbf949bf9af4ca4"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 76596,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/observations.json",
+        "sha256": "5917a4ab18ddce62c141804e6c3b90d4fb9d00829bfb95a40a339bdcdf95a3b2"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 917,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/runtime.conf",
+          "sha256": "abbeefdb8ddb4b09ffd23d0d35fe159c5be6bed1afb14a7453645d1c8e80dbc1"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2900,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/sidecar.stderr",
+          "sha256": "cf9d6b349cb0067e214653bb79f7a48631c3b73712297aba342c74530dd433fb"
+        },
+        {
+          "bytes": 774033,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/native.jsonl",
+          "sha256": "4bb3b0421ba3e47d7f801eda134d16e24c0647ee70042af0ee9e10b9873a5a03"
+        },
+        {
+          "bytes": 9440,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/events.jsonl",
+          "sha256": "77583e9fc41768a227729567c5b325ccd3fe173a01f498bcf6914f2f8f35fc1e"
+        },
+        {
+          "bytes": 6208,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/host-eos.jsonl",
+          "sha256": "bce68443c4aa3865aec2e9db123697425dec407babdb8bda89f9a87e7d5fe171"
+        },
+        {
+          "bytes": 76596,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/strict/observations.json",
+          "sha256": "5917a4ab18ddce62c141804e6c3b90d4fb9d00829bfb95a40a339bdcdf95a3b2"
+        }
+      ],
+      "profile": "strict",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 11487,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend.jsonl",
+        "sha256": "78b87c7b7c88e627c9dbdd32ed98187ff5a7a2a38dbafbd62913986f5bd00ff8"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3845,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-access.log",
+        "sha256": "e2238ba3a51eef2e8ea45a7af3fd5e02028e224ec1013529ec056957d4861f39"
+      },
+      "host_cleanup": {
+        "bytes": 556,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/host-cleanup.json",
+        "sha256": "88200e404c818ab36a480eaac8ed77560671ca0dc9fc2c3bfdbf949bf9af4ca4"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 76469,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/observations.json",
+        "sha256": "abd7734c6ce7ed796ce6e588e72446e2a491817d8ef738d296aff3799372d5a9"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 1128,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/runtime.conf",
+          "sha256": "7347f532f830aecc8dbe5b5f665a5e6c399e24f093e97ef416c9442244f9c2a8"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2887,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/sidecar.stderr",
+          "sha256": "3319d0fd4cd0a171c17ff4ea034c06c5eddf746ed39e8c1b7cecffd997734f48"
+        },
+        {
+          "bytes": 819357,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/native.jsonl",
+          "sha256": "c68e7c36a4439a80c3d7791e712783ef2d83b985f04ae8c7a4388e5906a8c2dc"
+        },
+        {
+          "bytes": 10530,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/events.jsonl",
+          "sha256": "a6dff1738bd20099a256a9cbc2e9b9981a1b2227cddbf39b0b6227f9708ab9d7"
+        },
+        {
+          "bytes": 6517,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/host-eos.jsonl",
+          "sha256": "157a44588ad6056c56dece4ac6bcff0db1fbef8c247290c7fc2482f8f3f8a80f"
+        },
+        {
+          "bytes": 76469,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/all/observations.json",
+          "sha256": "abd7734c6ce7ed796ce6e588e72446e2a491817d8ef738d296aff3799372d5a9"
+        }
+      ],
+      "profile": "all",
+      "uid": 0
+    },
+    {
+      "backend": {
+        "bytes": 10100,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend.jsonl",
+        "sha256": "d1ff29833290c3ed378e96e79d0b5294e8270ef0d7529fb3c5fc11a741d99855"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3380,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-access.log",
+        "sha256": "391761a40f648ab91109ec963e184a6ddfda0d84a2cd272d1792bb488a9ff502"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-cleanup.json",
+        "sha256": "8d04faf0535a5e0ee6b0bd4c1288ac7f6b7418d22e0280d1032c1ee558d75a19"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 74914,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/observations.json",
+        "sha256": "964231f76b107c7bc4b8257b056f4928a0676c7475fcc71a56db1e56982072d8"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 805,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/runtime.conf",
+          "sha256": "12e17a565e369aee961db6cfe26d41e4d7a11292356c7d2b34ce71f79bacb30a"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 1996,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/sidecar.stderr",
+          "sha256": "991b514a8a59b878b096095c14706647b4fd538616c77e7e431dd520a8b13dc5"
+        },
+        {
+          "bytes": 744417,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/native.jsonl",
+          "sha256": "3803e91f221a02bf89c28957678566bd9bdf0c959b675be19db263ddef7ab992"
+        },
+        {
+          "bytes": 13971,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/events.jsonl",
+          "sha256": "0fe2bba2dfe54c56aa00df4f252dbce6b8502281fbff9246a9c83aa6fa79e3de"
+        },
+        {
+          "bytes": 6048,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/host-eos.jsonl",
+          "sha256": "1687b32c3acfcfb249620f1793e6bc67c95a7fc266bb5800803f07066655e9f2"
+        },
+        {
+          "bytes": 74914,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/off/observations.json",
+          "sha256": "964231f76b107c7bc4b8257b056f4928a0676c7475fcc71a56db1e56982072d8"
+        }
+      ],
+      "profile": "off",
+      "uid": 65534
+    },
+    {
+      "backend": {
+        "bytes": 10100,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend.jsonl",
+        "sha256": "d1ff29833290c3ed378e96e79d0b5294e8270ef0d7529fb3c5fc11a741d99855"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3380,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-access.log",
+        "sha256": "391761a40f648ab91109ec963e184a6ddfda0d84a2cd272d1792bb488a9ff502"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-cleanup.json",
+        "sha256": "8d04faf0535a5e0ee6b0bd4c1288ac7f6b7418d22e0280d1032c1ee558d75a19"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 75024,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/observations.json",
+        "sha256": "843e4a0298aad99b1aa7abd025ae90bc0e5478350939a191862862c8e97372a1"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 760,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/runtime.conf",
+          "sha256": "70777a3ae7c0374fd6495dc6c0abc3b00c484d453e43b174b5f7bbca50a6522c"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2000,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/sidecar.stderr",
+          "sha256": "b3e1fe3abdf483eece050f0d03ba011a9b73f1128f442712718aa55b26269ed5"
+        },
+        {
+          "bytes": 745136,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/native.jsonl",
+          "sha256": "0ca42fe3314097ffeed076f95c3ec51e05525828c3834bf77d3d88abe9843a92"
+        },
+        {
+          "bytes": 13954,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/events.jsonl",
+          "sha256": "467f1c1e005deebb5edc3e7ea25cf2ce535f2548be6609a8e0ac2d015f37a9cc"
+        },
+        {
+          "bytes": 6048,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/host-eos.jsonl",
+          "sha256": "8525a12b2c2919f5632299187df50d908209f1ef3d7b7205ff6a2fb0dcf78960"
+        },
+        {
+          "bytes": 75024,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/safe/observations.json",
+          "sha256": "843e4a0298aad99b1aa7abd025ae90bc0e5478350939a191862862c8e97372a1"
+        }
+      ],
+      "profile": "safe",
+      "uid": 65534
+    },
+    {
+      "backend": {
+        "bytes": 10100,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend.jsonl",
+        "sha256": "d1ff29833290c3ed378e96e79d0b5294e8270ef0d7529fb3c5fc11a741d99855"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3380,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-access.log",
+        "sha256": "391761a40f648ab91109ec963e184a6ddfda0d84a2cd272d1792bb488a9ff502"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-cleanup.json",
+        "sha256": "8d04faf0535a5e0ee6b0bd4c1288ac7f6b7418d22e0280d1032c1ee558d75a19"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 75044,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/observations.json",
+        "sha256": "20d6c22731f8d2e79914aa5b114983a5445d21a3945f17403f3f92e459a04c10"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 761,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/runtime.conf",
+          "sha256": "f9567394d99625023f31a62e3887ebc218cd9549c5ac3639e80f81bdc9fae780"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2008,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/sidecar.stderr",
+          "sha256": "76c5e604e47047b37540cd76093695ea72185d562f67e964941b55cf88fbf20c"
+        },
+        {
+          "bytes": 750350,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/native.jsonl",
+          "sha256": "8341d7ddb1ebc5a73fe86f29a00543975c276e5c24e9f85f8bd2b622d22d5090"
+        },
+        {
+          "bytes": 14043,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/events.jsonl",
+          "sha256": "16f62ac8c21320befdeed2774936bb76f5e365efd0f34a6110425cba97e8be1d"
+        },
+        {
+          "bytes": 6048,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/host-eos.jsonl",
+          "sha256": "a88c31be04b91a70f05f163b6e28a8a96b129f84a1c39673f0788a13b3610955"
+        },
+        {
+          "bytes": 75044,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/strict/observations.json",
+          "sha256": "20d6c22731f8d2e79914aa5b114983a5445d21a3945f17403f3f92e459a04c10"
+        }
+      ],
+      "profile": "strict",
+      "uid": 65534
+    },
+    {
+      "backend": {
+        "bytes": 10100,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend.jsonl",
+        "sha256": "d1ff29833290c3ed378e96e79d0b5294e8270ef0d7529fb3c5fc11a741d99855"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3380,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-access.log",
+        "sha256": "391761a40f648ab91109ec963e184a6ddfda0d84a2cd272d1792bb488a9ff502"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/host-cleanup.json",
+        "sha256": "8d04faf0535a5e0ee6b0bd4c1288ac7f6b7418d22e0280d1032c1ee558d75a19"
+      },
+      "native_limit_action": "Reject",
+      "observation": {
+        "bytes": 75314,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/observations.json",
+        "sha256": "41cbf22d2b35443add2fb3ea0ef776a8e2ebc5cd8f1deea7405de18c25f8b67a"
+      },
+      "physical_files": [
+        {
+          "bytes": 661,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/rules.conf",
+          "sha256": "4784a0ee88a0242936ae5ff6ac542c59cbf812004f1acf07f50b885343a3bb85"
+        },
+        {
+          "bytes": 972,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/runtime.conf",
+          "sha256": "8e643e7beecfd1d1dfcdf43524fbe62ff8021c6088ee37055e8edf622d328006"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 1996,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/sidecar.stderr",
+          "sha256": "45734b4999c18ac1fe08b92b21b45912e3d1bd48978f85c02311d95e40beaeda"
+        },
+        {
+          "bytes": 748181,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/native.jsonl",
+          "sha256": "9b1367852648c478eefbf7da982fc4dad6bea6f4075e4dea01db73f7b09cae85"
+        },
+        {
+          "bytes": 14038,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/events.jsonl",
+          "sha256": "a9c09e9adce510e47b28e85599b0c5c87cc593cf744d647dbab72dcf482d935a"
+        },
+        {
+          "bytes": 6048,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/host-eos.jsonl",
+          "sha256": "16d5f774df56e6e48692f815f32ef1db1d9057de480ec5b978b159ab739e00f5"
+        },
+        {
+          "bytes": 75314,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/capture/all/observations.json",
+          "sha256": "41cbf22d2b35443add2fb3ea0ef776a8e2ebc5cd8f1deea7405de18c25f8b67a"
+        }
+      ],
+      "profile": "all",
+      "uid": 65534
+    },
+    {
+      "backend": {
+        "bytes": 11212,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend.jsonl",
+        "sha256": "aa625d0a901afff1916b9f497ed36a10ee1c49b294bb3a1d4b7b50c6867afdd3"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3752,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-access.log",
+        "sha256": "56a2c29f6c47727f1ccb7a5c2136474225635afbe4fe2f06c448451d033a5b24"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-cleanup.json",
+        "sha256": "eaf77c7de47a68374097d604dac71f7046eb2a2240a8a8829831f398f9267117"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 74630,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/observations.json",
+        "sha256": "e5ca6776531da64eeac7937346ecbef65a823ed1aea984315effc859625f6034"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 805,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/runtime.conf",
+          "sha256": "9464537ee3f611fcb3200cb7f82dce6a5b70df92f11b492d29a9ca806d0c911c"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2495,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/sidecar.stderr",
+          "sha256": "4a414d7e0cf00c126791f1fa87f0e8736eb946f374f0d6919b5f7b9a506b47d7"
+        },
+        {
+          "bytes": 775906,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/native.jsonl",
+          "sha256": "de4d5e982ec55eb6b4a3e009f6a6ba55871a9a48b041ed8e6581eee87b588c83"
+        },
+        {
+          "bytes": 9409,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/events.jsonl",
+          "sha256": "2d221fb87bd9a003a4746ee8d277f2341528a7683db778e99bcebaaba4e14efa"
+        },
+        {
+          "bytes": 6368,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/host-eos.jsonl",
+          "sha256": "e1793847e0a26f439000c8b870f179533b8e1288f18027b7cd7e189705d38f21"
+        },
+        {
+          "bytes": 74630,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/off/observations.json",
+          "sha256": "e5ca6776531da64eeac7937346ecbef65a823ed1aea984315effc859625f6034"
+        }
+      ],
+      "profile": "off",
+      "uid": 65534
+    },
+    {
+      "backend": {
+        "bytes": 11212,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend.jsonl",
+        "sha256": "aa625d0a901afff1916b9f497ed36a10ee1c49b294bb3a1d4b7b50c6867afdd3"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3752,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-access.log",
+        "sha256": "56a2c29f6c47727f1ccb7a5c2136474225635afbe4fe2f06c448451d033a5b24"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-cleanup.json",
+        "sha256": "eaf77c7de47a68374097d604dac71f7046eb2a2240a8a8829831f398f9267117"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 74840,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/observations.json",
+        "sha256": "ca706961c83e6601912824598d873868b82f7abbe3474295d9ec619f1ce94fac"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 760,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/runtime.conf",
+          "sha256": "0625264bfc1c4c0e112f255eda6b5e1a485a836bd2f77ecf08a463b1fbebc7b2"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2500,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/sidecar.stderr",
+          "sha256": "a487c65810771e139eac462e7a712ea81d67334bd9a38284ebcd451ab4b94708"
+        },
+        {
+          "bytes": 776655,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/native.jsonl",
+          "sha256": "82984024fbdc4c2cffe3c3f46ef82f5cbcdd47ca2dd48f117bee9e91490707f6"
+        },
+        {
+          "bytes": 9385,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/events.jsonl",
+          "sha256": "a95aaa2c51282ce2b6f402adc9b327a67710578d61ef3c85e3f668cbed41636b"
+        },
+        {
+          "bytes": 6368,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/host-eos.jsonl",
+          "sha256": "62d6141ee14aebb38c46e9fd0a5aa407c6d060badf665d4ab10b092ec9e7bafc"
+        },
+        {
+          "bytes": 74840,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/safe/observations.json",
+          "sha256": "ca706961c83e6601912824598d873868b82f7abbe3474295d9ec619f1ce94fac"
+        }
+      ],
+      "profile": "safe",
+      "uid": 65534
+    },
+    {
+      "backend": {
+        "bytes": 11212,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend.jsonl",
+        "sha256": "aa625d0a901afff1916b9f497ed36a10ee1c49b294bb3a1d4b7b50c6867afdd3"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3752,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-access.log",
+        "sha256": "56a2c29f6c47727f1ccb7a5c2136474225635afbe4fe2f06c448451d033a5b24"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-cleanup.json",
+        "sha256": "eaf77c7de47a68374097d604dac71f7046eb2a2240a8a8829831f398f9267117"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 74660,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/observations.json",
+        "sha256": "ab406b73d02082108eff3e45ef7a0c7c4b32e012656742cbb6c41ecee34a14ab"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 761,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/runtime.conf",
+          "sha256": "65779f62576a07dea61048bd874b71f7a74e688c6b9724a67a637a765a3f552b"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2510,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/sidecar.stderr",
+          "sha256": "7a826096b16369d65b9b624fd8050bb0196daa6c81d664a90eddc973fd0fc122"
+        },
+        {
+          "bytes": 780041,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/native.jsonl",
+          "sha256": "713666fc5c06109322328392183ae5296bb8f3bc9b479ba4c82b2e82a8d4ce72"
+        },
+        {
+          "bytes": 9450,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/events.jsonl",
+          "sha256": "e1c6e1efcb175c6386fcb4b4e00b0140c43dd2e1d34734a64f3a7d16eb447fb4"
+        },
+        {
+          "bytes": 6368,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/host-eos.jsonl",
+          "sha256": "2d62cb0e271ef06de57081e1514701dbe3df13af8c3e8323729864b77679480d"
+        },
+        {
+          "bytes": 74660,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/strict/observations.json",
+          "sha256": "ab406b73d02082108eff3e45ef7a0c7c4b32e012656742cbb6c41ecee34a14ab"
+        }
+      ],
+      "profile": "strict",
+      "uid": 65534
+    },
+    {
+      "backend": {
+        "bytes": 11212,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend.jsonl",
+        "sha256": "aa625d0a901afff1916b9f497ed36a10ee1c49b294bb3a1d4b7b50c6867afdd3"
+      },
+      "backend_cleanup": {
+        "bytes": 53,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/backend-cleanup.json",
+        "sha256": "ef796db82e93682ac31521a6e2d2e94e702a0b085c8beee15d62b70a2f4154d4"
+      },
+      "execution_status": "observed",
+      "full_lifecycle_qualified": false,
+      "host_access": {
+        "bytes": 3752,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-access.log",
+        "sha256": "56a2c29f6c47727f1ccb7a5c2136474225635afbe4fe2f06c448451d033a5b24"
+      },
+      "host_cleanup": {
+        "bytes": 294,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/host-cleanup.json",
+        "sha256": "eaf77c7de47a68374097d604dac71f7046eb2a2240a8a8829831f398f9267117"
+      },
+      "native_limit_action": "ProcessPartial",
+      "observation": {
+        "bytes": 74930,
+        "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/observations.json",
+        "sha256": "49d0bafb793313c675c074bd5393b4c3850109f06cb87868294d279a5419db08"
+      },
+      "physical_files": [
+        {
+          "bytes": 677,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/rules.conf",
+          "sha256": "ddf4d786264079b2aa6ffd330b3d17462c51f907b80c3ecb09ebc4be06c84814"
+        },
+        {
+          "bytes": 972,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/runtime.conf",
+          "sha256": "ad149e119717ddb4a6972db817feb5ae03d8727b9e8773615b3f04ca930c8748"
+        },
+        {
+          "bytes": 0,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/sidecar.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "bytes": 2495,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/sidecar.stderr",
+          "sha256": "38fe7aed3c25704505c036dd32fe68ae77bfb811b8f5368b3c08af2e04c92f3f"
+        },
+        {
+          "bytes": 777788,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/native.jsonl",
+          "sha256": "fc705ba81501e740b1097afa56769fdeb0ff08d3ad1d504a660686797ba3ec5e"
+        },
+        {
+          "bytes": 9449,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/events.jsonl",
+          "sha256": "0d5630c59669d7ed4d9e2730e5753e09e8d000034f0b5984e9799392b2314bf8"
+        },
+        {
+          "bytes": 6368,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/host-eos.jsonl",
+          "sha256": "7a2840dcc693737d101ca3e4a6e53286e4b72afa9c212822be8c42f715df99bf"
+        },
+        {
+          "bytes": 74930,
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/data/partial/all/observations.json",
+          "sha256": "49d0bafb793313c675c074bd5393b4c3850109f06cb87868294d279a5419db08"
+        }
+      ],
+      "profile": "all",
+      "uid": 65534
+    }
+  ],
+  "controller": {
+    "bytes": 4250,
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/isolation/attempt-1792072435775631502/controller-result.json",
+    "sha256": "a2c17daaf643062534dce35aebe07bcd21b7579352e5a23f4acfaf1de85d9f3f"
+  },
+  "controller_cleanup": {
+    "controller_exitcode": 0,
+    "errors": [],
+    "exitcode": 0,
+    "outside_mount_leaks": [],
+    "peak_aggregate_rss_bytes": 75616256,
+    "resource_violation": null,
+    "surviving_namespace_pids": []
+  },
+  "historical_log": {
+    "bytes": 1430,
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/historical-rst/unittest.log",
+    "sha256": "a0cc582617eceb705dd872bf611b01ce58ac53834c8462c68c85e143dc545b50"
+  },
+  "historical_reproduction": {
+    "bytes": 28270,
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/historical-rst/receipt.json",
+    "sha256": "bb20f497313efe9f5994fb4b06091f204e7c6692355ab4a375a391da1fc9cee6"
+  },
+  "inherited_oracles": {
+    "bytes": 180223,
+    "path": "reports/testing/lighttpd-i12-20261015/lighttpd-stock-sidecar-oracles.json",
+    "sha256": "888749abe8672886fcfa5d94b1a2ba67a8b22c958a0e2f89031127677feb1f2a"
+  },
+  "inherited_statuses_changed": false,
+  "limits": [
+    "No oracle is derived from the same observed client status.",
+    "Capture has native/host/backend logs; selected-ID independent complete verifier remains outstanding.",
+    "Full response bytes may already be visible before strict P4 connection close; physical action is not an alternate HTTP status.",
+    "Shared-capacity/free-reserve/sink fault regressions are separate evidence."
+  ],
+  "new_full_lifecycle_passes": 0,
+  "nonroot_provenance": {
+    "bytes": 560,
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/nonroot-input/provenance.json",
+    "sha256": "359f4c6b80fd07a33b829ccc7bf5d20409798f8c4dd5e20e33ee9e425648fe82"
+  },
+  "nonroot_spec": {
+    "bytes": 1422,
+    "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/nonroot-v2/admission-spec.json",
+    "sha256": "59fe1e93c6d9f2e5efc27c61136f05a06178fd2f29f38d9292c681445fb71da0"
+  },
+  "original_null_oracles_preserved": true,
+  "reviewed_original_oracles": [
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "SOURCE_CONFIRMED_EXPECTATION",
+      "inherited_resolved": true,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Fresh empty POST; inherited exact oracle remains separate.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-empty"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Small POST reached native observer; not the original selected fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-single-chunk"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Actual unlinked private request spool FD observed, not native file-body API coverage.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-file"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Held 3000-byte upload; actual append records and zero backend before completion.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-streaming"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Explicit text/plain and multipart/form-data requests.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-content-type-present"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Every new request deliberately has Content-Type; absent-header fixture not run.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-content-type-missing"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No explicit request charset fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-charset-present"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Explicit text/plain without charset; no charset-present fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-charset-missing"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Request MIME processor behavior is not equivalent to response MIME scope.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-mime-scope-in"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No independent request MIME-out oracle.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-mime-scope-out"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No request CSV fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-csv"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "SOURCE_CONFIRMED_EXPECTATION",
+      "inherited_resolved": true,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Physical host/native EOS and finish/free captured; selected-ID verifier not rerun.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-eos-once"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Largest new body4097; no former-cap crossing fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-above-former-connector-limit"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "P2 marker exists, but original tail placement fixture not executed.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-marker-at-payload-end"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Real backend Content-Length0 response and physical native finalization captured.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-empty"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Small real backend text/plain response; selected fixture differs.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-single-chunk"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Backend socket entity route; no response-file/zero-copy claim.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-file"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "5000-byte backend response spans body chunks; Reject/ProcessPartial observed.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-streaming"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Backend text/plain without charset; MIME-in and octet-stream-out captured.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-charset-missing"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No response CSV fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-csv"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Largest response5000; no former-cap crossing fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-above-former-connector-limit"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Response marker is the complete15-byte response; original large-tail fixture not executed.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-response-marker-at-payload-end"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No native return fault injection in this real-host supplement.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-invalid-native-return"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No missing-EOS malformed-host injection.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-missing-eos"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No invalid-metadata host fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-invalid-metadata"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Real event files observed; no sink-open failure injected here.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-physical-event-sink-open"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No sink-write failure injection here.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-physical-event-sink-write"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No sink-short-write failure injection here.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-physical-event-sink-short-write"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No sink-flush failure injection here.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-physical-event-sink-flush"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No sink-close failure injection here.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-physical-event-sink-close"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No host timeout fault fixture in this supplement.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-timeout"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Immediate RST is distinct from an independently specified cancel fixture.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-cancel"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Python socket client is in the waited controller driver, not an independent signal-exit client.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-client-exit-signal"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Held request completes; malformed finite-framing fixture not run.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-incomplete-framing"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Immediate RST/control and strict P4 host action have separate physical records.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-abort-reset-observation"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Committed200 and physical P4 action captured; no client timestamp for exact first-byte ordering.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-first-byte-before-late-error"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Separate healthy HTTP/1.1 neighbor after RST and P4/limit requests.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-neighbor-connection-stream"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Delivered exact profile template relocated only for rules/event paths; root/nonroot and both limit actions.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-profile-all"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Delivered exact profile template relocated only for rules/event paths; root/nonroot and both limit actions.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-profile-off"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Delivered exact profile template relocated only for rules/event paths; root/nonroot and both limit actions.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-profile-safe"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Delivered exact profile template relocated only for rules/event paths; root/nonroot and both limit actions.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-profile-strict"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Actual host/sidecar readiness; spool0700 and bounded held request.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-private-spool-ready"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Trusted unchanged controller admitted actual65534 with zero capabilities; no control weakening.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-nonroot-uid"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Live /proc native FD stat: unlinked nlink0 file0600 in private0700 directory.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-spool-ownership-0600-private0700"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "Supplement explicitly uses smaller65536-byte capacity and1048576-byte reserve; default contract not inferred.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-capacity-256m-reserve64m"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "not_executed_by_supplement",
+      "qualification_changes": null,
+      "reason": "No shared-capacity/free-reserve exhaustion in this host supplement; separate component regression required.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-resource-exhaustion-technical"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Sequential requests and final neighbor healthy; capacity-contention readmission remains separate.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-readmission-after-release"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Independent backend count0 while body incomplete; backend bytes after completed held upload.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-replay-only-after-native-p2-allow"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "related_supplement_not_original_fixture",
+      "qualification_changes": null,
+      "reason": "Fresh immediate reset has no predetermined event count; original failure separate.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-rst-disconnect"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "historical_failure_reproduced",
+      "qualification_changes": null,
+      "reason": "Unchanged original immediate-RST test and product snapshot5e3b9586 failed with empty physical event file; exact Sept19 head unavailable.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::FU-STOCK-RST-DELIVERY"
+    },
+    {
+      "effective_oracle_changes": null,
+      "inherited_category": "UNRESOLVED_ORACLE",
+      "inherited_resolved": false,
+      "new_relation": "historical_preserved",
+      "qualification_changes": null,
+      "reason": "Fresh enum values do not rewrite the source-bound historical Stock06 record.",
+      "run_scoped_case_id": "I12::lighttpd-stock-sidecar::HIST-STOCK06-ACTUAL-ACTION-ENUM"
+    }
+  ],
+  "schema": "lighttpd-stock-i12-supplement-review-v1",
+  "seed_is_not_checkout_revision": true,
+  "source_build_bindings": [
+    {
+      "bytes": 33481,
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-04/build-binding.json",
+      "sha256": "ac29ad1536e0896d56398c0ee9239bf1a3a11f55a1b54ddd27ad3ab198eb6f57"
+    },
+    {
+      "bytes": 33481,
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-lighttpd-410-20261015/stock/capture-05-partial/build-binding.json",
+      "sha256": "250b5c063eb968c86fddd689ed6d7faf560e3b05168b680b69c058e3ceb5d123"
+    }
+  ]
+}

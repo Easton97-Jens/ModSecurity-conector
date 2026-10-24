@@ -1,0 +1,142 @@
+{
+  "revision_binding": {
+    "schema": "lighttpd-i12-current-revision-binding-v1",
+    "branch": "codex/i12-lighttpd-410-20261015",
+    "parent_integration_head": "eef8c1b432c0ce372c551a32fa6977cf4633b6c3",
+    "published_parent_head_at_export_start": "c06617247be33f3fa522821a4dfa11f8b4637038",
+    "base_410_head": "a62296fb57263f9be18c6ac879e36e0ab2a9935c",
+    "product_382_head": "12cc380c3749fd76c246c05ce479f51446127880",
+    "response_splice_fix_commit": "c523dce9966b47bc8be6efe39ee49f2d88de3397",
+    "original_reference_head": "f27eb59b53beff6f65384fc2e5037881a3052c01",
+    "framework_revision": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
+    "sdk": {
+      "version": "ModSecurity 3.0.14",
+      "library_sha256": "32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407"
+    },
+    "qualifier_source_sha256": {
+      "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py": "2e14a9382b49940866232b4b666d63182f0f010d069f59232c18626afba58198",
+      "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py": "9b338fe9dd25f14b22808c2c49294f1e9047626203bdbc432e9761e08ce37539",
+      "ci/runtime/lifecycle/i12/lighttpd/ledger.py": "619fd797827485338451c4ade69f9bc91001294b7d827078d8a8e62dd7c1976e",
+      "ci/runtime/lifecycle/i12/lighttpd/qualification.py": "d450a4797ff81792692655a8611255170572486649a5108c895a76bec1ae978c"
+    },
+    "selection_sha256": "8e47b30cfd5fd64633da600823041348948db9969047fac1f7729523e4b55ab5",
+    "execution_index_sha256": "44e012db828d731ac2c4171d4fb7701c33ad78f0415ba831da15e150e7517896",
+    "runtime_scope": {
+      "root_and_uid65534_distinct": true,
+      "private_spool_mode": "0700",
+      "private_file_mode": "0600",
+      "isolation_relaxed": false
+    }
+  },
+  "routes": {
+    "lighttpd-stock-sidecar": {
+      "original_ids": 153,
+      "historical": {
+        "original_ids": 153,
+        "required_leg": true,
+        "execution_observed": 12,
+        "full_lifecycle_pass": 2,
+        "configuration_only_pass": 0,
+        "unqualified_ids": 151,
+        "original_oracles": 51,
+        "resolved_original_oracles": 2,
+        "unresolved_original_oracles": 49,
+        "oracle_categories": {
+          "SOURCE_CONFIRMED_EXPECTATION": 2,
+          "UNRESOLVED_ORACLE": 49
+        }
+      },
+      "current_executed_original_ids": 128,
+      "current_unique_http_executions": 128,
+      "current_unique_parser_executions": 0,
+      "current_verdicts": {
+        "PASS": 60,
+        "PARTIAL_HOST_MEASUREMENTS": 68,
+        "HOST_START_ONLY": 9,
+        "NOT_EXECUTED_UNQUALIFIED": 16
+      },
+      "current_qualified_verdicts": {
+        "PASS": 60
+      },
+      "current_required_host_lifecycle_pass": 60,
+      "current_diagnostic_host_pass": 0,
+      "current_configuration_pass": 0,
+      "newly_qualified_original_ids": 59,
+      "currently_unqualified_original_ids": 92,
+      "newly_resolved_original_oracles": 32,
+      "remaining_open_original_oracles": 17
+    },
+    "lighttpd-patched-native": {
+      "original_ids": 116,
+      "historical": {
+        "original_ids": 116,
+        "required_leg": true,
+        "execution_observed": 3,
+        "full_lifecycle_pass": 2,
+        "configuration_only_pass": 0,
+        "unqualified_ids": 114,
+        "original_oracles": 52,
+        "resolved_original_oracles": 2,
+        "unresolved_original_oracles": 50,
+        "oracle_categories": {
+          "UNRESOLVED_ORACLE": 50,
+          "SOURCE_CONFIRMED_EXPECTATION": 2
+        }
+      },
+      "current_executed_original_ids": 112,
+      "current_unique_http_executions": 112,
+      "current_unique_parser_executions": 0,
+      "current_verdicts": {
+        "PASS": 72,
+        "PARTIAL_HOST_MEASUREMENTS": 40,
+        "HOST_START_ONLY": 3,
+        "NOT_EXECUTED_UNQUALIFIED": 1
+      },
+      "current_qualified_verdicts": {
+        "PASS": 72
+      },
+      "current_required_host_lifecycle_pass": 72,
+      "current_diagnostic_host_pass": 0,
+      "current_configuration_pass": 0,
+      "newly_qualified_original_ids": 70,
+      "currently_unqualified_original_ids": 44,
+      "newly_resolved_original_oracles": 37,
+      "remaining_open_original_oracles": 13
+    },
+    "lighttpd-stock-native-control": {
+      "original_ids": 78,
+      "historical": {
+        "original_ids": 78,
+        "required_leg": false,
+        "execution_observed": 8,
+        "full_lifecycle_pass": 0,
+        "configuration_only_pass": 1,
+        "unqualified_ids": 77,
+        "original_oracles": 23,
+        "resolved_original_oracles": 0,
+        "unresolved_original_oracles": 23,
+        "oracle_categories": {
+          "UNRESOLVED_ORACLE": 23
+        }
+      },
+      "current_executed_original_ids": 77,
+      "current_unique_http_executions": 69,
+      "current_unique_parser_executions": 8,
+      "current_verdicts": {
+        "PASS": 36,
+        "PARTIAL_HOST_MEASUREMENTS": 41,
+        "HOST_START_ONLY": 1
+      },
+      "current_qualified_verdicts": {
+        "PASS": 36
+      },
+      "current_required_host_lifecycle_pass": 0,
+      "current_diagnostic_host_pass": 28,
+      "current_configuration_pass": 8,
+      "newly_qualified_original_ids": 35,
+      "currently_unqualified_original_ids": 42,
+      "newly_resolved_original_oracles": 4,
+      "remaining_open_original_oracles": 19
+    }
+  }
+}

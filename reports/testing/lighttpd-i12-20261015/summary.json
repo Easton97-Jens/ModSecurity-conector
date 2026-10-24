@@ -1,0 +1,62 @@
+{
+  "schema": "lighttpd-i12-inherited-summary-v1",
+  "qualification_performed_by_exporter": false,
+  "input_sources": {
+    "ledger": {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/ledger/twentyone-qualified-08.json",
+      "sha256": "a3a901db7d70884d2f491c95246629071cd55280ad94ee0fd86049c2e954c7ff",
+      "bytes": 34634475
+    },
+    "reconciliation": {
+      "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/oracles/twentyone-source-confirmed-13/oracle-reconciliation.json",
+      "sha256": "cfe5c3dbd5b54c1199f070b5b206066862451a08f634a1ac2a16f0c678b7fd50",
+      "bytes": 13830884
+    }
+  },
+  "routes": {
+    "lighttpd-stock-sidecar": {
+      "original_ids": 153,
+      "required_leg": true,
+      "execution_observed": 12,
+      "full_lifecycle_pass": 2,
+      "configuration_only_pass": 0,
+      "unqualified_ids": 151,
+      "original_oracles": 51,
+      "resolved_original_oracles": 2,
+      "unresolved_original_oracles": 49,
+      "oracle_categories": {
+        "SOURCE_CONFIRMED_EXPECTATION": 2,
+        "UNRESOLVED_ORACLE": 49
+      }
+    },
+    "lighttpd-patched-native": {
+      "original_ids": 116,
+      "required_leg": true,
+      "execution_observed": 3,
+      "full_lifecycle_pass": 2,
+      "configuration_only_pass": 0,
+      "unqualified_ids": 114,
+      "original_oracles": 52,
+      "resolved_original_oracles": 2,
+      "unresolved_original_oracles": 50,
+      "oracle_categories": {
+        "UNRESOLVED_ORACLE": 50,
+        "SOURCE_CONFIRMED_EXPECTATION": 2
+      }
+    },
+    "lighttpd-stock-native-control": {
+      "original_ids": 78,
+      "required_leg": false,
+      "execution_observed": 8,
+      "full_lifecycle_pass": 0,
+      "configuration_only_pass": 1,
+      "unqualified_ids": 77,
+      "original_oracles": 23,
+      "resolved_original_oracles": 0,
+      "unresolved_original_oracles": 23,
+      "oracle_categories": {
+        "UNRESOLVED_ORACLE": 23
+      }
+    }
+  }
+}
