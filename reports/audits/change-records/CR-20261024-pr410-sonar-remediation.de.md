@@ -294,3 +294,17 @@ Abhängigkeitsvorschläge kommen von Dependabot. Keine Änderung an Modulmanifes
 Checksummen, Framework-/MRTS-Repositories oder Connector-E2E. Live-Vorschläge
 benötigen die Konfiguration auf dem Default-Branch und bleiben von der
 Quell-/CI-Verifikation dieses PRs getrennt.
+
+Bei `da82e6db` ist die Sonar-Verarbeitung terminal SUCCESS, Gate OK mit Security,
+Reliability und Maintainability A, null Bugs/Schwachstellen/akzeptierten Issues/
+Hotspots und 0,0 % neuer Duplikation. Ein neuer Exception-Test-Smell verletzt noch
+den strengeren Null-Befund-Vertrag; sein Setup liegt nun vor dem einzigen
+beabsichtigten Validator-Aufruf, und das Downgrade-Szenario besteht. Hosted-
+Installer-Zulassung und die strikte 20-Szenario-Fremdpeer-Auswahl bestehen auf
+diesem Head. Eine zweite unabhängige Scaffold-Ursache ist der alte
+YAML-Installations-Reihenfolgetest, der noch den ersetzten direkten Pip-Befehl
+suchte. Der korrigierte Test erhält genau eine unbedingte Installation nach
+Interpreterverifikation und vor Gate-Tests, prüft Source-/Build-Locks sowie
+Pip-Schutz des Helpers und lehnt fünf Mutationen ab: fehlend, verspätet,
+ungeschützt, bedingt und doppelt. Seine zwei Methoden / sechs Varianten bestehen
+mit Python 3.15.1. Keine Pipeline und kein Gate wurden geändert.

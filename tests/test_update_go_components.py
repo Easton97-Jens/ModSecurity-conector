@@ -258,11 +258,12 @@ class UpdateGoComponentsTests(unittest.TestCase):
         versions = {**NEWER_BUNDLE, "net_version": "v0.58.0"}
         baseline = go_mod(**versions)
         downgraded = go_mod(**{**versions, "grpc_version": "v1.83.2", "net_version": TARGET_NET})
+        candidate_inputs = (
+            baseline.encode(), downgraded.encode(),
+            checksum_entries(**versions).encode(), candidate_go_sum().encode(),
+        )
         with self.assertRaisesRegex(updater.ComponentError, "outside the approved bundle"):
-            updater.validate_component_candidate(
-                baseline.encode(), downgraded.encode(),
-                checksum_entries(**versions).encode(), candidate_go_sum().encode(),
-            )
+            updater.validate_component_candidate(*candidate_inputs)
 
     def test_workflow_resolver_accepts_newer_and_mixed_floor_bundles(self) -> None:
         cases = (

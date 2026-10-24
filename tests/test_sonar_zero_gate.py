@@ -6,15 +6,22 @@ import copy
 import importlib.util
 import io
 from pathlib import Path
+import sys
 import unittest
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+CI_DEPENDENCY_INSTALLER = 'ci/tools/install-ci-dependencies.py'
+CI_DEPENDENCY_INSTALL_COMMAND = f'python3 {CI_DEPENDENCY_INSTALLER} --ci-toolcache'
 SPEC = importlib.util.spec_from_file_location("sonar_zero_gate", ROOT / "ci/checks/common/check-sonar-zero.py")
 GATE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GATE)
+INSTALL_SPEC = importlib.util.spec_from_file_location("sonar_gate_dependency_installer", ROOT / CI_DEPENDENCY_INSTALLER)
+INSTALLER = importlib.util.module_from_spec(INSTALL_SPEC)
+sys.modules[INSTALL_SPEC.name] = INSTALLER
+INSTALL_SPEC.loader.exec_module(INSTALLER)
 HEAD = "a" * 40
 REPOSITORY = "example/connector"
 PR = "413"
@@ -109,19 +116,54 @@ class Evidence:
 
 
 class SonarZeroGateTests(unittest.TestCase):
-    def test_hash_locked_yaml_dependency_is_installed_before_gate_unit_tests(self):
-        workflow = yaml.safe_load((ROOT/'.github/workflows/lint.yml').read_text())
-        steps = workflow['jobs']['scaffold-lint']['steps']
+    def assert_locked_install_before_gate_tests(self, steps):
         installs = [(index, step) for index, step in enumerate(steps)
-                    if '--require-hashes -r requirements-ci.lock' in step.get('run', '')]
+                    if CI_DEPENDENCY_INSTALLER in step.get('run', '')]
         self.assertEqual(len(installs), 1)
         index, step = installs[0]
-        self.assertIn('--only-binary=:all:', step['run'])
+        self.assertEqual(step['run'].strip(), CI_DEPENDENCY_INSTALL_COMMAND)
         self.assertNotIn('if', step)
+        verifiers = [position for position, candidate in enumerate(steps)
+                     if candidate.get('name') == 'Verify Python interpreter contract']
+        self.assertEqual(len(verifiers), 1)
+        self.assertLess(verifiers[0], index)
         consumers = [position for position, candidate in enumerate(steps)
                      if 'tests.test_sonar_zero_gate' in candidate.get('run', '')]
         self.assertEqual(len(consumers), 1)
         self.assertLess(index, consumers[0])
+
+    def test_hash_locked_yaml_dependency_is_installed_before_gate_unit_tests(self):
+        workflow = yaml.safe_load((ROOT/'.github/workflows/lint.yml').read_text())
+        self.assert_locked_install_before_gate_tests(workflow['jobs']['scaffold-lint']['steps'])
+        # The reviewed source exception verifies both locks before execution;
+        # pip still accepts only hash-checked local wheels without resolution.
+        source, tools, version = INSTALLER.reviewed_pins(None)
+        self.assertEqual(source.name, 'PyYAML')
+        self.assertEqual(source.filename, f'pyyaml-{version}.tar.gz')
+        self.assertEqual({tool.name for tool in tools}, {'pip', 'setuptools', 'Cython'})
+        for flag in ('--only-binary=:all:', '--require-hashes', '--no-index', '--no-deps'):
+            self.assertIn(flag, INSTALLER.PIP_INSTALL)
+
+    def test_missing_late_or_unprotected_yaml_install_is_rejected(self):
+        workflow = yaml.safe_load((ROOT/'.github/workflows/lint.yml').read_text())
+        original = workflow['jobs']['scaffold-lint']['steps']
+        index = next(position for position, step in enumerate(original)
+                     if CI_DEPENDENCY_INSTALLER in step.get('run', ''))
+        for mutation in ('missing', 'late', 'unguarded', 'conditional', 'duplicate'):
+            with self.subTest(mutation=mutation):
+                steps = copy.deepcopy(original)
+                if mutation == 'missing':
+                    steps.pop(index)
+                elif mutation == 'late':
+                    steps.append(steps.pop(index))
+                elif mutation == 'unguarded':
+                    steps[index]['run'] = f'python3 {CI_DEPENDENCY_INSTALLER}'
+                elif mutation == 'conditional':
+                    steps[index]['if'] = 'false'
+                else:
+                    steps.insert(index, copy.deepcopy(steps[index]))
+                with self.assertRaises(AssertionError):
+                    self.assert_locked_install_before_gate_tests(steps)
 
     def test_both_workflow_gates_bind_explicit_PR_and_head(self):
         workflow = yaml.safe_load((ROOT/'.github/workflows/lint.yml').read_text())

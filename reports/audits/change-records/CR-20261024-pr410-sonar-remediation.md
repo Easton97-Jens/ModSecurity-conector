@@ -268,3 +268,16 @@ reviewed minimums; actual newer dependency proposals come from Dependabot.
 No module manifest/checksum, Framework/MRTS repository or connector E2E changes.
 Live automatic proposals require the configuration on the default branch and
 remain separate from this PR's source/CI verification.
+
+At `da82e6db`, Sonar processing is terminal SUCCESS, Gate OK with Security,
+Reliability and Maintainability A, zero bugs/vulnerabilities/accepted issues/
+hotspots and 0.0% new duplication. One new exception-test smell still violates
+the stronger zero-finding contract; its setup now precedes the sole intended
+validator invocation, and that downgrade scenario passes. Hosted installer
+admission and the strict 20-scenario foreign-peer selection pass on this head.
+A second independent scaffold cause is its old YAML-install ordering test,
+which still searched for the replaced direct pip command. The corrected test
+retains one unconditional install after interpreter verification and before
+gate tests, checks the protected helper's source/build locks and pip guards,
+and rejects five missing/late/unprotected/conditional/duplicate mutations.
+Its two methods / six variants pass on Python 3.15.1. No pipeline or gate changed.
