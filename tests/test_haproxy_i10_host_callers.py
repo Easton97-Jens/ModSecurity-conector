@@ -15,7 +15,8 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 OVERLAY = ROOT / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
 FUNCTIONS = (
-    "request_version", "event_sink_failed", "write_event",
+    "request_version", "observed_error_phase", "event_reason", "event_eos",
+    "prepare_event", "event_sink_failed", "write_event",
     "companion_cancel_cause_from_error", "companion_cancel_and_close", "abort_context", "finish_context", "error_phase", "report_error", "apply_precommit_deny", "apply_precommit_redirect", "apply_precommit_decision",
     "fail_closed_precommit", "abort_response_stream", "fail_closed_postcommit", "fail_closed_request_phase", "apply_precommit_decision_or_fail_closed",
     "companion_result_is_forwardable", "companion_record_precommit_outcome", "companion_record_terminal_outcome",

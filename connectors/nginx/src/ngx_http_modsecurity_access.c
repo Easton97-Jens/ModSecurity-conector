@@ -781,23 +781,18 @@ ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
                 "ModSecurity: invalid request body buffer range");
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        if (ngx_buf_special(chain->buf)) {
-            if (chain->buf->last_buf) {
-                break;
+        if (!ngx_buf_special(chain->buf)) {
+            if (chain->buf->pos == NULL ||
+                chain->buf->last == NULL || chain->buf->last < chain->buf->pos) {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                    "ModSecurity: invalid request body buffer range");
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
             }
-            chain = chain->next;
-            continue;
-        }
-        if (chain->buf->pos == NULL ||
-            chain->buf->last == NULL || chain->buf->last < chain->buf->pos) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: invalid request body buffer range");
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        rc = ngx_http_modsecurity_append_request_chunk(r, ctx, chain->buf->pos,
-            (size_t)(chain->buf->last - chain->buf->pos));
-        if (rc != NGX_OK) {
-            return rc;
+            rc = ngx_http_modsecurity_append_request_chunk(r, ctx, chain->buf->pos,
+                (size_t)(chain->buf->last - chain->buf->pos));
+            if (rc != NGX_OK) {
+                return rc;
+            }
         }
         if (chain->buf->last_buf) {
             break;

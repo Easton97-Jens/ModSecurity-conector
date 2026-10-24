@@ -35,17 +35,17 @@ class DiagnosticFaultBoundaryTests(unittest.TestCase):
             untrusted_begin, remaining_begins = changed.decode().split(
                 "int msconnector_runtime_transaction_begin_request_stream(", 1)
             self.assertIn('i12_pointer_null("headers_null"', untrusted_begin)
-            self.assertIn("decision, error, 0, NULL);", untrusted_begin)
+            self.assertIn("decision, error, (msconnector_runtime_begin_options){0, NULL});", untrusted_begin)
             self.assertNotIn("injected_request", remaining_begins)
-            self.assertIn("decision, error, 0, provenance);", remaining_begins)
-            self.assertIn("decision, error, 1, provenance);", remaining_begins)
+            self.assertIn("decision, error, (msconnector_runtime_begin_options){0, provenance});", remaining_begins)
+            self.assertIn("decision, error, (msconnector_runtime_begin_options){1, provenance});", remaining_begins)
             with self.assertRaisesRegex(ValueError, "fresh"):
                 FAULTS.extend(source, HEADER)
             self.assertEqual(runtime.read_bytes(), changed)
 
     def test_missing_or_duplicate_current_begin_anchor_rejects_without_writes(self):
         anchor = ("    return transaction_begin_internal(runtime, request, host_request_id, out,\n"
-                  "        decision, error, 0, NULL);")
+                  "        decision, error, (msconnector_runtime_begin_options){0, NULL});")
         current = (ROOT / "common/runtime/msconnector_runtime.c").read_text()
         self.assertEqual(current.count(anchor), 1)
         for replacement in ("", anchor + "\n" + anchor):

@@ -91,34 +91,51 @@ func stripProvenanceHeaders(headers http.Header) {
 	stripPrivateHeaders(headers, provenanceHeader)
 }
 
-func stripPrivateHeaders(headers http.Header, names ...string) {
-	isPrivate := func(name string) bool {
-		for _, private := range names {
-			if strings.EqualFold(name, private) {
-				return true
+func privateHeaderName(name string, names []string) bool {
+	for _, private := range names {
+		if strings.EqualFold(name, private) {
+			return true
+		}
+	}
+	return false
+}
+
+func privateHeaderKey(key string, names []string) bool {
+	if privateHeaderName(key, names) {
+		return true
+	}
+	return len(key) >= len(http.TrailerPrefix) &&
+		strings.EqualFold(key[:len(http.TrailerPrefix)], http.TrailerPrefix) &&
+		privateHeaderName(key[len(http.TrailerPrefix):], names)
+}
+
+func publicTrailerNames(values []string, private []string) []string {
+	kept := []string{}
+	for _, value := range values {
+		for _, name := range strings.Split(value, ",") {
+			name = strings.TrimSpace(name)
+			if name != "" && !privateHeaderName(name, private) {
+				kept = append(kept, name)
 			}
 		}
-		return false
 	}
+	return kept
+}
+
+func stripPrivateHeaders(headers http.Header, names ...string) {
 	for key, values := range headers {
-		if isPrivate(key) || (len(key) >= len(http.TrailerPrefix) &&
-			strings.EqualFold(key[:len(http.TrailerPrefix)], http.TrailerPrefix) && isPrivate(key[len(http.TrailerPrefix):])) {
+		if privateHeaderKey(key, names) {
 			delete(headers, key)
-		} else if strings.EqualFold(key, "Trailer") {
-			kept := []string{}
-			for _, value := range values {
-				for _, name := range strings.Split(value, ",") {
-					name = strings.TrimSpace(name)
-					if name != "" && !isPrivate(name) {
-						kept = append(kept, name)
-					}
-				}
-			}
-			if len(kept) == 0 {
-				delete(headers, key)
-			} else {
-				headers[key] = []string{strings.Join(kept, ", ")}
-			}
+			continue
+		}
+		if !strings.EqualFold(key, "Trailer") {
+			continue
+		}
+		kept := publicTrailerNames(values, names)
+		if len(kept) == 0 {
+			delete(headers, key)
+		} else {
+			headers[key] = []string{strings.Join(kept, ", ")}
 		}
 	}
 }
@@ -283,42 +300,7 @@ func (m *middleware) serveWithProvenance(w http.ResponseWriter, r *http.Request)
 	r = r.WithContext(context.WithValue(r.Context(), provenanceBindingKey{}, binding))
 	writer := &provenanceWriter{target: w, request: r, parent: m, binding: binding}
 	completed := false
-	defer func() {
-		if writer.state == nil {
-			cause := cancelConnectorError
-			if errors.Is(r.Context().Err(), context.DeadlineExceeded) {
-				cause = cancelEngineTimeout
-			} else if r.Context().Err() != nil {
-				cause = cancelClientCancel
-			} else if completed && writer.failed {
-				cause = cancelProtocolError
-			}
-			if err := writer.cancelBeforeHeaders(cause); err != nil {
-				writer.cleanupError = err
-				// Keep a physical, payload-free failure signal; never log the
-				// capability, handle, metadata or request/response bytes.
-				log.Print("modsecurity response observer: trusted reservation cleanup failed")
-			}
-			if completed && !writer.wrote {
-				writer.wrote = true
-				writer.fail()
-			}
-			return
-		}
-		if writer.state != nil {
-			defer writer.state.session.close()
-			if !completed {
-				if !writer.state.finished && !writer.state.precommitFail {
-					_ = writer.state.cancelWithClass(cancelConnectorError)
-				}
-				writer.state.finished = true
-				return
-			}
-		}
-		if completed {
-			writer.finish()
-		}
-	}()
+	defer func() { writer.cleanup(completed) }()
 	m.next.ServeHTTP(writer, r)
 	completed = true
 }
@@ -331,6 +313,48 @@ type provenanceWriter struct {
 	state                   *responseState
 	cleanupError            error
 	wrote, terminal, failed bool
+}
+
+func (w *provenanceWriter) cleanupCause(completed bool) byte {
+	if errors.Is(w.request.Context().Err(), context.DeadlineExceeded) {
+		return cancelEngineTimeout
+	}
+	if w.request.Context().Err() != nil {
+		return cancelClientCancel
+	}
+	if completed && w.failed {
+		return cancelProtocolError
+	}
+	return cancelConnectorError
+}
+
+func (w *provenanceWriter) cleanupBeforeHeaders(completed bool) {
+	if err := w.cancelBeforeHeaders(w.cleanupCause(completed)); err != nil {
+		w.cleanupError = err
+		// Keep a physical, payload-free failure signal; never log the
+		// capability, handle, metadata or request/response bytes.
+		log.Print("modsecurity response observer: trusted reservation cleanup failed")
+	}
+	if completed && !w.wrote {
+		w.wrote = true
+		w.fail()
+	}
+}
+
+func (w *provenanceWriter) cleanup(completed bool) {
+	if w.state == nil {
+		w.cleanupBeforeHeaders(completed)
+		return
+	}
+	defer w.state.session.close()
+	if !completed {
+		if !w.state.finished && !w.state.precommitFail {
+			_ = w.state.cancelWithClass(cancelConnectorError)
+		}
+		w.state.finished = true
+		return
+	}
+	w.finish()
 }
 
 func (w *provenanceWriter) Header() http.Header { return w.target.Header() }

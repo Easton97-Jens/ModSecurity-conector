@@ -16,11 +16,10 @@ extern "C" {
  * capacity includes the required terminator; the native decision owns its copy. */
 static inline int haproxy_modsecurity_redirect_url_length(
     const char *value, size_t capacity, size_t *length) {
-    size_t index;
     if (value == NULL || length == NULL || capacity == 0U || value[0] == '\0') {
         return 0;
     }
-    for (index = 0U; index < capacity; ++index) {
+    for (size_t index = 0U; index < capacity; ++index) {
         unsigned char byte = (unsigned char)value[index];
         if (byte == 0U) { *length = index; return 1; }
         if (byte < 0x20U || byte == 0x7fU) { return 0; }

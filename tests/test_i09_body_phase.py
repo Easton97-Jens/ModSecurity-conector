@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
             (enum msconnector_phase)previous, 105U) != 0) return 3;
     companion = msconnector_transaction_profile_phase_route(msconnector_profile_registry_find(argv[1]),
         (enum msconnector_phase)phase) == MSCONNECTOR_TRANSACTION_PHASE_ROUTE_COMPANION_REQUIRED;
-    tx->response_companion_handed_off = phase == MSCONNECTOR_PHASE_RESPONSE_BODY && companion;
+    tx->completion.response_companion_handed_off = phase == MSCONNECTOR_PHASE_RESPONSE_BODY && companion;
     msconnector_body_policy_init(&runtime.body_policy);
     runtime.body_policy.request_body_mode = MSCONNECTOR_BODY_MODE_STREAMING;
     runtime.body_policy.response_body_mode = MSCONNECTOR_BODY_MODE_STREAMING;

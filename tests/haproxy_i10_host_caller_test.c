@@ -72,7 +72,7 @@ struct http_txn {
 };
 #define REDIRECT_TYPE_LOCATION 2
 #define REDIRECT_FLAG_FROM_REQ 4U
-struct redirect_rule { int type,rdr_len;char *rdr_str;int code;unsigned int flags; };
+struct redirect_rule { int type; int rdr_len; char *rdr_str; int code; unsigned int flags; };
 #define CO_FL_XPRT_READY 8U
 #define SE_FL_T_MUX 1U
 struct stream;
@@ -85,11 +85,16 @@ struct connection {
   void *xprt_ctx;
   const struct mux_ops *mux;
   struct stream *owner;
-  unsigned int hard_calls, clean_calls, close_notify, quiet;
-  unsigned int hard_order, clean_order, stream_shutdowns;
+  unsigned int hard_calls;
+  unsigned int clean_calls;
+  unsigned int close_notify;
+  unsigned int quiet;
+  unsigned int hard_order;
+  unsigned int clean_order;
+  unsigned int stream_shutdowns;
 };
 struct sedesc { struct connection *conn; unsigned int flags; };
-struct stconn { unsigned int flags, aborts, shutdowns; struct sedesc *sedesc; };
+struct stconn { unsigned int flags; unsigned int aborts; unsigned int shutdowns; struct sedesc *sedesc; };
 static int sc_ep_test(const struct stconn *sc, unsigned int flags) {
   return (sc->sedesc->flags & flags) != 0;
 }
@@ -141,10 +146,14 @@ struct stream {
   struct channel res;
   struct stconn frontend;
   struct stconn *scf;
-  struct stconn backend, *scb;
-  struct connection client_conn, server_conn;
-  struct sedesc client_desc, server_desc;
-  unsigned int stream_abort_order, async_order;
+  struct stconn backend;
+  struct stconn *scb;
+  struct connection client_conn;
+  struct connection server_conn;
+  struct sedesc client_desc;
+  struct sedesc server_desc;
+  unsigned int stream_abort_order;
+  unsigned int async_order;
   unsigned int redirects;
   char location[1024];
   size_t delivered_bytes;
@@ -198,8 +207,13 @@ static int cancel_calls;
 static struct stream *observed_stream;
 static int register_calls;
 static int unregistered;
-static int redirect_api_result,redirect_status;
-static unsigned int redirect_api_calls,last_redirect_flags,redirect_order,outcome_order,release_order;
+static int redirect_api_result;
+static int redirect_status;
+static unsigned int redirect_api_calls;
+static unsigned int last_redirect_flags;
+static unsigned int redirect_order;
+static unsigned int outcome_order;
+static unsigned int release_order;
 static const char *redirect_input;
 static struct haproxy_modsecurity_htx_filter_context *observed_context;
 static unsigned int call_sequence;
@@ -256,7 +270,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule,struct stream *s,
   redirect_order=++call_sequence;
   return 1;
 }
-void channel_htx_erase(struct channel *channel, struct htx *htx) {
+void channel_htx_erase(struct channel *channel, const struct htx *htx) {
   (void)htx;
   channel->output = 0;
   channel->buf = 0;
@@ -464,8 +478,12 @@ static void haproxy_modsecurity_htx_companion_result_reset(
 static int result(msconnector_response_companion_result *r) {
   r->success = result_success;
   r->decision = decision_kind;
-  r->status = decision_kind == MSCONNECTOR_DECISION_KIND_REDIRECT ? (uint16_t)redirect_status :
-    decision_kind == MSCONNECTOR_DECISION_KIND_DENY ? 403 : 200;
+  r->status = 200;
+  if (decision_kind == MSCONNECTOR_DECISION_KIND_REDIRECT) {
+    r->status = (uint16_t)redirect_status;
+  } else if (decision_kind == MSCONNECTOR_DECISION_KIND_DENY) {
+    r->status = 403;
+  }
   if(decision_kind==MSCONNECTOR_DECISION_KIND_REDIRECT && redirect_input) {
     size_t length=strlen(redirect_input);r->redirect_url=malloc(length+1U);assert(r->redirect_url);
     memcpy(r->redirect_url,redirect_input,length+1U);
@@ -582,11 +600,17 @@ static void reset(struct haproxy_modsecurity_htx_filter_context *c,
   s->redirects=0;s->location[0]=0;
   redirect_api_result=1;redirect_status=302;
   redirect_input="https://no-crs.invalid/phase3-redirect";
-  redirect_api_calls=last_redirect_flags=redirect_order=outcome_order=release_order=0;
+  redirect_api_calls=0;
+  last_redirect_flags=0;
+  redirect_order=0;
+  outcome_order=0;
+  release_order=0;
   observed_context=c;
   initialize_transports(s);
   call_sequence = 0;
-  s->res.erase_order = s->stream_abort_order = s->async_order = 0;
+  s->res.erase_order = 0;
+  s->stream_abort_order = 0;
+  s->async_order = 0;
   native_disruptive = 0;
   native_result = 1;
   common_result = 1;
@@ -779,30 +803,36 @@ static void check_precommit_cleanup_failure(struct fixture_environment *e,
   assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
   assert(cancel_calls == (bad_close ? 0 : 1) && close_calls == 1);
 }
+static void check_direct_precommit_redirect(struct fixture_environment *e, int phase) {
+  reset(&e->c,&e->s);
+  e->c.response.headers_committed=0;
+  e->c.response.headers_seen=phase==3;
+  haproxy_modsecurity_decision d={0};
+  d.phase=phase;d.disruptive=1;d.status=302;d.rule_id=1100202;
+  strcpy(d.action,"redirect");
+  strcpy(d.redirect_url,"https://no-crs.invalid/phase3-redirect");
+  haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"redirect");
+  assert(e->s.txn->status==302 && e->s.replies==1 && e->s.kills==0);
+  assert(e->s.redirects==1 && strcmp(e->s.location,d.redirect_url)==0);
+  assert(last_redirect_flags==(phase<=2?REDIRECT_FLAG_FROM_REQ:0U));
+  assert(finish_calls==1 && e->c.transaction==NULL && !e->c.lifecycle.fail_closed);
+  haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"reentry");
+  assert(e->s.redirects==1 && finish_calls==1);
+}
+static void check_literal_precommit_redirect(struct fixture_environment *e, int code) {
+  reset(&e->c,&e->s);e->c.response.headers_committed=0;
+  haproxy_modsecurity_decision d={0};d.phase=3;d.disruptive=1;d.status=code;
+  strcpy(d.action,"redirect");strcpy(d.redirect_url,"/literal/%[path]?value=%0d%0a");
+  assert(haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"literal redirect"));
+  assert(e->s.txn->status==code && strcmp(e->s.location,d.redirect_url)==0);
+}
 static void check_precommit_redirect(struct fixture_environment *e) {
-  for(int phase=1;phase<=3;++phase) {
-    reset(&e->c,&e->s);
-    e->c.response.headers_committed=0;
-    e->c.response.headers_seen=phase==3;
-    haproxy_modsecurity_decision d={0};
-    d.phase=phase;d.disruptive=1;d.status=302;d.rule_id=1100202;
-    strcpy(d.action,"redirect");
-    strcpy(d.redirect_url,"https://no-crs.invalid/phase3-redirect");
-    haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"redirect");
-    assert(e->s.txn->status==302 && e->s.replies==1 && e->s.kills==0);
-    assert(e->s.redirects==1 && strcmp(e->s.location,d.redirect_url)==0);
-    assert(last_redirect_flags==(phase<=2?REDIRECT_FLAG_FROM_REQ:0U));
-    assert(finish_calls==1 && e->c.transaction==NULL && !e->c.lifecycle.fail_closed);
-    haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"reentry");
-    assert(e->s.redirects==1 && finish_calls==1);
+  for (int phase = 1; phase <= 3; ++phase) {
+    check_direct_precommit_redirect(e, phase);
   }
-  const int codes[]={301,302,303,307,308};
-  for(size_t i=0;i<sizeof(codes)/sizeof(codes[0]);++i) {
-    reset(&e->c,&e->s);e->c.response.headers_committed=0;
-    haproxy_modsecurity_decision d={0};d.phase=3;d.disruptive=1;d.status=codes[i];
-    strcpy(d.action,"redirect");strcpy(d.redirect_url,"/literal/%[path]?value=%0d%0a");
-    assert(haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"literal redirect"));
-    assert(e->s.txn->status==codes[i] && strcmp(e->s.location,d.redirect_url)==0);
+  const int codes[] = {301, 302, 303, 307, 308};
+  for (size_t i = 0; i < sizeof(codes) / sizeof(codes[0]); ++i) {
+    check_literal_precommit_redirect(e, codes[i]);
   }
   reset(&e->c,&e->s);e->c.companion.mode=1;e->c.transaction=NULL;
   decision_kind=MSCONNECTOR_DECISION_KIND_REDIRECT;
@@ -813,40 +843,49 @@ static void check_precommit_redirect(struct fixture_environment *e) {
   assert(release_order>outcome_order && outcome_order>redirect_order);
   assert(e->neighbour.replies==0 && e->neighbour.kills==0);
 }
+static void configure_redirect_failure(struct fixture_environment *e,
+                                       haproxy_modsecurity_decision *d, int failure) {
+  switch(failure) {
+    case 0:d->status=304;break;
+    case 1:d->redirect_url[0]=0;break;
+    case 2:strcpy(d->redirect_url,"/bad\r\nInjected: yes");break;
+    case 3:strcpy(d->redirect_url,"/bad\tvalue");break;
+    case 4:d->redirect_url[0]=127;d->redirect_url[1]=0;break;
+    case 5:memset(d->redirect_url,'x',sizeof(d->redirect_url));break;
+    case 6:redirect_api_result=0;break;
+    case 7:redirect_api_result=2;break;
+    case 8:finish_result=1;break;
+    case 9:
+      e->c.lifecycle.fail_closed=1;
+      e->c.lifecycle.error.error_class=MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
+      e->c.lifecycle.error.phase=2;e->c.lifecycle.error.status=504;break;
+    case 10:e->c.response.headers_committed=1;break;
+    case 11:e->c.lifecycle.fail_closed=1;break;
+    default: assert(0 && "unknown redirect failure variant"); break;
+  }
+}
+static void check_direct_redirect_failure(struct fixture_environment *e, int failure) {
+  reset(&e->c,&e->s);e->c.response.headers_committed=0;
+  haproxy_modsecurity_decision d={0};d.phase=3;d.disruptive=1;d.status=302;
+  strcpy(d.action,"redirect");strcpy(d.redirect_url,"https://no-crs.invalid/phase3-redirect");
+  configure_redirect_failure(e, &d, failure);
+  assert(!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"invalid redirect"));
+  assert(e->s.redirects==0 && e->s.location[0]==0);
+  if(failure==10)assert(e->s.replies==0 && e->s.kills==1 && e->s.txn->status==200);
+  else assert(e->s.replies==1 && e->s.txn->status==503 && e->s.kills==0);
+  assert(redirect_api_calls==(unsigned int)(failure==6 || failure==7));
+  if(failure==9) {
+    assert(e->c.lifecycle.error.error_class==MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT);
+    assert(e->c.lifecycle.error.phase==2 && e->c.lifecycle.error.status==504);
+  } else if(failure!=8)assert(e->c.lifecycle.error.phase==3);
+  unsigned int replies=e->s.replies;
+  unsigned int kills=e->s.kills;
+  assert(!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"reentry"));
+  assert(e->s.replies==replies && e->s.kills==kills);
+}
 static void check_redirect_fail_closed(struct fixture_environment *e) {
-  for(int failure=0;failure<12;++failure) {
-    reset(&e->c,&e->s);e->c.response.headers_committed=0;
-    haproxy_modsecurity_decision d={0};d.phase=3;d.disruptive=1;d.status=302;
-    strcpy(d.action,"redirect");strcpy(d.redirect_url,"https://no-crs.invalid/phase3-redirect");
-    switch(failure) {
-      case 0:d.status=304;break;
-      case 1:d.redirect_url[0]=0;break;
-      case 2:strcpy(d.redirect_url,"/bad\r\nInjected: yes");break;
-      case 3:strcpy(d.redirect_url,"/bad\tvalue");break;
-      case 4:d.redirect_url[0]=127;d.redirect_url[1]=0;break;
-      case 5:memset(d.redirect_url,'x',sizeof(d.redirect_url));break;
-      case 6:redirect_api_result=0;break;
-      case 7:redirect_api_result=2;break;
-      case 8:finish_result=1;break;
-      case 9:
-        e->c.lifecycle.fail_closed=1;
-        e->c.lifecycle.error.error_class=MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
-        e->c.lifecycle.error.phase=2;e->c.lifecycle.error.status=504;break;
-      case 10:e->c.response.headers_committed=1;break;
-      case 11:e->c.lifecycle.fail_closed=1;break;
-    }
-    assert(!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"invalid redirect"));
-    assert(e->s.redirects==0 && e->s.location[0]==0);
-    if(failure==10)assert(e->s.replies==0 && e->s.kills==1 && e->s.txn->status==200);
-    else assert(e->s.replies==1 && e->s.txn->status==503 && e->s.kills==0);
-    assert(redirect_api_calls==(unsigned int)(failure==6 || failure==7));
-    if(failure==9) {
-      assert(e->c.lifecycle.error.error_class==MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT);
-      assert(e->c.lifecycle.error.phase==2 && e->c.lifecycle.error.status==504);
-    } else if(failure!=8)assert(e->c.lifecycle.error.phase==3);
-    unsigned int replies=e->s.replies,kills=e->s.kills;
-    assert(!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(&e->s,&e->c,&d,"reentry"));
-    assert(e->s.replies==replies && e->s.kills==kills);
+  for (int failure = 0; failure < 12; ++failure) {
+    check_direct_redirect_failure(e, failure);
   }
   char overlong[1025];memset(overlong,'x',sizeof(overlong));overlong[1024]=0;
   const char *invalid[]={NULL,"/bad\r\nInjected: yes","",overlong};
@@ -921,52 +960,60 @@ static void check_eos(struct fixture_environment *e) {
   assert(e->s.kills == 0 && e->s.replies == 0 && eos_calls == 1 &&
          release_calls == 1);
 }
-static void check_strict_queued_response(struct fixture_environment *e) {
+static void check_strict_queued_case(struct fixture_environment *e,
+                                     int companion, size_t queued,
+                                     int committed, int strict) {
+  reset(&e->c, &e->s);
+  e->config.common_config.phase4_mode = strict ? MSCONNECTOR_PHASE4_MODE_STRICT : MSCONNECTOR_PHASE4_MODE_SAFE;
+  e->c.companion.mode = companion;
+  if (companion) e->c.transaction = NULL;
+  e->c.response.headers_committed = 1;
+  e->s.res.output = queued;
+  e->s.delivered_bytes = committed ? 177 : 0;
+  native_result = 0;
+  native_disruptive = 1;
+  decision_kind = MSCONNECTOR_DECISION_KIND_DENY;
+  int result = haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res);
+  assert(e->s.delivered_bytes == (committed ? 177U : 0U));
+  if (strict) {
+    /* Positive http_end lets HAProxy advance/forward queued output. */
+    assert(result == -1);
+    assert(e->s.res.output == 0 && e->s.stream_aborts == 1);
+    assert(e->s.frontend.aborts == 1 && e->s.frontend.shutdowns == 1);
+    assert(e->s.frontend.flags & SC_FL_NOLINGER);
+    assert(e->s.client_conn.hard_calls==1 && e->s.client_conn.clean_calls==1);
+    assert(e->s.client_conn.close_notify==0);
+    assert(e->s.res.erase_order < e->s.client_conn.hard_order);
+    assert(e->s.client_conn.hard_order < e->s.stream_abort_order);
+    assert(e->s.client_conn.hard_order < e->s.client_conn.clean_order);
+    assert(e->s.client_conn.clean_order < e->s.async_order);
+    assert(outcome_calls == 0); /* shutdown is not invented wire observation */
+    int terminal_calls = abort_calls + release_calls;
+    assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
+    assert(abort_calls + release_calls == terminal_calls);
+  } else {
+    assert(result == 1 && e->s.res.output == queued);
+    assert(e->s.stream_aborts == 0);
+    assert(e->s.frontend.aborts == 0 && e->s.frontend.shutdowns == 0);
+    assert(e->s.client_conn.hard_calls==0 && e->s.client_conn.clean_calls==0);
+  }
+  assert(e->neighbour.kills == 0 && e->neighbour.replies == 0);
+  assert(e->neighbour.client_conn.hard_calls==0 && e->neighbour.client_conn.clean_calls==0);
+  assert(e->s.server_conn.hard_calls==0 && e->s.server_conn.clean_calls==0);
+}
+static void check_strict_queued_route(struct fixture_environment *e, int companion) {
   const size_t queued[] = {0, 33, 65537};
-  for (int companion = 0; companion < 2; companion++) {
-    for (size_t n = 0; n < sizeof(queued) / sizeof(queued[0]); n++) {
-      for (int committed = 0; committed < 2; committed++) {
-        for (int strict = 0; strict < 2; strict++) {
-          reset(&e->c, &e->s);
-          e->config.common_config.phase4_mode = strict ? MSCONNECTOR_PHASE4_MODE_STRICT : MSCONNECTOR_PHASE4_MODE_SAFE;
-          e->c.companion.mode = companion;
-          if (companion) e->c.transaction = NULL;
-          e->c.response.headers_committed = 1;
-          e->s.res.output = queued[n];
-          e->s.delivered_bytes = committed ? 177 : 0;
-          native_result = 0;
-          native_disruptive = 1;
-          decision_kind = MSCONNECTOR_DECISION_KIND_DENY;
-          int result = haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res);
-          assert(e->s.delivered_bytes == (committed ? 177U : 0U));
-          if (strict) {
-            /* Positive http_end lets HAProxy advance/forward queued output. */
-            assert(result == -1);
-            assert(e->s.res.output == 0 && e->s.stream_aborts == 1);
-            assert(e->s.frontend.aborts == 1 && e->s.frontend.shutdowns == 1);
-            assert(e->s.frontend.flags & SC_FL_NOLINGER);
-            assert(e->s.client_conn.hard_calls==1 && e->s.client_conn.clean_calls==1);
-            assert(e->s.client_conn.close_notify==0);
-            assert(e->s.res.erase_order < e->s.client_conn.hard_order);
-            assert(e->s.client_conn.hard_order < e->s.stream_abort_order);
-            assert(e->s.client_conn.hard_order < e->s.client_conn.clean_order);
-            assert(e->s.client_conn.clean_order < e->s.async_order);
-            assert(outcome_calls == 0); /* shutdown is not invented wire observation */
-            int terminal_calls = abort_calls + release_calls;
-            assert(haproxy_modsecurity_htx_filter_http_end(&e->s, &e->f, &e->res) == -1);
-            assert(abort_calls + release_calls == terminal_calls);
-          } else {
-            assert(result == 1 && e->s.res.output == queued[n]);
-            assert(e->s.stream_aborts == 0);
-            assert(e->s.frontend.aborts == 0 && e->s.frontend.shutdowns == 0);
-            assert(e->s.client_conn.hard_calls==0 && e->s.client_conn.clean_calls==0);
-          }
-          assert(e->neighbour.kills == 0 && e->neighbour.replies == 0);
-          assert(e->neighbour.client_conn.hard_calls==0 && e->neighbour.client_conn.clean_calls==0);
-          assert(e->s.server_conn.hard_calls==0 && e->s.server_conn.clean_calls==0);
-        }
+  for (size_t n = 0; n < sizeof(queued) / sizeof(queued[0]); ++n) {
+    for (int committed = 0; committed < 2; ++committed) {
+      for (int strict = 0; strict < 2; ++strict) {
+        check_strict_queued_case(e, companion, queued[n], committed, strict);
       }
     }
+  }
+}
+static void check_strict_queued_response(struct fixture_environment *e) {
+  for (int companion = 0; companion < 2; ++companion) {
+    check_strict_queued_route(e, companion);
   }
 }
 static void check_strict_transport_endpoints(struct fixture_environment *e) {
@@ -990,6 +1037,7 @@ static void check_strict_transport_endpoints(struct fixture_environment *e) {
         break;
       case 9: e->s.client_conn.mux=NULL; break;
       case 10: e->s.client_conn.mux=&nameless; break;
+      default: assert(0 && "unknown transport endpoint variant"); break;
     }
     haproxy_modsecurity_htx_abort_response_stream(&e->s);
     assert(e->s.res.output==0 && e->s.kills==1);

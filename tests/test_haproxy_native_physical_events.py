@@ -15,7 +15,14 @@ class NativePhysicalEvents(unittest.TestCase):
         structs = source[source.index("struct haproxy_modsecurity_htx_filter_config {"):
                          source.index("typedef int (*haproxy_modsecurity_htx_append_body_chunk)")]
         names = ["haproxy_modsecurity_htx_report_decision"]
-        for name in ("haproxy_modsecurity_htx_event_sink_failed", "haproxy_modsecurity_htx_write_event"):
+        for name in (
+            "haproxy_modsecurity_htx_observed_error_phase",
+            "haproxy_modsecurity_htx_event_reason",
+            "haproxy_modsecurity_htx_event_eos",
+            "haproxy_modsecurity_htx_prepare_event",
+            "haproxy_modsecurity_htx_event_sink_failed",
+            "haproxy_modsecurity_htx_write_event",
+        ):
             if name + "(" in source:
                 names.insert(0, name)
         names.sort(key=lambda name: source.index(name + "("))

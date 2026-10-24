@@ -12,6 +12,7 @@ import shlex
 import socket
 import struct
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -21,16 +22,43 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS = r'''
 #define _GNU_SOURCE
+#undef poll
 #include "connectors/traefik/src/traefik_provenance.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #define RUNTIME_PATH_SIZE 4096U
 ANCESTORS
 static int reject_confirmation;
 static int confirmations;
+static atomic_int query_wait_armed;
+static int fillers[64];
+static size_t filler_count;
+static int exhaust_descriptors(void) {
+    struct rlimit limit;
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) return 0;
+    if (limit.rlim_cur > 64U) limit.rlim_cur = 64U;
+    if (setrlimit(RLIMIT_NOFILE, &limit) != 0) return 0;
+    while (filler_count < sizeof(fillers) / sizeof(fillers[0])) {
+        int fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+        if (fd < 0) return errno == EMFILE;
+        fillers[filler_count++] = fd;
+    }
+    return 0;
+}
+int mtp_fixture_poll(struct pollfd *items, nfds_t count, int timeout) {
+    if (count == 1U && items[0].events == POLLIN && timeout > 100) {
+        if (atomic_exchange(&query_wait_armed, 0)) puts("{\"query_wait\":1}");
+    }
+    return poll(items, count, timeout);
+}
 static int confirm_fixture(void *unused, const char *handle, msconnector_error *error) {
     (void)unused; (void)handle; (void)error; ++confirmations; return !reject_confirmation;
 }
@@ -44,6 +72,12 @@ int main(int argc, char **argv) {
     if (!started) return 0;
     while (scanf("%15s", command) == 1) {
         if (strcmp(command, "stop") == 0) break;
+        if (strcmp(command, "arm-query") == 0) {
+            atomic_store(&query_wait_armed, 1); puts("{\"armed\":1}"); continue;
+        }
+        if (strcmp(command, "exhaust") == 0) {
+            printf("{\"exhausted\":%d}\n", exhaust_descriptors()); continue;
+        }
         if (strcmp(command, "reject-confirm") == 0) {
             reject_confirmation = 1; puts("{\"reject\":1}"); continue;
         }
@@ -71,6 +105,7 @@ int main(int argc, char **argv) {
                 provenance.connection_id, provenance.connection_reused);
         }
     }
+    for (size_t i = 0; i < filler_count; ++i) close(fillers[i]);
     msconnector_traefik_provenance_stop();
     puts("{\"stopped\":1}");
     return 0;
@@ -90,7 +125,7 @@ class TraefikTrustedProvenanceTests(unittest.TestCase):
             "msconnector_runtime_private_directory_ancestors_are_safe")))
         cls.binary = cls.directory / "harness"
         command = shlex.split(os.environ.get("CC", "cc")) + [
-            "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
+            "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread", "-Dpoll=mtp_fixture_poll",
             "-ffunction-sections", "-Wl,--gc-sections", "-I", str(ROOT),
             "-I", str(ROOT / "common/include"), str(fixture),
             str(ROOT / "connectors/traefik/src/traefik_provenance.c"),
@@ -187,6 +222,25 @@ class TraefikTrustedProvenanceTests(unittest.TestCase):
             pass
         self.assertEqual(self.command("confirm-count"), {"confirmations": 1})
 
+    def test_partial_query_wait_does_not_block_an_independent_claim(self):
+        blocked, blocked_token = self.reserve()
+        _, neighbor_token = self.reserve()
+        self.assertEqual(self.command("claim " + blocked_token)["result"], 1)
+        self.assertEqual(self.command("complete " + blocked_token + " 403 -"), {"result": 1})
+        self.assertEqual(self.command("arm-query"), {"armed": 1})
+        query = self.frame(2)
+        blocked.sendall(query[:1])
+        # The test poll wrapper announces the actual partial-query wait. No
+        # scheduling sleep or production instrumentation establishes ordering.
+        self.assertEqual(self.read(), {"query_wait": 1})
+        self.process.stdin.write("claim " + neighbor_token + "\n")
+        self.process.stdin.flush()
+        self.assertTrue(select.select([self.process.stdout], [], [], 0.5)[0],
+                        "partial private query retained the reservation mutex")
+        self.assertEqual(self.read()["result"], 1)
+        blocked.sendall(query[1:])
+        self.assertEqual(self.exact(blocked, 12), self.frame(128, bytes(67))[:12])
+        self.assertEqual(self.exact(blocked, 67), b"\0" + struct.pack("!H", 403) + bytes(64))
     def test_forged_missing_duplicate_and_closed_bindings_fail(self):
         self.assertEqual(self.command("claim " + "a" * 64)["result"], 0)
         connection, token = self.reserve()
@@ -207,6 +261,21 @@ class TraefikTrustedProvenanceTests(unittest.TestCase):
         _, token = self.reserve()
         time.sleep(5.1)
         self.assertEqual(self.command("claim " + token)["result"], 0)
+
+    def test_expiry_reaps_slots_without_a_spare_descriptor(self):
+        self.reserve()
+        self.reserve()
+        self.assertEqual(self.command("exhaust"), {"exhausted": 1})
+        descriptors = Path(f"/proc/{self.process.pid}/fd")
+        before = len(list(descriptors.iterdir()))
+        deadline = time.monotonic() + 7
+        while len(list(descriptors.iterdir())) > before - 2 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertLessEqual(len(list(descriptors.iterdir())), before - 2,
+                             "expired registry descriptors were retained under EMFILE")
+        # Freeing the expired originals permits a new real reservation even
+        # while the unrelated filler descriptors remain open.
+        self.reserve()
 
     def test_fixed_capacity_rejects_overflow_without_evicting_neighbor(self):
         reservations = [self.reserve() for _ in range(128)]
@@ -249,7 +318,7 @@ s.close()
 '''
         for gid, uid in ((65534, 0), (0, 65534)):
             with self.subTest(gid=gid, uid=uid):
-                result = subprocess.run(["/usr/local/bin/python3", "-I", "-c", script,
+                result = subprocess.run([sys.executable, "-I", "-c", script,
                     str(self.path), str(gid), str(uid)], capture_output=True, text=True, timeout=5)
                 if result.returncode == 77:
                     self.skipTest("foreign Unix IDs are unavailable in this user namespace")

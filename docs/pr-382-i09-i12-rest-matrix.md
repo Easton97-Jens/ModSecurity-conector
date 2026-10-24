@@ -71,7 +71,7 @@ Completed I09f/I10e Apache module repairs and other checked subsets remain prese
 
 ## Boundaries and separate next steps
 
-Apache's void writer diagnoses serialization/write/close failures but does not return sink completion to its host caller. SPOP leaves the Common-event `fputs`/`fflush` unchecked. These are freshly source-confirmed propagation gaps, not invented live failures or reopened Apache module repairs. Policy and negative physical-sink tests must be scoped separately before targeted fixes.
+The two `SOURCE_CONFIRMED_PROPAGATION_GAP` findings above are historical assessments of `b2622a5d6ca746485c08f4789208299a111f47c7`. The current Apache writer returns typed sticky sink errors, and SPOP checks staging and physical publication failures. Their focused contracts are in `tests/test_apache_event_sink_failures.py` and `tests/test_haproxy_spop_event_sink_failures.py`. The historical table is retained with its original revision; it neither reopens these repaired causes nor supplies fresh host evidence for the integration head.
 
 Transport short-write/EAGAIN/UDS/gRPC aborts are not physical event-log sink proof. Composite coordinator/response-observer transport is supporting infrastructure, not an additional independent traffic-owning route; it replaces neither companion endpoint nor host adapter. Unmodified lighttpd Stock native stays diagnostic/control; patched lighttpd Strict is not promoted from callback returns to client abort. Request-only needs its actual response companion.
 

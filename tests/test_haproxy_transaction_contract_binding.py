@@ -172,9 +172,10 @@ def test_htx_selects_its_own_canonical_profile() -> None:
 
 
 def test_spop_uses_direct_request_routes_and_owned_companion_response_routes() -> None:
-    start = SOURCE.index("static int begin_request_with_scope(")
+    start = SOURCE.index("static int profile_has_haproxy_phase_routes(")
     end = SOURCE.index("int haproxy_modsecurity_transaction_begin_request(", start)
     profile_validation = SOURCE[start:end]
+    assert "if (!profile_has_haproxy_phase_routes(profile)) {" in profile_validation
     assert "MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT" in profile_validation
     assert "MSCONNECTOR_TRANSACTION_PHASE_ROUTE_COMPANION_REQUIRED" in profile_validation
     assert "required direct P1/P2 and owned P3/P4 routes" in profile_validation

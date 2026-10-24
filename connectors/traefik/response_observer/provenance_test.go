@@ -78,6 +78,21 @@ func provenanceRequest() *http.Request {
 		&net.TCPAddr{IP: net.ParseIP("192.0.2.2"), Port: 8080}))
 }
 
+func serveConfirmedProvenance(t *testing.T, backend http.Handler, observer, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	confirm, err := New(context.Background(), backend, &Config{ConfirmProvenance: true}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(context.Background(), confirm, &Config{SocketPath: observer, ProvenanceSocketPath: path, RunID: "run-1", TransportCaseID: "case-1"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, provenanceRequest())
+	return recorder
+}
+
 func TestProvenanceTerminalReplyRequiresPrivateStatusAndStripsForgedCapability(t *testing.T) {
 	path, payloads := startProvenancePeer(t, 403, "")
 	var observed string
@@ -122,16 +137,7 @@ func TestProvenanceOuterAllowUsesPrivateHandleForCanonicalLifecycle(t *testing.T
 		w.WriteHeader(201)
 		_, _ = io.WriteString(w, "allow-bytes")
 	})
-	confirm, err := New(context.Background(), backend, &Config{ConfirmProvenance: true}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler, err := New(context.Background(), confirm, &Config{SocketPath: observer, ProvenanceSocketPath: path, RunID: "run-1", TransportCaseID: "case-1"}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, provenanceRequest())
+	recorder := serveConfirmedProvenance(t, backend, observer, path)
 	if recorder.Code != 201 || recorder.Body.String() != "allow-bytes" {
 		t.Fatalf("status/body = %d %q", recorder.Code, recorder.Body.String())
 	}
@@ -148,23 +154,15 @@ func TestProvenanceFakeTransportConfirmationPrecedesSlowBackend(t *testing.T) {
 	observer, stop, operations := startFakeObserver(t, func(byte) (byte, byte) { return resultOK, decisionAllow })
 	defer stop()
 	path, _ := startProvenancePeer(t, 200, testHandle)
-	confirm, err := New(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	backend := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(5100 * time.Millisecond)
 		if len(operations.snapshot()) != 0 {
 			t.Error("MRC1 claim consumed backend waiting time")
 		}
 		w.WriteHeader(201)
 		_, _ = io.WriteString(w, "slow-allow-bytes")
-	}), &Config{ConfirmProvenance: true}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler, err := New(context.Background(), confirm, &Config{SocketPath: observer, ProvenanceSocketPath: path, RunID: "run-1", TransportCaseID: "case-1"}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, provenanceRequest())
+	})
+	recorder := serveConfirmedProvenance(t, backend, observer, path)
 	if recorder.Code != 201 || recorder.Body.String() != "slow-allow-bytes" {
 		t.Fatalf("status/body = %d %q", recorder.Code, recorder.Body.String())
 	}
@@ -210,52 +208,61 @@ func startCleanupCausePeer(t *testing.T) (string, <-chan byte) {
 	return path, causes
 }
 
+func provenanceHeaderExitFixture(t *testing.T, mode string) (http.Handler, *http.Request, <-chan byte) {
+	t.Helper()
+	observer, causes := startCleanupCausePeer(t)
+	path, _ := startProvenancePeer(t, 200, testHandle)
+	request := provenanceRequest()
+	ctx, cancel := context.WithCancel(request.Context())
+	t.Cleanup(cancel)
+	request = request.WithContext(ctx)
+	confirm, err := New(context.Background(), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		if mode == "cancel" {
+			cancel()
+		}
+		if mode == "panic" {
+			panic("fixture panic")
+		}
+	}), &Config{ConfirmProvenance: true}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer, err := New(context.Background(), confirm, &Config{SocketPath: observer, ProvenanceSocketPath: path, RunID: "run", TransportCaseID: "case"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return outer, request, causes
+}
+
+func assertProvenanceHeaderExit(t *testing.T, mode string) {
+	t.Helper()
+	outer, request, causes := provenanceHeaderExitFixture(t, mode)
+	recorder := httptest.NewRecorder()
+	var recovered any
+	func() { defer func() { recovered = recover() }(); outer.ServeHTTP(recorder, request) }()
+	if mode == "panic" && recovered != "fixture panic" {
+		t.Fatalf("panic = %v", recovered)
+	}
+	if mode != "panic" && (recovered != nil || recorder.Code != 503) {
+		t.Fatalf("panic/status = %v %d", recovered, recorder.Code)
+	}
+	want := cancelConnectorError
+	if mode == "cancel" {
+		want = cancelClientCancel
+	}
+	select {
+	case got := <-causes:
+		if got != want {
+			t.Fatalf("cause = %d want %d", got, want)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no typed cleanup claim/cancel")
+	}
+}
+
 func TestProvenanceBeforeHeaderExitClaimsOnlyForTypedCleanup(t *testing.T) {
 	for _, mode := range []string{"cancel", "panic", "return"} {
-		t.Run(mode, func(t *testing.T) {
-			observer, causes := startCleanupCausePeer(t)
-			path, _ := startProvenancePeer(t, 200, testHandle)
-			request := provenanceRequest()
-			ctx, cancel := context.WithCancel(request.Context())
-			defer cancel()
-			request = request.WithContext(ctx)
-			confirm, err := New(context.Background(), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				if mode == "cancel" {
-					cancel()
-				}
-				if mode == "panic" {
-					panic("fixture panic")
-				}
-			}), &Config{ConfirmProvenance: true}, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			outer, err := New(context.Background(), confirm, &Config{SocketPath: observer, ProvenanceSocketPath: path, RunID: "run", TransportCaseID: "case"}, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			recorder := httptest.NewRecorder()
-			var recovered any
-			func() { defer func() { recovered = recover() }(); outer.ServeHTTP(recorder, request) }()
-			if mode == "panic" && recovered != "fixture panic" {
-				t.Fatalf("panic = %v", recovered)
-			}
-			if mode != "panic" && (recovered != nil || recorder.Code != 503) {
-				t.Fatalf("panic/status = %v %d", recovered, recorder.Code)
-			}
-			want := cancelConnectorError
-			if mode == "cancel" {
-				want = cancelClientCancel
-			}
-			select {
-			case got := <-causes:
-				if got != want {
-					t.Fatalf("cause = %d want %d", got, want)
-				}
-			case <-time.After(3 * time.Second):
-				t.Fatal("no typed cleanup claim/cancel")
-			}
-		})
+		t.Run(mode, func(t *testing.T) { assertProvenanceHeaderExit(t, mode) })
 	}
 }
 

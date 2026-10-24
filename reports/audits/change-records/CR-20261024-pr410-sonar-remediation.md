@@ -124,4 +124,54 @@ on the original source and passes with the fix; the existing CANCEL case also
 passes (two selected unit scenarios, no retries, local Go1.27.3).
 Commands, baseline/fixed logs and source digests are retained in the same task
 run root. `observer_test.go` adds this regression without removing assertions.
-Automatic exact-head verification for this second source correction is pending.
+Source head `3d5095e3561df29a217537ab500ce8595e1a5067` subsequently passed
+26 checks with two conditional skips. Sonar analysis
+`32cca90c-523f-4810-9941-5cfe37314c15` is terminal SUCCESS, Gate OK with zero
+open/accepted issues, hotspots and new duplication.
+
+## Joint PR #382 repair and acceptance
+
+Integration uses normal merge commits `86101a0c` and `bba093f5`; original source
+`11324289` and updated source `3d5095e3` are ancestors. Master-rule revision
+`42fd5a8e` is retained. Framework `99a7985c` and MRTS `8a6bb546` repositories
+and gitlinks remain unchanged. The source PR's 25-file docs/report reduction and
+machine-consumed inputs remain intact.
+
+The #382 baseline has 95 open findings (two Reliability bugs and 93 smells),
+no accepted issues or hotspots, and duplication in four files. Changes cover
+Common/NGINX/HAProxy/Traefik source, C fixtures, current-source extraction
+dependencies and shared lifecycle stubs. They preserve public APIs, all existing
+scenario variants, cleanup ownership, first-error precedence and assertions.
+The real Traefik lock-duration defect has a deterministic failing old-source
+control; descriptor snapshots and allocation-free expiry cleanup now pass their
+focused controls. An independent review caught and removed an intermediate
+fd-exhaustion cleanup risk before publication.
+
+The coordinated selection is 100 expanded unit/native/contract scenarios:
+Apache13, Traefik native20, HAProxy22, Common9, NGINX10, trusted HTTP12,
+native telemetry7, cancellation2, Go provenance4 and scanner control1.
+Local result: 98 PASS, no FAIL/ERROR, two foreign UID/GID controls blocked by
+the host's `0 0 1` user/group mappings. Their exact Hosted-CI native tests reject
+skips; the test child uses the selected interpreter. No connector E2E case or
+historical I12 execution was added. Unselected historical cases keep their old
+results/revisions; global E2E-cap enforcement remains unproven.
+
+Gitleaks initially found 1,017 immutable prose/hash false positives across the
+combined history. Per-finding classification includes source-line/blob digests,
+typed consumers and 903 recomputed original source-file digests. The sanitized
+triage has zero unresolved items. `.gitleaksignore` contains only exact immutable
+fingerprints; all default rules, redaction and the full PR range remain active.
+The 253-commit integration scan passes; a new-commit synthetic control remains
+detected. This is a proven false-positive disposition, not risk acceptance.
+
+RTK-wrapped checks include the frozen selector/preflight and focused dispatcher,
+negative old-source controls, native C17/Wextra/Werror compilation, native
+NGINX compile, Go build/test compilation/gofmt, full-range Gitleaks and its
+negative control, workflow lint, and paired-document/link/diff validation.
+Local Python3.14.4/Go1.27.3 and hosted Python3.14.7/Go1.27.2 remain distinct.
+Run evidence, exact commands, digests, skips and publication/readback facts are
+retained under `/var/tmp/codex/ModSecurity-conector/runs/pr382-integrate410-20261024`.
+Current shared-head CI, Sonar processing/gates and reviews are evaluated at the
+published #382 head; source #410's green result does not transfer automatically.
+Coverage import and runtime/lifecycle acceptance are separate from these tests.
+No master integration, release, deployment or historical qualification is granted.

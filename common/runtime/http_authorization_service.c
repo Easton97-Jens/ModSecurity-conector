@@ -1222,6 +1222,61 @@ typedef struct authorization_mapping_error {
     size_t capacity;
 } authorization_mapping_error;
 
+static int authorization_handoff_response_transaction(
+    authorization_service *service,
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    char *response_handle,
+    msconnector_error *error,
+    authorization_response_state *response) {
+    const msconnector_decision_action action =
+        msconnector_decision_action_from_decision(decision);
+    if (!response->success || service->profile->handoff_response_companion == NULL ||
+        (action != MSCONNECTOR_DECISION_ACTION_ALLOW &&
+         action != MSCONNECTOR_DECISION_ACTION_LOG_ONLY)) {
+        return 0;
+    }
+    if (service->profile->handoff_response_companion(service->runtime,
+            transaction, service->profile->response_companion_userdata,
+            response_handle, error) != 1) {
+        authorization_response_set_runtime_error(service, error, response);
+        return 0;
+    }
+    /* The companion owns this live Common/native transaction until P3/P4 EOS
+     * or TTL cleanup. The request-only service must not finish or destroy it. */
+    memmove(response->copied_response_handle, response_handle,
+        sizeof(response->copied_response_handle));
+    response->response_handle = response->copied_response_handle;
+    return 1;
+}
+
+static void authorization_finish_request_transaction(
+    const authorization_service *service,
+    msconnector_runtime_transaction **transaction,
+    authorization_response_state *response) {
+    if (*transaction != NULL) {
+        msconnector_error finish_error;
+        msconnector_error_init(&finish_error);
+        if (msconnector_runtime_transaction_finish(*transaction, &finish_error) != 1 &&
+            response->success) {
+            authorization_response_set_runtime_error(service, &finish_error, response);
+        }
+    }
+    response->terminal_response_marker =
+        service->profile->terminal_response_marker_header != NULL &&
+        service->profile->terminal_response_marker_value != NULL;
+    if (service->trusted_binding.claim != NULL && *transaction != NULL) {
+        msconnector_runtime_transaction_snapshot snapshot;
+        msconnector_error cleanup_error;
+        msconnector_error_init(&cleanup_error);
+        if (!msconnector_runtime_transaction_finalize_and_snapshot(transaction,
+                &snapshot, &cleanup_error)) {
+            authorization_response_set_runtime_error(service, &cleanup_error, response);
+        }
+    }
+    msconnector_runtime_transaction_destroy(transaction);
+}
+
 static void authorization_process_runtime_request(
     authorization_service *service,
     const authorization_connection *connection,
@@ -1259,48 +1314,11 @@ static void authorization_process_runtime_request(
         } else {
             authorization_response_set_decision(service, &decision, response);
         }
-        if (response->success && service->profile->handoff_response_companion != NULL &&
-            (msconnector_decision_action_from_decision(&decision) ==
-                MSCONNECTOR_DECISION_ACTION_ALLOW ||
-             msconnector_decision_action_from_decision(&decision) ==
-                MSCONNECTOR_DECISION_ACTION_LOG_ONLY)) {
-            if (service->profile->handoff_response_companion(service->runtime,
-                    transaction, service->profile->response_companion_userdata,
-                    response_handle, &common_error) != 1) {
-                authorization_response_set_runtime_error(service, &common_error, response);
-            } else {
-                /* The companion owns this live Common/native transaction until
-                 * P3/P4 EOS or TTL cleanup. It is not safe for the
-                 * request-only authorization service to finish or destroy it. */
-                response_companion_owns_transaction = 1;
-                memmove(response->copied_response_handle, response_handle,
-                    sizeof(response->copied_response_handle));
-                response->response_handle = response->copied_response_handle;
-            }
-        }
-    }
-    if (!response_companion_owns_transaction && transaction != NULL) {
-        msconnector_error finish_error;
-        msconnector_error_init(&finish_error);
-        if (msconnector_runtime_transaction_finish(transaction, &finish_error) != 1 &&
-            response->success) {
-            authorization_response_set_runtime_error(service, &finish_error, response);
-        }
+        response_companion_owns_transaction = authorization_handoff_response_transaction(
+            service, transaction, &decision, response_handle, &common_error, response);
     }
     if (!response_companion_owns_transaction) {
-        response->terminal_response_marker =
-            service->profile->terminal_response_marker_header != NULL &&
-            service->profile->terminal_response_marker_value != NULL;
-        if (service->trusted_binding.claim != NULL && transaction != NULL) {
-            msconnector_runtime_transaction_snapshot snapshot;
-            msconnector_error cleanup_error;
-            msconnector_error_init(&cleanup_error);
-            if (!msconnector_runtime_transaction_finalize_and_snapshot(&transaction,
-                    &snapshot, &cleanup_error)) {
-                authorization_response_set_runtime_error(service, &cleanup_error, response);
-            }
-        }
-        msconnector_runtime_transaction_destroy(&transaction);
+        authorization_finish_request_transaction(service, &transaction, response);
     }
     if (binding_claimed && service->trusted_binding.complete != NULL &&
         !service->trusted_binding.complete(service->trusted_binding.userdata,

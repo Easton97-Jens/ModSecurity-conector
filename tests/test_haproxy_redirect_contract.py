@@ -65,7 +65,7 @@ int main(void) {
 
 class HAProxyRedirectCapture(unittest.TestCase):
     def run_capture(self, source, sanitizers=False, header_source=None):
-        names = ("copy_message", "init_decision", "native_error_decision", "init_intervention", "capture_intervention")
+        names = ("copy_message", "init_decision", "native_error_decision", "init_intervention", "capture_intervention_action", "capture_intervention")
         program = PREAMBLE + "\n".join(function_definition(source, name) for name in names) + MAIN
         parent = Path(os.environ.get("TMPDIR") or "/var/tmp/codex/ModSecurity-conector/tmp")
         parent.mkdir(parents=True, exist_ok=True)
@@ -103,9 +103,11 @@ class HAProxyRedirectCapture(unittest.TestCase):
                 self.assertIn(old,header)
                 observed=self.run_capture(source,header_source=header.replace(old,new,1))
                 self.assertNotEqual(observed.returncode,0,"unsafe URL mutation survived")
-        cleanup = 'native_error_decision(decision, "invalid native redirect URL");\n                msc_intervention_cleanup(&intervention);'
+        cleanup = ('if (capture_intervention_action(&intervention, body_limit, decision) != 0) {\n'
+                   '            msc_intervention_cleanup(&intervention);')
         self.assertIn(cleanup,source)
-        observed=self.run_capture(source.replace(cleanup,'native_error_decision(decision, "invalid native redirect URL");',1))
+        observed=self.run_capture(source.replace(cleanup,
+            'if (capture_intervention_action(&intervention, body_limit, decision) != 0) {',1))
         self.assertNotEqual(observed.returncode,0,"lost native cleanup mutation survived")
 
     def test_capture_asan_ubsan(self):

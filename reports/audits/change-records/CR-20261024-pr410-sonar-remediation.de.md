@@ -134,4 +134,58 @@ mit dem Fix; der bestehende CANCEL-Fall besteht ebenfalls (zwei ausgewählte
 Unit-Szenarien, keine Retries, lokales Go1.27.3). Befehle, Baseline-/Fixlogs und
 Quelldigests bleiben unter derselben Run-Wurzel erhalten. `observer_test.go`
 ergänzt diese Regression ohne Assertions zu entfernen. Die automatische
-Exact-Head-Verifikation dieser zweiten Quellkorrektur steht aus.
+Exact-Head-Verifikation dieser zweiten Quellkorrektur endete für Quellhead
+`3d5095e3561df29a217537ab500ce8595e1a5067` mit 26 erfolgreichen Checks und zwei
+bedingten Skips. Sonar-Analyse `32cca90c-523f-4810-9941-5cfe37314c15` ist terminal
+SUCCESS, Gate OK mit null offenen/akzeptierten Issues, Hotspots und neuer Duplikation.
+
+## Gemeinsame PR-#382-Reparatur und Abnahme
+
+Die Integration nutzt normale Merge-Commits `86101a0c` und `bba093f5`;
+ursprünglicher Quellhead `11324289` und aktualisierter Quellhead `3d5095e3` sind
+Vorfahren. Master-Regelrevision `42fd5a8e` bleibt enthalten. Framework-`99a7985c`-
+und MRTS-`8a6bb546`-Repositories sowie Gitlinks bleiben unverändert. Die Reduktion
+des Quell-PRs auf 25 Docs-/Report-Dateien und maschinenverbrauchte Eingaben bleiben erhalten.
+
+Die #382-Baseline enthält 95 offene Befunde (zwei Reliability-Bugs und 93 Smells),
+keine akzeptierten Issues/Hotspots und Duplikation in vier Dateien. Änderungen
+betreffen Common-/NGINX-/HAProxy-/Traefik-Source, C-Fixtures, aktuelle
+Source-Extraktionsabhängigkeiten und gemeinsame Lifecycle-Stubs. Sie erhalten
+öffentliche APIs, alle bestehenden Szenariovarianten, Cleanup-Besitz,
+Priorität des ersten Fehlers und Assertions. Der echte Traefik-Lockdauerfehler
+hat eine deterministisch fehlschlagende Altquellkontrolle; Descriptor-Snapshots
+und allokationsfreies Expiry-Cleanup bestehen ihre gezielten Kontrollen. Eine
+unabhängige Prüfung fand und beseitigte ein zwischenzeitliches FD-Erschöpfungs-
+Cleanup-Risiko vor Veröffentlichung.
+
+Die koordinierte Auswahl enthält 100 expandierte Unit-/Native-/Vertragsszenarien:
+Apache13, Traefik nativ20, HAProxy22, Common9, NGINX10, Trusted-HTTP12,
+native Telemetrie7, Cancellation2, Go-Provenance4 und Scannerkontrolle1.
+Lokal: 98 PASS, kein FAIL/ERROR, zwei Fremd-UID/GID-Kontrollen durch die `0 0 1`-
+User-/Gruppen-Mappings des Hosts blockiert. Ihre exakten nativen Hosted-CI-Tests
+lehnen Skips ab; der Testchild nutzt den ausgewählten Interpreter. Kein
+Connector-E2E-Fall und keine historische I12-Ausführung wurden ergänzt.
+Nicht ausgewählte historische Fälle behalten ihre alten Ergebnisse/Revisionen;
+globale E2E-Limitdurchsetzung bleibt unbelegt.
+
+Gitleaks fand zunächst 1.017 unveränderliche Prosa-/Hash-Fehlalarme in der
+gemeinsamen Historie. Die Einzelklassifikation enthält Quellzeilen-/Blob-Digests,
+typisierte Verbraucher und 903 nachgerechnete Originalquelldigests. Die bereinigte
+Triage hat keine ungeklärten Einträge. `.gitleaksignore` enthält nur exakte
+unveränderliche Fingerprints; Standardregeln, Redaction und voller PR-Bereich
+bleiben aktiv. Der Integrationsscan mit 253 Commits besteht; ein synthetischer
+Kontrollfall in einem neuen Commit wird weiterhin erkannt. Dies ist eine
+belegte Fehlalarm-Disposition und keine Risikoakzeptanz.
+
+RTK-umhüllte Prüfungen umfassen eingefrorene Auswahl/Preflight und gezielten
+Dispatcher, negative Altquellkontrollen, native C17-/Wextra-/Werror-Kompilierung,
+nativen NGINX-Build, Go-Build/Testkompilierung/gofmt, Gitleaks-Vollbereich und
+Negativkontrolle, Workflow-Lint sowie EN/DE-/Link-/Diff-Validierung. Lokales
+Python3.14.4/Go1.27.3 und Hosted-Python3.14.7/Go1.27.2 bleiben getrennt.
+Run-Evidence, exakte Befehle, Digests, Skips und Veröffentlichungs-/Auslesefakten
+bleiben unter `/var/tmp/codex/ModSecurity-conector/runs/pr382-integrate410-20261024`
+erhalten. Aktuelle gemeinsame CI, Sonar-Verarbeitung/Gates und Reviews werden
+am veröffentlichten #382-Head bewertet; das grüne #410-Ergebnis überträgt sich
+nicht automatisch. Coverage-Import und Runtime-/Lifecycle-Abnahme bleiben von
+diesen Tests getrennt. Kein Master-Merge, Release, Deployment oder historische
+Qualifikation ist freigegeben.

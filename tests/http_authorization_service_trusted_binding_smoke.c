@@ -60,11 +60,31 @@ static const trusted_case cases[] = {
     {"complete-failure-deny", 500, 1, 1, 1, 1, 0, 1, 0, 1, 1},
 };
 
+typedef struct {
+    int claim;
+    int begin;
+    int finish;
+    int finish_api;
+    int finalize;
+    int handoff;
+    int complete;
+    int revoke;
+    int allocated;
+    int freed;
+    int destroy_nonnull;
+    int runtime_destroy;
+    int shutdown;
+} trusted_call_counts;
+
 static struct {
     const trusted_case *test;
-    int claim, begin, finish, finish_api, finalize, handoff, complete, revoke;
-    int allocated, freed, destroy_nonnull, runtime_destroy, shutdown;
-    int claimed, completed, copied, private_removed, headers_restored, violation;
+    trusted_call_counts calls;
+    int claimed;
+    int completed;
+    int copied;
+    int private_removed;
+    int headers_restored;
+    int violation;
     msconnector_error_code last_error;
     char run[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
     char transport_case[MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE];
@@ -116,7 +136,7 @@ static int trusted_map_request(const msconnector_generic_request_source *source,
 static int trusted_claim(void *userdata, const msconnector_request *request,
     msconnector_http_authorization_provenance_storage *storage, msconnector_error *error) {
     (void)userdata;
-    ++observed.claim;
+    ++observed.calls.claim;
     if (!request_has_private_capability(request)) observed.violation = 1;
     if (mode_is("claim-failure")) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
@@ -144,10 +164,14 @@ int msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance
     const char *host_request_id, const msconnector_runtime_trusted_provenance *provenance,
     msconnector_runtime_transaction **out, msconnector_decision *decision,
     msconnector_error *error) {
-    ++observed.begin;
+    ++observed.calls.begin;
     *out = NULL;
+    if (provenance == NULL) {
+        observed.violation = 1;
+        return 0;
+    }
     if (!observed.claimed || request_has_private_capability(request) ||
-        provenance == NULL || strcmp(provenance->run_id, "trusted-service-run") != 0 ||
+        strcmp(provenance->run_id, "trusted-service-run") != 0 ||
         strcmp(provenance->transport_case_id, "trusted-service-case") != 0 ||
         strcmp(provenance->connection_id, "trusted-service-connection") != 0 ||
         provenance->connection_reused != 0) observed.violation = 1;
@@ -177,16 +201,16 @@ int msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance
     }
     if (!model_begin(runtime, request, host_request_id, out, decision, error)) return 0;
     observed.owned = *out;
-    ++observed.allocated;
+    ++observed.calls.allocated;
     return 1;
 }
 
 int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *transaction,
     msconnector_error *error) {
-    ++observed.finish_api;
+    ++observed.calls.finish_api;
     if (transaction == NULL || transaction != observed.owned) return 0;
     if (!transaction->finished) {
-        ++observed.finish;
+        ++observed.calls.finish;
         if (observed.copied && (strcmp(observed.run, "trusted-service-run") != 0 ||
             strcmp(observed.transport_case, "trusted-service-case") != 0 ||
             strcmp(observed.connection, "trusted-service-connection") != 0)) observed.violation = 1;
@@ -204,11 +228,11 @@ int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *tran
 void msconnector_runtime_transaction_destroy(msconnector_runtime_transaction **transaction) {
     if (transaction == NULL || *transaction == NULL) return;
     if (*transaction != observed.owned) observed.violation = 1;
-    ++observed.destroy_nonnull;
+    ++observed.calls.destroy_nonnull;
     if (!(*transaction)->finished) (void)msconnector_runtime_transaction_finish(*transaction, NULL);
     /* A failed finish still requires exactly one final free. */
     if (mode_is("finish-failure")) fake_runtime.active_transactions = 0U;
-    ++observed.freed;
+    ++observed.calls.freed;
     observed.owned = NULL;
     model_destroy(transaction);
 }
@@ -216,7 +240,7 @@ void msconnector_runtime_transaction_destroy(msconnector_runtime_transaction **t
 int msconnector_runtime_transaction_finalize_and_snapshot(
     msconnector_runtime_transaction **transaction,
     msconnector_runtime_transaction_snapshot *snapshot, msconnector_error *error) {
-    ++observed.finalize;
+    ++observed.calls.finalize;
     if (transaction == NULL || *transaction == NULL || snapshot == NULL ||
         !msconnector_runtime_transaction_finish(*transaction, error)) return 0;
     if (mode_is("finalize-failure")) {
@@ -228,14 +252,14 @@ int msconnector_runtime_transaction_finalize_and_snapshot(
     snapshot->contract.cleanup_started = 1;
     snapshot->contract.cleanup_complete = 1;
     snapshot->contract.status = MSCONNECTOR_TRANSACTION_STATUS_CLEANED;
-    ++observed.freed;
+    ++observed.calls.freed;
     observed.owned = NULL;
     model_destroy(transaction);
     return 1;
 }
 
 void msconnector_runtime_destroy(msconnector_runtime **runtime) {
-    ++observed.runtime_destroy;
+    ++observed.calls.runtime_destroy;
     if (observed.owned != NULL || observed.retained != NULL ||
         fake_runtime.active_transactions != 0U) observed.violation = 1;
     model_runtime_destroy(runtime);
@@ -245,8 +269,8 @@ static int companion_handoff(const msconnector_runtime *runtime,
     msconnector_runtime_transaction *transaction, void *userdata,
     char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE], msconnector_error *error) {
     (void)runtime; (void)userdata;
-    ++observed.handoff;
-    if (transaction != observed.owned || observed.retained != NULL || observed.finish != 0)
+    ++observed.calls.handoff;
+    if (transaction != observed.owned || observed.retained != NULL || observed.calls.finish != 0)
         observed.violation = 1;
     if (mode_is("handoff-failure")) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,
@@ -260,7 +284,7 @@ static int companion_handoff(const msconnector_runtime *runtime,
 
 static int companion_revoke(void *userdata, const char *handle, msconnector_error *error) {
     (void)userdata;
-    ++observed.revoke;
+    ++observed.calls.revoke;
     if (observed.retained == NULL || strcmp(handle, companion_handle) != 0) {
         observed.violation = 1;
         return 0;
@@ -277,7 +301,7 @@ static int companion_revoke(void *userdata, const char *handle, msconnector_erro
 
 static int companion_shutdown(void *userdata, msconnector_error *error) {
     (void)userdata;
-    ++observed.shutdown;
+    ++observed.calls.shutdown;
     if (observed.retained != NULL) {
         int result = msconnector_runtime_transaction_finish(observed.retained, error);
         msconnector_runtime_transaction_destroy(&observed.retained);
@@ -289,7 +313,7 @@ static int companion_shutdown(void *userdata, msconnector_error *error) {
 static int trusted_complete(void *userdata, const msconnector_request *request,
     int status, const char *handle, msconnector_error *error) {
     (void)userdata;
-    ++observed.complete;
+    ++observed.calls.complete;
     if (!observed.claimed) {
         observed.violation = 1;
         msconnector_error_set(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
@@ -301,7 +325,7 @@ static int trusted_complete(void *userdata, const msconnector_request *request,
     if (status != observed.test->status && !mode_is("complete-failure") &&
         !mode_is("complete-failure-deny") && !mode_is("complete-revoke-failure")) observed.violation = 1;
     if (handle != NULL && (strcmp(handle, companion_handle) != 0 ||
-        observed.retained == NULL || observed.finish != 0)) observed.violation = 1;
+        observed.retained == NULL || observed.calls.finish != 0)) observed.violation = 1;
     if (mode_is("complete-failure") || mode_is("complete-failure-deny") ||
         mode_is("complete-revoke-failure")) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_IO, "fixture complete failure", "fixture");
@@ -315,27 +339,27 @@ static int validate_observations(void) {
     const trusted_case *expected = observed.test;
     const int expected_destroy = (expected->handoff && !mode_is("handoff-failure")) ||
         mode_is("finish-failure") || mode_is("finalize-failure");
-    const int expected_finish_api = expected->allocated == 0 ? 0 :
-        (expected->finalize ? 2 : 1);
+    int expected_finish_api = 0;
+    if (expected->allocated != 0) expected_finish_api = expected->finalize ? 2 : 1;
     printf("trusted_binding_case=%s claim=%d begin=%d finish=%d finish_api=%d finalize=%d "
         "handoff=%d complete=%d revoke=%d allocated=%d freed=%d destroy_nonnull=%d "
         "runtime_destroy=%d active=%u first_error=%d violation=%d\n", expected->name,
-        observed.claim, observed.begin, observed.finish, observed.finish_api, observed.finalize,
-        observed.handoff, observed.complete, observed.revoke, observed.allocated, observed.freed,
-        observed.destroy_nonnull, observed.runtime_destroy, fake_runtime.active_transactions, observed.last_error,
+        observed.calls.claim, observed.calls.begin, observed.calls.finish, observed.calls.finish_api, observed.calls.finalize,
+        observed.calls.handoff, observed.calls.complete, observed.calls.revoke, observed.calls.allocated, observed.calls.freed,
+        observed.calls.destroy_nonnull, observed.calls.runtime_destroy, fake_runtime.active_transactions, observed.last_error,
         observed.violation);
-    return observed.claim == expected->claim && observed.begin == expected->begin &&
-        observed.finish == expected->finish && observed.finalize == expected->finalize &&
-        observed.handoff == expected->handoff && observed.complete == expected->complete &&
-        observed.revoke == expected->revoke && observed.allocated == expected->allocated &&
-        observed.freed == expected->freed && observed.runtime_destroy == 1 &&
-        observed.finish_api == expected_finish_api && observed.destroy_nonnull == expected_destroy &&
-        observed.shutdown == (expected->handoff != 0) &&
+    return observed.calls.claim == expected->claim && observed.calls.begin == expected->begin &&
+        observed.calls.finish == expected->finish && observed.calls.finalize == expected->finalize &&
+        observed.calls.handoff == expected->handoff && observed.calls.complete == expected->complete &&
+        observed.calls.revoke == expected->revoke && observed.calls.allocated == expected->allocated &&
+        observed.calls.freed == expected->freed && observed.calls.runtime_destroy == 1 &&
+        observed.calls.finish_api == expected_finish_api && observed.calls.destroy_nonnull == expected_destroy &&
+        observed.calls.shutdown == (expected->handoff != 0) &&
         (!mode_is("complete-revoke-failure") || observed.last_error == MSCONNECTOR_ERROR_IO) &&
         observed.owned == NULL && observed.retained == NULL &&
         fake_runtime.active_transactions == 0U && !observed.violation &&
-        (observed.begin == 0 || observed.private_removed) &&
-        (observed.complete == 0 || observed.headers_restored);
+        (observed.calls.begin == 0 || observed.private_removed) &&
+        (observed.calls.complete == 0 || observed.headers_restored);
 }
 
 static pid_t start_trusted_service(unsigned short port, const trusted_case *test) {
@@ -365,7 +389,9 @@ static pid_t start_trusted_service(unsigned short port, const trusted_case *test
 
 static int run_trusted_case(const trusted_case *test) {
     unsigned short port;
-    char request[512], response[4096] = {0}, status[32];
+    char request[512];
+    char response[4096] = {0};
+    char status[32];
     if (!reserve_loopback_port(&port)) return 0;
     /* Deny happens at P1 in the model; ordinary Allow is followed by real
      * authorization_stream_request_body EOS in the service. */
@@ -392,7 +418,8 @@ static int run_trusted_case(const trusted_case *test) {
 }
 
 int main(int argc, char **argv) {
-    int valid = 1, selected = 0;
+    int valid = 1;
+    int selected = 0;
     for (size_t i = 0U; i < sizeof(cases)/sizeof(cases[0]); ++i) {
         if (argc == 2 && strcmp(argv[1], cases[i].name) != 0) continue;
         selected = 1;

@@ -337,7 +337,11 @@ static void test_trusted_preclaim_refresh(msconnector_runtime *runtime) {
     msconnector_runtime_response_companion_session session;
     msconnector_http_authorization_provenance_storage storage;
     msconnector_error error;
-    char ordinary[65], trusted[65], claimed[65], expired[65], foreign[65];
+    char ordinary[65];
+    char trusted[65];
+    char claimed[65];
+    char expired[65];
+    char foreign[65];
     char path[sizeof(((struct sockaddr_un *)0)->sun_path)];
     struct sockaddr_un address = {.sun_family = AF_UNIX};
     unsigned char reserve[] = {'M','T','P','1',1,1,0,0,0,0,0,10,
@@ -369,7 +373,9 @@ static void test_trusted_preclaim_refresh(msconnector_runtime *runtime) {
     socket_exact(fd, query, sizeof(query), 1);
     socket_exact(fd, reply, sizeof(reply), 0);
     assert(reply[12] == 0U && memcmp(reply + 15U, trusted, 64U) == 0);
-    while (atomic_flag_test_and_set_explicit(&registry.lock, memory_order_acquire)) {}
+    while (atomic_flag_test_and_set_explicit(&registry.lock, memory_order_acquire)) {
+        /* The registry only holds this lock for bounded metadata updates. */
+    }
     const int original_deadline_preserved =
         registry.entries[1].expires_at_ms == original_deadline &&
         registry.entries[1].trusted_preclaim_refreshed;
@@ -506,74 +512,78 @@ static void *run_parallel_response(void *opaque) {
     return NULL;
 }
 
-static void test_trusted_provenance_native_lifecycle(void) {
+static void test_trusted_provenance_native_lifecycle_mode(int mode) {
     static const char rules[] = "SecRuleEngine On\n"
         "SecRule REQUEST_URI \"@streq /blocked\" \"id:1010,phase:1,deny,status:403,log\"\n";
+    authz_runtime_fixture fixture = {0};
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_runtime_response_companion_registry registry;
+    msconnector_decision decision;
+    msconnector_error error;
+    msconnector_request request = {0};
+    char run_id[] = "trusted-native-run";
+    char connection_id[] = "trusted-native-connection";
+    msconnector_runtime_trusted_provenance provenance = {
+        run_id, "trusted-native-case", connection_id, 0};
+    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+    char contents[32768];
+    create_runtime_fixture(fixture.config_path, fixture.event_path,
+        fixture.rules_path, rules, "buffered", "safe", (response_fixture_policy){1024U, "Reject"});
+    assert(msconnector_runtime_create("traefik", fixture.config_path, &fixture.runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(fixture.runtime, "forwardAuth"));
+    assert(msconnector_runtime_set_transaction_profile(fixture.runtime,
+        msconnector_profile_registry_find("traefik-forwardauth")));
+    request.method = "GET";
+    request.uri = mode == 0 ? "/blocked" : "/allowed";
+    request.http_version = "HTTP/1.1";
+    request.client.address = "127.0.0.1"; request.client.port = 12345;
+    request.server.address = "127.0.0.1"; request.server.port = 9191;
+    msconnector_error_init(&error);
+    if (mode == 2) {
+        assert(msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+            fixture.runtime, &request, "trusted-cancel", &provenance, &transaction, &decision, &error));
+    } else {
+        assert(msconnector_runtime_transaction_begin_with_trusted_provenance(
+            fixture.runtime, &request, mode == 0 ? "trusted-deny" : "trusted-allow",
+            &provenance, &transaction, &decision, &error));
+    }
+    memset(run_id, 'x', sizeof(run_id)-1U);
+    memset(connection_id, 'x', sizeof(connection_id)-1U);
+    if (mode == 1) {
+        msconnector_runtime_response_companion_registry_init(&registry);
+        assert(msconnector_runtime_response_companion_handoff_with_handle(&registry,
+            transaction, UINT64_C(60000), handle, &error));
+        transaction = NULL;
+        assert(finish_response(&registry, handle));
+        assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    } else {
+        msconnector_runtime_transaction_snapshot snapshot;
+        if (mode == 2) assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
+        assert(msconnector_runtime_transaction_finalize_and_snapshot(&transaction, &snapshot, &error));
+        assert(transaction == NULL && snapshot.contract.cleanup_complete);
+    }
+    msconnector_runtime_destroy(&fixture.runtime);
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
+    assert(strstr(contents, "\"run_id\":\"trusted-native-run\"") != NULL);
+    assert(strstr(contents, "\"connection_id\":\"trusted-native-connection\"") != NULL);
+    assert(strstr(contents, "\"transport_case_id\":\"trusted-native-case\"") != NULL);
+    assert(strstr(contents, "\"connection_reused\":false") != NULL);
+    assert(strstr(contents, "\"event\":\"transaction_cleanup\"") != NULL);
+    assert(strstr(contents, "xxxxxxxx") == NULL);
+    if (mode == 0) assert(strstr(contents, "\"rule_id\":\"1010\"") != NULL);
+    if (mode == 1) assert(strstr(contents, "\"eos_seen\":true") != NULL);
+    if (mode == 2) {
+        assert(strstr(contents, "\"cleanup_reason\":\"client_cancel\"") != NULL);
+        assert(strstr(contents, "\"eos_seen\":true") == NULL);
+    }
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
+}
+
+static void test_trusted_provenance_native_lifecycle(void) {
     for (int mode = 0; mode < 3; ++mode) {
-        authz_runtime_fixture fixture = {0};
-        msconnector_runtime_transaction *transaction = NULL;
-        msconnector_runtime_response_companion_registry registry;
-        msconnector_decision decision;
-        msconnector_error error;
-        msconnector_request request = {0};
-        char run_id[] = "trusted-native-run";
-        char connection_id[] = "trusted-native-connection";
-        msconnector_runtime_trusted_provenance provenance = {
-            run_id, "trusted-native-case", connection_id, 0};
-        char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
-        char contents[32768];
-        create_runtime_fixture(fixture.config_path, fixture.event_path,
-            fixture.rules_path, rules, "buffered", "safe", (response_fixture_policy){1024U, "Reject"});
-        assert(msconnector_runtime_create("traefik", fixture.config_path, &fixture.runtime, NULL, 0U));
-        assert(msconnector_runtime_set_event_integration_mode(fixture.runtime, "forwardAuth"));
-        assert(msconnector_runtime_set_transaction_profile(fixture.runtime,
-            msconnector_profile_registry_find("traefik-forwardauth")));
-        request.method = "GET";
-        request.uri = mode == 0 ? "/blocked" : "/allowed";
-        request.http_version = "HTTP/1.1";
-        request.client.address = "127.0.0.1"; request.client.port = 12345;
-        request.server.address = "127.0.0.1"; request.server.port = 9191;
-        msconnector_error_init(&error);
-        if (mode == 2) {
-            assert(msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
-                fixture.runtime, &request, "trusted-cancel", &provenance, &transaction, &decision, &error));
-        } else {
-            assert(msconnector_runtime_transaction_begin_with_trusted_provenance(
-                fixture.runtime, &request, mode == 0 ? "trusted-deny" : "trusted-allow",
-                &provenance, &transaction, &decision, &error));
-        }
-        memset(run_id, 'x', sizeof(run_id)-1U);
-        memset(connection_id, 'x', sizeof(connection_id)-1U);
-        if (mode == 1) {
-            msconnector_runtime_response_companion_registry_init(&registry);
-            assert(msconnector_runtime_response_companion_handoff_with_handle(&registry,
-                transaction, UINT64_C(60000), handle, &error));
-            transaction = NULL;
-            assert(finish_response(&registry, handle));
-            assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
-        } else {
-            msconnector_runtime_transaction_snapshot snapshot;
-            if (mode == 2) assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
-            assert(msconnector_runtime_transaction_finalize_and_snapshot(&transaction, &snapshot, &error));
-            assert(transaction == NULL && snapshot.contract.cleanup_complete);
-        }
-        msconnector_runtime_destroy(&fixture.runtime);
-        read_event_contents(fixture.event_path, contents, sizeof(contents));
-        assert(strstr(contents, "\"run_id\":\"trusted-native-run\"") != NULL);
-        assert(strstr(contents, "\"connection_id\":\"trusted-native-connection\"") != NULL);
-        assert(strstr(contents, "\"transport_case_id\":\"trusted-native-case\"") != NULL);
-        assert(strstr(contents, "\"connection_reused\":false") != NULL);
-        assert(strstr(contents, "\"event\":\"transaction_cleanup\"") != NULL);
-        assert(strstr(contents, "xxxxxxxx") == NULL);
-        if (mode == 0) assert(strstr(contents, "\"rule_id\":\"1010\"") != NULL);
-        if (mode == 1) assert(strstr(contents, "\"eos_seen\":true") != NULL);
-        if (mode == 2) {
-            assert(strstr(contents, "\"cleanup_reason\":\"client_cancel\"") != NULL);
-            assert(strstr(contents, "\"eos_seen\":true") == NULL);
-        }
-        assert(unlink(fixture.config_path) == 0);
-        assert(unlink(fixture.event_path) == 0);
-        assert(unlink(fixture.rules_path) == 0);
+        test_trusted_provenance_native_lifecycle_mode(mode);
     }
 }
 

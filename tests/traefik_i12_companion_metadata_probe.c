@@ -28,6 +28,34 @@ static int make_path(char *output, size_t capacity, const char *root,
     return size > 0 && (size_t)size < capacity;
 }
 
+static int write_rules(const char *path)
+{
+    FILE *file = fopen(path, "w");
+    if (file == NULL) return 0;
+    int written = fputs("SecRuleEngine On\nSecResponseBodyAccess On\n"
+        "SecResponseBodyMimeType text/plain\nSecResponseBodyLimit 1024\n"
+        "SecResponseBodyLimitAction Reject\n"
+        "SecRule RESPONSE_HEADERS:X-I12-Deny \"@streq yes\" "
+        "\"id:1999803,phase:3,deny,status:403,log\"\n"
+        "SecRule RESPONSE_BODY \"@contains telemetry-marker\" "
+        "\"id:1999804,phase:4,deny,status:403,log\"\n", file) != EOF;
+    int closed = fclose(file) == 0;
+    return written && closed;
+}
+
+static int write_config(const char *path, const char *rules_path,
+    const char *mode, const char *event_path)
+{
+    FILE *file = fopen(path, "w");
+    if (file == NULL) return 0;
+    int written = fprintf(file, "enabled=on\nrules_file=%s\n"
+        "request_body_mode=none\nresponse_body_mode=streaming\nphase4_mode=%s\n"
+        "event_path=%s\nmax_event_json_bytes=16384\n",
+        rules_path, mode, event_path) > 0;
+    int closed = fclose(file) == 0;
+    return written && closed;
+}
+
 int main(int argc, char **argv)
 {
     char config_path[4096];
@@ -37,7 +65,6 @@ int main(int argc, char **argv)
     char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
     const char *scenario;
     const char *mode;
-    FILE *file;
     msconnector_runtime *runtime = NULL;
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_runtime_response_companion_registry registry;
@@ -59,23 +86,8 @@ int main(int argc, char **argv)
     CHECK(make_path(rules_path, sizeof(rules_path), argv[1], "rules"));
     CHECK(make_path(event_path, sizeof(event_path), argv[1], "events"));
     CHECK(make_path(socket_path, sizeof(socket_path), argv[1], "s"));
-    file = fopen(rules_path, "w");
-    CHECK(file != NULL);
-    CHECK(fputs("SecRuleEngine On\nSecResponseBodyAccess On\n"
-        "SecResponseBodyMimeType text/plain\nSecResponseBodyLimit 1024\n"
-        "SecResponseBodyLimitAction Reject\n"
-        "SecRule RESPONSE_HEADERS:X-I12-Deny \"@streq yes\" "
-        "\"id:1999803,phase:3,deny,status:403,log\"\n"
-        "SecRule RESPONSE_BODY \"@contains telemetry-marker\" "
-        "\"id:1999804,phase:4,deny,status:403,log\"\n", file) != EOF);
-    CHECK(fclose(file) == 0);
-    file = fopen(config_path, "w");
-    CHECK(file != NULL);
-    CHECK(fprintf(file, "enabled=on\nrules_file=%s\n"
-        "request_body_mode=none\nresponse_body_mode=streaming\nphase4_mode=%s\n"
-        "event_path=%s\nmax_event_json_bytes=16384\n",
-        rules_path, mode, event_path) > 0);
-    CHECK(fclose(file) == 0);
+    CHECK(write_rules(rules_path));
+    CHECK(write_config(config_path, rules_path, mode, event_path));
     CHECK(msconnector_runtime_create("traefik", config_path, &runtime, NULL, 0U));
     CHECK(msconnector_runtime_set_event_integration_mode(runtime, "forwardAuth"));
     if (strcmp(mode, "strict") == 0) {

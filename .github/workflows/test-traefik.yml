@@ -31,6 +31,23 @@ jobs:
           set -eu
           command -v cc >/dev/null
           python3 -m unittest -v tests.test_traefik_engine_service_contract
+      - name: Verify native provenance with real foreign Unix peers
+        env:
+          PYTHON_EXECUTABLE: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -eu
+          sudo mkdir -p /var/tmp/codex/ModSecurity-conector
+          provenance_root=$(sudo mktemp -d /var/tmp/codex/ModSecurity-conector/ci-provenance.XXXXXX)
+          trap 'sudo rm -rf -- "$provenance_root"' EXIT
+          sudo chmod 0755 "$provenance_root"
+          sudo env RUNNER_TEMP="$provenance_root" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+            "$PYTHON_EXECUTABLE" - <<'PY'
+          import unittest
+          suite = unittest.defaultTestLoader.loadTestsFromName(
+              "tests.test_traefik_trusted_provenance.TraefikTrustedProvenanceTests")
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          raise SystemExit(0 if result.wasSuccessful() and not result.skipped else 1)
+          PY
       - name: Install Go required by the Traefik observer
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

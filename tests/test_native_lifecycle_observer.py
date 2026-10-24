@@ -67,7 +67,7 @@ def companion_runtime_source_copy(output):
     source = source.replace('#include "msconnector_runtime.h"',
                             '#include "msconnector_runtime.h"\n#include "native-lifecycle-observer.h"', 1)
     handle = "((msconnector_native_transaction *)transaction->modsecurity.native_transaction)->transaction"
-    registration = "    transaction->response_companion_handed_off = 1;\n"
+    registration = "    transaction->completion.response_companion_handed_off = 1;\n"
     assert source.count(registration) == 1
     source = source.replace(registration, registration +
         "    (void)msconnector_lifecycle_companion_registered(&registry->entries[free_index],\n"

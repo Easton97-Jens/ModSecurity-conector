@@ -11,7 +11,7 @@ static void observe_failure(void *opaque,
     msconnector_response_companion_backend_session *session,
     msconnector_transaction_error_class error_class)
 {
-    response_companion_session_state *state = opaque;
+    const response_companion_session_state *state = opaque;
     assert(error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE);
     ++fail_calls;
     late_at_failure = state->latest_decision.late_intervention;
@@ -25,7 +25,7 @@ static int observe_outcome(void *opaque,
 {
     (void)opaque;
     (void)session;
-    (void)error;
+    msconnector_error_init(error);
     assert(action->decision->late_intervention);
     ++outcome_calls;
     return 1;
@@ -61,7 +61,8 @@ int main(void)
         frame.opcode = RESPONSE_COMPANION_OUTCOME;
         frame.payload = payload;
         frame.payload_size = scenario == 0 ? 3U : sizeof(payload);
-        fail_calls = outcome_calls = 0;
+        fail_calls = 0;
+        outcome_calls = 0;
         late_at_failure = -1;
         if (scenario == 3) {
             assert(response_companion_handle_outcome(&worker, &state, &frame));

@@ -456,6 +456,26 @@ static void capture_log_rule_id(haproxy_modsecurity_decision *decision,
     }
 }
 
+static int capture_intervention_action(
+        const ModSecurityIntervention *intervention,
+        int body_limit,
+        haproxy_modsecurity_decision *decision) {
+    size_t redirect_length = 0U;
+
+    if (body_limit || intervention->url == 0 || intervention->url[0] == '\0') {
+        copy_message(decision->action, sizeof(decision->action), "deny");
+        return 0;
+    }
+    if (!haproxy_modsecurity_redirect_url_length(intervention->url,
+            sizeof(decision->redirect_url), &redirect_length)) {
+        native_error_decision(decision, "invalid native redirect URL");
+        return 1;
+    }
+    copy_message(decision->action, sizeof(decision->action), "redirect");
+    memcpy(decision->redirect_url, intervention->url, redirect_length + 1U);
+    return 0;
+}
+
 static int capture_intervention(
         Transaction *transaction,
         int phase,
@@ -505,20 +525,9 @@ static int capture_intervention(
         } else {
             decision->status = HAPROXY_MODSECURITY_EXPECTED_STATUS;
         }
-        if (body_limit) {
-            copy_message(decision->action, sizeof(decision->action), "deny");
-        } else if (intervention.url != 0 && intervention.url[0] != '\0') {
-            size_t redirect_length = 0U;
-            if (!haproxy_modsecurity_redirect_url_length(intervention.url,
-                    sizeof(decision->redirect_url), &redirect_length)) {
-                native_error_decision(decision, "invalid native redirect URL");
-                msc_intervention_cleanup(&intervention);
-                return 1;
-            }
-            copy_message(decision->action, sizeof(decision->action), "redirect");
-            memcpy(decision->redirect_url, intervention.url, redirect_length + 1U);
-        } else {
-            copy_message(decision->action, sizeof(decision->action), "deny");
+        if (capture_intervention_action(&intervention, body_limit, decision) != 0) {
+            msc_intervention_cleanup(&intervention);
+            return 1;
         }
         copy_message(decision->log_message, sizeof(decision->log_message),
             intervention.log);
@@ -1424,6 +1433,35 @@ static int begin_transaction_protocol(
     return 0;
 }
 
+static int profile_has_haproxy_phase_routes(
+        const msconnector_transaction_profile *profile) {
+    msconnector_transaction_phase_route response_route;
+
+    if (profile == 0) {
+        return 0;
+    }
+    switch (profile->profile_id) {
+    case MSCONNECTOR_PROFILE_HAPROXY_HTX:
+        response_route = MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT;
+        break;
+    case MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP:
+        response_route = MSCONNECTOR_TRANSACTION_PHASE_ROUTE_COMPANION_REQUIRED;
+        break;
+    default:
+        return 0;
+    }
+    return msconnector_transaction_profile_phase_route(profile,
+               MSCONNECTOR_PHASE_REQUEST_HEADERS) ==
+               MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT &&
+           msconnector_transaction_profile_phase_route(profile,
+               MSCONNECTOR_PHASE_REQUEST_BODY) ==
+               MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT &&
+           msconnector_transaction_profile_phase_route(profile,
+               MSCONNECTOR_PHASE_RESPONSE_HEADERS) == response_route &&
+           msconnector_transaction_profile_phase_route(profile,
+               MSCONNECTOR_PHASE_RESPONSE_BODY) == response_route;
+}
+
 static int begin_request_with_scope(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
@@ -1447,29 +1485,7 @@ static int begin_request_with_scope(
         return 1;
     }
     profile = msconnector_profile_registry_find(profile_id);
-    if (profile == 0 ||
-            (profile->profile_id != MSCONNECTOR_PROFILE_HAPROXY_HTX &&
-             profile->profile_id != MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP) ||
-            msconnector_transaction_profile_phase_route(profile,
-                MSCONNECTOR_PHASE_REQUEST_HEADERS) !=
-                MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT ||
-            msconnector_transaction_profile_phase_route(profile,
-                MSCONNECTOR_PHASE_REQUEST_BODY) !=
-                MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT ||
-            (profile->profile_id == MSCONNECTOR_PROFILE_HAPROXY_HTX &&
-                (msconnector_transaction_profile_phase_route(profile,
-                    MSCONNECTOR_PHASE_RESPONSE_HEADERS) !=
-                    MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT ||
-                 msconnector_transaction_profile_phase_route(profile,
-                    MSCONNECTOR_PHASE_RESPONSE_BODY) !=
-                    MSCONNECTOR_TRANSACTION_PHASE_ROUTE_DIRECT)) ||
-            (profile->profile_id == MSCONNECTOR_PROFILE_HAPROXY_SPOE_SPOP &&
-                (msconnector_transaction_profile_phase_route(profile,
-                    MSCONNECTOR_PHASE_RESPONSE_HEADERS) !=
-                    MSCONNECTOR_TRANSACTION_PHASE_ROUTE_COMPANION_REQUIRED ||
-                 msconnector_transaction_profile_phase_route(profile,
-                    MSCONNECTOR_PHASE_RESPONSE_BODY) !=
-                    MSCONNECTOR_TRANSACTION_PHASE_ROUTE_COMPANION_REQUIRED))) {
+    if (!profile_has_haproxy_phase_routes(profile)) {
         copy_message(decision->log_message, sizeof(decision->log_message),
             "HAProxy transaction profile does not define the required direct P1/P2 and owned P3/P4 routes");
         return 1;

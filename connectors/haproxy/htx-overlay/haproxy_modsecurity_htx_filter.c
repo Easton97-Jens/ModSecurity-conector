@@ -474,6 +474,91 @@ static int haproxy_modsecurity_htx_copy_headers(
     return 0;
 }
 
+static int haproxy_modsecurity_htx_observed_error_phase(
+    const struct haproxy_modsecurity_htx_filter_context *ctx, int observed_phase)
+{
+    if (observed_phase >= 1 && observed_phase <= 4) { return observed_phase; }
+    if (ctx->response.headers_seen) { return 4; }
+    if (ctx->request.finished) { return 3; }
+    return ctx->request.headers_seen ? 2 : 1;
+}
+
+static const char *haproxy_modsecurity_htx_event_reason(
+    const haproxy_modsecurity_decision *decision, const char *id)
+{
+    if (decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return "native_rule_intervention";
+    }
+    if (decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT) {
+        return decision->phase == 4 ? "response_body_limit_exceeded" :
+            "request_body_limit_exceeded";
+    }
+    return msconnector_event_protocol_error_name(id);
+}
+
+static int haproxy_modsecurity_htx_event_eos(
+    const struct haproxy_modsecurity_htx_filter_context *ctx, int phase)
+{
+    if (phase == 2) { return ctx->request.finished; }
+    if (phase == 4) { return ctx->response.finished; }
+    return 0;
+}
+
+static void haproxy_modsecurity_htx_prepare_event(
+    const struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision, msconnector_event *event,
+    char *rule_id, size_t rule_id_capacity)
+{
+    const struct haproxy_modsecurity_htx_filter_config *config = ctx->config;
+    const char *id;
+    static const enum msconnector_phase phases[] = {
+        MSCONNECTOR_PHASE_REQUEST_HEADERS, MSCONNECTOR_PHASE_REQUEST_BODY,
+        MSCONNECTOR_PHASE_RESPONSE_HEADERS, MSCONNECTOR_PHASE_RESPONSE_BODY};
+    msconnector_event_init(event);
+    id = decision->phase <= 2 ? MSCONN_EVENT_REQUEST_BLOCKED : MSCONN_EVENT_RESPONSE_BLOCKED;
+    switch (decision->error_class) {
+    case MSCONNECTOR_TRANSACTION_ERROR_NONE: break;
+    case MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT: id = MSCONN_EVENT_BODY_LIMIT; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: id = MSCONN_EVENT_INVALID_ENGINE_RESPONSE; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT: id = MSCONN_EVENT_ENGINE_TIMEOUT; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE: id = MSCONN_EVENT_ENGINE_UNAVAILABLE; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL: id = MSCONN_EVENT_CLIENT_CANCEL; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT: id = MSCONN_EVENT_UPSTREAM_DISCONNECT; break;
+    case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL:
+    case MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE:
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING:
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_EXPIRED:
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISMATCH: id = MSCONN_EVENT_PROTOCOL_ERROR; break;
+    default: id = MSCONN_EVENT_CONNECTOR_ERROR; break;
+    }
+    (void)snprintf(rule_id, rule_id_capacity, "%d", decision->rule_id);
+    event->meta.connector = "haproxy";
+    event->meta.integration_mode = "native-htx";
+    event->meta.transaction_id = ctx->lifecycle.transaction_id;
+    event->meta.message_id = id;
+    event->decision.phase = phases[decision->phase - 1];
+    event->decision.status = decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
+        MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
+    event->decision.requested_action = decision->action[0] ? decision->action : "deny";
+    event->decision.action = event->decision.requested_action;
+    event->decision.actual_action = "";
+    event->decision.rule_id = decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        decision->rule_id > 0 ? rule_id : "";
+    event->decision.reason = haproxy_modsecurity_htx_event_reason(decision, id);
+    event->http.http_status = decision->status;
+    event->http.original_http_status = ctx->response.original_status;
+    event->http.transport_result = "not_observable";
+    event->flags.response_committed = ctx->response.headers_committed;
+    event->flags.headers_sent = ctx->response.headers_committed;
+    event->flags.body_started = ctx->response.body_started;
+    event->flags.response_started = ctx->response.headers_committed;
+    event->flags.eos_seen = haproxy_modsecurity_htx_event_eos(ctx, decision->phase);
+    event->flags.late_intervention = decision->phase == 4 && ctx->response.headers_committed;
+    event->flags.late_intervention_mode = config->common_config.phase4_mode ==
+        MSCONNECTOR_PHASE4_MODE_STRICT ? "strict" : "safe";
+}
+
 /* Sink failure is sticky for every later request, including ordinary Allow
  * results which intentionally emit no Common decision event. */
 static int haproxy_modsecurity_htx_event_sink_failed(
@@ -492,9 +577,7 @@ static int haproxy_modsecurity_htx_event_sink_failed(
     if (failed) {
         if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
             ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
-            ctx->lifecycle.error.phase = observed_phase >= 1 && observed_phase <= 4 ?
-                observed_phase : (ctx->response.headers_seen ? 4 :
-                (ctx->request.finished ? 3 : (ctx->request.headers_seen ? 2 : 1)));
+            ctx->lifecycle.error.phase = haproxy_modsecurity_htx_observed_error_phase(ctx, observed_phase);
             ctx->lifecycle.error.status = 503;
             ctx->lifecycle.error.disruptive = 1;
             (void)snprintf(ctx->lifecycle.error.action,
@@ -513,11 +596,7 @@ static int haproxy_modsecurity_htx_write_event(
     msconnector_event event;
     char line[8192];
     char rule_id[32];
-    const char *id;
     int ok;
-    static const enum msconnector_phase phases[] = {
-        MSCONNECTOR_PHASE_REQUEST_HEADERS, MSCONNECTOR_PHASE_REQUEST_BODY,
-        MSCONNECTOR_PHASE_RESPONSE_HEADERS, MSCONNECTOR_PHASE_RESPONSE_BODY};
     if (config == NULL || config->events_path == NULL) { return 1; }
     if (haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0)) { return 0; }
     if (decision == NULL) { return 0; }
@@ -538,53 +617,7 @@ static int haproxy_modsecurity_htx_write_event(
         (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0);
         return 0;
     }
-    msconnector_event_init(&event);
-    id = decision->phase <= 2 ? MSCONN_EVENT_REQUEST_BLOCKED : MSCONN_EVENT_RESPONSE_BLOCKED;
-    switch (decision->error_class) {
-    case MSCONNECTOR_TRANSACTION_ERROR_NONE: break;
-    case MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT: id = MSCONN_EVENT_BODY_LIMIT; break;
-    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: id = MSCONN_EVENT_INVALID_ENGINE_RESPONSE; break;
-    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT: id = MSCONN_EVENT_ENGINE_TIMEOUT; break;
-    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE: id = MSCONN_EVENT_ENGINE_UNAVAILABLE; break;
-    case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL: id = MSCONN_EVENT_CLIENT_CANCEL; break;
-    case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT: id = MSCONN_EVENT_UPSTREAM_DISCONNECT; break;
-    case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL:
-    case MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE:
-    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING:
-    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_EXPIRED:
-    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISMATCH: id = MSCONN_EVENT_PROTOCOL_ERROR; break;
-    default: id = MSCONN_EVENT_CONNECTOR_ERROR; break;
-    }
-    (void)snprintf(rule_id, sizeof(rule_id), "%d", decision->rule_id);
-    event.meta.connector = "haproxy";
-    event.meta.integration_mode = "native-htx";
-    event.meta.transaction_id = ctx->lifecycle.transaction_id;
-    event.meta.message_id = id;
-    event.decision.phase = phases[decision->phase - 1];
-    event.decision.status = decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE &&
-        decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
-        MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
-    event.decision.requested_action = decision->action[0] ? decision->action : "deny";
-    event.decision.action = event.decision.requested_action;
-    event.decision.actual_action = "";
-    event.decision.rule_id = decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
-        decision->rule_id > 0 ? rule_id : "";
-    event.decision.reason = decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE ?
-        "native_rule_intervention" : (decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT ?
-            (decision->phase == 4 ? "response_body_limit_exceeded" : "request_body_limit_exceeded") :
-            msconnector_event_protocol_error_name(id));
-    event.http.http_status = decision->status;
-    event.http.original_http_status = ctx->response.original_status;
-    event.http.transport_result = "not_observable";
-    event.flags.response_committed = ctx->response.headers_committed;
-    event.flags.headers_sent = ctx->response.headers_committed;
-    event.flags.body_started = ctx->response.body_started;
-    event.flags.response_started = ctx->response.headers_committed;
-    event.flags.eos_seen = decision->phase == 2 ? ctx->request.finished :
-        (decision->phase == 4 ? ctx->response.finished : 0);
-    event.flags.late_intervention = decision->phase == 4 && ctx->response.headers_committed;
-    event.flags.late_intervention_mode = config->common_config.phase4_mode ==
-        MSCONNECTOR_PHASE4_MODE_STRICT ? "strict" : "safe";
+    haproxy_modsecurity_htx_prepare_event(ctx, decision, &event, rule_id, sizeof(rule_id));
     ok = msconnector_event_write_jsonl_stream(&event, config->events_file,
         line, sizeof(line), &config->events_error);
     (void)pthread_mutex_unlock(&config->events_lock);

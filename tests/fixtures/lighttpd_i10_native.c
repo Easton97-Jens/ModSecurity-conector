@@ -248,7 +248,8 @@ static handler_t http_status_set_err_fin(request_st *r, int status) {
 static void http_response_reset(request_st *r) {
   r->http_status = 0;
   r->resp_body_finished = 0;
-  r->write_queue.bytes_in = r->write_queue.bytes_out = 0;
+  r->write_queue.bytes_in = 0;
+  r->write_queue.bytes_out = 0;
   r->resp_header_len = 0;
 }
 /* Logging is intentionally outside the controlled host-action observations. */

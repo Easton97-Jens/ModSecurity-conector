@@ -97,8 +97,10 @@ static int text_field(const unsigned char *payload, size_t size, size_t *offset,
 }
 
 static int read_reservation(int fd, msconnector_http_authorization_provenance_storage *provenance) {
-    unsigned char header[12], payload[PROVENANCE_MAX_PAYLOAD];
-    size_t size, offset = 0U;
+    unsigned char header[12];
+    unsigned char payload[PROVENANCE_MAX_PAYLOAD];
+    size_t size;
+    size_t offset = 0U;
     if (!transfer(fd, header, sizeof(header), 0) ||
         memcmp(header, "MTP1\1\1\0\0", 8U) != 0) return 0;
     size = (size_t)header[8] * 16777216U + (size_t)header[9] * 65536U +
@@ -136,6 +138,123 @@ static void discard(reservation *slot) {
     msconnector_secure_zero(slot, sizeof(*slot));
 }
 
+/* A duplicated descriptor keeps a session alive while its I/O is outside the
+ * registry lock. A token and expiry comparison rejects a discarded/reused slot
+ * before any later state mutation. The duplicate never owns registry state. */
+static int snapshot_slot(size_t index, reservation *snapshot) {
+    int fd = -1;
+    pthread_mutex_lock(&server.lock);
+    reservation *slot = &server.slots[index];
+    uint64_t now = now_ms();
+    if (slot->used && (now == 0U || now >= slot->expires)) discard(slot);
+    if (slot->used) {
+        fd = fcntl(slot->fd, F_DUPFD_CLOEXEC, 0);
+        if (fd >= 0) {
+            *snapshot = *slot;
+            snapshot->fd = fd;
+        }
+    }
+    pthread_mutex_unlock(&server.lock);
+    return fd >= 0;
+}
+
+static reservation *current_slot(size_t index, const reservation *snapshot) {
+    reservation *slot = &server.slots[index];
+    if (!slot->used || slot->expires != snapshot->expires ||
+        memcmp(slot->token, snapshot->token, sizeof(slot->token)) != 0) return NULL;
+    return slot;
+}
+
+static void discard_snapshot(size_t index, const reservation *snapshot) {
+    pthread_mutex_lock(&server.lock);
+    reservation *slot = current_slot(index, snapshot);
+    if (slot != NULL) discard(slot);
+    pthread_mutex_unlock(&server.lock);
+}
+
+static int confirm_reply(const reservation *slot) {
+    if (slot->response_handle[0] == '\0') return 1;
+    msconnector_error error;
+    msconnector_error_init(&error);
+    /* Lock order is MTP1 reservation -> Common registry. The Common callback
+     * never enters MTP1 or performs native work. A terminal Deny has no
+     * companion capability to refresh. */
+    return !atomic_load(&server.stopping) && slot->reply_status >= 200 &&
+        slot->reply_status < 300 && server.confirm != NULL &&
+        server.confirm(server.confirm_userdata, slot->response_handle, &error);
+}
+
+static int prepare_reply(size_t index, const reservation *snapshot,
+    unsigned char response[79]) {
+    int ready = 0;
+    pthread_mutex_lock(&server.lock);
+    reservation *slot = current_slot(index, snapshot);
+    uint64_t now = now_ms();
+    if (slot != NULL && slot->consumed && slot->complete && !slot->queried) {
+        if (now == 0U || now >= slot->expires || !confirm_reply(slot)) {
+            discard(slot);
+        } else {
+            response[13] = (unsigned char)(slot->reply_status >> 8);
+            response[14] = (unsigned char)slot->reply_status;
+            memcpy(response + 15U, slot->response_handle, 64U);
+            /* The first confirmed query linearizes here. Its bounded network
+             * transfer follows without retaining the registry mutex. */
+            slot->queried = 1;
+            ready = 1;
+        }
+    }
+    pthread_mutex_unlock(&server.lock);
+    return ready;
+}
+
+static void serve_query(size_t index, const reservation *snapshot) {
+    unsigned char query[12];
+    unsigned char response[79] = {'M','T','P','1',1,128,0,0,0,0,0,67,0};
+    if (!transfer(snapshot->fd, query, sizeof(query), 0) ||
+        memcmp(query, "MTP1\1\2\0\0\0\0\0\0", sizeof(query)) != 0) {
+        discard_snapshot(index, snapshot);
+        return;
+    }
+    if (prepare_reply(index, snapshot, response) &&
+        !transfer(snapshot->fd, response, sizeof(response), 1)) {
+        discard_snapshot(index, snapshot);
+    }
+    msconnector_secure_zero(response, sizeof(response));
+}
+
+static int inspect_slot(size_t index, const reservation *snapshot,
+    ssize_t count, int read_error) {
+    int query_ready = 0;
+    pthread_mutex_lock(&server.lock);
+    reservation *slot = current_slot(index, snapshot);
+    uint64_t now = now_ms();
+    if (slot == NULL) {
+        pthread_mutex_unlock(&server.lock);
+        return 0;
+    }
+    if (count > 0 && now != 0U && now < slot->expires &&
+        slot->consumed && slot->complete && !slot->queried) {
+        query_ready = 1;
+    } else if (now == 0U || now >= slot->expires || count >= 0 ||
+        (read_error != EAGAIN && read_error != EWOULDBLOCK && read_error != EINTR)) {
+        /* Early/second queries and closed/expired sessions are ambiguous. */
+        discard(slot);
+    }
+    pthread_mutex_unlock(&server.lock);
+    return query_ready;
+}
+
+static void serve_slot(size_t index) {
+    reservation snapshot = {0};
+    unsigned char byte;
+    if (!snapshot_slot(index, &snapshot)) return;
+    ssize_t count = recv(snapshot.fd, &byte, 1U, MSG_PEEK | MSG_DONTWAIT);
+    int read_error = errno;
+    if (inspect_slot(index, &snapshot, count, read_error)) serve_query(index, &snapshot);
+    close(snapshot.fd);
+    msconnector_secure_zero(&snapshot, sizeof(snapshot));
+}
+
 static void accept_reservation(void) {
     struct ucred peer;
     socklen_t peer_size = sizeof(peer);
@@ -149,20 +268,34 @@ static void accept_reservation(void) {
         !read_reservation(fd, &provenance) || !random_token(token)) {
         close(fd); return;
     }
+    int reserved = 0;
+    size_t reserved_index = 0U;
+    reservation snapshot = {0};
     pthread_mutex_lock(&server.lock);
     reservation *slot = NULL;
-    for (size_t i = 0U; i < PROVENANCE_SLOTS; ++i)
-        if (!server.slots[i].used && slot == NULL) slot = &server.slots[i];
+    for (size_t i = 0U; i < PROVENANCE_SLOTS; ++i) {
+        if (!server.slots[i].used && slot == NULL) {
+            slot = &server.slots[i];
+            reserved_index = i;
+        }
+    }
     if (slot != NULL) {
-        slot->fd = fd;
-        slot->used = 1;
-        slot->expires = now_ms() + PROVENANCE_TTL_MS;
-        slot->provenance = provenance;
-        memcpy(slot->token, token, sizeof(token));
-        memcpy(response + 13U, token, 64U);
-        if (!transfer(fd, response, sizeof(response), 1)) discard(slot);
-    } else close(fd);
+        slot->fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+        if (slot->fd >= 0) {
+            slot->used = 1;
+            slot->expires = now_ms() + PROVENANCE_TTL_MS;
+            slot->provenance = provenance;
+            memcpy(slot->token, token, sizeof(token));
+            memcpy(response + 13U, token, 64U);
+            snapshot = *slot;
+            reserved = 1;
+        }
+    }
     pthread_mutex_unlock(&server.lock);
+    if (reserved && !transfer(fd, response, sizeof(response), 1))
+        discard_snapshot(reserved_index, &snapshot);
+    close(fd);
+    msconnector_secure_zero(&snapshot, sizeof(snapshot));
     msconnector_secure_zero(&provenance, sizeof(provenance));
     msconnector_secure_zero(token, sizeof(token));
     msconnector_secure_zero(response, sizeof(response));
@@ -173,49 +306,7 @@ static void *serve(void *unused) {
     while (!atomic_load(&server.stopping)) {
         struct pollfd listener = {.fd = server.listener, .events = POLLIN};
         if (poll(&listener, 1U, 100) == 1 && (listener.revents & POLLIN)) accept_reservation();
-        pthread_mutex_lock(&server.lock);
-        uint64_t now = now_ms();
-        for (size_t i = 0U; i < PROVENANCE_SLOTS; ++i) {
-            reservation *slot = &server.slots[i];
-            unsigned char byte;
-            ssize_t count;
-            if (!slot->used) continue;
-            count = recv(slot->fd, &byte, 1U, MSG_PEEK | MSG_DONTWAIT);
-            if (count > 0 && now != 0U && now < slot->expires &&
-                slot->consumed && slot->complete && !slot->queried) {
-                unsigned char query[12], response[79] = {'M','T','P','1',1,128,0,0,0,0,0,67,0};
-                if (!transfer(slot->fd, query, sizeof(query), 0) ||
-                    memcmp(query, "MTP1\1\2\0\0\0\0\0\0", sizeof(query)) != 0) {
-                    discard(slot); continue;
-                }
-                /* Lock order is MTP1 reservation -> Common registry. The
-                 * Common callback never enters MTP1 or performs native work.
-                 * A terminal Deny has no companion capability to refresh. */
-                if (slot->response_handle[0] != '\0') {
-                    msconnector_error error;
-                    msconnector_error_init(&error);
-                    if (atomic_load(&server.stopping) || slot->reply_status < 200 ||
-                        slot->reply_status >= 300 || server.confirm == NULL ||
-                        !server.confirm(server.confirm_userdata,
-                            slot->response_handle, &error)) {
-                        discard(slot); continue;
-                    }
-                }
-                response[13] = (unsigned char)(slot->reply_status >> 8);
-                response[14] = (unsigned char)slot->reply_status;
-                memcpy(response + 15U, slot->response_handle, 64U);
-                if (!transfer(slot->fd, response, sizeof(response), 1)) {
-                    discard(slot); continue;
-                }
-                slot->queried = 1;
-                continue;
-            }
-            /* A query before completion or any second query is ambiguous.
-             * Closed or expired sessions invalidate remaining capability. */
-            if (now == 0U || now >= slot->expires || count >= 0 ||
-                (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) discard(slot);
-        }
-        pthread_mutex_unlock(&server.lock);
+        for (size_t i = 0U; i < PROVENANCE_SLOTS; ++i) serve_slot(i);
     }
     return NULL;
 }
@@ -287,46 +378,107 @@ void msconnector_traefik_provenance_stop(void) {
     server.confirm_userdata = NULL;
 }
 
-int msconnector_traefik_provenance_claim(void *unused,
-    const msconnector_request *request,
-    msconnector_http_authorization_provenance_storage *storage,
-    msconnector_error *error) {
+static const msconnector_header *reservation_header(const msconnector_request *request) {
     const msconnector_header *header = NULL;
-    int success = 0;
-    (void)unused;
-    if (request == NULL || storage == NULL ||
-        request->header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
-        (request->header_count != 0U && request->headers == NULL)) return 0;
-    memset(storage, 0, sizeof(*storage));
+    if (request == NULL || request->header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
+        (request->header_count != 0U && request->headers == NULL)) return NULL;
     for (size_t i = 0U; i < request->header_count; ++i) {
         const msconnector_header *candidate = &request->headers[i];
-        if (candidate->name != NULL && candidate->name_size == sizeof(MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER)-1U &&
+        if (candidate->name == NULL ||
+            candidate->name_size != sizeof(MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER) - 1U ||
             strncasecmp(candidate->name, MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER,
-                candidate->name_size) == 0) {
-            if (header != NULL) goto failed;
-            header = candidate;
-        }
+                candidate->name_size) != 0) continue;
+        if (header != NULL) return NULL;
+        header = candidate;
     }
-    if (header == NULL || header->value == NULL || header->value_size != 64U) goto failed;
+    if (header == NULL || header->value == NULL || header->value_size != 64U) return NULL;
+    return header;
+}
+
+static int slot_accepts_stage(const reservation *slot, int consumed, uint64_t now) {
+    return slot != NULL && slot->used && slot->consumed == consumed &&
+        !slot->complete && now != 0U && now < slot->expires;
+}
+
+static int find_slot_snapshot(const msconnector_header *header, int consumed,
+    size_t *index, reservation *snapshot) {
+    int found = 0;
     pthread_mutex_lock(&server.lock);
     uint64_t now = now_ms();
     for (size_t i = 0U; i < PROVENANCE_SLOTS; ++i) {
         reservation *slot = &server.slots[i];
-        if (slot->used && !slot->consumed && now != 0U && now < slot->expires &&
-            memcmp(slot->token, header->value, 64U) == 0) {
-            unsigned char extra;
-            ssize_t count = recv(slot->fd, &extra, 1U, MSG_PEEK | MSG_DONTWAIT);
-            if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-                *storage = slot->provenance;
-                slot->consumed = 1;
-                msconnector_secure_zero(&slot->provenance, sizeof(slot->provenance));
-                success = 1;
-            } else discard(slot);
-            break;
+        if (!slot_accepts_stage(slot, consumed, now) ||
+            memcmp(slot->token, header->value, 64U) != 0) continue;
+        int fd = fcntl(slot->fd, F_DUPFD_CLOEXEC, 0);
+        if (fd >= 0) {
+            *snapshot = *slot;
+            snapshot->fd = fd;
+            *index = i;
+            found = 1;
         }
+        break;
     }
     pthread_mutex_unlock(&server.lock);
-failed:
+    return found;
+}
+
+static int snapshot_is_idle(const reservation *snapshot) {
+    unsigned char extra;
+    ssize_t count = recv(snapshot->fd, &extra, 1U, MSG_PEEK | MSG_DONTWAIT);
+    return count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK);
+}
+
+static int claim_snapshot(size_t index, const reservation *snapshot, int idle,
+    msconnector_http_authorization_provenance_storage *storage) {
+    int success = 0;
+    pthread_mutex_lock(&server.lock);
+    reservation *slot = current_slot(index, snapshot);
+    if (slot_accepts_stage(slot, 0, now_ms())) {
+        if (idle) {
+            *storage = slot->provenance;
+            slot->consumed = 1;
+            msconnector_secure_zero(&slot->provenance, sizeof(slot->provenance));
+            success = 1;
+        } else discard(slot);
+    }
+    pthread_mutex_unlock(&server.lock);
+    return success;
+}
+
+static int complete_snapshot(size_t index, const reservation *snapshot, int idle,
+    int status, const char *response_handle) {
+    int success = 0;
+    pthread_mutex_lock(&server.lock);
+    reservation *slot = current_slot(index, snapshot);
+    if (slot_accepts_stage(slot, 1, now_ms())) {
+        if (idle) {
+            slot->reply_status = status;
+            if (response_handle != NULL) memcpy(slot->response_handle, response_handle, 65U);
+            slot->complete = 1;
+            success = 1;
+        } else discard(slot);
+    }
+    pthread_mutex_unlock(&server.lock);
+    return success;
+}
+
+int msconnector_traefik_provenance_claim(void *unused,
+    const msconnector_request *request,
+    msconnector_http_authorization_provenance_storage *storage,
+    msconnector_error *error) {
+    int success = 0;
+    reservation snapshot = {0};
+    size_t index = 0U;
+    (void)unused;
+    if (storage == NULL) return 0;
+    memset(storage, 0, sizeof(*storage));
+    const msconnector_header *header = reservation_header(request);
+    if (header != NULL && find_slot_snapshot(header, 0, &index, &snapshot)) {
+        int idle = snapshot_is_idle(&snapshot);
+        success = claim_snapshot(index, &snapshot, idle, storage);
+        close(snapshot.fd);
+        msconnector_secure_zero(&snapshot, sizeof(snapshot));
+    }
     if (!success) msconnector_error_set(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
         "trusted private reservation required", "traefik_provenance");
     return success;
@@ -335,41 +487,19 @@ failed:
 int msconnector_traefik_provenance_complete(void *unused,
     const msconnector_request *request, int status, const char *response_handle,
     msconnector_error *error) {
-    const msconnector_header *header = NULL;
     int success = 0;
+    reservation snapshot = {0};
+    size_t index = 0U;
     (void)unused;
-    if (request == NULL || request->header_count > MSCONNECTOR_MAX_HEADER_COUNT ||
-        (request->header_count != 0U && request->headers == NULL) || status < 100 || status > 599 ||
+    if (status < 100 || status > 599 ||
         (response_handle != NULL && strlen(response_handle) != 64U)) goto failed;
-    for (size_t i = 0U; i < request->header_count; ++i) {
-        const msconnector_header *candidate = &request->headers[i];
-        if (candidate->name != NULL && candidate->name_size == sizeof(MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER)-1U &&
-            strncasecmp(candidate->name, MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER,
-                candidate->name_size) == 0) {
-            if (header != NULL) goto failed;
-            header = candidate;
-        }
+    const msconnector_header *header = reservation_header(request);
+    if (header != NULL && find_slot_snapshot(header, 1, &index, &snapshot)) {
+        int idle = snapshot_is_idle(&snapshot);
+        success = complete_snapshot(index, &snapshot, idle, status, response_handle);
+        close(snapshot.fd);
+        msconnector_secure_zero(&snapshot, sizeof(snapshot));
     }
-    if (header == NULL || header->value == NULL || header->value_size != 64U) goto failed;
-    pthread_mutex_lock(&server.lock);
-    uint64_t now = now_ms();
-    for (size_t i = 0U; i < PROVENANCE_SLOTS; ++i) {
-        reservation *slot = &server.slots[i];
-        if (slot->used && slot->consumed && !slot->complete && now != 0U &&
-            now < slot->expires && memcmp(slot->token, header->value, 64U) == 0) {
-            unsigned char extra;
-            ssize_t count = recv(slot->fd, &extra, 1U, MSG_PEEK | MSG_DONTWAIT);
-            if (count >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
-                discard(slot); break;
-            }
-            slot->reply_status = status;
-            if (response_handle != NULL) memcpy(slot->response_handle, response_handle, 65U);
-            slot->complete = 1;
-            success = 1;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&server.lock);
 failed:
     if (!success) msconnector_error_set(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
         "trusted private reply binding failed", "traefik_provenance");

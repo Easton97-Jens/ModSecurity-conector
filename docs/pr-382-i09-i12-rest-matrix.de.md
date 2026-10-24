@@ -71,7 +71,7 @@ Erledigte I09f/I10e-Apache-Modulkorrekturen und andere abgehakte Teilbereiche bl
 
 ## Grenzen und getrennte nächste Schritte
 
-Apaches void-Writer meldet Serialisierungs-/Schreib-/Close-Fehler diagnostisch, reicht jedoch keinen Sinkabschluss an den Hostaufrufer zurück. SPOP prüft das Common-Event-`fputs`/`fflush` nicht. Dies sind frisch im Source bestätigte Weitergabelücken, keine erfundenen Live-Fehler und keine wieder geöffneten Apache-Modulkorrekturen. Policy und physische Negativtests müssen vor gezielten Fixes separat festgelegt werden.
+Die beiden obigen Befunde `SOURCE_CONFIRMED_PROPAGATION_GAP` sind historische Bewertungen von `b2622a5d6ca746485c08f4789208299a111f47c7`. Der aktuelle Apache-Writer gibt typisierte persistente Sinkfehler zurück, und SPOP prüft Staging und physische Veröffentlichung auf Fehler. Die gezielten Verträge stehen in `tests/test_apache_event_sink_failures.py` und `tests/test_haproxy_spop_event_sink_failures.py`. Die historische Tabelle bleibt mit ihrer ursprünglichen Revision erhalten; sie öffnet weder diese reparierten Ursachen erneut noch liefert sie frische Hostnachweise für den Integrationshead.
 
 Transport-Short-Write/EAGAIN/UDS/gRPC-Abbrüche sind kein physischer Event-Log-Sink-Nachweis. Composite-Coordinator/Response-Observer sind Hilfsinfrastruktur, keine zusätzliche unabhängige verkehrsführende Route; sie ersetzen weder Companion-Endpunkt noch Hostadapter. Unverändertes lighttpd Stock nativ bleibt Diagnose/Kontrolle; gepatchtes lighttpd Strict wird nicht aus Callback-Rückgaben zum Client-Abort hochgestuft. Request-only braucht seinen tatsächlichen Response-Companion.
 

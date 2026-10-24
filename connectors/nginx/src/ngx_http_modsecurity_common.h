@@ -482,13 +482,12 @@ ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
 static ngx_inline int
 ngx_http_modsecurity_event_token_valid(const char *value)
 {
-    size_t length;
     unsigned char c;
 
     if (value == NULL) {
         return 0;
     }
-    for (length = 0; length <= 128U; ++length) {
+    for (size_t length = 0; length <= 128U; ++length) {
         c = (unsigned char)value[length];
         if (c == 0) {
             return length > 0U;

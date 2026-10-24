@@ -21,10 +21,14 @@ static void check_request_authorization(agent_state *state, int version_only) {
   copy_cstring(request.uri, sizeof(request.uri), "/");
   copy_cstring(request.request_id, sizeof(request.request_id), "request-authorization");
   request.client_port = 1234; request.server_port = 443;
-  request.has_client_ip = request.has_server_ip = 1;
-  request.has_client_port = request.has_server_port = 1;
+  request.has_client_ip = 1;
+  request.has_server_ip = 1;
+  request.has_client_port = 1;
+  request.has_server_port = 1;
   request.headers = headers; request.header_count = 2;
-  request.has_body = request.has_body_len_arg = request.has_headers_text = 1;
+  request.has_body = 1;
+  request.has_body_len_arg = 1;
+  request.has_headers_text = 1;
   request.http_metadata.has_http_version = 1;
   copy_cstring(request.http_metadata.http_version,
       sizeof(request.http_metadata.http_version), version_only ? "2.0" : "1.1");
@@ -51,19 +55,25 @@ static void check_version_admission(agent_state *state) {
   const char *versions[] = {NULL, "0.9", "3.0", "9.9"};
   for (size_t i = 0; i < sizeof(versions) / sizeof(versions[0]); ++i) {
     notify_request r = {0};
-    r.has_client_ip = r.has_server_ip = r.has_client_port = r.has_server_port = 1;
+    r.has_client_ip = 1;
+    r.has_server_ip = 1;
+    r.has_client_port = 1;
+    r.has_server_port = 1;
     r.client_port = 1234; r.server_port = 443;
     strcpy(r.client_ip, "192.0.2.1"); strcpy(r.server_ip, "198.51.100.1");
     strcpy(r.method, "GET"); strcpy(r.uri, "/"); strcpy(r.request_id, "version-reject");
     r.headers = headers; r.header_count = 2;
-    r.has_body = r.has_body_len_arg = r.has_headers_text = 1;
+    r.has_body = 1;
+    r.has_body_len_arg = 1;
+    r.has_headers_text = 1;
     if (versions[i]) { r.http_metadata.has_http_version = 1; strcpy(r.http_metadata.http_version, versions[i]); }
     haproxy_modsecurity_decision d;
     int processed = 0;
     spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
     const char *text = "pass";
     char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
-    unsigned int calls = native_calls, cleanups = native_cleanups;
+    unsigned int calls = native_calls;
+    unsigned int cleanups = native_cleanups;
     process_production_request_notify(state, &r, &d, &processed, &origin, &text, handle);
     assert(d.disruptive && d.status == 503 && processed == 0);
     assert(origin == SPOP_ACK_FAILURE_DECISION);
@@ -250,6 +260,108 @@ static void check_owner_failure(agent_state *state, int operation) {
 static ssize_t fail_outcome_event(void *opaque, const char *data, size_t size) {
   (void)opaque; (void)data; (void)size; errno = EIO; return -1;
 }
+static void set_owner_outcome_action(spop_bridge_task_context *context,
+                                     int phase, int fault, int strict) {
+  if (fault >= 2) {
+    context->command.action = MSCONNECTOR_DECISION_ACTION_ALLOW;
+    context->command.visible_http_status = 200;
+    context->command.transport_result = "allowed";
+  } else if (phase == 3) {
+    context->command.action = MSCONNECTOR_DECISION_ACTION_DENY;
+    context->command.visible_http_status = 403;
+    context->command.transport_result = "denied";
+  } else {
+    context->command.action = MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
+    context->command.visible_http_status = 200;
+    context->command.transport_result = "log_only";
+  }
+  if (strict && phase == 4 && fault < 2) {
+    context->command.action = MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION;
+    context->command.transport_result = "connection_aborted";
+    context->command.connection_aborted = 1;
+  }
+}
+static void check_owner_outcome_replay_guards(haproxy_modsecurity_transaction *tx,
+                                            const msconnector_decision *requested,
+                                            const spop_bridge_task_context *context,
+                                            int phase) {
+  msconnector_error error;
+  msconnector_event event;
+  msconnector_error_init(&error);
+  assert(haproxy_modsecurity_transaction_response_event(tx, requested, &event, &error) == 1);
+  assert(event.flags.late_intervention_mode == NULL);
+  msconnector_decision forged_allow;
+  msconnector_decision_set_allow(&forged_allow);
+  forged_allow.phase = requested->phase;
+  msconnector_error_init(&error);
+  assert(!haproxy_modsecurity_transaction_response_event(tx, &forged_allow, &event, &error));
+  assert(haproxy_modsecurity_transaction_record_response_companion_outcome(tx,
+      context->command.action, "stale-replay", 200, 0) != 0);
+  msconnector_decision wrong = *requested;
+  wrong.disruptive = 0;
+  wrong.intervention.disruptive = 0;
+  msconnector_error_init(&error);
+  assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+  wrong = *requested;
+  wrong.http_status = 401;
+  msconnector_error_init(&error);
+  assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+  wrong = *requested; wrong.kind = MSCONNECTOR_DECISION_KIND_REDIRECT;
+  msconnector_error_init(&error);
+  assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+  wrong = *requested; wrong.rule_id = "999999";
+  msconnector_error_init(&error);
+  assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+  wrong = *requested; wrong.phase = phase == 3 ? MSCONNECTOR_PHASE_RESPONSE_BODY : MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+  msconnector_error_init(&error);
+  assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
+}
+static void check_owner_outcome_line(agent_state *state, int phase, int strict) {
+  const char *expected_action = "\"actual_action\":\"log_only\"";
+  if (phase == 3) {
+    expected_action = "\"actual_action\":\"deny\"";
+  } else if (strict) {
+    expected_action = "\"actual_action\":\"abort_connection\"";
+  }
+  assert(ftell(state->decision_log) > 0);
+  rewind(state->decision_log); char line[8192];
+  assert(fgets(line, sizeof(line), state->decision_log) != NULL);
+  assert(strstr(line, "native-owner-event") != NULL);
+  assert(strstr(line, "\"rule_id\":\"123\"") != NULL);
+  assert(strstr(line, "SECRET-INPUT-NATIVE-LOG") == NULL);
+  assert(strstr(line, "\"http_status\":403") != NULL);
+  assert(strstr(line, phase == 3 ? "\"visible_http_status\":403" : "\"visible_http_status\":200") != NULL);
+  assert(strstr(line, strict && phase == 4 ? "\"connection_aborted\":true" : "\"connection_aborted\":false") != NULL);
+  assert(strstr(line, expected_action) != NULL);
+}
+static void finish_owner_outcome(agent_state *state,
+                                 haproxy_modsecurity_transaction *tx,
+                                 spop_bridge_task_context *context,
+                                 int phase, int fault, int strict) {
+  if (fault == 1 || fault == 3) {
+    assert(!context->success && context->error.code == MSCONNECTOR_ERROR_IO);
+    assert(state->decision_log_error.code == MSCONNECTOR_ERROR_IO);
+    haproxy_modsecurity_transaction_abort(tx);
+  } else {
+    if (!context->success) fprintf(stderr, "OUTCOME failed phase=%d fixture=%d error=%d %s\n",
+        phase, fault, context->error.code, context->error.message ? context->error.message : "");
+    assert(context->success);
+    assert(fflush(state->decision_log) == 0);
+    if (fault >= 2) {
+      assert(ftell(state->decision_log) == 0);
+    } else {
+      check_owner_outcome_line(state, phase, strict);
+    }
+    if (fault >= 2 && phase == 3) {
+      /* P3 Allow has no P4/EOS: do not fabricate a successful full finish. */
+      haproxy_modsecurity_transaction_abort(tx);
+    } else {
+      context->command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE;
+      run_spop_bridge_task(context);
+      assert(context->success && context->transaction_consumed);
+    }
+  }
+}
 static void check_owner_outcome_event(agent_state *state, int phase, int fault, int strict) {
   haproxy_modsecurity_request r = {0};
   haproxy_modsecurity_header h[] = {{"Host", "example.test"}};
@@ -302,14 +414,7 @@ static void check_owner_outcome_event(agent_state *state, int phase, int fault, 
   context.state = state; context.transaction = tx;
   context.command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_OUTCOME;
   context.command.decision = &requested;
-  context.command.action = fault >= 2 ? MSCONNECTOR_DECISION_ACTION_ALLOW : phase == 3 ? MSCONNECTOR_DECISION_ACTION_DENY : MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
-  context.command.visible_http_status = fault >= 2 ? 200 : phase == 3 ? 403 : 200;
-  context.command.transport_result = fault >= 2 ? "allowed" : phase == 3 ? "denied" : "log_only";
-  if (strict && phase == 4 && fault < 2) {
-    context.command.action = MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION;
-    context.command.transport_result = "connection_aborted";
-    context.command.connection_aborted = 1;
-  }
+  set_owner_outcome_action(&context, phase, fault, strict);
   haproxy_spop_response_companion_owner_command borrowed = context.command;
   borrowed.lease = 1U;
   msconnector_error_init(&error);
@@ -322,72 +427,20 @@ static void check_owner_outcome_event(agent_state *state, int phase, int fault, 
       MSCONNECTOR_ERROR_IO, "earlier sink failure", "test");
   unsigned int before = native_cleanups;
   run_spop_bridge_task(&context);
-  if (!fault) {
-    msconnector_error_init(&error);
-    assert(haproxy_modsecurity_transaction_response_event(tx, &requested, &event, &error) == 1);
-    assert(event.flags.late_intervention_mode == NULL);
-    msconnector_decision forged_allow;
-    msconnector_decision_set_allow(&forged_allow);
-    forged_allow.phase = requested.phase;
-    msconnector_error_init(&error);
-    assert(!haproxy_modsecurity_transaction_response_event(tx, &forged_allow, &event, &error));
-    assert(haproxy_modsecurity_transaction_record_response_companion_outcome(tx,
-        context.command.action, "stale-replay", 200, 0) != 0);
-    msconnector_decision wrong = requested;
-    wrong.disruptive = 0;
-    wrong.intervention.disruptive = 0;
-    msconnector_error_init(&error);
-    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
-    wrong = requested;
-    wrong.http_status = 401;
-    msconnector_error_init(&error);
-    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
-    wrong = requested; wrong.kind = MSCONNECTOR_DECISION_KIND_REDIRECT;
-    msconnector_error_init(&error);
-    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
-    wrong = requested; wrong.rule_id = "999999";
-    msconnector_error_init(&error);
-    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
-    wrong = requested; wrong.phase = phase == 3 ? MSCONNECTOR_PHASE_RESPONSE_BODY : MSCONNECTOR_PHASE_RESPONSE_HEADERS;
-    msconnector_error_init(&error);
-    assert(!haproxy_modsecurity_transaction_response_event(tx, &wrong, &event, &error));
-  }
-  if (fault == 1 || fault == 3) {
-    assert(!context.success && context.error.code == MSCONNECTOR_ERROR_IO);
-    assert(state->decision_log_error.code == MSCONNECTOR_ERROR_IO);
-    haproxy_modsecurity_transaction_abort(tx);
-  } else {
-    if (!context.success) fprintf(stderr, "OUTCOME failed phase=%d fixture=%d error=%d %s\n",
-        phase, fault, context.error.code, context.error.message ? context.error.message : "");
-    assert(context.success);
-    assert(fflush(state->decision_log) == 0);
-    if (fault >= 2) {
-      assert(ftell(state->decision_log) == 0);
-    } else {
-    assert(ftell(state->decision_log) > 0);
-    rewind(state->decision_log); char line[8192];
-    assert(fgets(line, sizeof(line), state->decision_log) != NULL);
-    assert(strstr(line, "native-owner-event") != NULL);
-    assert(strstr(line, "\"rule_id\":\"123\"") != NULL);
-    assert(strstr(line, "SECRET-INPUT-NATIVE-LOG") == NULL);
-    assert(strstr(line, "\"http_status\":403") != NULL);
-    assert(strstr(line, phase == 3 ? "\"visible_http_status\":403" : "\"visible_http_status\":200") != NULL);
-    assert(strstr(line, strict && phase == 4 ? "\"connection_aborted\":true" : "\"connection_aborted\":false") != NULL);
-    assert(strstr(line, phase == 3 ? "\"actual_action\":\"deny\"" : strict ? "\"actual_action\":\"abort_connection\"" : "\"actual_action\":\"log_only\"") != NULL);
-    }
-    if (fault >= 2 && phase == 3) {
-      /* P3 Allow has no P4/EOS: do not fabricate a successful full finish. */
-      haproxy_modsecurity_transaction_abort(tx);
-    } else {
-      context.command.operation = HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE;
-      run_spop_bridge_task(&context);
-      assert(context.success && context.transaction_consumed);
-    }
-  }
+  if (!fault) { check_owner_outcome_replay_guards(tx, &requested, &context, phase); }
+  finish_owner_outcome(state, tx, &context, phase, fault, strict);
   assert(native_cleanups == before + 1);
   (void)fclose(state->decision_log); state->decision_log = NULL;
   state->config.decision_log[0] = '\0';
   msconnector_error_init(&state->decision_log_error);
+}
+static void check_owner_outcome_modes(agent_state *state) {
+  for (int phase = 3; phase <= 4; ++phase) {
+    for (int fault = 0; fault <= 3; ++fault) {
+      check_owner_outcome_event(state, phase, fault, 0);
+      if (phase == 4) { check_owner_outcome_event(state, phase, fault, 1); }
+    }
+  }
 }
 static void check_mode(const char *mode, const char *fail_mode, int enforces, const char *only) {
   agent_state state;
@@ -408,11 +461,7 @@ static void check_mode(const char *mode, const char *fail_mode, int enforces, co
   assert(haproxy_modsecurity_engine_create(&cfg, &state.engine, &d) == 0);
   if (only != NULL) {
     if (strcmp(only, "owner-events") == 0) {
-      for (int phase = 3; phase <= 4; ++phase)
-        for (int fault = 0; fault <= 3; ++fault) {
-          check_owner_outcome_event(&state, phase, fault, 0);
-          if (phase == 4) check_owner_outcome_event(&state, phase, fault, 1);
-        }
+      check_owner_outcome_modes(&state);
     } else if (strcmp(only, "invalid-version") == 0) check_version_admission(&state);
     else check_request_authorization(&state, strcmp(only, "http-version") == 0);
     haproxy_modsecurity_engine_destroy(state.engine);
