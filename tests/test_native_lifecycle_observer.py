@@ -15,6 +15,31 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = None
 
 
+def sdk_helper_command(include, output, mismatch=False):
+    """Keep system headers in the compiler's native include-next search order."""
+    sdk_headers = [] if include.resolve() == Path("/usr/include") else ["-isystem", str(include)]
+    command = ["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", *sdk_headers,
+               "-c", str(ROOT / "ci/runtime/lifecycle/native-lifecycle-sdk.cpp"), "-o", str(output)]
+    if mismatch:
+        command.append('-DMSCONNECTOR_LIFECYCLE_SDK_EXPECTED_VERSION="9.9.9"')
+    return command
+
+
+class SdkHelperCommandTests(unittest.TestCase):
+    def test_system_sdk_preserves_native_include_next_search_order(self):
+        command = sdk_helper_command(Path("/usr/include"), Path("helper.o"))
+        self.assertNotIn("-isystem", command)
+        self.assertNotIn("/usr/include", command)
+        self.assertEqual(command[-2:], ["-o", "helper.o"])
+
+    def test_custom_sdk_retains_explicit_system_header_selection(self):
+        include = ROOT / "tests/fixtures/custom-sdk-headers"
+        command = sdk_helper_command(include, Path("helper.o"))
+        index = command.index("-isystem")
+        self.assertEqual(command[index + 1], str(include))
+        self.assertEqual(command[-2:], ["-o", "helper.o"])
+
+
 def constructor_id_type(include, output):
     """Ask the selected C header for its constructor signature; retain both probes."""
     probes = []
@@ -630,10 +655,7 @@ int main(int argc,char **argv) {
 
     def compile_sdk_helper(self, name, mismatch=False):
         output = self.work / (name + ".o")
-        command = ["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-isystem", str(self.include),
-                   "-c", str(ROOT / "ci/runtime/lifecycle/native-lifecycle-sdk.cpp"), "-o", str(output)]
-        if mismatch:
-            command.append('-DMSCONNECTOR_LIFECYCLE_SDK_EXPECTED_VERSION="9.9.9"')
+        command = sdk_helper_command(self.include, output, mismatch)
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         return output

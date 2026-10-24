@@ -1252,6 +1252,108 @@ class AcceptanceControls(unittest.TestCase):
         self.assertIsNone(killed['exit_code'])
         self.assertEqual(killed['signal'], 15)
 
+    def engine_start_fixture(self, fault):
+        driver = self.driver()
+        service = types.SimpleNamespace(pid=4321, poll=lambda: 7)
+        driver.base.start = mock.Mock(return_value=service)
+        helper = types.SimpleNamespace(wait_for_tcp=mock.Mock())
+        fault_path = mock.Mock()
+        fault_path.read_text.return_value = '{"pid": 4321}\n'
+        case = {'probe_id': 'ac-01234567890123456789', 'fixture': {'fault': fault}}
+        result = {}
+        processes = {}
+        arguments = (case, Path('/engine'), Path('/config'), 18123, {}, [], processes,
+                     helper, 10, 11, fault_path, result)
+        return driver, service, helper, result, processes, arguments
+
+    def test_engine_start_success_returns_registered_service(self):
+        driver, service, helper, result, processes, arguments = self.engine_start_fixture(None)
+        self.assertIs(driver.start_engine(*arguments), service)
+        self.assertEqual(processes['engine'], (service, '/engine'))
+        helper.wait_for_tcp.assert_called_once_with(18123, service, 'real current native forwardAuth service')
+        self.assertEqual(result, {})
+
+    def test_engine_start_sink_open_failure_retains_window_and_service(self):
+        driver, service, helper, result, processes, arguments = self.engine_start_fixture({'driver_kind': 'sink-open'})
+        helper.wait_for_tcp.side_effect = RuntimeError('sink could not open')
+        self.assertIs(driver.start_engine(*arguments), service)
+        self.assertEqual(result['engine_start_failure'], {'type': 'RuntimeError', 'message': 'sink could not open'})
+        window = result['engine_start_window']
+        self.assertEqual((window['proxy_pid'], window['observed_exit_code'], window['actual_fault_pids']),
+                         (4321, 7, [4321]))
+        self.assertEqual(window['probe'], arguments[0]['probe_id'])
+        self.assertLessEqual(window['start_monotonic_ns'], window['end_monotonic_ns'])
+        self.assertEqual(processes['engine'], (service, '/engine'))
+
+    def test_engine_start_failure_without_fault_reraises(self):
+        driver, service, helper, result, processes, arguments = self.engine_start_fixture(None)
+        failure = RuntimeError('unexpected startup failure')
+        helper.wait_for_tcp.side_effect = failure
+        with self.assertRaises(RuntimeError) as caught:
+            driver.start_engine(*arguments)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(result['engine_start_failure']['message'], str(failure))
+        self.assertEqual(processes['engine'], (service, '/engine'))
+
+    def test_engine_start_failure_with_other_fault_reraises(self):
+        driver, service, helper, result, processes, arguments = self.engine_start_fixture({'driver_kind': 'begin-failure'})
+        failure = RuntimeError('unexpected startup failure')
+        helper.wait_for_tcp.side_effect = failure
+        with self.assertRaises(RuntimeError) as caught:
+            driver.start_engine(*arguments)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(result['engine_start_failure']['message'], str(failure))
+        self.assertEqual(processes['engine'], (service, '/engine'))
+
+    def test_backend_truncated_body_retains_entity_wire_and_error_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            headers = Message()
+            headers['X-I12-Probe'] = 'ac-01234567890123456789'
+            headers['Content-Length'] = '3'
+            handler = types.SimpleNamespace(headers=headers, path='/target', command='POST',
+                root=root, spec={'probe_id': headers['X-I12-Probe'], 'fixture': {}},
+                request_head_wire=b'POST /target HTTP/1.1\r\nContent-Length: 3\r\n\r\n',
+                rfile=io.BytesIO(b'ab'), send_error=mock.Mock(), close_connection=False)
+            with mock.patch.object(self.net, 'handler_record') as record:
+                self.net.Backend.respond(handler)
+            self.assertEqual((root / 'backend-target.request-body.raw').read_bytes(), b'ab')
+            self.assertEqual((root / 'backend-target.request-body-wire.raw').read_bytes(), b'ab')
+            body_receipt = record.call_args.kwargs
+            self.assertEqual(record.call_args.args, (handler, 'request_body'))
+            self.assertEqual(body_receipt['actual_bytes'], 2)
+            self.assertEqual(body_receipt['sha256'], hashlib.sha256(b'ab').hexdigest())
+            self.assertFalse(body_receipt['complete'])
+            self.assertFalse(body_receipt['framing']['complete'])
+            handler.send_error.assert_called_once_with(400, 'invalid backend request framing')
+            self.assertTrue(handler.close_connection)
+
+    def test_parser_child_exec_error_writes_json_receipt_and_exits_127(self):
+        parser = load('acceptance_parser')
+        argv = ['/engine', '--check-config', '--config', '/config']
+        with (mock.patch.object(parser.os, 'close') as close,
+              mock.patch.object(parser.os, 'chdir') as chdir,
+              mock.patch.object(parser.os, 'dup2') as dup2,
+              mock.patch.object(parser.os, 'write') as write,
+              mock.patch.object(parser.os, 'execve', side_effect=PermissionError(13, 'denied')) as execute,
+              mock.patch.object(parser.os, '_exit', side_effect=SystemExit(127)) as exit_child):
+            with self.assertRaises(SystemExit) as caught:
+                parser.execute_child(10, argv, 11, 12, 13, 14)
+        self.assertEqual(caught.exception.code, 127)
+        close.assert_called_once_with(11)
+        chdir.assert_called_once_with(parser.SOURCE)
+        self.assertEqual(dup2.call_args_list, [mock.call(13, 1), mock.call(14, 2)])
+        self.assertEqual(execute.call_args.args[:2], (10, argv))
+        self.assertEqual(write.call_count, 2)
+        descriptor, encoded = write.call_args.args
+        self.assertEqual(descriptor, 12)
+        self.assertTrue(encoded.endswith(b'\n'))
+        receipt = json.loads(encoded)
+        self.assertEqual((receipt['stage'], receipt['errno'], receipt['type']),
+                         ('exec_error', 13, 'PermissionError'))
+        self.assertIsInstance(receipt['monotonic_ns'], int)
+        exit_child.assert_called_once_with(127)
+
     def test_missing_rules_lstat_is_measured_errno(self):
         parser = load('acceptance_parser')
         path = mock.MagicMock()

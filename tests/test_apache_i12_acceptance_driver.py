@@ -34,6 +34,21 @@ def byte_input(content):
 
 
 class AcceptanceDriverTest(unittest.TestCase):
+    def test_prelaunch_error_retains_case_filename_without_execution_qualification(self):
+        plan = {"case_id": "apache-case", "original_id": "original-apache-case"}
+        base = Path("/task/unique")
+        with patch.object(BATCH, "save") as save:
+            result = BATCH.prelaunch_error(plan, 7, base, ValueError("fixture unavailable"))
+        save.assert_called_once_with(base / "007-apache-case-prelaunch-error.json", result)
+        self.assertEqual(result["case_id"], "apache-case")
+        self.assertEqual(result["original_id"], "original-apache-case")
+        self.assertFalse(result["actual_principal_execution"])
+        self.assertFalse(result["executed_case_contract"])
+        self.assertIsNone(result["outcome"])
+        self.assertIsNone(result["full_lifecycle_qualification"])
+        self.assertEqual(result["execution_error"],
+                         {"type": "ValueError", "message": "fixture unavailable"})
+
     def private_workspace(self):
         temporary_root = Path(os.environ.get("CODEX_TEST_TMP_ROOT") or os.environ.get("RUNNER_TEMP")
                               or "/var/tmp/codex/ModSecurity-conector/acceptance-driver-tests")

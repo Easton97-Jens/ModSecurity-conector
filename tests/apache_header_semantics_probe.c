@@ -67,6 +67,19 @@ static int report_observation(ModSecurity *engine, const apr_table_t *headers,
     return 1;
 }
 
+static int observe_transaction(Transaction *transaction, ModSecurity *engine,
+    const apr_table_t *headers, ModSecurityIntervention *intervention) {
+    if (transaction == NULL ||
+        msc_process_connection(transaction, "127.0.0.1", 1111, "127.0.0.1", 2222) != 1 ||
+        msc_process_uri(transaction, "/header-semantics", "GET", "1.1") != 1) return 1;
+    if (!process_headers(transaction, headers)) return 1;
+    intervention->status = 200;
+    int native_result = msc_intervention(transaction, intervention);
+    if (native_result != 0 && native_result != 1) return 1;
+    if (!report_observation(engine, headers, intervention)) return 1;
+    return 0;
+}
+
 static void release_resources(ModSecurityIntervention *intervention,
     Transaction *transaction, RulesSet *rules, ModSecurity *engine, apr_pool_t *pool) {
     release_intervention(intervention);
@@ -109,15 +122,7 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     transaction = msc_new_transaction(engine, rules, NULL);
-    if (transaction == NULL ||
-        msc_process_connection(transaction, "127.0.0.1", 1111, "127.0.0.1", 2222) != 1 ||
-        msc_process_uri(transaction, "/header-semantics", "GET", "1.1") != 1) goto cleanup;
-    if (!process_headers(transaction, headers)) goto cleanup;
-    intervention.status = 200;
-    int native_result = msc_intervention(transaction, &intervention);
-    if (native_result != 0 && native_result != 1) goto cleanup;
-    if (!report_observation(engine, headers, &intervention)) goto cleanup;
-    result = 0;
+    result = observe_transaction(transaction, engine, headers, &intervention);
 cleanup:
     release_resources(&intervention, transaction, rules, engine, pool);
     return result;

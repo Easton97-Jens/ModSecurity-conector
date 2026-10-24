@@ -376,8 +376,10 @@ class Backend(EvidenceRequestHandler):
     trailing_check=(lambda:backend_pending_bytes(self)) if target_file or self.headers.get_all('Transfer-Encoding') else None)
   except BackendBodyError as error:
    data,wire,framing=error.entity,error.wire,error.receipt
-   (self.root/('backend-'+suffix+'.request-body.raw')).write_bytes(data)
-   (self.root/('backend-'+suffix+'.request-body-wire.raw')).write_bytes(wire)
+   body_path=self.root/f'backend-{suffix}.request-body.raw'
+   body_path.write_bytes(data)
+   wire_path=self.root/f'backend-{suffix}.request-body-wire.raw'
+   wire_path.write_bytes(wire)
    handler_record(self,'request_body',probe=probe,actual_bytes=len(data),sha256=sha(data),complete=False,framing=framing)
    self.send_error(400,'invalid backend request framing');self.close_connection=True;return
   try:

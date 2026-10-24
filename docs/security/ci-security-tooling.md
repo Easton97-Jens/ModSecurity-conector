@@ -67,17 +67,15 @@ requires updating both lists. Proposed-tree validation copies the complete
 registered contract inputs, including their offline test fixtures; those
 read-only inputs do not expand the publisher's permitted changes.
 
-Before publication, the private proposed tree runs every updater unit test
-through `make check-ci-security-contract`, including release-selection and
-negative provenance controls. CodeQL release fixtures use explicit versions
-independent of the live lock. The copied-tree integration test is separate
-from this target to avoid recursively invoking its own validation.
-
-The validator also downloads `actionlint` and `zizmor` from the proposed lock,
-verifies their SHA-256 digests, and executes them against the proposed workflows.
-Safe fixtures must return `0`; both high-severity insecure fixtures must return
-`14`. Checksum failures, tool errors, unexpected exit statuses, and timeouts
-reject the candidate before any push or PR creation.
+Before publication, the private proposed tree runs all updater unit tests via
+`make check-ci-security-contract`, including release-selection and negative
+provenance controls; CodeQL fixtures use versions independent of the live lock,
+and the copied-tree integration test stays separate to prevent recursion.
+The validator downloads SHA-256-verified `actionlint` and `zizmor` from the
+proposed lock and checks the proposed workflows: safe fixtures must return `0`,
+both high-severity insecure
+fixtures `14`; checksum failures, tool errors, unexpected exits and timeouts
+reject the candidate before push or PR creation.
 
 ## Central ordinary revision and toolchain pins
 
@@ -218,36 +216,30 @@ the runner's `ShellCheck` path when available. It also runs checksum-verified
 must fail and a safe fixture must pass; neither fixture is executable product
 configuration.
 
-Same-repository reusable workflows use GitHub's `$/` references, which select
-the running revision. The pinned `actionlint` `v1.7.12` does not yet recognize
-this syntax. `ci/tools/lint_workflows.py` uses YAML token positions to translate
-only safe literal `uses` paths to same-width `./` text in memory for actionlint
-stdin. Shell scripts, comments, source files, and runtime references stay intact;
-`zizmor` audits the original files. See the
+GitHub's same-repository `$/` references select the running revision. Because
+pinned `actionlint` `v1.7.12` lacks support, `ci/tools/lint_workflows.py`
+translates only safe literal `uses` paths
+at YAML token positions to same-width `./` text in memory for actionlint stdin.
+Sources, scripts, comments and runtime references stay intact; `zizmor` audits
+the originals. See the
 [GitHub syntax announcement](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
 and [actionlint compatibility issue](https://github.com/rhysd/actionlint/issues/711).
 
-The adapter accepts no executable or workflow-path CLI arguments. Ordinary CI
-uses the fixed `RUNNER_TEMP/security-tools/actionlint` location; the boolean
-`--candidate-tree` mode uses the private proposed tree's fixed downloaded tool.
-It rejects traversal, symlink ancestors, foreign/writable tool staging, and
-nonregular files, and discovers only repository YAML workflows plus the two
-fixed permission fixtures. ShellCheck uses the fixed `/usr/bin/shellcheck`
-location when available. Integrity still comes from the checksum fetcher.
+Both adapters accept no tool or workflow-path CLI arguments and discover only
+repository YAML workflows and two fixed permission fixtures. Security CI uses
+`RUNNER_TEMP/security-tools/actionlint`; boolean `--candidate-tree` uses the
+private proposed tree's fixed downloaded tool. It rejects traversal, symlink
+ancestors, foreign/writable tool staging and nonregular files, uses
+`/usr/bin/shellcheck` when available, and retains checksum-fetcher integrity.
+Local `make lint` instead uses optional installed `actionlint` from `PATH` via
+`ci.tools.lint_installed_workflows`, with the same in-memory normalization,
+unchanged sources, ShellCheck's default lookup, no downloads, and preserved
+nonzero/timeout outcomes.
 
-Local `make lint` retains its optional installed `actionlint` from `PATH`. The
-separate `ci.tools.lint_installed_workflows` adapter reuses the same in-memory
-normalization and fixed workflow discovery, preserving sources, ShellCheck's
-default lookup and nonzero/timeout outcomes. It accepts no tool or file
-arguments and downloads nothing. The checksum-staged security CI and candidate
-adapter keep their stricter fixed tool locations and ownership checks.
-
-The hosted NGINX workflow reserves an invocation-local runtime snapshot before
-provisioning and passes its exact path across the later `env -i` boundary with
-`SKIP_RUNTIME_COMPONENT_PREPARE=1`. The wrapper still verifies the snapshot's
-target and cache before running the harness. Ordinary NGINX CI executes the
-handoff regression, including rejected metadata and failed provisioning, so a
-missing handoff cannot silently trigger a second preparation.
+Hosted NGINX reserves an invocation-local runtime snapshot before provisioning,
+passes its exact path through `env -i` with `SKIP_RUNTIME_COMPONENT_PREPARE=1`,
+and verifies its target and cache before the harness. CI handoff regressions
+cover rejected metadata and failed provisioning to prevent silent re-preparation.
 
 ## Secret and dependency scanning
 

@@ -8,6 +8,7 @@ C and physical stdio evidence, independent of private HAProxy host evidence.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager, ExitStack
 import hashlib
 import io
 import json
@@ -19,19 +20,64 @@ import sys
 import time
 import unittest
 
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "ci/lib"))
+from runtime_path_utils import (
+    ensure_safe_runtime_directory,
+    fixed_runtime_temp_parent,
+    open_private_runtime_root,
+)
+
+
+@contextmanager
+def prepare_output(output):
+    """Create a fresh private storage child before any fixture or subprocess."""
+    authorized = fixed_runtime_temp_parent() / "codex" / "ModSecurity-conector"
+    if (not output.is_absolute() or ".." in output.parts or output == authorized
+            or not output.is_relative_to(authorized) or output != output.resolve()):
+        raise ValueError("output must be a fresh absolute directory below the external project root")
+    parent = ensure_safe_runtime_directory(output.parent)
+    flags = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    parent_descriptor = os.open(parent, flags)
+    try:
+        os.mkdir(output.name, mode=0o700, dir_fd=parent_descriptor)
+        created = os.stat(output.name, dir_fd=parent_descriptor, follow_symlinks=False)
+        with open_private_runtime_root(output) as directory:
+            if directory.identity != (created.st_dev, created.st_ino):
+                raise ValueError("capture output was replaced during creation")
+            yield directory
+    finally:
+        os.close(parent_descriptor)
+
+
+def retain_command_output(directory, name, data):
+    """Preserve subprocess bytes while creating only private exclusive leaves."""
+    if isinstance(data, str):
+        directory.create_text(name, data)
+        return
+    descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                         0o600, dir_fd=directory.descriptor)
+    with os.fdopen(descriptor, "wb") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        stream.write(data)
+    os.fstat(directory.descriptor)
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
     arguments = parser.parse_args()
     output = arguments.output
-    authorized = Path("/var/tmp/codex/ModSecurity-conector")
-    if (not output.is_absolute() or output != output.resolve()
-            or not output.is_relative_to(authorized) or output.exists()):
-        parser.error("output must be a fresh absolute directory below the external project root")
-    output.mkdir(parents=True)
-    root = Path(__file__).resolve().parents[3]
-    sys.path.insert(0, str(root))
+    with ExitStack() as stack:
+        try:
+            directory = stack.enter_context(prepare_output(output))
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
+        return capture(output, directory)
+
+
+def capture(output, directory):
+    sys.path.insert(0, str(ROOT))
     os.environ["RUNNER_TEMP"] = str(output)
     from tests.test_haproxy_spop_event_sink_failures import HaproxySpopEventSinkFailureTests
 
@@ -46,10 +92,14 @@ def main():
         for name in ("stdout", "stderr"):
             data = getattr(result, name)
             if data is not None:
-                (output / f"command-{index:03d}.{name}").write_bytes(data.encode() if isinstance(data, str) else data)
+                retain_command_output(directory, f"command-{index:03d}.{name}", data)
         receipts.append({"argv": actual, "cwd": str(kwargs.get("cwd", Path.cwd())),
                          "exit": result.returncode, "started_ns": started, "finished_ns": time.time_ns()})
-        (output / "commands.json").write_text(json.dumps(receipts, indent=2) + "\n")
+        commands = json.dumps(receipts, indent=2) + "\n"
+        if index == 0:
+            directory.create_text("commands.json", commands)
+        else:
+            directory.replace_text("commands.json", commands)
         return result
 
     subprocess.run = observed
@@ -66,15 +116,19 @@ def main():
         original_cleanup = HaproxySpopEventSinkFailureTests.doClassCleanups
 
         def retain_and_clean(cls):
+            os.fstat(directory.descriptor)
             shutil.copytree(cls.directory, retained)
+            os.fstat(directory.descriptor)
             original_cleanup()
 
         HaproxySpopEventSinkFailureTests.doClassCleanups = classmethod(retain_and_clean)
         unittest_result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
-        (output / "tests.log").write_text(stream.getvalue())
+        directory.create_text("tests.log", stream.getvalue())
+        os.fstat(directory.descriptor)
         files = {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()
                  for path in output.rglob("*") if path.is_file()}
-        (output / "receipt.json").write_text(json.dumps({"evidence_class": "native-C-physical-stdio",
+        os.fstat(directory.descriptor)
+        directory.create_text("receipt.json", json.dumps({"evidence_class": "native-C-physical-stdio",
             "full_lifecycle_pass": False, "tests_run": unittest_result.testsRun,
             "failures": len(unittest_result.failures), "errors": len(unittest_result.errors),
             "files": files}, indent=2) + "\n")

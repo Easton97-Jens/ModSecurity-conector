@@ -12,6 +12,28 @@ import prepare_native as prepare
 import source_inventory as inventory
 
 
+class ObserverHashControls(unittest.TestCase):
+    def test_observer_source_accepts_archived_hash(self):
+        archived = inventory.OBSERVER_HASHES[inventory.OBSERVER_SOURCE][1]
+        accepted = inventory.accepted_observer_hashes(inventory.OBSERVER_SOURCE, archived)
+        self.assertIn(archived, accepted)
+        self.assertEqual(accepted, (archived, inventory.CURRENT_OBSERVER_SUCCESSOR))
+
+    def test_observer_source_accepts_pinned_successor_hash(self):
+        archived = inventory.OBSERVER_HASHES[inventory.OBSERVER_SOURCE][1]
+        accepted = inventory.accepted_observer_hashes(inventory.OBSERVER_SOURCE, archived)
+        self.assertIn(inventory.CURRENT_OBSERVER_SUCCESSOR, accepted)
+        self.assertNotIn("unreviewed-observer", accepted)
+
+    def test_observer_header_accepts_only_archived_hash(self):
+        name = 'ci/runtime/lifecycle/native-lifecycle-observer.h'
+        archived = inventory.OBSERVER_HASHES[name][1]
+        accepted = inventory.accepted_observer_hashes(name, archived)
+        self.assertEqual(accepted, (archived,))
+        self.assertNotIn(inventory.CURRENT_OBSERVER_SUCCESSOR, accepted)
+        self.assertNotIn("unreviewed-observer", accepted)
+
+
 class ObserverAdapterControls(unittest.TestCase):
     def setUp(self):
         self.repository = Path(__file__).resolve().parents[5]

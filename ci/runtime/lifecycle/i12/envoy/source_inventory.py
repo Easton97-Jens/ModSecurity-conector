@@ -153,8 +153,9 @@ E4_INVERSE = (
     ' }\n'
     ' \n'
 )
+OBSERVER_SOURCE = 'ci/runtime/lifecycle/native-lifecycle-observer.c'
 OBSERVER_HASHES = {
-    'ci/runtime/lifecycle/native-lifecycle-observer.c': (
+    OBSERVER_SOURCE: (
         'ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6',
         '0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537'),
     'ci/runtime/lifecycle/native-lifecycle-observer.h': (
@@ -166,9 +167,10 @@ SUCCESSOR_ADAPTER_CONTRACT = 'i12.envoy.preserve-source-observer.v2'
 
 
 def accepted_observer_hashes(name, archived):
-    if name == 'ci/runtime/lifecycle/native-lifecycle-observer.c':
-        return archived, CURRENT_OBSERVER_SUCCESSOR
-    return (archived,)
+    accepted = (archived,)
+    if name == OBSERVER_SOURCE:
+        accepted += (CURRENT_OBSERVER_SUCCESSOR,)
+    return accepted
 
 
 def full_revision(value):
@@ -320,7 +322,7 @@ def adapter_metadata(manifest, before, revision, manifest_hash):
            for name, (_old, current) in OBSERVER_HASHES.items()):
         raise ValueError('unknown archived observer hashes')
     contract = (SUCCESSOR_ADAPTER_CONTRACT
-                if before.get('ci/runtime/lifecycle/native-lifecycle-observer.c') == CURRENT_OBSERVER_SUCCESSOR
+                if before.get(OBSERVER_SOURCE) == CURRENT_OBSERVER_SUCCESSOR
                 else ADAPTER_CONTRACT)
     return {'contract': contract, 'original_manifest_sha256': manifest_hash,
             'archived_revision': full_revision(revision), 'resolved_revision': revision,

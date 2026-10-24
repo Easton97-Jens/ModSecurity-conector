@@ -70,19 +70,15 @@ kopiert die vollständigen registrierten Vertragseingaben einschließlich ihrer
 Offline-Test-Fixtures; diese read-only-Eingaben erweitern die erlaubten
 Änderungen des Publishers nicht.
 
-Vor der Veröffentlichung führt der private Proposed Tree sämtliche Updater-
-Unit-Tests über `make check-ci-security-contract` aus, einschließlich Release-
-Auswahl und negativer Provenance-Kontrollen. CodeQL-Release-Fixtures verwenden
-explizite Versionen unabhängig von der aktuellen Lockdatei. Der Integrationstest
-des kopierten Baums bleibt außerhalb dieses Targets, damit die Validierung
-sich nicht selbst rekursiv aufruft.
-
-Der Validator lädt außerdem `actionlint` und `zizmor` aus der vorgeschlagenen
-Lockdatei herunter, prüft ihre SHA-256-Digests und führt sie gegen die
-vorgeschlagenen Workflows aus. Sichere Fixtures müssen `0` liefern; beide
-unsicheren Fixtures mit hoher Severity müssen `14` liefern. Prüfsummenfehler,
-Tool-Fehler, unerwartete Exit-Status und Timeouts weisen den Kandidaten vor
-jedem Push und jeder PR-Erstellung zurück.
+Vor Veröffentlichung führt der private Proposed Tree alle Updater-Unit-Tests
+über `make check-ci-security-contract` aus, einschließlich Release-Auswahl und
+negativer Provenance-Kontrollen; CodeQL-Fixtures nutzen Versionen unabhängig
+vom aktuellen Lock, und der Integrationstest des kopierten Baums bleibt zur
+Rekursionsvermeidung getrennt. Der Validator lädt SHA-256-geprüftes `actionlint`
+und `zizmor` aus dem vorgeschlagenen Lock und prüft die vorgeschlagenen Workflows:
+Sichere Fixtures müssen `0` liefern,
+beide unsicheren Fixtures hoher Severity `14`; Prüfsummenfehler, Tool-Fehler,
+unerwartete Exits und Timeouts weisen Kandidaten vor Push oder PR-Erstellung ab.
 
 ## Zentrale gewöhnliche Revisions- und Toolchain-Pins
 
@@ -238,40 +234,32 @@ läuft checksum-verifiziertes `zizmor` offline gegen alle Workflow-Dateien. Eine
 absichtlich unsichere Fixture muss fehlschlagen und eine sichere Fixture muss
 bestehen; beide Fixtures sind keine ausführbare Produktkonfiguration.
 
-Wiederverwendbare Workflows desselben Repositorys verwenden GitHubs `$/`-
-Referenzen, die die laufende Revision auswählen. Das gepinnte `actionlint`
-`v1.7.12` erkennt diese Syntax noch nicht. `ci/tools/lint_workflows.py` übersetzt
-anhand von YAML-Token-Positionen ausschließlich sichere literale `uses`-Pfade
-im Speicher in gleich lange `./`-Texte für den actionlint-stdin. Shell-Skripte,
-Kommentare, Quelldateien und Runtime-Referenzen bleiben erhalten; `zizmor`
-prüft die Originaldateien. Siehe die
+GitHubs Repository-eigene `$/`-Referenzen wählen die laufende Revision. Da das
+gepinnte `actionlint` `v1.7.12` sie nicht unterstützt, übersetzt
+`ci/tools/lint_workflows.py` nur sichere
+literale `uses`-Pfade an YAML-Token-Positionen im Speicher in gleich lange
+`./`-Texte für den actionlint-stdin. Quellen, Skripte, Kommentare und
+Runtime-Referenzen bleiben erhalten; `zizmor` prüft die Originale. Siehe die
 [GitHub-Syntax-Ankündigung](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
 und das [actionlint-Kompatibilitäts-Issue](https://github.com/rhysd/actionlint/issues/711).
 
-Der Adapter akzeptiert keine CLI-Argumente für Executables oder Workflow-Pfade.
-Gewöhnliche CI verwendet den festen Pfad `RUNNER_TEMP/security-tools/actionlint`;
-der boolesche Modus `--candidate-tree` verwendet das feste heruntergeladene Tool
-des privaten Proposed Trees. Er weist Traversal, Symlink-Vorfahren, fremdes oder
-beschreibbares Tool-Staging und nichtreguläre Dateien zurück und ermittelt nur
-Repository-YAML-Workflows samt den zwei festen Berechtigungs-Fixtures.
-ShellCheck verwendet bei Verfügbarkeit den festen Pfad `/usr/bin/shellcheck`.
-Die Integrität stammt weiterhin vom Prüfsummen-Fetcher.
+Beide Adapter akzeptieren keine Tool- oder Workflow-Pfadargumente und ermitteln
+nur Repository-YAML-Workflows samt zwei festen Berechtigungs-Fixtures.
+Security-CI nutzt `RUNNER_TEMP/security-tools/actionlint`; boolesches
+`--candidate-tree` nutzt das feste heruntergeladene Tool des privaten Proposed
+Trees. Sie weist Traversal, Symlink-Vorfahren, fremdes/beschreibbares Tool-Staging
+und nichtreguläre Dateien zurück, nutzt bei Verfügbarkeit `/usr/bin/shellcheck`
+und behält die Integrität durch den Prüfsummen-Fetcher.
+Lokales `make lint` nutzt dagegen optional installiertes `actionlint` aus `PATH`
+über `ci.tools.lint_installed_workflows`, mit derselben Normalisierung im Speicher,
+unveränderten Quellen, ShellChecks Standard-Pfadsuche, ohne Downloads sowie mit
+erhaltenen Fehler- und Timeout-Ergebnissen.
 
-Lokales `make lint` behält sein optional installiertes `actionlint` aus `PATH`.
-Der separate Adapter `ci.tools.lint_installed_workflows` verwendet dieselbe
-Normalisierung im Speicher und feste Workflow-Ermittlung; Quelldateien,
-ShellChecks Standard-Pfadsuche sowie Fehler- und Timeout-Ergebnisse bleiben
-erhalten. Er akzeptiert keine Tool- oder Dateiargumente und lädt nichts herunter.
-Der Adapter für checksum-gestützte Security-CI und Kandidaten behält seine
-strengeren festen Toolpfade und Ownership-Prüfungen.
-
-Der gehostete NGINX-Workflow reserviert vor der Provisionierung einen
-Invocation-eigenen Runtime-Snapshot und übergibt dessen exakten Pfad mit
-`SKIP_RUNTIME_COMPONENT_PREPARE=1` über die spätere `env -i`-Grenze.
-Der Wrapper prüft weiterhin Ziel und Cache des Snapshots vor dem Harness-Aufruf.
-Die gewöhnliche NGINX-CI führt die Übergabe-Regression aus, einschließlich
-zurückgewiesener Metadaten und gescheiterter Provisionierung, damit eine
-fehlende Übergabe keinen zweiten Aufbau unbemerkt auslöst.
+Gehostetes NGINX reserviert vor Provisionierung einen Invocation-eigenen
+Runtime-Snapshot, übergibt seinen exakten Pfad mit
+`SKIP_RUNTIME_COMPONENT_PREPARE=1` durch `env -i` und prüft Ziel und Cache vor
+dem Harness. CI-Übergaberegressionen prüfen zurückgewiesene Metadaten und
+gescheiterte Provisionierung, um unbemerkten erneuten Aufbau zu verhindern.
 
 ## Secret- und Dependency-Scanning
 

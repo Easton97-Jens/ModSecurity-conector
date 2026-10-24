@@ -2,7 +2,6 @@
 import hashlib
 import importlib.util
 import json
-import os
 from pathlib import Path
 import tempfile
 import sys
@@ -17,12 +16,11 @@ spec.loader.exec_module(review)
 
 class ReviewControls(unittest.TestCase):
     def setUp(self):
+        self.assertIsNotNone(review.evidence_io.STORAGE,
+                             'CODEX_PROJECT_STATE must be configured before loading review modules')
         self.temporary = tempfile.TemporaryDirectory(
-            prefix='envoy-review-', dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
+            prefix='envoy-review-', dir=review.evidence_io.STORAGE)
         self.root = Path(self.temporary.name)
-        storage = patch.object(review, 'STORAGE', self.root.parent)
-        storage.start()
-        self.addCleanup(storage.stop)
 
     def tearDown(self):
         self.temporary.cleanup()

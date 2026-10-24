@@ -382,8 +382,8 @@ def report(data, machine_path, german=False):
     lines += ["", choose("## Remaining work and risks", "## Verbleibende Arbeit und Risiken"), "",
               choose("Every unqualified row still needs the specific physical evidence listed above. Only the nine remaining open oracle expectations additionally need a resolved reviewed oracle. Native Reject/ProcessPartial limits, memory/file buffers, MIME/charset, P1–P4, pre/post-commit technical failures, P4 Safe/supported Strict, empty/single/multipart bodies and exactly-once EOS must be judged per original ID, never inferred from another case. The pre-existing release secret blocker remains unresolved. Any confirmed production correction belongs separately to #382. This change does not authorize a product fix, master merge or release.",
                      "Jede unqualifizierte Zeile benötigt weiterhin die oben konkret genannten physischen Nachweise. Nur die neun weiterhin offenen Oracle-Erwartungen benötigen zusätzlich ein aufgelöstes geprüftes Oracle. Native Reject-/ProcessPartial-Grenzen, Speicher-/Dateibuffer, MIME/Charset, P1–P4, technische Fehler vor/nach Commit, P4 Safe/unterstütztes Strict, leere/einzelne/mehrteilige Bodys und genau einmal EOS sind je ursprünglicher ID zu beurteilen und dürfen nie aus einem anderen Fall abgeleitet werden. Der bestehende Release-Secret-Blocker bleibt ungelöst. Jede bestätigte Produktkorrektur gehört separat zu #382. Diese Änderung autorisiert keinen Produktfix, Master-Merge oder Release."), "",
-              choose("See also the [current I12 index](pr-382-i12-missing-case-index-20261014.md) and [historical evidence](pr-382-i12-host-evidence-20261014.md).",
-                     "Siehe auch [aktuellen I12-Index](pr-382-i12-missing-case-index-20261014.de.md) und [historische Nachweise](pr-382-i12-host-evidence-20261014.de.md)."), ""]
+              choose("See the concise [PR #410 closeout](pr-410-i12-closeout-20261024.md).",
+                     "Siehe den kompakten [Abschluss von PR #410](pr-410-i12-closeout-20261024.de.md)."), ""]
     return "\n".join(lines)
 
 

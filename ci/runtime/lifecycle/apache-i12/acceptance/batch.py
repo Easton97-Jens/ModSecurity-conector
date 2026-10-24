@@ -1011,6 +1011,17 @@ def admit_batch_arguments(args, parser):
         setattr(args, name, admitted_mount_path(getattr(args, name), ARTIFACT_MOUNT))
 
 
+def prelaunch_error(plan, ordinal, base, error):
+    """Retain a case-bound input failure without inventing process execution."""
+    result = {"case_id": plan["case_id"], "original_id": plan["original_id"],
+        "actual_principal_execution": False, "executed_case_contract": False,
+        "outcome": None, "full_lifecycle_qualification": None,
+        "execution_error": {"type": type(error).__name__, "message": str(error)}}
+    error_name = "%03d-" % ordinal + plan["case_id"] + "-prelaunch-error.json"
+    save(base / error_name, result)
+    return result
+
+
 def main():
     parser = argument_parser()
     args = parser.parse_args()
@@ -1052,11 +1063,7 @@ def main():
         except (OSError, RuntimeError, ValueError) as error:
             # Input/materialization failures before process launch still get
             # their own original-ID receipt; never invent a principal request.
-            result = {"case_id": plan["case_id"], "original_id": plan["original_id"],
-                "actual_principal_execution": False, "executed_case_contract": False,
-                "outcome": None, "full_lifecycle_qualification": None,
-                "execution_error": {"type": type(error).__name__, "message": str(error)}}
-            save(base / ("%03d-" % ordinal + plan["case_id"] + "-prelaunch-error.json"), result)
+            result = prelaunch_error(plan, ordinal, base, error)
         results.append(result)
         print(json.dumps({"case_id": plan["case_id"], "actual_principal_execution": result["actual_principal_execution"],
                           "executed_case_contract": result["executed_case_contract"],

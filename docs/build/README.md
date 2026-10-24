@@ -436,15 +436,7 @@ checked-in Python. Each Go updater job therefore first uses the existing
 <code>.python-version</code> and interpreter contract, preserving the
 no-ambient-interpreter rule rather than adding a bootstrap exception.
 
-### Observed local implementation validation
-
-Before this baseline upgrade, the current-master invocation of
-`make check-python-version-contract` failed because its Python-specific
-checker expected the old v6 `actions/setup-python` pin although the checked-in
-workflows and the reviewed security lock already used the immutable v7 pin.
-The v7 checker repair is part of this exact-version change; it does not alter
-the existing workflow pin, lock entry, permissions, triggers, or publisher
-boundary.
+### Candidate validation
 
 <code>.github/workflows/validate-go-candidate.yml</code> validates the selected
 PR head with read-only contents permissions, no credentials, and no publication
@@ -452,8 +444,7 @@ path. Its four-module matrix runs tidy, checksum verification, tests, vet,
 build, and race tests with <code>GOTOOLCHAIN=local</code>. Native CGo builds
 remain a separate connector check. The privileged updater continues to check
 out only the trusted default branch and cannot publish after validation fails.
-Changes in PR #382 repair that default-branch workflow only after integration;
-a successful master dispatch requires separately observed evidence.
+A successful default-branch dispatch requires separately observed evidence.
 
 ## Compiler and linker variables
 

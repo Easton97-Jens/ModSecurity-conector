@@ -465,15 +465,7 @@ vorhandene <code>.python-version</code> und den Interpretervertrag; die
 No-ambient-interpreter-Regel bleibt erhalten, statt eine Bootstrap-Ausnahme
 hinzuzufügen.
 
-### Beobachtete lokale Implementierungsvalidierung
-
-Vor diesem Baseline-Upgrade schlug die Current-Master-Ausführung von
-`make check-python-version-contract` fehl, weil ihr Python-spezifischer
-Checker den alten v6-`actions/setup-python`-Pin erwartete, obwohl die
-eingecheckten Workflows und der geprüfte Security-Lock bereits den
-unveränderlichen v7-Pin verwendeten. Die Reparatur des v7-Checkers gehört zu
-dieser exakten Versionsänderung; sie ändert weder vorhandenen Workflow-Pin
-noch Lock-Eintrag, Berechtigungen, Trigger oder Publisher-Grenze.
+### Candidate-Validierung
 
 <code>.github/workflows/validate-go-candidate.yml</code> validiert den gewählten
 PR-Head mit ausschließlich lesenden Contents-Berechtigungen, ohne Credentials
@@ -482,9 +474,8 @@ Checksummenprüfung, Tests, Vet, Build und Race-Tests mit
 <code>GOTOOLCHAIN=local</code> aus. Native CGo-Builds bleiben ein separater
 Connector-Check. Der privilegierte Updater checkt weiterhin ausschließlich den
 vertrauenswürdigen Default-Branch aus und darf nach fehlgeschlagener Validierung
-nichts veröffentlichen. Die Änderungen in PR #382 reparieren diesen
-Default-Branch-Workflow erst nach Integration; ein erfolgreicher Master-Dispatch
-benötigt separat beobachtete Evidence.
+nichts veröffentlichen. Ein erfolgreicher Default-Branch-Dispatch benötigt
+separat beobachtete Evidence.
 
 ## Compiler- und Linker-Variablen
 

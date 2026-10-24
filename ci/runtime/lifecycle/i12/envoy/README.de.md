@@ -3,7 +3,7 @@
 **Sprache:** [English](README.md) | Deutsch
 
 Diese reine Envoy-Testerweiterung nutzt die vorhandene Capture-Variante `envoy`
-und den gemeinsamen nativen Observer. Der [Taskbericht](../../../../../reports/testing/i12-envoy-host-evidence-20261015.de.md)
+und den gemeinsamen nativen Observer. Der [kompakte Abschluss von PR #410](../../../../../docs/pr-410-i12-closeout-20261024.de.md)
 ist **PARTIAL**: 284 Original-IDs bleiben erhalten. Vier neu freigegebene ext_proc-
 Nachweispakete erhöhen den aktuellen Lifecycle-PASS-Bestand auf sieben;
 118 ursprüngliche Oracles bleiben offen. Die zentrale Baseline bleibt

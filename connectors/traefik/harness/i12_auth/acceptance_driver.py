@@ -463,7 +463,8 @@ def start_engine(case,engine,config,engine_port,current,handles,processes,helper
   result['engine_start_window']={'probe':case['probe_id'],'start_monotonic_ns':launch_start,
    'end_monotonic_ns':time.monotonic_ns(),'proxy_pid':service.pid,'observed_exit_code':service.poll(),
    'actual_fault_pids':sorted({row['pid'] for row in map(json.loads,fault_path.read_text().splitlines()) if 'pid' in row})}
-  if (case['fixture'].get('fault') or {}).get('driver_kind')!='sink-open':raise
+  fault=case['fixture'].get('fault') or {}
+  if fault.get('driver_kind')!='sink-open':raise
 
  return service
 

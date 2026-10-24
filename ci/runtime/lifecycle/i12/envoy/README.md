@@ -3,7 +3,7 @@
 **Language:** English | [Deutsch](README.de.md)
 
 This Envoy-only test extension reuses the existing `envoy` capture variant and
-common native observer. The [task report](../../../../../reports/testing/i12-envoy-host-evidence-20261015.md)
+common native observer. The [concise PR #410 closeout](../../../../../docs/pr-410-i12-closeout-20261024.md)
 is **PARTIAL**: 284 original IDs are preserved. Four newly approved ext_proc packets
 raise the current lifecycle PASS to seven; 118 original oracles remain open.
 The central baseline stays unchanged. Synthetic host scenarios do not

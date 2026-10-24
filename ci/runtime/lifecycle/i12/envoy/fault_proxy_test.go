@@ -429,12 +429,13 @@ func TestProxyUpstreamEOFFinishesWithoutClientHalfClose(t *testing.T) {
 
 func TestProxyRejectsPublicListenersAndUnsafeSelection(t *testing.T) {
 	t.Parallel()
+	const targetFlag = "--target"
 	for _, address := range []string{"0.0.0.0:18084", "localhost:18084", "127.0.0.2:18084", "127.0.0.1:1", "[::]:18084"} {
 		if validAddress(address) {
 			t.Errorf("validAddress(%q) = true, want false", address)
 		}
 	}
-	for _, args := range [][]string{{"--listen", "0.0.0.0:18084"}, {"--target", "contains\nnewline"}, {"--target", "selected", "--events", "/etc/passwd"}, {"--target", "selected", "--stream-timeout", "0s"}} {
+	for _, args := range [][]string{{"--listen", "0.0.0.0:18084"}, {targetFlag, "contains\nnewline"}, {targetFlag, "selected", "--events", "/etc/passwd"}, {targetFlag, "selected", "--stream-timeout", "0s"}} {
 		if err := run(t.Context(), args, io.Discard); err == nil {
 			t.Errorf("run(%q) = nil, want validation rejection", args)
 		}

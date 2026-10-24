@@ -32,7 +32,7 @@ Die zuvor entfernten Response-Optionen bleiben entfernt: `response_body_limit`,
 lassen die Konfiguration fehlschlagen, statt still ignoriert zu werden.
 Es gibt keine kumulative Connector-Größenoption als Ersatz. Betreiber verwenden
 ihre normale Engine-Regelkonfiguration; kein zusätzliches Connector-Limit ist
-erforderlich. Die frühere Vorgabe zum Erhalt der Request-Policy ist aufgehoben.
+erforderlich.
 
 ## Arbeitsspeicher und Transport
 
@@ -46,8 +46,9 @@ dem Stock-lighttpd-Sidecar inkrementelle Inspektion und hält das Upstream-Repla
 bis zum nativen P2-Allow zurück. Datenträgerfehler bleiben technische Fehler und
 wählen kein Inspektionspräfix und keine Limitaktion.
 
-`bytes_inspected` beschreibt der Engine angebotene Bytes, nicht das native
-ProcessPartial-Präfix. Der Append-Rückgabewert 0 ist operationsspezifisch und darf bei gültigem
+Bei Requests bedeutet `bytes_inspected=0` unbekannt/unbelegt; gespeicherte Bytes
+belegen keine Inspektion. Bei Responses zählt es der Engine angebotene Bytes,
+nicht das native ProcessPartial-Präfix. Der Append-Rückgabewert 0 ist operationsspezifisch und darf bei gültigem
 nativem ProcessPartial nicht als Allokations- oder Dateifehler gemeldet werden.
 Natives Request-Reject kann während Append HTTP 403 liefern; ein anderer nativer
 Pfad kann 413 liefern. Der Connector erhält das tatsächliche Ergebnis bis EOS.
@@ -79,28 +80,17 @@ lighttpd `server.max-request-size` bleiben Hostkonfiguration.
 
 ## Nachweise
 
-Jeder Body-Inspektionstest liefert Engine-Limit und Aktion seiner geprüften
-Richtung ausdrücklich; Request-Fixtures ohne Datei-Uploads wählen zusätzlich
-das native No-files-Limit. Helper haben keine impliziten Größen-/Aktionsdefaults.
-Tests ohne Body-Inspektion benötigen keine künstlichen Limits.
+Inspection-Fixtures wählen native Limits/Aktionen einschließlich des
+Request-No-files-Limits ausdrücklich; Helper liefern keine impliziten Defaults.
+HAProxy-Samples nutzen `req.body_size` und `http_version=req.ver`; unvollständige
+oder widersprüchliche Samples scheitern vor Enginezulassung. Unbekanntes/chunked
+Framing und ungerahmtes HTTP/2 bleiben auf dieser Sampleroute nicht unterstützt;
+natives HTX bietet Streaming. Apache erhält natives Response-Reject bei Append
+einschließlich vorherigem FLUSH-/Body-Commit und hält die zurückgewiesene Brigade
+unter Safe-log_only zurück.
 
-Echte Library-Prüfungen unterscheiden unter/exakt/über Limit, native Aktionen
-und DetectionOnly, Chunks und Dateien, dieselbe Payload unter verschiedenen
-Limits und Marker jenseits früherer Connectorgrenzen. Builds und Quellverträge
-belegen kein gehostetes HTTP/1, HTTP/2, HTTP/3, Buffer-Ownership oder
-Late-Abort-Verhalten. Siehe [Stack-Checkliste](response-limit-stack-checklist.de.md).
-
-## Erneut geprüfte Sample- und Native-Reject-Pfade
-
-Die [Request-/Response-Matrix der zehn Profile](body-inspection-review-matrix.de.md)
-trennt Quellnachweis, ausführbare Contracts, ausgewählte Hostproben und fehlende
-vollständige I12-/V08–V10-Evidenz. HAProxy-Sample-Producer nutzen `req.body_size`
-plus `http_version=req.ver`, statt eine gepufferte Präfixlänge als vollständigen
-Body zu interpretieren. Unvollständige/widersprüchliche Samples scheitern vor
-Enginezulassung; unbekanntes/chunked Framing und ungerahmtes HTTP/2 bleiben auf
-dieser Sampleroute nicht unterstützt. Natives HTX ist die Streaming-Alternative.
-Apache erhält natives Response-Reject bei Append einschließlich vorherigem
-FLUSH-/Body-Commit und gibt die zurückgewiesene Brigade nicht unter Safe-log_only
-frei. Dies setzt native Ergebnisse durch und wählt niemals Connectorgröße oder
--aktion. Die Matrix belegt auch, weshalb der 32768-Byte-Speicherschutz der
-Authorization-Antwort erhalten bleiben muss.
+Builds und Komponentencontracts belegen keine vollständige gehostete
+HTTP/1–HTTP/3-, Buffer-Ownership- oder Late-Abort-Abnahme. Die
+[Matrix der zehn Profile](body-inspection-review-matrix.de.md) beschreibt die
+Routengrenzen; aktuelle Ergebnisse stehen im
+[Abschluss von PR #410](pr-410-i12-closeout-20261024.de.md).

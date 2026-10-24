@@ -49,6 +49,27 @@ def wait_child(pid, seconds=20):
     return status, True
 
 
+def execute_child(engine_fd, argv, read_fd, write_fd, stdout_fd, stderr_fd):
+    """Enter the pinned parser image and retain an exec failure before exit."""
+    try:
+        os.close(read_fd)
+        os.chdir(SOURCE)
+        os.dup2(stdout_fd, 1)
+        os.dup2(stderr_fd, 2)
+        child = {'stage': 'child_pre_exec', 'pid': os.getpid(), 'ppid': os.getppid(),
+                 'uid': os.geteuid(), 'gid': os.getegid(), 'cwd': os.getcwd(),
+                 'monotonic_ns': time.monotonic_ns()}
+        child_receipt = json.dumps(child) + '\n'
+        os.write(write_fd, child_receipt.encode())
+        os.execve(engine_fd, argv, os.environ.copy())
+    except (OSError, ValueError, TypeError) as error:
+        value = {'stage': 'exec_error', 'errno': getattr(error, 'errno', None),
+                 'type': type(error).__name__, 'monotonic_ns': time.monotonic_ns()}
+        error_receipt = json.dumps(value) + '\n'
+        os.write(write_fd, error_receipt.encode())
+        os._exit(127)
+
+
 def execute(root,literal_minimal=False):
     if (os.geteuid(), os.getegid()) != (65534, 65534):
         raise RuntimeError('admitted nonroot parser identity required')
@@ -84,21 +105,7 @@ def execute(root,literal_minimal=False):
     stderr_fd = os.open(root / (label + '.stderr'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     pid = os.fork()
     if pid == 0:
-        try:
-            os.close(read_fd)
-            os.chdir(SOURCE)
-            os.dup2(stdout_fd, 1)
-            os.dup2(stderr_fd, 2)
-            child = {'stage': 'child_pre_exec', 'pid': os.getpid(), 'ppid': os.getppid(),
-                     'uid': os.geteuid(), 'gid': os.getegid(), 'cwd': os.getcwd(),
-                     'monotonic_ns': time.monotonic_ns()}
-            os.write(write_fd, (json.dumps(child) + '\n').encode())
-            os.execve(engine_fd, argv, os.environ.copy())
-        except (OSError, ValueError, TypeError) as error:
-            value = {'stage': 'exec_error', 'errno': getattr(error, 'errno', None),
-                     'type': type(error).__name__, 'monotonic_ns': time.monotonic_ns()}
-            os.write(write_fd, (json.dumps(value) + '\n').encode())
-            os._exit(127)
+        execute_child(engine_fd, argv, read_fd, write_fd, stdout_fd, stderr_fd)
     os.close(write_fd)
     os.close(stdout_fd)
     os.close(stderr_fd)
