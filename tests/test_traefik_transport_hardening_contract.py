@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import http.client
 import http.server
+import io
 import importlib.util
 import json
 import os
@@ -66,6 +68,61 @@ class _KeepAliveHandler(http.server.BaseHTTPRequestHandler):
 
 
 class TraefikTransportHardeningContractTest(unittest.TestCase):
+    class ResponseSocket:
+        def __init__(self, wire: bytes):
+            self.wire = wire
+
+        def makefile(self, _mode: str) -> io.BytesIO:
+            return io.BytesIO(self.wire)
+
+    @classmethod
+    def response(cls, framing: bytes, payload: bytes) -> http.client.HTTPResponse:
+        response = http.client.HTTPResponse(cls.ResponseSocket(
+            b"HTTP/1.1 200 OK\r\n" + framing + b"\r\n" + payload
+        ))
+        response.begin()
+        return response
+
+    @staticmethod
+    def mutated_barrier_handler(runtime, state, safe_payload: bytes,
+            followup_payload: bytes) -> type[http.server.BaseHTTPRequestHandler]:
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_POST(self) -> None:  # noqa: N802
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    self.rfile.read(length)
+                barrier = self.headers.get("X-Native-P4-Barrier") == "true"
+                payload = safe_payload if barrier else followup_payload
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                if barrier:
+                    split = 27
+                    self.wfile.write(payload[:split])
+                    self.wfile.flush()
+                    with state.lock:
+                        state.barrier_first_chunk_size = split
+                        state.barrier_response_bytes = len(payload)
+                        state.barrier_eos_sent = False
+                    state.barrier_reached.set()
+                    if not state.barrier_release.wait(timeout=3):
+                        raise RuntimeError("test barrier timed out")
+                    self.wfile.write(payload[split:])
+                    self.wfile.flush()
+                    with state.lock:
+                        state.barrier_eos_sent = True
+                else:
+                    self.wfile.write(payload)
+                    self.wfile.flush()
+
+            def log_message(self, _format: str, *_args: object) -> None:
+                return
+
+        return Handler
+
     def test_safe_followup_requires_the_same_http11_connection(self) -> None:
         runtime = load_runtime_module()
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _KeepAliveHandler)
@@ -115,6 +172,53 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
         self.assertTrue(observation["upstream_paused"])
         self.assertFalse(observation["upstream_eos_sent_at_first_byte"])
         self.assertGreater(observation["first_chunk_size"], 0)
+
+    def test_synchronized_safe_followup_rejects_same_length_payload_mutation(self) -> None:
+        runtime = load_runtime_module()
+        expected_safe = (b"native-traefik-first-chunk\n"
+            b"no-crs-response-body-marker\n")
+        expected_followup = (b"native-traefik-first-chunk\n"
+            b"native-traefik-final-chunk\n")
+        for safe_payload, followup_payload in (
+            (b"x" * len(expected_safe), expected_followup),
+            (expected_safe, b"y" * len(expected_followup)),
+        ):
+            with self.subTest(safe_mutated=safe_payload != expected_safe):
+                state = runtime.UpstreamState()
+                handler = self.mutated_barrier_handler(runtime, state,
+                    safe_payload, followup_payload)
+                server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    with self.assertRaises(RuntimeError):
+                        runtime.synchronized_safe_followup_attempt(
+                            server.server_port, state, b"request-body",
+                            "safe-mutated", "followup-mutated")
+                finally:
+                    state.barrier_release.set()
+                    server.shutdown()
+                    server.server_close()
+                    thread.join(timeout=2)
+
+    def test_response_readers_require_one_canonical_content_length_and_no_te(self) -> None:
+        runtime = load_runtime_module()
+        payload = (b"native-traefik-first-chunk\n"
+            b"native-traefik-final-chunk\n")
+        chunked = (f"{len(payload):x}\r\n".encode() + payload + b"\r\n0\r\n\r\n")
+        for framing in (
+            b"Transfer-Encoding: chunked\r\n",
+            b"Content-Length: 54\r\nTransfer-Encoding: chunked\r\n",
+            b"Content-Length: 054\r\n",
+            b"Content-Length: 54\r\nContent-Length: 54\r\n",
+        ):
+            with self.subTest(framing=framing):
+                wire_body = chunked if b"Transfer-Encoding" in framing else payload
+                with self.assertRaises(RuntimeError):
+                    runtime.read_complete_response(
+                        self.response(framing, wire_body),
+                        runtime.ALLOW_PAYLOAD_SHA256,
+                    )
 
     def test_real_barrier_sidecar_and_strict_boundary_are_explicit(self) -> None:
         source = RUNTIME_SCRIPT.read_text(encoding="utf-8")

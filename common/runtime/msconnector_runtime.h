@@ -190,6 +190,19 @@ int msconnector_runtime_transaction_begin(
     msconnector_decision *decision,
     msconnector_error *error);
 
+/* Begin P1 with no borrowed body. Only BUFFERED mode with body.data == NULL
+ * and body.size == 0 is accepted. A nonterminal transaction requires explicit
+ * append_request_body_chunk / finish_request_body calls before response
+ * processing or companion handoff. The ordinary begin API continues to
+ * process the complete buffered entity, including an empty entity. */
+int msconnector_runtime_transaction_begin_request_headers(
+    msconnector_runtime *runtime,
+    const msconnector_request *request,
+    const char *host_request_id,
+    msconnector_runtime_transaction **out,
+    msconnector_decision *decision,
+    msconnector_error *error);
+
 /*
  * Explicit low-latency lifecycle operations.  Request/response headers are
  * processed once.  Body chunks are ingested incrementally and phase 2/4 is
@@ -236,8 +249,8 @@ int msconnector_runtime_transaction_finish_unobserved_response_body(
     msconnector_error *error);
 
 /*
- * Close a native streaming transaction after the host has rejected its
- * incomplete request body before EOS. This records the logging phase exactly
+ * Close a streaming or header-only buffered transaction after the host has
+ * rejected its incomplete request body before EOS. This records the logging phase exactly
  * once, but never processes or finalizes the request body, marks request-body
  * EOS, or produces a Phase-2 decision. It is only for a terminal host-side
  * rejection, not an alternative to the normal EOS-enforcing finish path.

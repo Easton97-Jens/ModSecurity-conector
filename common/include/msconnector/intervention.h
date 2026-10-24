@@ -14,6 +14,11 @@ extern "C" {
 #define MSCONNECTOR_REQUEST_BODY_LIMIT_REJECTION_LOG \
     "Request body limit is marked to reject the request"
 
+/* libModSecurity uses a separate exact, rule-ID-free P4 signature for
+ * SecResponseBodyLimitAction Reject. */
+#define MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG \
+    "Response body limit is marked to reject the request"
+
 typedef struct msconnector_intervention {
     int disruptive;
     int status;
@@ -38,6 +43,12 @@ int msconnector_intervention_has_redirect_url(const char *redirect_url);
  * signature.  This deliberately does not broaden ordinary rule-ID validation
  * for other disruptive interventions. */
 int msconnector_intervention_is_request_body_limit_rejection(
+    enum msconnector_phase phase,
+    const msconnector_intervention *intervention);
+
+/* Returns true only for libModSecurity's exact P4 response-body-limit reject
+ * signature.  Ordinary rule interventions still require rule correlation. */
+int msconnector_intervention_is_response_body_limit_rejection(
     enum msconnector_phase phase,
     const msconnector_intervention *intervention);
 

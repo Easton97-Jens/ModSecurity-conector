@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "profile_id": "haproxy-htx",
+  "haproxy_version": "3.2.25",
+  "default_request_mode": "streaming",
+  "candidate_request_mode": "host-buffered",
+  "candidate_body_mode": "buffered",
+  "request_body_limit_bytes": 65536,
+  "qualification_host_buffer_bytes": 131072,
+  "maximum_http_request_timeout_ms": 5000,
+  "filter_config_scope": "pure_http_frontend",
+  "listen_filter_allowed": false,
+  "backend_only_filter_allowed": false,
+  "incomplete_eom_policy": "fail_closed_before_header_release",
+  "phase2_hook": "http_headers_before_header_release",
+  "host_buffer_full_is_not_eom": true,
+  "full_b_acceptance": false
+}

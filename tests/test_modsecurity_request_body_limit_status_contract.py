@@ -18,7 +18,7 @@ class ModSecurityRequestBodyLimitStatusContractTest(unittest.TestCase):
         cls.header = INTERVENTION_HEADER.read_text(encoding="utf-8")
         cls.intervention_source = INTERVENTION_SOURCE.read_text(encoding="utf-8")
         match = re.search(
-            r"int msconnector_intervention_is_request_body_limit_rejection\([\s\S]*?\n}\n\nint msconnector_intervention_normalize_status",
+            r"int msconnector_intervention_is_request_body_limit_rejection\([\s\S]*?\n}\n",
             cls.intervention_source,
         )
         assert match is not None

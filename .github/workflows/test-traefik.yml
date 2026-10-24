@@ -43,6 +43,12 @@ jobs:
           export GOTOOLCHAIN=local
           export TMPDIR=/tmp
           go test -mod=readonly -count=1 ./...
+      - name: Execute the Traefik native middleware suite
+        working-directory: connectors/traefik/native_middleware
+        env:
+          GOTOOLCHAIN: local
+          TMPDIR: ${{ runner.temp }}
+        run: go test -mod=readonly -count=1 ./...
       - name: Check Traefik Common and host contracts
         run: |
           set -eu

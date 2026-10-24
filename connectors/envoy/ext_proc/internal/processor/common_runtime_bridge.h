@@ -80,11 +80,31 @@ int msc_envoy_ext_proc_runtime_create(
     char *error,
     size_t error_len);
 
+int msc_envoy_ext_proc_runtime_quiesce(
+    msc_envoy_ext_proc_runtime *runtime, char *error, size_t error_len);
+
+enum msc_composite_mode {
+    MSC_COMPOSITE_ENVOY = 1,
+    MSC_COMPOSITE_TRAEFIK = 2
+};
+
+/* Only these reviewed composite routes may select a companion profile. */
+int msc_composite_runtime_create(
+    const char *config_path,
+    enum msc_composite_mode mode,
+    msc_envoy_ext_proc_runtime **out,
+    char *error,
+    size_t error_len);
+
 void msc_envoy_ext_proc_runtime_destroy(msc_envoy_ext_proc_runtime **runtime);
 
 /* Returns only the parsed Common policy enum; no configuration text crosses
  * the bridge. It lets Go validate service policy before listener admission. */
 int msc_envoy_ext_proc_runtime_phase4_mode(
+    const msc_envoy_ext_proc_runtime *runtime);
+
+/* Read-only internal identity of the successfully installed registry profile. */
+unsigned int msc_envoy_ext_proc_runtime_profile_id(
     const msc_envoy_ext_proc_runtime *runtime);
 
 int msc_envoy_ext_proc_transaction_begin(
@@ -111,9 +131,9 @@ int msc_envoy_ext_proc_transaction_process_body(
     char *error,
     size_t error_len);
 
-void msc_envoy_ext_proc_transaction_mark_response_committed(
+int msc_envoy_ext_proc_transaction_mark_response_committed(
     msc_envoy_ext_proc_transaction *transaction,
-    int body_started);
+    int body_started, char *error, size_t error_len);
 
 int msc_envoy_ext_proc_transaction_record_host_action(
     msc_envoy_ext_proc_transaction *transaction,
@@ -126,8 +146,17 @@ int msc_envoy_ext_proc_transaction_record_host_action(
 const char *msc_envoy_ext_proc_transaction_id(
     const msc_envoy_ext_proc_transaction *transaction);
 
-void msc_envoy_ext_proc_transaction_close(
-    msc_envoy_ext_proc_transaction *transaction);
+int msc_envoy_ext_proc_transaction_close(
+    msc_envoy_ext_proc_transaction *transaction, int request_rejected);
+
+enum msc_common_close_result {
+    MSC_COMMON_CLOSE_UNRESOLVED = 0,
+    MSC_COMMON_CLOSE_OK = 1,
+    MSC_COMMON_CLOSE_CONSUMED_ERROR = 2
+};
+
+int msc_envoy_ext_proc_transaction_claim_response_companion(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len);
 
 #ifdef __cplusplus
 }

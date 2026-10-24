@@ -75,6 +75,23 @@ jobs:
           mkdir -p "$TMPDIR"
           command -v cc >/dev/null
           python3 -m unittest tests.test_reported_security_regressions -v
+      - name: Execute non-NGINX qualification contract tests
+        env:
+          TMPDIR: ${{ runner.temp }}/qualification-contracts
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -eu
+          umask 077
+          mkdir -p "$TMPDIR"
+          mkdir -p /var/tmp/codex/ModSecurity-conector/tmp \
+            /var/tmp/codex/ModSecurity-conector/runs
+          python3 -m unittest -v \
+            tests.test_apache_qualification \
+            tests.test_composite_profile_qualification \
+            tests.test_envoy_ext_proc_qualification \
+            tests.test_haproxy_htx_qualification \
+            tests.test_haproxy_spop_qualification \
+            tests.test_traefik_native_qualification
       - name: Lightweight framework checks
         run: |
           make setup-dev

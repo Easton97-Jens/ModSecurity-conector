@@ -605,6 +605,22 @@ static void test_limits_and_decisions(void) {
         MSCONNECTOR_TRANSACTION_TRANSITION_INVALID);
     CHECK(contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
 
+    contract = make_contract("apache", "tx-native-response-limit");
+    CHECK(msconnector_transaction_contract_record_response_metadata(&contract, 200, NULL,
+        0U, 0U, 4U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+    complete_direct_phase(&contract, MSCONNECTOR_PHASE_REQUEST_HEADERS, 1U);
+    complete_direct_phase(&contract, MSCONNECTOR_PHASE_REQUEST_BODY, 2U);
+    complete_direct_phase(&contract, MSCONNECTOR_PHASE_RESPONSE_HEADERS, 3U);
+    complete_direct_phase(&contract, MSCONNECTOR_PHASE_RESPONSE_BODY, 4U);
+    CHECK(msconnector_transaction_contract_fail(&contract,
+        MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 5U) ==
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK);
+    CHECK(contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+    CHECK(contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_BLOCK);
+    CHECK(contract.action == MSCONNECTOR_DECISION_ACTION_DENY);
+    CHECK(contract.rule_id[0] == '\0');
+    CHECK(contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL);
+
     contract = make_contract("apache", "tx-header-limit");
     CHECK(msconnector_transaction_contract_record_request_metadata(&contract, "GET", "/",
         NULL, MSCONNECTOR_MAX_HEADER_COUNT + 1U, 0U, 4U) ==

@@ -184,7 +184,7 @@ func (s *ExtProcServer) Process(stream extprocv3.ExternalProcessor_ProcessServer
 	if err != nil {
 		return status.Error(codes.Internal, "cannot create server session")
 	}
-	response, err := s.coordinator.Claim(lease, session)
+	response, err := s.coordinator.ClaimContext(stream.Context(), lease, session)
 	if err != nil {
 		return sendImmediate(stream, processor.Decision{Action: processor.ActionDeny, Status: statusUnavailable})
 	}

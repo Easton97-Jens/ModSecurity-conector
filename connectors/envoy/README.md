@@ -2,6 +2,39 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Go composite Common runtime and observed lifecycle
+
+The separately built `msconnector-composite --mode envoy` selects the canonical
+`envoy / ext_authz / envoy-ext-authz` identity with buffered requests and
+streaming responses. It uses the additive header-only buffered start,
+explicit request append/EOS, and the private Common response-companion session
+for P3/P4. Direct `envoy-ext-proc` keeps streaming requests and responses.
+
+The Go lease/context/deadline is checked before the native claim. Native
+expiry consumes ownership; consumed cleanup errors are not retried. Unresolved
+cleanup permanently faults the coordinator and closes admission for controlled
+restart. Terminal cleanup is guarded once and retains entry ownership until
+it completes. A real Common body-limit failure is mapped to 413 and recorded
+with the actual host action; terminal incomplete-body cleanup does not invent
+EOS or P2 rule evaluation.
+
+On 2026-10-03 the external run `p370efix.LLQmPm7g` passed the native build,
+344 named tagged tests with zero skips, C17 companion checks, direct real-Envoy
+traffic, and the Go composite lifecycle matrix. The focused corrected run
+`p370efu.Ggj72Jct` supplies the same-service failure/follow-up evidence.
+The matrix remains `lifecycle_only` with `catalog_acceptance=false`; P4 Strict
+is not promoted. This evidence applies to the Go executable and selected
+configuration, not to the retained C `ext_authz` route. Its existing
+`implemented_not_asserted` limitations remain.
+
+Source manifests, executable/library hashes, loaded-library observations,
+resource sampling, and cleanup outcomes are retained with the external runs.
+
+Complete G1–G9 acceptance for all nine non-NGINX profiles remains open;
+production readiness is not claimed. See the
+[Change Record](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.md)
+for scope, commands and remaining gaps.
+
 Status: `minimal_runtime_smoke` / `connector-gap`
 
 The implemented host model is an external HTTP authorization service for
@@ -61,8 +94,9 @@ non-promotion conditions are documented in the
 
 ## Source layout
 
-- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, original
-  URI header preferences, and the service entry point.
+- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, which
+  evaluates the generated authorization-request target and consumes no
+  client-supplied original-URI override header, plus the service entry point.
 - `src/envoy_modsecurity_mapper.c` contains thin C17 calls to the Common generic
   request and response mappers.
 - `config/envoy-ext-authz.conf` is the checked-in configuration template.
@@ -125,6 +159,14 @@ loopback HTTP service. Missing binaries are BLOCKED; config, process, mapping,
 and status errors fail the smoke. All processes are stopped on success or
 failure.
 
+When `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1` is set without an explicit
+`RULES_FILE`, the smoke selects the checked-in response-companion P1/P3/P4
+fixture. Its P3 case binds `/phase3-block` and the upstream-created
+`X-Modsec-Upstream: block` response header; its P4 fixture emits the bounded
+marker. An explicit `RULES_FILE` remains an operator selection. This restores a
+source/harness contract only; a real Envoy run is still required for host
+evidence.
+
 For an operator-controlled foreground service:
 
 ```sh
@@ -134,9 +176,14 @@ make -C connectors/envoy serve-envoy-connector \
 ```
 
 The template config enables request processing, uses `x-request-id` as the host
-transaction ID header, caps request bodies at 4096 bytes, disables response-body
-processing, uses 403/500 block/error defaults, applies explicit header/event
-limits, and writes metadata-only JSONL outside the checkout.
+transaction ID header, caps request bodies at 4096 bytes, uses 403/500
+block/error defaults, applies explicit header/event limits, and writes
+metadata-only JSONL outside the checkout. Its HTTP authorization request has no
+callback path prefix, so Envoy supplies the protected downstream request target
+as `Path`; the profile and template refuse `x-envoy-original-path`,
+`x-forwarded-uri`, and `x-original-uri` as policy-selection inputs. The direct
+service itself does not receive response bodies; the mandatory response observer
+handles P3/P4.
 
 The independent ext_proc full-lifecycle service has its own commands. Its
 normal executable requires explicit libmodsecurity headers and library paths:

@@ -191,7 +191,12 @@ int msc_apache_contract_record_intervention_decision(msc_t *msr)
     if (msr == NULL || !msr->contract_initialized) {
         return 0;
     }
-    if (msr->last_intervention_body_limit) {
+    if (msr->last_intervention_body_limit ||
+            msr->last_intervention_response_body_limit) {
+        /* Native body-limit rejects are engine decisions without rule IDs.
+         * Record the factual limit terminal state without forging a rule
+         * correlation; the P4 adapter still emits phase4_intervention rather
+         * than connector body-limit metadata. */
         return msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
     }
@@ -424,6 +429,9 @@ int process_intervention (Transaction *t, request_rec *r)
     if (msr != NULL) {
         msr->last_intervention_body_limit =
             msconnector_intervention_is_request_body_limit_rejection(
+                msr->native_event_phase, &common_intervention);
+        msr->last_intervention_response_body_limit =
+            msconnector_intervention_is_response_body_limit_rejection(
                 msr->native_event_phase, &common_intervention);
     }
     if (msr != NULL && msr->last_intervention_body_limit) {

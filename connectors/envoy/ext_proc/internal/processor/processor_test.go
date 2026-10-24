@@ -865,6 +865,100 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
+func TestDiscardedResponseFinishesOnlyAtRealEOS(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		chunks  []int
+		trailer bool
+		cancel  bool
+		p4      bool
+		want    []int
+	}{
+		{name: "single33", chunks: []int{33}, want: []int{0}},
+		{name: "32plus1", chunks: []int{32, 1}, want: []int{32, 0}},
+		{name: "16plus17plus1", chunks: []int{16, 17, 1}, want: []int{16, 0}},
+		{name: "trailer", chunks: []int{16, 17}, trailer: true, want: []int{16, 0}},
+		{name: "realCancel", chunks: []int{16, 17}, cancel: true, want: []int{16}},
+		{name: "prefixP4", chunks: []int{16, 17}, p4: true, want: []int{16, 0}},
+		{name: "hardChunk", chunks: []int{65}, want: []int{0}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			transaction := &recordingTransaction{}
+			if test.p4 {
+				transaction.bodyDecision = func(direction Direction) Decision {
+					if direction == DirectionResponse {
+						return Decision{Action: ActionDeny, Status: 403}
+					}
+					return allowDecision()
+				}
+			}
+			config := testConfig(LateActionSafe)
+			config.MaxResponseBodyBytes = 32
+			config.MaxBodyChunkBytes = 64
+			service, err := NewService(config, recordingEngine{transaction: transaction})
+			if err != nil {
+				t.Fatal(err)
+			}
+			requests := []receiveResult{{request: requestHeaders(true)}, {request: responseHeaders(false)}}
+			for index, length := range test.chunks {
+				eos := index == len(test.chunks)-1 && !test.trailer && !test.cancel
+				requests = append(requests, receiveResult{request: responseBody(make([]byte, length), eos)})
+			}
+			if test.trailer {
+				requests = append(requests, receiveResult{request: responseTrailers()})
+			}
+			stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: requests}
+			if err := service.Process(stream); err != nil {
+				t.Fatal(err)
+			}
+			if !sameInts(transaction.responseBodyLengths, test.want) {
+				t.Fatalf("native payload lengths %v, want %v", transaction.responseBodyLengths, test.want)
+			}
+			for index, eos := range transaction.responseBodyEOS {
+				wantEOS := !test.cancel && index == len(transaction.responseBodyEOS)-1
+				if eos != wantEOS {
+					t.Fatalf("native EOS %v, final=%v", transaction.responseBodyEOS, wantEOS)
+				}
+			}
+			if len(transaction.closed) != 1 {
+				t.Fatalf("close count %d", len(transaction.closed))
+			}
+			if !test.cancel && transaction.closed[0].CloseReason != CloseResponseEOS {
+				t.Fatalf("close reason %s", transaction.closed[0].CloseReason)
+			}
+			if !test.p4 && len(transaction.hostActions) != 0 {
+				t.Fatalf("adapter discard forged native host actions: %v", transaction.hostActions)
+			}
+			if transaction.closed[0].LateAction != LateActionLogged {
+				t.Fatalf("over-limit response was not Safe log-only: %v", transaction.closed[0])
+			}
+		})
+	}
+}
+
+func TestDiscardedResponsePropagatesNativeEOSFailure(t *testing.T) {
+	transaction := &recordingTransaction{responseEOSError: errors.New("native EOS failure")}
+	config := testConfig(LateActionSafe)
+	config.MaxResponseBodyBytes = 32
+	service, err := NewService(config, recordingEngine{transaction: transaction})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
+		{request: requestHeaders(true)}, {request: responseHeaders(false)},
+		{request: responseBody(make([]byte, 33), true)},
+	}}
+	if err := service.Process(stream); err == nil {
+		t.Fatal("native EOS failure was swallowed")
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseProcessorError {
+		t.Fatalf("failure cleanup: %v", transaction.closed)
+	}
+	if !sameInts(transaction.responseBodyLengths, []int{0}) {
+		t.Fatalf("discard reached native engine: %v", transaction.responseBodyLengths)
+	}
+}
+
 func TestRequestBodyLimitUses413WithoutEngineBodyDispatch(t *testing.T) {
 	transaction := &recordingTransaction{}
 	config := testConfig(LateActionSafe)
@@ -897,10 +991,8 @@ func TestRequestBodyLimitUses413WithoutEngineBodyDispatch(t *testing.T) {
 	if summary.CloseReason != CloseImmediateResponse || summary.RequestBodyChunks != 1 || summary.RequestBodyBytes != 5 {
 		t.Fatalf("unexpected body-limit cleanup summary: %#v", summary)
 	}
-	if got, want := transaction.hostActions, []HostAction{{
-		Action: AppliedActionDeny, VisibleStatus: 413, TransportResult: "http_status",
-	}}; !sameHostActions(got, want) {
-		t.Fatalf("host actions = %#v, want %#v", got, want)
+	if got := transaction.hostActions; len(got) != 0 {
+		t.Fatalf("adapter-only body rejection recorded native host actions = %#v, want none", got)
 	}
 }
 
@@ -1398,6 +1490,8 @@ type recordingTransaction struct {
 	headerCalls           []Direction
 	requestBodyLengths    []int
 	responseBodyLengths   []int
+	responseBodyEOS       []bool
+	responseEOSError      error
 	closed                []Summary
 	hostActions           []HostAction
 	responseCommits       int
@@ -1445,13 +1539,17 @@ func sameDirections(left, right []Direction) bool {
 	return true
 }
 
-func (transaction *recordingTransaction) ProcessBody(_ context.Context, direction Direction, body []byte, _ bool) (Decision, error) {
+func (transaction *recordingTransaction) ProcessBody(_ context.Context, direction Direction, body []byte, eos bool) (Decision, error) {
 	// Intentionally keep only length metadata: the test exercises that the
 	// stream adapter gives the transaction one chunk at a time.
 	if direction == DirectionRequest {
 		transaction.requestBodyLengths = append(transaction.requestBodyLengths, len(body))
 	} else {
 		transaction.responseBodyLengths = append(transaction.responseBodyLengths, len(body))
+		transaction.responseBodyEOS = append(transaction.responseBodyEOS, eos)
+		if eos && transaction.responseEOSError != nil {
+			return Decision{}, transaction.responseEOSError
+		}
 	}
 	if transaction.bodyDecision != nil {
 		return transaction.bodyDecision(direction), nil

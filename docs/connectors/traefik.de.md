@@ -2,6 +2,44 @@
 
 **Sprache:** [English](traefik.md) | Deutsch
 
+## Go-Composite-Common-Runtime und beobachteter Lifecycle
+
+Das separat gebaute `msconnector-composite --mode traefik` wählt die
+kanonische Identität `traefik / forwardAuth / traefik-forwardauth` mit
+gepufferten Requests und gestreamten Responses. Es verwendet den additiven
+gepufferten Header-Start, explizites Request-Append/EOS und eine private
+Common-Response-Companion-Session für P3/P4. Direktes Envoy ext_proc bleibt
+in beiden Richtungen gestreamt.
+
+Go-Lease, Kontext und Deadline werden vor dem nativen Claim geprüft. Nativer
+Ablauf konsumiert die Ownership; konsumierte Cleanup-Fehler werden nicht
+wiederholt. Unaufgelöstes Cleanup versetzt den Coordinator dauerhaft in einen
+Fehlerzustand und sperrt die Aufnahme für kontrollierten Neustart. Terminales
+Cleanup ist einmalig geschützt und behält die Entry-Ownership bis zum
+Abschluss. Ein echter Common-Body-Limit-Fehler wird mit tatsächlichen
+Host-Aktionsmetadaten auf 413 abgebildet; terminales Cleanup eines
+unvollständigen Bodys erfindet weder EOS noch P2-Regelauswertung.
+
+Am 2026-10-03 prüfte der externe Lauf `p370t.T4wJJ8kA` den echten
+Traefik-Host, lokale Composite-Middleware und den Go-Common/libmodsecurity-Dienst.
+Zehn Fälle lieferten `LIFECYCLE_ONLY`: P1 allow/deny, P2 allow/deny/oversize,
+P3 deny/redirect, P4 Safe, fehlende Metadaten und P2-to-P3-Timeout. P4 Strict
+lieferte das erwartete `NON_PASS`, weil kein unabhängiger Host-Reset/Abort
+nachgewiesen wurde. Alle Fälle behalten `catalog_acceptance=false`.
+
+Das finale Source-Manifest war unverändert, Cleanup meldete keine Probleme und
+temporäre Testschlüssel wurden entfernt. Executable-/Bibliothekshashes,
+Beobachtungen geladener Bibliotheken, Ressourcenmessungen und
+Upstream-Beobachtungen bleiben in der externen Evidence. Diese Evidence gilt
+für die Go-Composite-Route und stuft weder die Legacy-C-Dienststatus
+`implemented_not_asserted` oder `configured_not_exercised` noch das separate
+native UDS-Profil hoch.
+
+Vollständige G1–G9-Abnahme aller neun Nicht-NGINX-Profile bleibt offen;
+Produktionsreife wird nicht behauptet. Siehe
+[Change Record](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.de.md)
+für Umfang, Befehle und verbleibende Lücken.
+
 ## Überblick
 
 Traefik verwendet den ausgewählten <code>native-traefik-middleware</code>-Pfad:
@@ -82,7 +120,7 @@ rückwirkend umschreiben kann. Das lokale Plugin bietet weder
 <code>Unwrap</code> noch <code>Hijacker</code> und umgeht diese Grenze damit
 nicht.
 
-Diese Dateien und ihre Component-Tests sind Source-Level-Evidence. Eine
+Die obige Legacy-C-Route und ihre Component-Tests sind Source-Level-Evidence. Eine
 eingesetzte Traefik-Instanz benötigt weiterhin Plugin-Load-, Konfigurations-
 und Traffic-Evidence, bevor sie als Host-Runtime-Evidence beschrieben wird.
 

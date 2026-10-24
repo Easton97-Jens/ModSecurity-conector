@@ -45,3 +45,17 @@ jobs:
           /usr/bin/chmod 700 -- "$namespace_temp_root"
           export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"
           python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
+      - name: Run lighttpd sidecar and qualification contracts
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONNOUSERSITE: "1"
+          TMPDIR: ${{ runner.temp }}/lighttpd-contracts
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$TMPDIR" /var/tmp/codex/ModSecurity-conector
+          python3 -W error::ResourceWarning -m unittest -v \
+            connectors.lighttpd.tests.test_stock_sidecar_contract \
+            connectors.lighttpd.tests.test_stock_sidecar_keepalive \
+            connectors.lighttpd.tests.test_stock_sidecar_qualification \
+            connectors.lighttpd.tests.test_patched_qualification
