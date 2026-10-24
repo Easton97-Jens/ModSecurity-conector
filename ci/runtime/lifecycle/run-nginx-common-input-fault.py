@@ -24,6 +24,7 @@ def load(name, path):
 
 HERE = Path(__file__).resolve().parent
 STARTUP = load("input_fault_startup", HERE / "run-nginx-valid-rules.py")
+SELF_MAPS = load("input_fault_self_maps", HERE / "nginx-worker-self-maps.py")
 BASE = STARTUP.BASE
 from runtime_path_utils import open_private_runtime_root
 
@@ -142,7 +143,7 @@ def request(port, path, environment, output):
     # The fixture is loaded only into the owned native master/worker, never curl.
     client_environment.pop("LD_PRELOAD", None)
     for name in tuple(client_environment):
-        if name.startswith("MSCONNECTOR_OWNED_INPUT_"):
+        if name.startswith(("MSCONNECTOR_OWNED_INPUT_", "MSCONNECTOR_OWNED_SELF_MAP_")):
             client_environment.pop(name)
     result = subprocess.run(["/usr/bin/curl", "--noproxy", "*", "--http1.1", "--silent", "--show-error",
         "--max-time", "5", "--output", os.devnull, "--write-out", "%{http_code}",
@@ -157,6 +158,11 @@ def request(port, path, environment, output):
 def run(args):
     output, validator, hashes, transaction, port, configuration, projection = prepare(args)
     environment, ledger_descriptor = native_environment(args, output, transaction)
+    try:
+        worker_maps = SELF_MAPS.Capture(args, output, environment, hashes, STARTUP)
+    except BaseException:
+        os.close(ledger_descriptor)
+        raise
     argv = [str(output / "nginx-binary"), "-e", "stderr", "-c", str(output / "nginx.conf"), "-p", str(output) + "/"]
     code, failure = None, None
     process, handles = None, {}
@@ -172,9 +178,9 @@ def run(args):
             raise ValueError("actual config acceptance is required")
         with (output / "startup.stdout").open("xb") as out, (output / "startup.stderr").open("xb") as err:
             process = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL, stdout=out, stderr=err,
-                                       pass_fds=(ledger_descriptor,))
+                                       pass_fds=worker_maps.descriptors(ledger_descriptor))
             roles = STARTUP.observe_roles(process, args.run_id, port, output, handles)
-            (output / "worker-maps.log").write_bytes(STARTUP.bounded_capture(Path("/proc") / str(roles["worker_pid"]) / "maps"))
+            worker_maps.capture(roles)
             client_exit, status = request(port, path, environment, output)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         failure = str(exc)
@@ -183,9 +189,12 @@ def run(args):
             cleanup = STARTUP.stop_owned_master(process, roles, port, args.run_id, handles)
         finally:
             try:
-                os.fsync(ledger_descriptor)
+                worker_maps.close()
             finally:
-                os.close(ledger_descriptor)
+                try:
+                    os.fsync(ledger_descriptor)
+                finally:
+                    os.close(ledger_descriptor)
     access, faults = read_rows(output, "native-access.jsonl"), read_rows(output, NATIVE_FAULT_LEDGER)
     diagnostic = "modsecurity common request mapper validation failed: " + validator.CONTRACTS[args.case_id]["diagnostic"]
     raw_error = STARTUP.bounded_capture(output / NGINX_ERROR_LOG) if (output / NGINX_ERROR_LOG).exists() else b""
@@ -206,7 +215,7 @@ def run(args):
     receipt["raw_artifacts_sha256"] = {
         leaf: BASE.digest(STARTUP.bounded_capture(output / leaf))
         for leaf in ("native-access.jsonl", NATIVE_FAULT_LEDGER, "phase1-events.jsonl",
-                     "worker-maps.log", NGINX_ERROR_LOG, "configtest.stdout", "configtest.stderr",
+                     "worker-maps.log", SELF_MAPS.LEDGER, NGINX_ERROR_LOG, "configtest.stdout", "configtest.stderr",
                      "client.stdout", "client.stderr", "startup.stdout", "startup.stderr")
         if (output / leaf).exists()
     }
@@ -228,6 +237,7 @@ def main():
     parser.add_argument("--framework-root", required=True)
     parser.add_argument("--projection-parent", required=True)
     parser.add_argument("--fault-library", required=True)
+    parser.add_argument("--worker-self-map-library", default=os.environ.get("NGX_NATIVE_WORKER_SELF_MAP_LIBRARY"))
     parser.add_argument("--fault-negative-control", action="store_true")
     args = parser.parse_args()
     try:

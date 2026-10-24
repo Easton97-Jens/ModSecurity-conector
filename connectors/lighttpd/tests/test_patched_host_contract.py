@@ -646,6 +646,8 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("handler_ctx_destroy(ctx_slot);", request_reset)
         self.assertLess(
             request_reset.index("if (!defer_transaction_finish)"),
+            # The earlier technical-failure branch destroys its own context.
+            # Compare the deferred-finish guard with the normal teardown.
             request_reset.rindex("handler_ctx_destroy(ctx_slot);")
         )
         self.assertNotIn(

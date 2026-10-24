@@ -146,7 +146,6 @@ Transport-/Ressourcengrenzen und bestehende Sicherheitsprüfungen werden nicht
 geschwächt. Ein später Abbruch kann gesendete Bytes nicht zurückholen.
 
 Vor Freigabe bleiben die offenen Checklistenpunkte abzuschließen: typisierte
-Request-Fehlerereignisse; die übrigen nativen Aufrufe und API-Routen; Fehlerbehandlung
-für Ereigniserzeuger und Ausgabesenken; Connector-Anleitungen;
-Kompatibilitätsprüfung und echte Host-Matrizen. Bestandene reparierte
-Adoption-Prüfungen erledigen diese getrennten Implementierungspunkte nicht.
+Request-Fehlerereignisse und übrige native/API-Routen, Erzeuger-/Ausgabefehler,
+Connector-Anleitungen, Kompatibilitätsprüfung und echte Host-Matrizen. Bestandene
+reparierte Adoption-Prüfungen erledigen diese getrennten Implementierungspunkte nicht.

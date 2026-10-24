@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import errno
 import json
+import os
 import re
 import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -355,6 +358,147 @@ class LighttpdPhase2PreUpstreamGateContractTest(unittest.TestCase):
         self.assertIn("os.mkdir(name, 0o700, dir_fd=self.directory_fd)", self.harness)
         self.assertIn("pass_fds=root.inherited_fds()", self.harness)
         self.assertNotIn("root.mkdir(parents=True)", self.harness)
+
+
+class LighttpdEventSinkPathTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.build = tempfile.TemporaryDirectory()
+        directory = Path(cls.build.name)
+        entry = directory / "event-open.c"
+        entry.write_text(
+            '#include "msconnector/event_jsonl.h"\n'
+            '#include <errno.h>\n#include <stdio.h>\n#include <unistd.h>\n'
+            'int main(int argc,char **argv){int fd=-1;if(argc!=2)return 2;'
+            'int ok=msconnector_open_private_event_file(argv[1],&fd);'
+            'printf("%d %d\\n",ok,ok?0:errno);if(fd>=0)close(fd);return 0;}\n',
+            encoding="utf-8",
+        )
+        cls.probe = directory / "event-open"
+        subprocess.run(
+            ["rtk", "proxy", "cc", "-std=c17", "-Wall", "-Wextra", "-Werror",
+             "-ffunction-sections", "-fdata-sections", "-I" + str(ROOT / "common/include"),
+             str(entry), str(ROOT / "common/src/event_jsonl.c"),
+             "-Wl,--gc-sections", "-o", str(cls.probe)],
+            check=True, capture_output=True, timeout=30,
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.build.cleanup()
+
+    def open_event(self, path: str) -> tuple[int, int]:
+        result = subprocess.run(
+            ["rtk", "proxy", str(self.probe), path],
+            check=True, capture_output=True, text=True, timeout=10,
+        )
+        accepted, error = map(int, result.stdout.split())
+        return accepted, error
+
+    def test_canonical_event_path_works_with_actual_common_no_follow_opener(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = GATE_RUNNER.ensure_runtime_root(Path(temporary))
+            child = root.child("normal")
+            try:
+                child.write_text("events.jsonl", "")
+                self.assertEqual((0, errno.ENOTDIR), self.open_event(child.runtime_path("events.jsonl")))
+                self.assertEqual((1, 0), self.open_event(child.event_sink_path("events.jsonl")))
+                self.assertEqual(0o600, (Path(temporary) / "normal/events.jsonl").stat().st_mode & 0o777)
+                self.assertEqual(f"/proc/self/fd/{child.directory_fd}/lighttpd.conf", child.runtime_path("lighttpd.conf"))
+            finally:
+                child.close()
+                root.close()
+
+    def test_actual_common_opener_keeps_parent_and_leaf_symlinks_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            directory = base / "normal"
+            directory.mkdir(mode=0o700)
+            (directory / "events.jsonl").write_text("")
+            (directory / "linked.jsonl").symlink_to(directory / "events.jsonl")
+            (base / "alias").symlink_to(directory, target_is_directory=True)
+            self.assertEqual((0, errno.ELOOP), self.open_event(str(directory / "linked.jsonl")))
+            self.assertEqual((0, errno.ENOTDIR), self.open_event(str(base / "alias/events.jsonl")))
+
+    def test_renamed_child_follows_held_inode_and_replaced_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            selected = base / "selected"
+            selected.mkdir(mode=0o700)
+            root = GATE_RUNNER.ensure_runtime_root(selected)
+            child = root.child("normal")
+            try:
+                (selected / "normal").rename(selected / "renamed")
+                (selected / "normal").mkdir(mode=0o700)
+                self.assertEqual(str(selected / "renamed/events.jsonl"), child.event_sink_path("events.jsonl"))
+                selected.rename(base / "original")
+                selected.mkdir(mode=0o700)
+                with self.assertRaises(GATE_RUNNER.GateFailure):
+                    child.event_sink_path("events.jsonl")
+                child.write_text("still-pinned", "preserved")
+                self.assertEqual("preserved", (base / "original/renamed/still-pinned").read_text())
+            finally:
+                child.close()
+                root.close()
+
+    def test_moved_directory_outside_selected_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            selected = base / "selected"
+            selected.mkdir(mode=0o700)
+            root = GATE_RUNNER.ensure_runtime_root(selected)
+            child = root.child("normal")
+            try:
+                (selected / "normal").rename(base / "outside")
+                with self.assertRaises(GATE_RUNNER.GateFailure):
+                    child.event_sink_path("events.jsonl")
+            finally:
+                child.close()
+                root.close()
+
+    def test_nonprivate_foreign_and_closed_descriptors_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = GATE_RUNNER.ensure_runtime_root(Path(temporary))
+            child = root.child("normal")
+            try:
+                directory = Path(temporary) / "normal"
+                directory.chmod(0o770)
+                with self.assertRaises(GATE_RUNNER.GateFailure):
+                    child.event_sink_path("events.jsonl")
+                directory.chmod(0o700)
+                real_fstat = os.fstat
+                foreign = SimpleNamespace(st_mode=directory.stat().st_mode, st_uid=os.geteuid() + 1)
+                with mock.patch.object(GATE_RUNNER.os, "fstat", side_effect=lambda fd: foreign if fd == child.directory_fd else real_fstat(fd)):
+                    with self.assertRaises(GATE_RUNNER.GateFailure):
+                        child.event_sink_path("events.jsonl")
+                child.close()
+                with self.assertRaises(GATE_RUNNER.GateFailure):
+                    child.event_sink_path("events.jsonl")
+            finally:
+                child.close()
+                root.close()
+
+    def test_config_selects_required_native_gate_and_only_event_path_is_canonical(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = GATE_RUNNER.ensure_runtime_root(Path(temporary))
+            child = root.child("normal")
+            try:
+                paths = GATE_RUNNER.write_runtime_inputs(
+                    child, rules_file=Path("/selected/rules.conf"),
+                    host_endpoint=GATE_RUNNER.LoopbackEndpoint(18084),
+                    upstream_endpoint=GATE_RUNNER.LoopbackEndpoint(18085),
+                    configured_streaming=False, upgrade_request_body=False,
+                )
+                config = child.read_bytes_if_present("lighttpd.conf").decode()
+                runtime = child.read_bytes_if_present("msconnector-runtime.conf").decode()
+                self.assertIn('msconnector.request-body-gate = "pre-upstream"', config)
+                self.assertIn("request_body_mode=streaming", runtime)
+                self.assertIn(f"event_path={Path(temporary) / 'normal/events.jsonl'}", runtime)
+                self.assertEqual(child.runtime_path("lighttpd.conf"), paths["config"])
+                self.assertEqual((1, 0), self.open_event(paths["event_path"]))
+            finally:
+                child.close()
+                root.close()
 
 
 if __name__ == "__main__":

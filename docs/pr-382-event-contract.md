@@ -135,7 +135,6 @@ engine-owned MIME selection, independent transport/resource limits and existing
 security gates are not weakened. A late abort cannot retract bytes already sent.
 
 Before release, complete the unchecked items in the checklist: typed request
-error events; the remaining native calls and API routes; failure handling for event
-producers and output sinks; connector guides; compatibility review; and real host
-matrices. Passing the repaired adoption checks does not finish those separate
-implementation items.
+error events and other native/API routes, producer/sink failure handling,
+connector guides, compatibility review and real host matrices. Passing the
+repaired adoption checks does not finish those separate implementation items.

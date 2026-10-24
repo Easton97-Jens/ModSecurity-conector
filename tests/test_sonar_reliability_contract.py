@@ -737,6 +737,15 @@ int haproxy_modsecurity_transaction_begin(
     return transaction_begin_result;
 }
 
+int haproxy_modsecurity_transaction_begin_request_authorization(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return haproxy_modsecurity_transaction_begin(
+        engine, request, decision, transaction);
+}
+
 int haproxy_modsecurity_eval_request(
         const haproxy_modsecurity_request *request,
         haproxy_modsecurity_decision *decision) {
@@ -2046,6 +2055,17 @@ int main(void) {
             for name in (
                 "contract_phase_from_decision",
                 "haproxy_modsecurity_error_event_write_checked",
+            )
+        )
+        event_source = (ROOT / "common/src/event_jsonl.c").read_text(
+            encoding="utf-8"
+        )
+        harness_source += "\n" + "\n".join(
+            function_definition(event_source, name)
+            for name in (
+                "event_stream_error",
+                "msconnector_event_file_write",
+                "msconnector_event_file_close",
             )
         )
         temporary_parent = os.environ.get("TMPDIR")

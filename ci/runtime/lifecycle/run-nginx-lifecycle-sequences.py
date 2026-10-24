@@ -27,6 +27,7 @@ def load(name, path):
 
 HERE = Path(__file__).resolve().parent
 STARTUP = load("nginx_sequence_startup", HERE / "run-nginx-valid-rules.py")
+SELF_MAPS = load("nginx_sequence_self_maps", HERE / "nginx-worker-self-maps.py")
 BASE = STARTUP.BASE
 from runtime_path_utils import open_private_runtime_root
 
@@ -323,8 +324,10 @@ def capture_sequence_requests(args, port, token, upstream, validator, response_w
 
 
 def execute_sequence(args, output, token, upstream, validator,
-                     invocation: PreparedInvocation) -> ExecutionOutcome:
+                     invocation: PreparedInvocation, worker_maps=None) -> ExecutionOutcome:
     port, argv, environment, write_fd, exit_code, failure = invocation
+    if worker_maps is None:
+        worker_maps = prepare_worker_maps(args, output, environment, {}, write_fd)
     roles = {"master_pid": 0, "worker_pid": 0, "master_uid": -1, "worker_uid": -1}
     process, handles = None, {}
     observations, access = [], []
@@ -339,10 +342,9 @@ def execute_sequence(args, output, token, upstream, validator,
             upstream.start()
         with (output / "startup.stdout").open("xb") as out, (output / "startup.stderr").open("xb") as err:
             process = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL, stdout=out, stderr=err,
-                                       pass_fds=() if write_fd is None else (write_fd,))
+                                       pass_fds=worker_maps.descriptors(write_fd))
             roles = STARTUP.observe_roles(process, args.run_id, port, output, handles)
-            with (output / "worker-maps.log").open("xb") as captured:
-                captured.write(STARTUP.bounded_capture(Path("/proc") / str(roles["worker_pid"]) / "maps"))
+            worker_maps.capture(roles)
             wire_observation, response_wire = capture_sequence_wire(args, output, port, token)
             observations = capture_sequence_requests(args, port, token, upstream, validator, response_wire)
             client_exit = 0
@@ -358,11 +360,14 @@ def execute_sequence(args, output, token, upstream, validator,
                 upstream_observation = upstream.observation()
                 upstream.stop()
         finally:
-            if write_fd is not None:
-                try:
-                    os.fsync(write_fd)
-                finally:
-                    os.close(write_fd)
+            try:
+                worker_maps.close()
+            finally:
+                if write_fd is not None:
+                    try:
+                        os.fsync(write_fd)
+                    finally:
+                        os.close(write_fd)
     observed = {"schema_version": 1, "operation": "request_sequence", "protocol": "http1",
                 "case_id": args.case_id, "run_id": args.run_id, "client_exit_code": client_exit,
                 "requests": observations, "native_access": access, "roles": roles, "cleanup": cleanup}
@@ -428,6 +433,7 @@ def sequence_receipt(args, output, context: ReceiptContext, observed_raw, client
                        if (output / ACCESS_LEAF).exists() else None,
                    projection_parent=str(context.projection_parent), projection_root=str(context.projection_root))
     for key, leaf in {"events_sha256": EVENTS_LEAF, "worker_maps_sha256": "worker-maps.log",
+                      "worker_self_maps_sha256": SELF_MAPS.LEDGER,
                       "native_writes_sha256": WRITE_LEDGER,
                       "native_finish_sha256": FINISH_LEDGER,
                       "native_begin_sha256": BEGIN_LEDGER,
@@ -453,6 +459,33 @@ def publish_sequence_source(args, output, live_executed, receipt, errors):
     return not errors
 
 
+def prepare_worker_maps(args, output, environment, hashes, fault_descriptor):
+    try:
+        return SELF_MAPS.Capture(args, output, environment, hashes, STARTUP)
+    except BaseException:
+        if fault_descriptor is not None:
+            os.close(fault_descriptor)
+        raise
+
+
+def configtest_invocation(output, port, argv, environment, fault_descriptor, worker_maps):
+    try:
+        exit_code, stdout, stderr, failure = BASE.invoke(argv + ["-t"], environment)
+        (output / "configtest.stdout").write_bytes(stdout)
+        (output / "configtest.stderr").write_bytes(stderr)
+        return PreparedInvocation(port, argv, environment, fault_descriptor, exit_code, failure)
+    except BaseException as original_error:
+        try:
+            try:
+                worker_maps.close()
+            finally:
+                if fault_descriptor is not None:
+                    os.close(fault_descriptor)
+        except OSError as cleanup_error:
+            raise original_error from cleanup_error
+        raise
+
+
 def run(args):
     binary, module, output = BASE.validate_inputs(args)
     engine_budget_ms = validate_sequence_controls(args)
@@ -470,12 +503,11 @@ def run(args):
     (output / CONFIG_LEAF).write_bytes(config)
     environment = BASE.configtest_environment(args.library_dir)
     write_fd = prepare_sequence_fault(args, output, identity, token, port, environment, hashes)
+    worker_maps = prepare_worker_maps(args, output, environment, hashes, write_fd)
     argv = [str(output / BINARY_LEAF), "-e", "stderr", "-c", str(output / CONFIG_LEAF), "-p", str(output) + "/"]
-    exit_code, stdout, stderr, failure = BASE.invoke(argv + ["-t"], environment)
-    (output / "configtest.stdout").write_bytes(stdout)
-    (output / "configtest.stderr").write_bytes(stderr)
-    invocation = PreparedInvocation(port, argv, environment, write_fd, exit_code, failure)
-    outcome = execute_sequence(args, output, token, upstream, validator, invocation)
+    invocation = configtest_invocation(output, port, argv, environment, write_fd, worker_maps)
+    exit_code = invocation.config_exit_code
+    outcome = execute_sequence(args, output, token, upstream, validator, invocation, worker_maps)
     add_sequence_observations(args, output, outcome, upstream, engine_budget_ms)
     errors = validator.observation_errors(outcome.observed, args.case_id, args.run_id)
     if outcome.failure:
@@ -494,6 +526,7 @@ def main():
     parser.add_argument("--framework-root", required=True)
     parser.add_argument("--projection-parent", required=True)
     parser.add_argument("--fault-library")
+    parser.add_argument("--worker-self-map-library", default=os.environ.get("NGX_NATIVE_WORKER_SELF_MAP_LIBRARY"))
     parser.add_argument("--engine-call-budget-ms", type=int, choices=(0, 10, 100), default=10,
                         help="Timeout probes: 10ms positive; 0ms disabled or 100ms under-budget controls must fail timeout validation")
     parser.add_argument("--fault-negative-control", action="store_true",

@@ -31,7 +31,7 @@ HAProxy `request-body-limit`, Envoy `max_request_body_bytes`, and Traefik
 `max_response_body_bytes`. Removed options fail configuration rather than being
 silently ignored. There is no replacement cumulative connector size option.
 Operators use their normal engine rule configuration; no additional connector
-limit is required. The former requirement to preserve request policy is superseded.
+limit is required.
 
 ## Working memory and transport
 
@@ -44,8 +44,9 @@ Private file spooling allows the stock lighttpd sidecar to inspect incrementally
 while withholding upstream replay until native P2 allows it. Disk errors remain
 technical failures, rather than selecting an inspection prefix or limit action.
 
-`bytes_inspected` describes bytes offered to the engine, not the native
-ProcessPartial prefix. An append return value of 0 is operation-specific and must not be
+For requests, `bytes_inspected=0` means unknown/unproven; retained bytes do not
+prove inspection. For responses it counts bytes offered to the engine, not the
+native ProcessPartial prefix. An append return value of 0 is operation-specific and must not be
 misreported as allocation or file failure when native ProcessPartial permits it.
 Native Request Reject may report HTTP 403 during append, whereas another native
 path may report 413; the connector preserves the actual result through EOS.
@@ -76,27 +77,15 @@ such as lighttpd `server.max-request-size`, remain host configuration.
 
 ## Verification
 
-Every body-inspection test explicitly supplies the engine limit and action for
-the direction it exercises; request non-file fixtures also choose the native
-no-files limit. Helpers have no implicit size/action defaults. Tests without
-body inspection need no artificial limits.
+Inspection fixtures explicitly select native limits/actions, including the
+request no-files limit; helpers supply no implicit defaults. HAProxy samples use
+`req.body_size` and `http_version=req.ver`; incomplete or contradictory samples
+fail before engine admission. Unknown/chunked framing and unframed HTTP/2 remain
+unsupported on that sample route; native HTX provides streaming. Apache preserves
+native response Reject at append, including prior FLUSH/body commitment, and
+withholds the rejected brigade under Safe log_only.
 
-Real-library checks distinguish below/exact/above limits, native actions and
-DetectionOnly, chunks and files, identical payloads under different limits,
-and markers beyond former connector ceilings. Builds and source contracts do
-not establish hosted HTTP/1, HTTP/2, HTTP/3, buffer ownership or late-abort
-behavior. See the [stack checklist](response-limit-stack-checklist.md).
-
-## Rechecked sample and native-Reject paths
-
-The [ten-profile request/response matrix](body-inspection-review-matrix.md)
-separates source, executable contracts, selected host probes and missing full
-I12/V08–V10 evidence. HAProxy sample producers use `req.body_size` plus
-`http_version=req.ver`, rather than interpreting a buffered prefix length as a
-complete body. Incomplete/contradictory samples fail before engine admission;
-unknown/chunked framing and unframed HTTP/2 remain unsupported on this sample
-route. Native HTX is the streaming alternative. Apache preserves native response
-Reject at append, including prior FLUSH/body commitment, and does not release the
-rejected brigade under Safe log_only. This is native-result enforcement, never
-a connector-chosen size or action. The matrix also records why the 32768-byte
-authorization-response memory safeguard must remain.
+Builds and component contracts do not establish complete hosted HTTP/1–HTTP/3,
+buffer-ownership or late-abort acceptance. See the
+[ten-profile matrix](body-inspection-review-matrix.md) for route boundaries and
+the [PR #410 closeout](pr-410-i12-closeout-20261024.md) for current results.

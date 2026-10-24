@@ -5,11 +5,13 @@ import hashlib
 import importlib.util
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -222,6 +224,16 @@ class NginxConfigtestDriverTest(unittest.TestCase):
         receipt = record["configtest_receipt"]
         self.assertEqual(receipt["observed_exit_code"], 1)
         self.assertEqual(receipt["error_class"], "invalid_boolean")
+        invocation = receipt["native_parser_invocation"]
+        self.assertTrue(invocation["invoked"])
+        self.assertEqual(invocation["argv"], [str(self.root / "attempt/nginx-binary"), "-e", "stderr",
+                                             "-t", "-c", str(self.root / "attempt/nginx.conf"),
+                                             "-p", str(self.root / "attempt") + "/"])
+        self.assertEqual(invocation["cwd"], os.getcwd())
+        self.assertGreater(invocation["pid"], 0)
+        self.assertEqual(invocation["exit_code"], 1)
+        self.assertIsNone(invocation["signal"])
+        self.assertEqual(invocation["stderr_sha256"], receipt["stderr_sha256"])
         self.assertFalse(receipt["process_started"])
         self.assertFalse(receipt["listener_created"])
         self.assertEqual(record["status"], "PASS")
@@ -352,6 +364,69 @@ class NginxConfigtestDriverTest(unittest.TestCase):
         result = subprocess.run(args, capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 2)
         self.assertFalse((self.root / "second").exists())
+
+
+class NativeParserInvocationTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("native_invocation_driver", DRIVER)
+        cls.driver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.driver)
+
+    def test_optional_receipt_observes_actual_child_pid_cwd_arguments_and_hashes(self):
+        argv = [sys.executable, "-c", "import json,os,sys; print(json.dumps({'pid':os.getpid(),'cwd':os.getcwd()})); sys.stderr.write('native diagnostic\\n'); sys.exit(7)"]
+        receipt = {}
+        capture = self.driver.invoke(argv, dict(os.environ), invocation_receipt=receipt)
+        self.assertEqual(len(capture), 4)
+        code, stdout, stderr, failure = capture
+        actual = json.loads(stdout)
+        self.assertEqual(receipt["pid"], actual["pid"])
+        self.assertEqual(receipt["cwd"], actual["cwd"])
+        self.assertEqual(receipt["argv"], argv)
+        self.assertEqual(receipt["returncode"], code)
+        self.assertEqual(receipt["exit_code"], 7)
+        self.assertIsNone(receipt["signal"])
+        self.assertIsNone(failure)
+        self.assertEqual(receipt["stderr_sha256"], hashlib.sha256(stderr).hexdigest())
+        self.assertEqual(receipt["stdout_sha256"], hashlib.sha256(stdout).hexdigest())
+
+    def test_signal_is_observed_separately_from_normal_exit(self):
+        receipt = {}
+        code, _, _, failure = self.driver.invoke(
+            [sys.executable, "-c", "import os,signal; os.kill(os.getpid(),signal.SIGTERM)"],
+            dict(os.environ), invocation_receipt=receipt,
+        )
+        self.assertEqual(code, -signal.SIGTERM)
+        self.assertEqual(receipt["signal"], signal.SIGTERM)
+        self.assertIsNone(receipt["exit_code"])
+        self.assertIsNone(failure)
+
+    def test_missing_executable_has_no_child_invocation_facts(self):
+        receipt = {}
+        with self.assertRaises(FileNotFoundError):
+            self.driver.invoke(["/nonexistent-controlled-parser"], {}, invocation_receipt=receipt)
+        self.assertFalse(receipt["invoked"])
+        for key in ("argv", "cwd", "pid", "returncode", "exit_code", "signal", "stderr_sha256"):
+            self.assertIsNone(receipt[key])
+
+    def test_timeout_and_capture_limit_preserve_failure_and_captured_stderr_hash(self):
+        for script, expected in (("import time; time.sleep(2)", "configtest_timeout"),
+                                 ("import sys; sys.stderr.write('x'*70000)", "configtest_capture_limit")):
+            with self.subTest(expected=expected):
+                receipt = {}
+                with mock.patch.object(self.driver, "TIMEOUT_SECONDS", 0.2):
+                    code, _, stderr, failure = self.driver.invoke(
+                        [sys.executable, "-c", script], dict(os.environ), invocation_receipt=receipt)
+                self.assertTrue(receipt["invoked"])
+                self.assertEqual(failure, expected)
+                self.assertEqual(receipt["capture_failure"], failure)
+                self.assertEqual(receipt["returncode"], code)
+                self.assertEqual(receipt["stderr_sha256"], hashlib.sha256(stderr).hexdigest())
+                self.assertLessEqual(len(stderr), self.driver.CAPTURE_LIMIT)
+
+    def test_existing_four_tuple_without_receipt_remains_supported(self):
+        self.assertEqual(self.driver.invoke([sys.executable, "-c", "pass"], dict(os.environ)),
+                         (0, b"", b"", None))
 
 
 if __name__ == "__main__":

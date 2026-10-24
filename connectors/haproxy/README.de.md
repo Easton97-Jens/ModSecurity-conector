@@ -392,17 +392,17 @@ Wire-Vertrag nicht beobachten; sein Event lässt deshalb das optionale Feld
 Filterkonfiguration und wirklichem Transport zu belegen. Native Direct-Events
 verwenden ihre eigene bekannte Filterkonfiguration.
 
-Native SDK-, stdio-Fehler-, Parallelitäts-, Sanitizer- und Mutationskontrollen
-sind Komponentenbelege. Frische integrierte Hostläufe und unabhängige
-Qualifikation bleiben für I12 erforderlich. Siehe den
-[Change Record zum physischen Sink](../../reports/audits/change-records/CR-20261018-haproxy-physical-common-sinks.de.md).
-
-Für Strict nach Commit bei H1 löscht der native Filter jetzt wartende Responsebytes und ruft die Hard-Shutdown-API des bereiten Frontendtransports auf, bevor der H1-Mux ein sauberes TLS close_notify senden kann. H2 behält seinen Shutdown pro Stream. Komponenten-/API-/Mutationskontrollen und Kompilierung bestanden; frische integrierte Transportqualifikation bleibt erforderlich. Siehe den [H1-Transport-Change-Record](../../reports/audits/change-records/CR-20261018-haproxy-strict-h1-transport-abort.de.md).
+Für Strict nach Commit bei H1 löscht der native Filter wartende Responsebytes und
+ruft die Hard-Shutdown-API des bereiten Frontendtransports auf, bevor der H1-Mux
+ein sauberes TLS close_notify senden kann. H2 behält seinen Shutdown pro Stream.
 
 Native Redirects vor Commit in P1/P2/P3 verwenden HAProxys Reply-API für einen
 literalen `Location`-Wert mit dem ursprünglichen unterstützten Status. Der
 Connector besitzt die URL vor dem nativen Cleanup und lehnt abgeschnittene
 Werte oder Steuerzeichen ab. Der Companion zeichnet den tatsächlichen Redirect-
-OUTCOME vor RELEASE auf. Quell-, native SDK- und Host-API-Regressionen bestanden;
-unabhängige integrierte Client-Retests bleiben erforderlich. Siehe den
-[Redirect-Change-Record](../../reports/audits/change-records/CR-20261018-haproxy-precommit-redirect.de.md).
+OUTCOME vor RELEASE auf.
+
+SDK-, Sinkfehler-, Parallelitäts-, Sanitizer-, API- und Mutationskontrollen liefern
+Komponentenbelege. I12 benötigt weiterhin frische integrierte Host-/Clientläufe
+und unabhängige Qualifikation; siehe den
+[konsolidierten Change Record zu PR #410](../../reports/audits/change-records/CR-20261024-pr410-sonar-remediation.de.md).
