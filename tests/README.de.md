@@ -71,7 +71,41 @@ Testname, Fixture, Kommandoargument oder erwartetes Artefakt aufnehmen.
 | \`make check-framework-fixture-syntax\` | Validiert Framework-Fixture-Syntax über das Root-Target; ein Syntax-/Contract-Check, kein Runtime-Ergebnis. |
 | \`make check-test-matrix\` | Prüft Konsistenz und Ownership-Grenzen der generierten Test-Matrix. |
 | \`make quick-check\` | Führt die fokussierten schnellen Repository-Contract-Checks aus. Erzeugt keine kanonische Runtime-Evidence. |
+| `make check-native-engine-body-inspection` | Führt echte libModSecurity-Request-/Response-Limits und Companion-C-Serialisierungs-/Phasenregressionen aus. Benötigt C17-Compiler, Header und Bibliothek; läuft auch im nativen Envoy-CI-Job. Komponentenergebnisse belegen keine echte Connector-Host-Evidence. |
+| `make check-native-lifecycle-observer` | Prüft den GNU-Linker-Observer ausschließlich für Tests mit echtem Common-Zustand, kontrolliertem nativen ABI und ausdrücklich gewähltem SDK. Benötigt `NATIVE_OBSERVER_TEST_OUT`, `MODSECURITY_INCLUDE_DIR` und `MODSECURITY_LIB_DIR`; fehlende Konfiguration blockiert das Target. |
 | \`make lint\` | Führt breite Syntax-, Contract-, Dokumentations- und Governance-Checks aus, einschließlich Root-Test-bezogener Contracts. |
+
+Die native Suite akzeptiert die bestehende SDK-Auswahl über
+`MODSECURITY_PREFIX`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_FILE` und
+`MODSECURITY_LIB_DIR`; ungültige explizite Pfade scheitern vor der Kompilierung.
+Bei einer externen Bibliothek verwenden Executables deren Verzeichnis als
+Runtime-Suchpfad. Inspection-Fixtures setzen native Limits/Aktionen ausdrücklich.
+Verlustfreie Byte-Escapes müssen Phase und Eventintegrität erhalten;
+Escape-Feldüberlauf darf weder schreiben noch die Hashkette fortsetzen.
+Leichtgewichtige Eventprotokolltests behalten ihre getrennte Dependency-Grenze.
+
+Der Lifecycle-Observer erfasst tatsächliche API-Eintritts-/Rückkehrpaare, getrennte
+Host- und kanonische Transaktions-IDs, Common-Zustandsaufnahmen und finale Belege
+pro Prozess. Er wird ausschließlich in Testartefakte mit den vierzehn `--wrap`-
+Symbolen aus `tests/test_native_lifecycle_observer.py` gelinkt. Ein Supervisor
+übergibt einen privaten geerbten Append-Deskriptor und erhält dessen originales
+JSONL. Interne Aufrufe desselben Objekts können Wrapping umgehen; fehlende finale
+Belege oder offene Zuordnungen lassen Cleanup unqualifiziert. Native MIME-Auswahl
+und tatsächliches Host-EOS bleiben `null`. Erfolgreiche Komponententests oder
+API-Zähler allein belegen keinen Host-Lifecycle-Abschluss.
+Native Append-Belege enthalten tatsächliche Bytezahlen und NULL-/Nicht-NULL-
+Eingabearten. Diese APIs haben kein EOS-Argument; leere Appends belegen kein
+Host-EOS.
+
+Der optionale Helper `ci/runtime/lifecycle/native-lifecycle-sdk.cpp` liest die
+öffentliche Transaktions-ID des gewählten C++-SDK nach Ausschluss einer abweichenden
+Runtime-Version. Vor dem Linken in ein Host-Testartefakt müssen exakte Header- und
+Bibliothekshashes sowie beide echten Konstruktoren geprüft sein. Damit werden auch
+anonyme native IDs erfasst; die übergebene Eingabe-ID bleibt getrennt, eine Common-/
+Native-Korrelation wird nicht abgeleitet. Die Versionsprüfung allein qualifiziert
+keinen beliebigen Build mit scheinbar passendem ABI. Ohne Helper bleibt das native
+ABI für den Observer undurchsichtig. Abgewiesene oder überlange IDs machen die
+Messung ungültig und erhalten den nativen Aufruf sowie errno.
 
 Für Auswahl der Testebene und korrekte Ergebnisdarstellung [Testebenen](../docs/testing-and-evidence.de.md),
 [Core-Lifecycle-Testing](../docs/testing-and-evidence.de.md) und den

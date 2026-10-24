@@ -108,6 +108,30 @@ seinen genehmigten Protected-Producer und Protected-Runtime-Evidence, während
 dieser PR den Broker-Produktionspfad weder aufruft noch verändert. Die
 Contract-Tests belegen Validator-Verhalten, kein gehostetes Runtime-Ergebnis.
 
+## Optionale Erfassung eigener NGINX-Worker-Mappings
+
+Die geschlossenen Common-Input-Fault- und Lifecycle-Sequenz-Driver lesen
+normalerweise `/proc/<pid>/maps` des tatsächlichen nobody-Workers; ein
+verweigerter Zugriff bleibt ein Fehler. Eine ausdrücklich ausgewählte
+Testbibliothek über `--worker-self-map-library` (oder
+`NGX_NATIVE_WORKER_SELF_MAP_LIBRARY`) lässt stattdessen denselben Worker
+unmittelbar nach seinem echten erfolgreichen Wechsel zu UID/GID 65534
+`/proc/self/maps` lesen. Sie ergänzt keine Prozessinspektions-Capability.
+Der Root-Elternprozess öffnet eine neue reguläre `O_APPEND`-Datei mit Modus
+0600 und genau einem Link und übergibt ihren privaten Deskriptor ausschließlich
+dem nativen Start. Der Helper bindet Gerät und Inode dieses Deskriptors und
+erfasst ausschließlich das eigene Kind seines ursprünglichen Masters.
+
+Vor dem ersten Request verlangt der Elternprozess vollständige begrenzte
+Rohbytes, passende Worker-PID, Eltern-PID, UID/GID und Prozessstartzeit sowie
+tatsächliche Mappings für das ausgewählte native Modul und jede geladene
+Fixture-Bibliothek. Fehlende, unsichere, unvollständige oder abweichende
+Erfassung schlägt geschlossen fehl. Rohbytes und Helper-Artefakthash bleiben
+im Run-Beleg; Master-Mappings ersetzen keine Worker-Mappings. Dieser Kanal
+belegt ausschließlich geladene Mappings. Er liefert kein Host-EOS, keine
+MIME-Entscheidung, keine Native/Common-ID-Verknüpfung und keinen vollständigen
+Lifecycle-PASS.
+
 ## Statusdatensätze für optionale Voraussetzungen
 
 `ci/tools/run-check-status.py` führt einen direkten Child-Befehl aus,

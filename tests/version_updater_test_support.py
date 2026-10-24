@@ -101,7 +101,7 @@ def uses_shared_core(module: object) -> bool:
 def write_project_pins(root: Path, **versions: str) -> Path:
     """Provision a complete central lock for isolated toolchain fixtures."""
     pins = {"schema_version": 1, "framework_sha": "6" * 40, "mrts_sha": "8" * 40,
-            "python_version": "3.14.7", "go_version": "1.27.1"}
+            "python_version": "3.15.7", "go_version": "1.27.1"}
     pins.update(versions)
     target = root / "ci/tooling/project-versions.lock.json"
     target.parent.mkdir(parents=True, exist_ok=True)

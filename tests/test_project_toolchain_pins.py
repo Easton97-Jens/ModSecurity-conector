@@ -25,12 +25,12 @@ CORE = sys.modules["version_updater_common"]
 class ProjectToolchainPinsTests(unittest.TestCase):
     def fixture(self, root):
         lock = write_project_pins(root)
-        (root / ".python-version").write_text("3.14.7\n")
+        (root / ".python-version").write_text("3.15.7\n")
         (root / ".go-version").write_text("1.27.1\n")
         return lock
 
     def update(self, root):
-        UPDATER.atomic_update_version(root, UPDATER.parse_stable_version("3.14.7"), UPDATER.parse_stable_version("3.14.8"))
+        UPDATER.atomic_update_version(root, UPDATER.parse_stable_version("3.15.7"), UPDATER.parse_stable_version("3.15.8"))
 
     def test_update_only_selected_field_preserves_other_pins(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -39,17 +39,17 @@ class ProjectToolchainPinsTests(unittest.TestCase):
             before = json.loads(lock.read_bytes())
             self.update(root)
             after = json.loads(lock.read_bytes())
-            self.assertEqual(after.pop("python_version"), "3.14.8")
+            self.assertEqual(after.pop("python_version"), "3.15.8")
             before.pop("python_version")
             self.assertEqual(after, before)
-            self.assertEqual((root / ".python-version").read_text(), "3.14.8\n")
+            self.assertEqual((root / ".python-version").read_text(), "3.15.8\n")
             self.assertEqual(SYNC.synchronize(root), [])
 
     def test_one_lock_edit_syncs_both_views(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             self.fixture(root)
-            write_project_pins(root, python_version="3.14.8", go_version="1.28.0")
+            write_project_pins(root, python_version="3.15.8", go_version="1.28.0")
             self.assertEqual(SYNC.synchronize(root), [".python-version", ".go-version"])
             self.assertEqual(SYNC.synchronize(root, sync=True), [".python-version", ".go-version"])
             self.assertEqual(SYNC.synchronize(root), [])
@@ -59,7 +59,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             self.fixture(root)
-            (root / ".python-version").write_text("3.14.6\n")
+            (root / ".python-version").write_text("3.15.6\n")
             opener = mock.Mock()
             status = UPDATER.main(["--check"], root=root, opener=opener)
             self.assertEqual(status, 1)
@@ -75,13 +75,13 @@ class ProjectToolchainPinsTests(unittest.TestCase):
                     lock.write_bytes(data)
                     with self.assertRaises(CORE.UpdaterError):
                         SYNC.synchronize(root, sync=True)
-                    self.assertEqual((root / ".python-version").read_text(), "3.14.7\n")
+                    self.assertEqual((root / ".python-version").read_text(), "3.15.7\n")
 
     def test_unsafe_second_view_preflight_prevents_first_view_write(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             lock = self.fixture(root)
-            write_project_pins(root, python_version="3.14.8", go_version="1.28.0")
+            write_project_pins(root, python_version="3.15.8", go_version="1.28.0")
             before = lock.read_bytes()
             outside = root / "outside"
             outside.write_text("1.27.1\n")
@@ -90,7 +90,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
             with self.assertRaises(CORE.UpdaterError):
                 SYNC.synchronize(root, sync=True)
             self.assertEqual(lock.read_bytes(), before)
-            self.assertEqual((root / ".python-version").read_text(), "3.14.7\n")
+            self.assertEqual((root / ".python-version").read_text(), "3.15.7\n")
             self.assertEqual(outside.read_text(), "1.27.1\n")
 
     def test_hardlinked_lock_and_symlink_directory_rejected(self):
@@ -121,7 +121,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
                 with self.assertRaises(CORE.UpdaterError):
                     self.update(root)
             self.assertEqual(lock.read_bytes(), original)
-            self.assertEqual((root / ".python-version").read_text(), "3.14.7\n")
+            self.assertEqual((root / ".python-version").read_text(), "3.15.7\n")
             self.assertEqual(list(root.rglob(".project-version-*")), [])
 
     def test_concurrent_lock_replacement_does_not_overwrite_new_pin(self):
@@ -139,7 +139,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
                 with self.assertRaises(CORE.UpdaterError):
                     self.update(root)
             self.assertEqual(json.loads(lock.read_bytes())["go_version"], "1.28.0")
-            self.assertEqual((root / ".python-version").read_text(), "3.14.7\n")
+            self.assertEqual((root / ".python-version").read_text(), "3.15.7\n")
 
     def test_directory_fsync_failure_rolls_back_recorded_replacements(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -158,7 +158,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
                 with self.assertRaises(CORE.UpdaterError):
                     self.update(root)
             self.assertEqual(lock.read_bytes(), original)
-            self.assertEqual((root / ".python-version").read_text(), "3.14.7\n")
+            self.assertEqual((root / ".python-version").read_text(), "3.15.7\n")
             self.assertEqual(SYNC.synchronize(root), [])
 
     def test_cooperating_python_and_go_writers_preserve_both_updates(self):
@@ -178,7 +178,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
                 for future in futures:
                     future.result(timeout=20)
             pins = json.loads(lock.read_bytes())
-            self.assertEqual(pins["python_version"], "3.14.8")
+            self.assertEqual(pins["python_version"], "3.15.8")
             self.assertEqual(pins["go_version"], "1.28.0")
             self.assertEqual(SYNC.synchronize(root), [])
 
@@ -190,14 +190,14 @@ class ProjectToolchainPinsTests(unittest.TestCase):
             def replace(source, target):
                 real_replace(source, target)
                 if target == root / ".python-version":
-                    target.write_text("3.14.9\n")
+                    target.write_text("3.15.9\n")
                     replacement = root / "replacement"
                     replacement.write_bytes(lock.read_bytes().replace(b"1.27.1", b"1.28.0"))
                     real_replace(replacement, lock)
             with mock.patch.object(CORE.os, "replace", side_effect=replace):
                 with self.assertRaises(CORE.UpdaterError):
                     self.update(root)
-            self.assertEqual((root / ".python-version").read_text(), "3.14.9\n")
+            self.assertEqual((root / ".python-version").read_text(), "3.15.9\n")
             self.assertEqual(json.loads(lock.read_bytes())["go_version"], "1.28.0")
 
     def test_go_publisher_guard_precedes_new_and_reused_branch_paths(self):
@@ -212,7 +212,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
             root = Path(temporary)
             lock = self.fixture(root)
             previous = lock.read_bytes()
-            write_project_pins(root, python_version="3.14.8", go_version="1.28.0")
+            write_project_pins(root, python_version="3.15.8", go_version="1.28.0")
             SYNC.synchronize(root, sync=True)
             with self.assertRaises(CORE.UpdaterError):
                 SYNC.verify_toolchain_update(root, "python", previous)
@@ -223,7 +223,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
             lock = self.fixture(root)
             previous = lock.read_bytes()
             pins = json.loads(previous)
-            pins["unexpected"] = "3.14.8"
+            pins["unexpected"] = "3.15.8"
             lock.write_text(json.dumps(pins))
             with self.assertRaises(CORE.UpdaterError):
                 SYNC.synchronize(root, sync=True)
@@ -242,7 +242,7 @@ class ProjectToolchainPinsTests(unittest.TestCase):
             with self.assertRaises(CORE.UpdaterError):
                 self.update(root)
             self.assertEqual(lock.read_bytes(), before)
-            self.assertEqual((root / "outside-view").read_text(), "3.14.7\n")
+            self.assertEqual((root / "outside-view").read_text(), "3.15.7\n")
 
     def test_publisher_accepts_only_python_change(self):
         with tempfile.TemporaryDirectory() as temporary:

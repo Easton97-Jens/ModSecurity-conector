@@ -30,7 +30,6 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.engineSocketPath`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-enginesocketpath) | Host / Connector | absolute Unix-domain socket path | no | none (required and validated in uds mode) | http.middlewares.<name>.plugin.modsecurityNative | Names the private UDS path used by native middleware when engineMode is uds. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheaderbytes) | Host / Connector | integer aggregate header-byte bound | no | 65536 | http.middlewares.<name>.plugin.modsecurityNative | Caps aggregate request and response header bytes passed to native middleware engine callbacks. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | integer header-count bound | no | 128 | http.middlewares.<name>.plugin.modsecurityNative | Caps the number of request and response headers passed to native middleware engine callbacks. |
-| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes) | Host / Connector | integer aggregate request-body bound | no | 1048576 | http.middlewares.<name>.plugin.modsecurityNative | Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | integer request-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed request-body chunk offered to the native middleware engine. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes) | Host / Connector | integer response-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed response-body chunk offered to the native middleware engine. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis) | Host / Connector | integer request-body idle-timeout bound | no | 1000 | http.middlewares.<name>.plugin.modsecurityNative | Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry. |
@@ -102,9 +101,6 @@ Host/connector switches bind or configure host integration. They are not the sam
 | `transaction_id_header` | Selected runtime profile key | [transaction_id_header](../common/common-connector-configuration.md#transaction-id-header) |
 | `request_body_mode` | Selected runtime profile key | [request_body_mode](../common/common-connector-configuration.md#request-body-mode) |
 | `response_body_mode` | Selected runtime profile key | [response_body_mode](../common/common-connector-configuration.md#response-body-mode) |
-| `request_body_limit` | Selected runtime profile key | [request_body_limit](../common/common-connector-configuration.md#request-body-limit) |
-| `response_body_limit` | Selected runtime profile key | [response_body_limit](../common/common-connector-configuration.md#response-body-limit) |
-| `body_limit_action` | Selected runtime profile key | [body_limit_action](../common/common-connector-configuration.md#body-limit-action) |
 | `phase4_mode` | Selected runtime profile key | [phase4_mode](../common/common-connector-configuration.md#phase4-mode) |
 | `default_block_status` | Selected runtime profile key | [default_block_status](../common/common-connector-configuration.md#default-block-status) |
 | `default_error_status` | Selected runtime profile key | [default_error_status](../common/common-connector-configuration.md#default-error-status) |
@@ -1198,61 +1194,6 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 ### Safety and operations
 
 A finite count limits header-flood work before data reaches the UDS engine.
-
-<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestbodybytes"></a>
-## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes`
-
-### Short description
-
-Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.
-
-### Syntax
-
-```text
-http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestBodyBytes: <maxRequestBodyBytes>
-```
-
-### Valid contexts
-
-- http.middlewares.<name>.plugin.modsecurityNative
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| integer aggregate request-body bound | positive; maximum 1048576 bytes | no |
-
-### Default
-
-1048576
-
-Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
-
-### Inheritance and merge
-
-Traefik dynamic configuration object; no Common Runtime merge.
-
-Merge: Traefik/plugin configuration is normalized once by the plugin.
-
-### Phases and runtime effect
-
-P2 request-body aggregate bound; it is distinct from the per-chunk maxRequestChunkBytes limit.
-
-Caps the aggregate request-body bytes accepted across all streamed request chunks; overflow is rejected and the transaction is cleaned up.
-
-### Validation and errors
-
-normalizedConfig rejects non-positive values, values above 1048576, and chunks larger than the aggregate body bound.
-
-### Example
-
-Selected example value: `1048576`.
-
-Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
-
-### Safety and operations
-
-A finite aggregate budget bounds total request-body work before it reaches the UDS engine.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`

@@ -646,7 +646,9 @@ class PatchedHostContractTest(unittest.TestCase):
         self.assertIn("handler_ctx_destroy(ctx_slot);", request_reset)
         self.assertLess(
             request_reset.index("if (!defer_transaction_finish)"),
-            request_reset.index("handler_ctx_destroy(ctx_slot);")
+            # The earlier technical-failure branch destroys its own context.
+            # Compare the deferred-finish guard with the normal teardown.
+            request_reset.rindex("handler_ctx_destroy(ctx_slot);")
         )
         self.assertNotIn(
             "msconnector_runtime_transaction_finish_response_body", missing_eos
@@ -666,10 +668,12 @@ class PatchedHostContractTest(unittest.TestCase):
         action = module.split("static handler_t mod_msconnector_apply_decision", 1)[1].split(
             "#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION", 1
         )[0]
-        self.assertIn("result = http_status_set_err(r, status);", action)
+        self.assertIn("? http_status_set_err_fin(r, status)", action)
+        self.assertIn(": http_status_set_err(r, status);", action)
+        self.assertIn("http_response_reset(r);", action)
         self.assertIn("msconnector_runtime_transaction_record_host_action", action)
         self.assertLess(
-            action.index("result = http_status_set_err(r, status);"),
+            action.index(": http_status_set_err(r, status);"),
             action.index("msconnector_runtime_transaction_record_host_action"),
         )
         self.assertIn("MSCONNECTOR_DECISION_ACTION_DENY", action)

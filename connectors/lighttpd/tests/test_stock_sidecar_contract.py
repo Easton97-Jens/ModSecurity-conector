@@ -15,6 +15,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import select
+import shlex
 import socket
 import socketserver
 import struct
@@ -25,6 +27,7 @@ import threading
 import time
 import unittest
 from unittest import mock
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -212,7 +215,9 @@ def _upstream(responder):
 
 class _RunningSidecar:
     def __init__(self, binary: Path, config: Path, upstream_port: int, library_dir: Path,
-                 timeout_ms: int, environment: dict[str, str] | None = None) -> None:
+                 timeout_ms: int, environment: dict[str, str] | None = None,
+                 pass_fds: tuple[int, ...] = (), extra_arguments: tuple[str, ...] = ()) -> None:
+        self._pass_fds = pass_fds
         self.port = _free_loopback_port()
         self.config = config
         self.process: subprocess.Popen[bytes] | None = None
@@ -222,6 +227,7 @@ class _RunningSidecar:
             "--listen", f"127.0.0.1:{self.port}",
             "--upstream", f"127.0.0.1:{upstream_port}",
             "--timeout-ms", str(timeout_ms),
+            *extra_arguments,
         ]
         self._environment = os.environ.copy()
         original_path = self._environment.get("LD_LIBRARY_PATH", "")
@@ -238,6 +244,7 @@ class _RunningSidecar:
             env=self._environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            pass_fds=self._pass_fds,
         )
         return self
 
@@ -283,10 +290,72 @@ class _RunningSidecar:
                 response.extend(chunk)
 
 
+class StockSidecarLauncherContractTest(unittest.TestCase):
+    def test_launcher_has_closed_profile_and_executable_contract(self) -> None:
+        spec = importlib.util.spec_from_file_location("stock_launcher_closed", ROOT / "connectors/lighttpd/launch_stock_sidecar.py")
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        for malicious in ("../../etc/passwd", "--config", "/etc/passwd", "safe;sh"):
+            with self.subTest(profile=malicious), self.assertRaises(ValueError):
+                launcher.read_arguments(malicious)
+        with tempfile.TemporaryDirectory(prefix="stock-launcher-contract-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            record = directory / "record.args"
+            record.write_text("--config /etc/passwd --listen 127.0.0.1:8080 --upstream 127.0.0.1:8081 --spool-directory /var/lib/msconnector/lighttpd-stock/safe")
+            with mock.patch.dict(launcher.PROFILE_RECORDS, {"safe": record}):
+                with self.assertRaises(ValueError):
+                    launcher.read_arguments("safe")
+            executable = directory / "usr/libexec/msconnector/lighttpd-stock-sidecar"
+            executable.parent.mkdir(parents=True, mode=0o755)
+            executable.write_text("#!/bin/sh\nexit 0\n")
+            executable.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, "native ELF"):
+                launcher.open_component_binary(directory)
+            executable.unlink()
+            executable.symlink_to("/bin/sh")
+            with self.assertRaises(OSError):
+                launcher.open_component_binary(directory)
+            result = subprocess.run([sys.executable, str(ROOT / "connectors/lighttpd/launch_stock_sidecar.py"),
+                                     "--binary", "/bin/sh", "--args-file", "/etc/passwd"], capture_output=True)
+            self.assertEqual(result.returncode, 2)
+
+    def test_launcher_rejects_unsafe_existing_paths_without_chmod(self) -> None:
+        spec = importlib.util.spec_from_file_location("stock_launcher", ROOT / "connectors/lighttpd/launch_stock_sidecar.py")
+        self.assertIsNotNone(spec)
+        launcher = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(launcher)
+        with tempfile.TemporaryDirectory(prefix="stock-launcher-negatives-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            spool = directory / "spool"
+            launcher.prepare_spool(spool)
+            self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
+            spool.chmod(0o755)
+            with self.assertRaises(ValueError):
+                launcher.prepare_spool(spool)
+            self.assertEqual(spool.stat().st_mode & 0o777, 0o755)
+            spool.chmod(0o700)
+            with mock.patch.object(launcher.os, "geteuid", return_value=os.geteuid() + 1):
+                with self.assertRaises(ValueError):
+                    launcher.prepare_spool(spool)
+            with mock.patch.object(launcher.os, "fstatvfs", return_value=SimpleNamespace(f_flag=os.ST_RDONLY)):
+                with self.assertRaisesRegex(ValueError, "read-only"):
+                    launcher.prepare_spool(spool)
+            link = directory / "link"
+            link.symlink_to(spool, target_is_directory=True)
+            with self.assertRaises(OSError):
+                launcher.prepare_spool(link)
+            unsafe = directory / "unsafe"
+            unsafe.mkdir(mode=0o777)
+            unsafe.chmod(0o777)
+            with self.assertRaises(ValueError):
+                launcher.prepare_spool(unsafe / "child")
+            self.assertFalse((unsafe / "child").exists())
+
+
 class StockSidecarSourceContractTest(unittest.TestCase):
     def _compile_and_run_c_harness(
         self, harness_source: str, *, prefix: str, filename: str,
-        compiler: str, include_directory: Path,
+        compiler: str, include_directory: Path, link_crypto: bool = False,
     ) -> None:
         harness_source = harness_source.replace(
             "__SIDECAR_SOURCE__", SIDECAR_SOURCE.as_posix()
@@ -295,7 +364,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
             directory = Path(temporary)
             harness = directory / f"{filename}.c"
             binary = directory / filename
-            harness.write_text(harness_source, encoding="utf-8")
+            harness.write_text(harness_source.replace("__TEST_ROOT__", directory.as_posix()), encoding="utf-8")
             compiled = subprocess.run(
                 [
                     compiler,
@@ -304,6 +373,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                     "-I.", "-Icommon/include", "-Icommon/runtime",
                     "-Iconnectors/lighttpd/stock_sidecar", f"-I{include_directory}",
                     str(harness), "-Wl,--gc-sections", "-o", str(binary),
+                    *(["-lcrypto"] if link_crypto else []),
                 ],
                 cwd=ROOT,
                 text=True,
@@ -316,6 +386,150 @@ class StockSidecarSourceContractTest(unittest.TestCase):
             )
             self.assertEqual(executed.returncode, 0, executed.stderr)
 
+    def test_spool_admission_faults_rounding_and_lifetime(self) -> None:
+        compiler = shutil.which("cc")
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None or not (include_directory / "modsecurity/modsecurity.h").is_file():
+            self.skipTest("requires C compiler and libmodsecurity headers")
+        harness = r'''
+#define fstatvfs test_fstatvfs
+#define posix_fallocate test_fallocate
+#include "__SIDECAR_SOURCE__"
+#undef fstatvfs
+#undef posix_fallocate
+#include <assert.h>
+static int stat_failure, allocation_failure, allocation_calls, stat_calls, after_floor, malformed;
+static off_t allocation_length;
+int test_fstatvfs(int fd, struct statvfs *v) {
+    (void)fd; ++stat_calls;
+    if (stat_failure) { errno=EIO;return -1; }
+    memset(v,0,sizeof(*v));v->f_frsize=4096;v->f_bavail=1024;
+    if (after_floor && stat_calls%2==0) v->f_bavail=0;
+    if (malformed==1) v->f_frsize=0;
+    if (malformed==2) v->f_bavail=SIZE_MAX;
+    if (malformed==3) v->f_flag=ST_RDONLY;
+    return 0;
+}
+int test_fallocate(int fd, off_t offset, off_t length) {
+    (void)fd;assert(offset==0);++allocation_calls;allocation_length=length;
+    return allocation_failure;
+}
+static sidecar_exchange_state state_for(sidecar_options *options, sidecar_spool_budget *budget, size_t length) {
+    sidecar_exchange_state state;memset(&state,0,sizeof(state));
+    state.dependencies.options=options;state.dependencies.spool_budget=budget;
+    state.payload.request_spool_fd=-1;state.payload.request_headers.content_length=length;
+    state.deadline.at_ms=sidecar_now_ms()+10000;return state;
+}
+int main(void) {
+    char *arguments[]={"sidecar","--config","config","--listen","127.0.0.1:8000", "--upstream","127.0.0.1:8001", "--spool-free-reserve-bytes","0"};
+    sidecar_options parsed;
+    assert(!sidecar_parse_args(9,arguments,&parsed));
+    arguments[8]="184467440737095516160";assert(!sidecar_parse_args(9,arguments,&parsed));
+    arguments[7]="--spool-capacity-bytes";arguments[8]="0";assert(!sidecar_parse_args(9,arguments,&parsed));
+    assert(sidecar_parse_args(7,arguments,&parsed));
+    assert(parsed.spool_capacity_bytes==SIDECAR_DEFAULT_SPOOL_CAPACITY && parsed.spool_free_reserve_bytes==SIDECAR_DEFAULT_SPOOL_FREE_RESERVE);
+    int fd=open("__TEST_ROOT__",O_RDONLY|O_DIRECTORY);assert(fd>=0);
+    sidecar_options options={.spool_directory_fd=fd};
+    sidecar_spool_budget budget={.lock=PTHREAD_MUTEX_INITIALIZER,.capacity=8192,.free_reserve=4096};
+    sidecar_exchange_state a=state_for(&options,&budget,4097);
+    assert(sidecar_admit_request_spool(&a));assert(allocation_length==4097);
+    assert(budget.reserved==8192 && a.payload.spool_reservation==8192);
+    sidecar_exchange_state b=state_for(&options,&budget,1);
+    assert(!sidecar_admit_request_spool(&b));assert(b.failure_status==503);
+    assert(allocation_calls==1 && b.payload.request_spool_fd==-1);
+    sidecar_release_request_spool(&a);sidecar_release_request_spool(&a);assert(budget.reserved==0);
+    assert(sidecar_admit_request_spool(&b));assert(budget.reserved==4096);
+    int released_fd=b.payload.request_spool_fd;sidecar_release_request_spool(&b);
+    assert(fcntl(released_fd,F_GETFD)<0 && errno==EBADF);assert(budget.reserved==0);
+    allocation_failure=ENOSPC;b=state_for(&options,&budget,1);errno=0;
+    assert(!sidecar_admit_request_spool(&b));assert(errno==ENOSPC && budget.reserved==0 && b.payload.request_spool_fd==-1);
+    allocation_failure=EOPNOTSUPP;assert(!sidecar_admit_request_spool(&b));assert(errno==EOPNOTSUPP);
+    allocation_failure=0;stat_failure=1;assert(!sidecar_admit_request_spool(&b));assert(errno==EIO);
+    stat_failure=0;after_floor=1;stat_calls=0;assert(!sidecar_admit_request_spool(&b));assert(budget.reserved==0 && b.payload.request_spool_fd==-1);
+    after_floor=0;int previous=allocation_calls;
+    for (malformed=1;malformed<=3;++malformed) {
+        assert(!sidecar_admit_request_spool(&b));assert(allocation_calls==previous);
+    }
+    malformed=0;b=state_for(&options,&budget,SIZE_MAX);
+    assert(!sidecar_admit_request_spool(&b));assert(allocation_calls==previous);
+    b=state_for(&options,&budget,1);budget.free_reserve=SIZE_MAX;
+    assert(!sidecar_admit_request_spool(&b));assert(allocation_calls==previous);
+    budget.free_reserve=0;assert(sidecar_admit_request_spool(&b));sidecar_release_request_spool(&b);
+    assert(close(fd)==0);assert(pthread_mutex_destroy(&budget.lock)==0);return 0;
+}
+'''
+        self._compile_and_run_c_harness(harness, prefix="stock-spool-admission-",
+            filename="spool_admission", compiler=compiler, include_directory=include_directory, link_crypto=True)
+
+    def test_private_spool_anchors_storage_and_rejects_unsafe_roots(self) -> None:
+        compiler = shutil.which("cc")
+        include_directory = Path(os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"))
+        if compiler is None or not (include_directory / "modsecurity/modsecurity.h").is_file():
+            self.skipTest("requires C compiler and libmodsecurity headers")
+        runtime = COMMON_RUNTIME.read_text(encoding="utf-8")
+        start = runtime.index("int msconnector_runtime_private_directory_ancestors_are_safe(")
+        end = runtime.index("typedef struct msconnector_runtime_owned_config", start)
+        harness = r'''
+#define MSCONNECTOR_STOCK_SIDECAR_MAIN
+#define main stock_sidecar_program_main
+#include "__SIDECAR_SOURCE__"
+#undef main
+#include <assert.h>
+#include <dirent.h>
+static uid_t effective_uid;
+uid_t geteuid(void) { return effective_uid; }
+#define RUNTIME_PATH_SIZE 4096U
+__ANCESTOR_CHECK__
+static int entries(const char *path) {
+    DIR *directory=opendir(path);struct dirent *entry;int count=0;
+    assert(directory!=NULL);
+    while ((entry=readdir(directory))!=NULL) {
+        if (strcmp(entry->d_name,".")!=0 && strcmp(entry->d_name,"..")!=0) ++count;
+    }
+    assert(closedir(directory)==0);return count;
+}
+int main(void) {
+    const char *root="__TEST_ROOT__";
+    effective_uid=getuid();
+    char safe[4096],moved[4096],unsafe[4096],link[4096],config[4096];
+    struct stat info;char bytes[4];
+    assert(snprintf(safe,sizeof(safe),"%s/safe",root)>0);
+    assert(snprintf(moved,sizeof(moved),"%s/moved",root)>0);
+    assert(snprintf(unsafe,sizeof(unsafe),"%s/unsafe",root)>0);
+    assert(snprintf(link,sizeof(link),"%s/link",root)>0);
+    assert(mkdir(safe,0700)==0);assert(mkdir(unsafe,0700)==0);
+    assert(chmod(unsafe,0777)==0);assert(sidecar_open_spool_directory(unsafe)<0);
+    assert(chmod(unsafe,0500)==0);assert(sidecar_open_spool_directory(unsafe)<0);
+    assert(chmod(unsafe,0700)==0);
+    effective_uid=getuid()+1U;assert(sidecar_open_spool_directory(unsafe)<0);effective_uid=getuid();
+    assert(symlink(safe,link)==0);assert(sidecar_open_spool_directory(link)<0);
+    assert(setenv("TMPDIR",unsafe,1)==0);
+    assert(snprintf(config,sizeof(config),"%s/runtime.conf",safe)>0);
+    sidecar_options options={.config="/etc/runtime.conf",.spool_directory_fd=-1};
+    assert(!sidecar_prepare_spool_directory(&options));
+    options.spool_directory=safe;
+    assert(sidecar_prepare_spool_directory(&options));assert(close(options.spool_directory_fd)==0);
+    options.spool_directory=NULL;options.config=config;
+    assert(sidecar_prepare_spool_directory(&options));
+    assert(sidecar_open_spool_directory(safe)<0); /* same-dir process lock */
+    int directory_fd=options.spool_directory_fd;
+    assert((fcntl(directory_fd,F_GETFD)&FD_CLOEXEC)!=0);
+    assert(rename(safe,moved)==0);assert(symlink(unsafe,safe)==0);
+    int body=sidecar_open_request_spool(directory_fd);assert(body>=0);
+    assert(fstat(body,&info)==0);assert(S_ISREG(info.st_mode));assert(info.st_nlink==0);
+    assert((info.st_mode&0777)==0600);assert(info.st_uid==geteuid());
+    assert((fcntl(body,F_GETFD)&FD_CLOEXEC)!=0);
+    assert(write(body,"body",4)==4);assert(lseek(body,0,SEEK_SET)==0);assert(read(body,bytes,4)==4);assert(memcmp(bytes,"body",4)==0);
+    assert(entries(moved)==0);assert(entries(unsafe)==0);
+    assert(close(body)==0);assert(fcntl(body,F_GETFD)<0 && errno==EBADF);
+    assert(close(directory_fd)==0);assert(fcntl(directory_fd,F_GETFD)<0 && errno==EBADF);
+    assert(unlink(safe)==0);assert(unlink(link)==0);assert(rmdir(moved)==0);assert(rmdir(unsafe)==0);
+    return 0;
+}
+'''.replace("__ANCESTOR_CHECK__", runtime[start:end])
+        self._compile_and_run_c_harness(harness, prefix="stock-private-spool-",
+            filename="spool_security", compiler=compiler, include_directory=include_directory, link_crypto=True)
+
     def test_real_backend_event_selection_separates_engine_and_host_action(self) -> None:
         harness = _load_real_backend_harness()
         case = next(candidate for candidate in harness.REAL_BACKEND_CASES
@@ -323,7 +537,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         transaction_id = "sidecar-host-action-test"
         engine_event = _strict_stock_event(
             harness, message_id=case.expected_engine_event or "", transaction_id=transaction_id,
-            sequence=1, previous_hash=0, phase="request_headers", actual_action="deny",
+            sequence=1, previous_hash=0, phase="request_headers", actual_action="", event_name="engine_decision",
             rule_id=case.expected_rule_id or "",
         )
         host_action_event = _strict_stock_event(
@@ -375,7 +589,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         engine_event = _strict_stock_event(
             harness, message_id=case.expected_engine_event or "", transaction_id=transaction_id,
             sequence=2, previous_hash=int(host_action_event["event_hash"]), phase="request_headers",
-            actual_action="deny", rule_id=case.expected_rule_id or "",
+            actual_action="", event_name="engine_decision", rule_id=case.expected_rule_id or "",
         )
         receipt = _transaction_receipt(transaction_id)
         with tempfile.TemporaryDirectory(prefix="stock-reverse-causal-",
@@ -398,7 +612,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                 harness, message_id=case.expected_engine_event or "", transaction_id=transaction_id,
                 sequence=1, previous_hash=0,
                 phase=harness._EVENT_CONTRACT_PHASE_NAMES[case.expected_phase_sequence[-1]],
-                actual_action="deny", visible_http_status=200, original_http_status=200,
+                actual_action="", event_name="engine_decision", visible_http_status=200, original_http_status=200,
                 response_committed=case.expected_response_committed,
                 rule_id=case.expected_rule_id or "",
             )
@@ -441,6 +655,337 @@ class StockSidecarSourceContractTest(unittest.TestCase):
 
         verify_response_case(p3_case, "deny", "http_status")
         verify_response_case(p4_case, "log_only", "log_only")
+
+    def test_real_backend_unobserved_action_is_not_host_enforcement(self) -> None:
+        harness = _load_real_backend_harness()
+        case = next(c for c in harness.REAL_BACKEND_CASES if c.name == "p1_deny")
+        engine = _strict_stock_event(
+            harness, message_id="MSCONN_EVENT_ENGINE_DECISION", event_name="engine_decision",
+            transaction_id="unobserved-unit-control", sequence=1, previous_hash=0,
+            phase="request_headers", actual_action="", rule_id=case.expected_rule_id or "",
+        )
+        harness._validate_event_schema(engine)
+        self.assertIsNone(harness._host_action_event_from_records(
+            [engine], case, _transaction_receipt("unobserved-unit-control")))
+        for altered in (
+            {**engine, "transport_result": "http_status"},
+            {**engine, "message_id": "MSCONN_EVENT_REQUEST_BLOCKED"},
+            {**engine, "event": "custom_event"},
+            {**engine, "actual_action": "invented"},
+            {**engine, "status": "ok", "action": "allow", "requested_action": "allow"},
+        ):
+            with self.subTest(altered=altered["message_id"], action=altered["actual_action"]):
+                with self.assertRaises(RuntimeError):
+                    harness._validate_event_schema(altered)
+        fabricated = {**engine, "actual_action": "deny"}
+        self.assertFalse(harness._is_engine_event_candidate(fabricated, case))
+        technical = {**engine, "message_id": "MSCONN_EVENT_PROTOCOL_ERROR",
+                     "event": "protocol_error", "status": "error", "action": "error",
+                     "requested_action": "error", "rule_id": ""}
+        harness._validate_event_schema(technical)
+        with self.assertRaises(RuntimeError):
+            harness._validate_event_schema({**technical, "transport_result": "http_status"})
+
+    def test_real_backend_retains_failed_attempt_raw_artifacts(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-retention-unit-",
+                                         dir=_temporary_root()) as temporary:
+            runtime = Path(temporary)
+            runtime.chmod(0o700)
+            def failing_attempt():
+                with harness.retained_attempt(runtime) as attempt:
+                    (attempt / "physical-stderr.log").write_bytes(b"unit fixture error\n")
+                    raise RuntimeError("unit failure")
+
+            with self.assertRaisesRegex(RuntimeError, "unit failure"):
+                failing_attempt()
+            attempt, = runtime.iterdir()
+            self.assertTrue(attempt.is_dir())
+            self.assertEqual((attempt / "physical-stderr.log").read_bytes(), b"unit fixture error\n")
+            receipt = json.loads((attempt / "attempt.json").read_text())
+            self.assertEqual(receipt["outcome"], "failed")
+            self.assertTrue(receipt["raw_artifacts_retained"])
+            self.assertEqual(receipt["artifacts"][0]["sha256"],
+                             hashlib.sha256(b"unit fixture error\n").hexdigest())
+            self.assertEqual((attempt / "physical-stderr.log").stat().st_mode & 0o777, 0o600)
+
+    def test_real_backend_client_exit_and_partial_bytes_are_retained(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            # No host is launched: an unused loopback port exercises a real client failure.
+            port = harness.free_port()
+            client_root = root / "client"
+            with self.assertRaisesRegex(RuntimeError, "client exchange failed"):
+                harness.exchange(port, b"GET / HTTP/1.1\r\n\r\n", client_root)
+            receipt = json.loads((root / "client/client.json").read_text())
+            self.assertEqual(receipt["wait_returncode"], 77)
+            self.assertIsNone(receipt["http_status"])
+            self.assertEqual(receipt["response_bytes"], 0)
+            self.assertTrue((root / "client/stderr.log").read_bytes())
+
+    def test_real_backend_launch_receipt_failure_reaps_child(self) -> None:
+        harness = _load_real_backend_harness()
+        children = []
+        real_popen = subprocess.Popen
+
+        def recording_popen(*args, **kwargs):
+            child = real_popen(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with tempfile.TemporaryDirectory(prefix="stock-launch-failure-unit-",
+                                         dir=_temporary_root()) as temporary:
+            with mock.patch.object(harness.subprocess, "Popen", side_effect=recording_popen), \
+                    mock.patch.object(harness, "write_observation", side_effect=OSError("unit disk error")):
+                with self.assertRaisesRegex(OSError, "unit disk error"):
+                    harness.launch_logged([sys.executable, "-c", "import time; time.sleep(60)"],
+                                          Path(temporary), "unit-child")
+            self.assertEqual(len(children), 1)
+            self.assertIsNotNone(children[0].returncode)
+            self.assertIsNotNone(children[0].poll())
+
+    def test_real_backend_client_cli_rejects_path_arguments_without_io(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="stock-client-path-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            secret = root / "outside-request"
+            secret.write_bytes(b"outside-private-fixture")
+            output = root / "outside-response"
+            result = subprocess.run(
+                [sys.executable, str(REAL_BACKEND_HARNESS), "--client-exchange", "1",
+                 str(secret), str(output)], capture_output=True, timeout=5, check=False,
+            )
+            self.assertEqual(result.returncode, 77)
+            self.assertFalse(output.exists())
+            self.assertNotIn(b"outside-private-fixture", result.stdout + result.stderr)
+
+    def test_real_backend_cleanup_probe_error_is_not_closed_listener_evidence(self) -> None:
+        harness = _load_real_backend_harness()
+        process = mock.Mock(pid=1234, returncode=0)
+        with tempfile.TemporaryDirectory(prefix="stock-cleanup-probe-unit-",
+                                         dir=_temporary_root()) as temporary:
+            path = Path(temporary) / "probe-error.json"
+            with mock.patch.object(harness, "stop"), \
+                    mock.patch.object(harness.socket, "create_connection", side_effect=socket.timeout):
+                with self.assertRaises(harness.CleanupFailure):
+                    harness.stop_with_receipt(process, 1, path)
+            receipt = json.loads(path.read_text())
+            self.assertFalse(receipt["listener_closed_observed"])
+            self.assertIsNone(receipt["listener_connected_observed"])
+            self.assertEqual(receipt["listener_probe_error"], "TimeoutError")
+            refused_path = Path(temporary) / "refused.json"
+            with mock.patch.object(harness, "stop"), \
+                    mock.patch.object(harness.socket, "create_connection", side_effect=ConnectionRefusedError):
+                harness.stop_with_receipt(process, 1, refused_path)
+            refused = json.loads(refused_path.read_text())
+            self.assertTrue(refused["listener_closed_observed"])
+            self.assertIsNone(refused["listener_probe_error"])
+
+    def test_real_backend_client_artifacts_reject_alias_and_existing_output(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-boundary-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            private = root / "private"
+            private.mkdir(mode=0o700)
+            alias = root / "alias"
+            alias.symlink_to(private, target_is_directory=True)
+            aliased_client = alias / "client"
+            with self.assertRaises(ValueError):
+                harness.exchange(1, b"fixture", aliased_client)
+            self.assertFalse((private / "client/request.http").exists())
+            output = private / "response.http"
+            output.write_bytes(b"preserved")
+            output.chmod(0o600)
+            def open_existing_output():
+                with harness.client_artifacts(private, b"fixture"):
+                    return
+
+            with self.assertRaises(FileExistsError):
+                open_existing_output()
+            self.assertEqual(output.read_bytes(), b"preserved")
+
+    def test_real_backend_client_rejects_unsafe_descriptor_classes(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-fd-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            with harness.client_artifacts(root, b"fixture") as (source, response, _out, _err):
+                source_fd = source.fileno()
+                response_fd = response.fileno()
+                descriptor_pairs = ((0, response_fd), (source_fd, source_fd))
+                for unsafe_request_fd, unsafe_response_fd in descriptor_pairs:
+                    with self.subTest(request_fd=unsafe_request_fd, response_fd=unsafe_response_fd):
+                        with self.assertRaises(RuntimeError):
+                            harness.client_exchange(1, unsafe_request_fd, unsafe_response_fd)
+                os.fchmod(source_fd, 0o644)
+                with self.assertRaisesRegex(RuntimeError, "owner-private"):
+                    harness.client_exchange(1, source_fd, response_fd)
+                os.fchmod(source_fd, 0o600)
+                duplicate = os.dup(source_fd)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "distinct fresh"):
+                        harness.client_exchange(1, source_fd, duplicate)
+                finally:
+                    os.close(duplicate)
+                read_only = os.open(root / "response.http", os.O_RDONLY)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "access is invalid"):
+                        harness.client_exchange(1, source_fd, read_only)
+                finally:
+                    os.close(read_only)
+                os.link(root / "request.http", root / "hardlink")
+                with self.assertRaisesRegex(RuntimeError, "owner-private"):
+                    harness.client_exchange(1, source_fd, response_fd)
+
+    def test_real_backend_client_preserves_partial_binary_bytes_on_socket_error(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-partial-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            connection = mock.MagicMock()
+            connection.__enter__.return_value = connection
+            connection.recv.side_effect = [b"\x00\xffraw-partial", socket.timeout("unit timeout")]
+            with harness.client_artifacts(root, b"\x00\xffrequest") as (source, response, _out, _err):
+                source_fd = source.fileno()
+                response_fd = response.fileno()
+                with mock.patch.object(harness.socket, "create_connection", return_value=connection):
+                    with self.assertRaises(socket.timeout):
+                        harness.client_exchange(1, source_fd, response_fd)
+                response.seek(0)
+                self.assertEqual(response.read(), b"\x00\xffraw-partial")
+            connection.sendall.assert_called_once_with(b"\x00\xffrequest")
+
+    def test_real_backend_client_real_subprocess_preserves_binary_response(self) -> None:
+        harness = _load_real_backend_harness()
+        payload = b"\x00\xffcomplete-binary-body"
+        with tempfile.TemporaryDirectory(prefix="stock-client-binary-unit-",
+                                         dir=_temporary_root()) as temporary, socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            listener.settimeout(5)
+
+            def reply():
+                with listener.accept()[0] as connection:
+                    connection.recv(4096)
+                    connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: " +
+                                       str(len(payload)).encode("ascii") + b"\r\n\r\n" + payload)
+
+            thread = threading.Thread(target=reply)
+            thread.start()
+            try:
+                status, body = harness.exchange(listener.getsockname()[1],
+                                               b"GET / HTTP/1.1\r\n\r\n", Path(temporary) / "client")
+            finally:
+                thread.join(timeout=6)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual((status, body), (200, payload))
+
+    def test_real_backend_client_response_bound_retains_prior_bytes(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-client-bound-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            connection = mock.MagicMock()
+            connection.__enter__.return_value = connection
+            connection.recv.side_effect = [b"partial", b"x" * harness._MAX_CLIENT_RESPONSE_BYTES]
+            with harness.client_artifacts(root, b"request") as (source, response, _out, _err):
+                source_fd = source.fileno()
+                response_fd = response.fileno()
+                with mock.patch.object(harness.socket, "create_connection", return_value=connection):
+                    with self.assertRaisesRegex(RuntimeError, "bounded catalog limit"):
+                        harness.client_exchange(1, source_fd, response_fd)
+                response.seek(0)
+                self.assertEqual(response.read(), b"partial")
+
+    def test_real_backend_client_zero_exit_does_not_hide_incomplete_framing(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-framing-unit-",
+                                         dir=_temporary_root()) as temporary:
+            with socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0))
+                listener.listen(1)
+                listener.settimeout(5)
+
+                def reply():
+                    with listener.accept()[0] as connection:
+                        connection.recv(4096)
+                        connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n")
+
+                thread = threading.Thread(target=reply)
+                thread.start()
+                try:
+                    port = listener.getsockname()[1]
+                    client_root = Path(temporary) / "client"
+                    with self.assertRaisesRegex(harness.CaseObservationError, "incomplete"):
+                        harness.exchange(port, b"GET / HTTP/1.1\r\n\r\n", client_root)
+                finally:
+                    thread.join(timeout=6)
+                self.assertFalse(thread.is_alive())
+            receipt = json.loads((Path(temporary) / "client/client.json").read_text())
+            self.assertEqual(receipt["wait_returncode"], 0)
+            self.assertEqual(receipt["content_length"], 10)
+            self.assertEqual(receipt["body_bytes"], 0)
+            self.assertFalse(receipt["framing_complete"])
+
+    def test_real_backend_failed_client_retains_backend_observation(self) -> None:
+        harness = _load_real_backend_harness()
+        case = harness.REAL_BACKEND_CASES[0]
+        with tempfile.TemporaryDirectory(prefix="stock-backend-failure-unit-",
+                                         dir=_temporary_root()) as temporary:
+            root = Path(temporary)
+            log = root / "access.log"
+            log.write_text("", encoding="utf-8")
+            log.chmod(0o600)
+
+            def failing_client(*args, **kwargs):
+                log.write_text("unit-request-a\nunit-request-b\n", encoding="utf-8")
+                raise RuntimeError("unit client failure")
+
+            with mock.patch.object(harness, "verify_artifact_digest"), \
+                    mock.patch.object(harness, "launch_logged", return_value=mock.Mock()), \
+                    mock.patch.object(harness, "wait_ready"), \
+                    mock.patch.object(harness, "exchange", side_effect=failing_client), \
+                    mock.patch.object(harness, "stop_with_receipt") as cleanup:
+                with self.assertRaisesRegex(RuntimeError, "unit client failure"):
+                    harness.run_case(runtime_root=root, initial_receipt=root / "receipt.json",
+                                     temporary_root=root, sidecar_binary=root / "unit-binary",
+                                     sidecar_binary_digest="0" * 64, backend_port=1,
+                                     backend_access_log=log, case=case, metadata={})
+            cleanup.assert_called_once()
+            evidence = json.loads((root / "cases" / case.name / "backend-final.json").read_text())
+            self.assertEqual(evidence["requests_observed"], 2)
+            self.assertEqual(evidence["access_log_sha256"], hashlib.sha256(log.read_bytes()).hexdigest())
+
+    def test_real_backend_catalog_continues_but_does_not_hide_failure(self) -> None:
+        harness = _load_real_backend_harness()
+        with tempfile.TemporaryDirectory(prefix="stock-catalog-unit-",
+                                         dir=_temporary_root()) as temporary:
+            attempted = []
+
+            def case_result(*, case, **kwargs):
+                attempted.append(case.name)
+                if len(attempted) == 1:
+                    raise harness.CaseObservationError("unit catalog mismatch")
+                if len(attempted) == 2:
+                    raise RuntimeError("unit missing evidence")
+                return {"case": case.name}
+
+            with mock.patch.object(harness, "run_case", side_effect=case_result):
+                results = harness.run_catalog(temporary_root=Path(temporary))
+            self.assertEqual(attempted, [case.name for case in harness.REAL_BACKEND_CASES])
+            self.assertEqual([result["result"] for result in results[:2]], ["FAIL", "BLOCKED"])
+            for case in harness.REAL_BACKEND_CASES:
+                self.assertTrue((Path(temporary) / "cases" / case.name / "outcome.json").is_file())
+            with mock.patch.object(harness, "run_case", side_effect=harness.CleanupFailure("unit cleanup")) as run:
+                with self.assertRaises(harness.CleanupFailure):
+                    harness.run_catalog(temporary_root=Path(temporary))
+                self.assertEqual(run.call_count, 1)
 
     def test_real_backend_event_hash_matches_common_p4_vectors(self) -> None:
         harness = _load_real_backend_harness()
@@ -590,18 +1135,20 @@ class StockSidecarSourceContractTest(unittest.TestCase):
                           if candidate.name == "allow_full")
         body_limit_case = next(candidate for candidate in harness.REAL_BACKEND_CASES
                                if candidate.name == "p2_body_limit")
+        self.assertEqual(harness.expected_snapshot_request_bytes(body_limit_case), 5)
         transaction_id = "body-limit-event-test"
         engine_event = _strict_stock_event(
             harness, message_id=body_limit_case.expected_engine_event or "",
             transaction_id=transaction_id, sequence=1, previous_hash=0,
-            phase="request_headers", actual_action="deny", requested_action="deny",
-            event_name="rule_block",
+            phase="request_body", actual_action="", requested_action="deny",
+            event_name="body_limit",
         )
         host_event = _strict_stock_event(
             harness, message_id=body_limit_case.expected_host_action_event or "",
             transaction_id=transaction_id, sequence=2, previous_hash=int(engine_event["event_hash"]),
-            phase="request_headers", actual_action="deny", requested_action="error",
-            transport_result="http_status", visible_http_status=413,
+            phase="request_body", actual_action="deny", requested_action="deny",
+            transport_result="http_status", visible_http_status=403,
+            event_name="body_limit",
         )
         receipt = {
             "transaction_id_sha256": hashlib.sha256(transaction_id.encode("utf-8")).hexdigest(),
@@ -662,7 +1209,7 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         )
         self.assertLess(
             source.rindex("verify_stock_launch_artifacts("),
-            source.index("backend = subprocess.Popen"),
+            source.index("backend = launch_logged"),
         )
         self.assertIn('"stock_lighttpd_staticfile_linkage": _STOCK_STATICFILE_LINKAGE', source)
         self.assertNotIn("write_receipt(receipt, outcome)", source)
@@ -878,10 +1425,14 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertNotIn("sidecar_receipt_hash", source)
         self.assertIn("msconnector_runtime_transaction_fail", source)
         self.assertIn("sidecar_record_decision_delivery_failure", source)
-        self.assertGreaterEqual(source.count("sidecar_record_decision_delivery_failure(transaction, &decision, &error)"), 4)
+        self.assertIn("sidecar_record_decision_delivery_failure(state->client, &state->client_stop, state->transaction, &state->decision", source)
+        self.assertNotIn("sidecar_exchange_legacy", source)
         self.assertIn("SIDECAR_MAX_PARALLEL 16U", source)
         self.assertIn('"127.0.0.1:"', source)
-        self.assertIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
+        self.assertNotIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
+        self.assertIn("sidecar_open_request_spool", source)
+        self.assertIn("unlinkat(directory_fd, name, 0)", source)
+        self.assertIn("O_NOFOLLOW | O_CLOEXEC", source)
         self.assertIn("sidecar_connection_value_allowed", source)
         self.assertIn("sidecar_headers_has_name", source)
         self.assertIn('sidecar_write_error(state->client, 417, &state->deadline)', source)
@@ -930,11 +1481,8 @@ class StockSidecarSourceContractTest(unittest.TestCase):
         self.assertNotIn("char start_line[1024];", request_parser)
         self.assertIn("out->status_code == 204", field_parser)
         self.assertNotIn("out->status_code == 304", field_parser)
-        self.assertIn(
-            "if (!state->payload.response_headers.no_body &&\n"
-            "        state->payload.response_headers.content_length > state->response_limit)",
-            response_exchange,
-        )
+        self.assertNotIn("phase4_effective_body_limit", response_exchange)
+        self.assertNotIn("response_limit", response_exchange)
         self.assertIn(
             "char request_line[MSCONNECTOR_TRANSACTION_CONTRACT_METHOD_SIZE +",
             response_exchange,
@@ -1057,6 +1605,12 @@ int main(void) {
 
 #include <assert.h>
 
+void msconnector_error_init(msconnector_error *error) {memset(error,0,sizeof(*error));}
+int msconnector_runtime_error_http_status(const msconnector_runtime *runtime, msconnector_error_code code) {
+    (void)runtime;
+    assert(code == MSCONNECTOR_ERROR_NONE);
+    return 500;
+}
 int msconnector_runtime_transaction_record_failure_host_action(
     msconnector_runtime_transaction *transaction, int visible_http_status,
     int connection_aborted, msconnector_error *error) {
@@ -1215,7 +1769,8 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
 
     @classmethod
     def _compile(cls, output: Path, source: Path, *, define_main: bool,
-                 include_directory: Path) -> None:
+                 include_directory: Path, send_wrapper: Path | None = None,
+                 allocation_wrapper: Path | None = None) -> None:
         compiler = os.environ.get("CC", "cc")
         command = [
             compiler,
@@ -1225,6 +1780,10 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         ]
         if define_main:
             command.append("-DMSCONNECTOR_STOCK_SIDECAR_MAIN")
+        if send_wrapper is not None:
+            command.extend([str(send_wrapper), "-Wl,--wrap=send"])
+        if allocation_wrapper is not None:
+            command.extend([str(allocation_wrapper), "-Wl,--wrap=posix_fallocate"])
         command.extend([str(source), str(COMMON_RUNTIME), str(PROFILE_REGISTRY)])
         command.extend(str(path) for path in COMMON_SOURCES)
         command.extend([
@@ -1239,10 +1798,11 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             )
 
     @contextlib.contextmanager
-    def _fixture(self, rules: str, responder, *, request_limit: int = 64,
-                 response_limit: int = 64, timeout_ms: int = 1000,
+    def _fixture(self, rules: str, responder, *, engine_request_limit: int, engine_request_limit_action: str,
+                 engine_response_limit: int, engine_response_limit_action: str, timeout_ms: int = 1000,
                  phase4_mode: str = "strict",
-                 environment: dict[str, str] | None = None):
+                 environment: dict[str, str] | None = None,
+                 pass_fds: tuple[int, ...] = (), extra_arguments: tuple[str, ...] = ()):
         with tempfile.TemporaryDirectory(prefix="stock-lighttpd-sidecar-case-",
                                          dir=_temporary_root()) as temporary:
             directory = Path(temporary)
@@ -1253,8 +1813,13 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 "\n".join((
                     "SecRuleEngine On",
                     "SecRequestBodyAccess On",
+                    f"SecRequestBodyLimit {engine_request_limit}",
+                    f"SecRequestBodyNoFilesLimit {engine_request_limit}",
+                    f"SecRequestBodyLimitAction {engine_request_limit_action}",
                     "SecResponseBodyAccess On",
                     "SecResponseBodyMimeType text/plain",
+                    f"SecResponseBodyLimit {engine_response_limit}",
+                    f"SecResponseBodyLimitAction {engine_response_limit_action}",
                     rules.strip(),
                     "",
                 )),
@@ -1267,9 +1832,6 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                     "transaction_id_header=x-request-id",
                     "request_body_mode=streaming",
                     "response_body_mode=streaming",
-                    f"request_body_limit={request_limit}",
-                    f"response_body_limit={response_limit}",
-                    "body_limit_action=reject",
                     f"phase4_mode={phase4_mode}",
                     "default_block_status=403",
                     "default_error_status=502",
@@ -1285,16 +1847,215 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             )
             with _upstream(responder) as upstream:
                 with _RunningSidecar(self.binary, config_path, upstream.server_address[1],
-                                     self.library_dir, timeout_ms, environment) as sidecar:
+                                     self.library_dir, timeout_ms, environment, pass_fds, extra_arguments) as sidecar:
                     yield sidecar, upstream, event_path, config_path
+
+    def test_preallocation_enospc_is_503_without_body_limit_or_upstream(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        with tempfile.TemporaryDirectory(prefix="stock-enospc-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            wrapper = directory / "allocation_failure.c"
+            wrapper.write_text("#include <errno.h>\n#include <sys/types.h>\n"
+                               "int __wrap_posix_fallocate(int fd, off_t offset, off_t length) {"
+                               "(void)fd;(void)offset;(void)length;return ENOSPC;}\n")
+            binary = directory / "sidecar"
+            self._compile(binary, SIDECAR_SOURCE, define_main=True,
+                          include_directory=Path(os.environ["MODSECURITY_INCLUDE_DIR"]),
+                          allocation_wrapper=wrapper)
+            with mock.patch.object(self, "binary", binary), self._fixture(
+                "", lambda _request: normal, engine_request_limit=1048576,
+                engine_request_limit_action="Reject", engine_response_limit=1048576,
+                engine_response_limit_action="Reject",
+            ) as (sidecar, upstream, events, _config):
+                self.assertEqual(_status(sidecar.exchange(self._request(body=b"abc"))), 503)
+                self.assertEqual(upstream.record_count(), 0)
+                text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
+                self.assertNotIn("MSCONN_EVENT_BODY_LIMIT", text)
+                # Zero-body requests require no spool and remain legitimate.
+                self.assertEqual(_status(sidecar.exchange(self._request())), 200)
+                self.assertEqual(upstream.record_count(), 1)
+
+    def test_engine_processpartial_keeps_full_spooled_upstream_body(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        body = b"x" * (1048576 + 2048)
+        with self._fixture("", lambda _request: normal, engine_request_limit=4096,
+            engine_request_limit_action="ProcessPartial", engine_response_limit=1048576,
+            engine_response_limit_action="Reject", timeout_ms=5000,
+        ) as (sidecar, upstream, _events, _config):
+            self.assertEqual(_status(sidecar.exchange(self._request(body=body))), 200)
+            self.assertEqual(upstream.records[0].split(b"\r\n\r\n", 1)[1], body)
+
+    def test_aggregate_spool_capacity_is_resource_error_and_readmits_after_close(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        with self._fixture("", lambda _request: normal,
+            engine_request_limit=2097152, engine_request_limit_action="Reject",
+            engine_response_limit=1048576, engine_response_limit_action="Reject", timeout_ms=2000,
+            extra_arguments=("--spool-capacity-bytes", "8192", "--spool-free-reserve-bytes", "4096"),
+        ) as (sidecar, upstream, events, _config):
+            client = sidecar.connect()
+            try:
+                client.sendall(b"POST /hold HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4097\r\n\r\n")
+                deadline = time.monotonic() + 1.0
+                allocated = False
+                while time.monotonic() < deadline and not allocated:
+                    for descriptor in Path(f"/proc/{sidecar.process.pid}/fd").iterdir():
+                        try:
+                            info = descriptor.stat()
+                        except FileNotFoundError:
+                            continue
+                        if info.st_nlink == 0 and info.st_size == 4097:
+                            allocated = True
+                            break
+                    if not allocated:
+                        time.sleep(0.01)
+                self.assertTrue(allocated, "held request never reached preallocation admission")
+                self.assertEqual(_status(sidecar.exchange(self._request(body=b"x"))), 503)
+                self.assertEqual(upstream.record_count(), 0)
+                text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
+                self.assertNotIn("MSCONN_EVENT_BODY_LIMIT", text)
+            finally:
+                client.close()
+            self._wait_for_event(events, "client_cancel")
+            # Cleanup closes the descriptor before releasing the reservation.
+            time.sleep(0.05)
+            self.assertEqual(_status(sidecar.exchange(self._request(body=b"x"))), 200)
+            self.assertEqual(upstream.record_count(), 1)
+
+    def test_supplied_argv_profiles_launch_with_private_installed_spools(self) -> None:
+        launcher = ROOT / "connectors/lighttpd/launch_stock_sidecar.py"
+        for profile in ("all", "off", "safe", "strict"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory(
+                prefix="stock-installed-profile-", dir=_temporary_root()
+            ) as temporary:
+                install_root = Path(temporary)
+                config_parent = install_root / "etc/lighttpd"
+                config_parent.mkdir(parents=True, mode=0o755)
+                config_parent.chmod(0o755)
+                # The configuration directory is intentionally public-readable;
+                # the supplied explicit spool is separate and private.
+                record_source = ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
+                supplied_arguments = shlex.split(record_source.read_text(), comments=True)
+                config = config_parent / Path(supplied_arguments[supplied_arguments.index("--config") + 1]).name
+                config.write_text(
+                    (ROOT / f"examples/lighttpd/stock/{profile}/msconnector-runtime.conf").read_text()
+                    .replace("rules_file=/etc/modsecurity/no-crs-baseline.conf", "rules_inline=SecRuleEngine On")
+                    .replace(f"event_path=/var/log/lighttpd/msconnector-stock-{profile}-events.jsonl",
+                             f"event_path={install_root}/events.jsonl"), encoding="utf-8")
+                installed_binary = install_root / "usr/libexec/msconnector/lighttpd-stock-sidecar"
+                installed_binary.parent.mkdir(parents=True, mode=0o755)
+                shutil.copyfile(self.binary, installed_binary)
+                installed_binary.chmod(0o755)
+                command = [sys.executable, str(launcher), "--profile", profile,
+                           "--install-root", str(install_root)]
+                # Keep supplied record ports: all four start checks run serially.
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                try:
+                    deadline = time.monotonic() + 3
+                    while True:
+                        if process.poll() is not None:
+                            out, err = process.communicate()
+                            self.fail(f"{profile} exited {process.returncode}: {out!r} {err!r}")
+                        try:
+                            client = socket.create_connection(("127.0.0.1", 8080), timeout=0.1)
+                            break
+                        except OSError:
+                            if time.monotonic() >= deadline:
+                                self.fail(f"{profile} did not become ready")
+                            time.sleep(0.02)
+                    client.close()
+                    spool = install_root / f"var/lib/msconnector/lighttpd-stock/{profile}"
+                    self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
+                    self.assertEqual(spool.stat().st_uid, os.geteuid())
+                    self.assertEqual(config_parent.stat().st_mode & 0o777, 0o755)
+                    # Second actual process must fail readiness for the same spool.
+                    duplicate = subprocess.run(command, capture_output=True, timeout=3)
+                    self.assertEqual(duplicate.returncode, 78, duplicate.stderr)
+                finally:
+                    process.terminate()
+                    process.communicate(timeout=3)
+                for mode in (0o755, 0o500):
+                    spool.chmod(mode)
+                    negative = subprocess.run(command, capture_output=True, timeout=3)
+                    self.assertEqual(negative.returncode, 78, negative.stderr)
+                    self.assertEqual(spool.stat().st_mode & 0o777, mode)
+                spool.chmod(0o700)
+                spool.rmdir()
+                target = install_root / "alternate-private-spool"
+                target.mkdir(mode=0o700)
+                spool.symlink_to(target, target_is_directory=True)
+                negative = subprocess.run(command, capture_output=True, timeout=3)
+                self.assertEqual(negative.returncode, 78, negative.stderr)
+
+    @unittest.skipUnless(os.geteuid() == 0, "nonroot installed fixture requires root to assign task-owned service UID")
+    def test_supplied_argv_profiles_start_as_unprivileged_service_uid(self) -> None:
+        service_uid = 65534
+        uid_map = [tuple(map(int, line.split())) for line in Path("/proc/self/uid_map").read_text().splitlines()]
+        if not any(first <= service_uid < first + count for first, _outside, count in uid_map):
+            self.skipTest("BLOCKED: user namespace maps only UID 0; cannot provision or run a distinct service UID")
+        def become_service_uid() -> None:
+            os.setgroups([])
+            os.setgid(service_uid)
+            os.setuid(service_uid)
+        for profile in ("all", "off", "safe", "strict"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory(
+                prefix="stock-service-install-", dir=_temporary_root()
+            ) as temporary:
+                install_root = Path(temporary)
+                install_root.chmod(0o755)
+                config_parent = install_root / "etc/lighttpd"
+                config_parent.mkdir(parents=True, mode=0o755)
+                spool = install_root / f"var/lib/msconnector/lighttpd-stock/{profile}"
+                spool.mkdir(parents=True, mode=0o700)
+                os.chown(spool, service_uid, service_uid)
+                record_source = ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
+                supplied_arguments = shlex.split(record_source.read_text(), comments=True)
+                config = config_parent / Path(supplied_arguments[supplied_arguments.index("--config") + 1]).name
+                config.write_text(
+                    (ROOT / f"examples/lighttpd/stock/{profile}/msconnector-runtime.conf").read_text()
+                    .replace("rules_file=/etc/modsecurity/no-crs-baseline.conf", "rules_inline=SecRuleEngine On")
+                    .replace(f"event_path=/var/log/lighttpd/msconnector-stock-{profile}-events.jsonl",
+                             f"event_path={spool}/events.jsonl"), encoding="utf-8")
+                record = install_root / f"examples/lighttpd/stock/{profile}/stock-sidecar.args"
+                record.parent.mkdir(parents=True, mode=0o755)
+                shutil.copyfile(ROOT / f"examples/lighttpd/stock/{profile}/stock-sidecar.args", record)
+                binary = install_root / "usr/libexec/msconnector/lighttpd-stock-sidecar"
+                binary.parent.mkdir(parents=True, mode=0o755)
+                launcher = install_root / "connectors/lighttpd/launch_stock_sidecar.py"
+                launcher.parent.mkdir(parents=True, mode=0o755)
+                shutil.copyfile(self.binary, binary)
+                binary.chmod(0o755)
+                shutil.copyfile(ROOT / "connectors/lighttpd/launch_stock_sidecar.py", launcher)
+                command = [str(Path(sys.executable).resolve()), str(launcher), "--profile", profile,
+                           "--install-root", str(install_root)]
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           preexec_fn=become_service_uid)
+                try:
+                    deadline = time.monotonic() + 3
+                    while True:
+                        if process.poll() is not None:
+                            out, err = process.communicate()
+                            self.fail(f"nonroot {profile} exited {process.returncode}: {out!r} {err!r}")
+                        try:
+                            client = socket.create_connection(("127.0.0.1", 8080), timeout=0.1)
+                            break
+                        except OSError:
+                            if time.monotonic() >= deadline:
+                                self.fail(f"nonroot {profile} did not become ready")
+                            time.sleep(0.02)
+                    client.close()
+                    self.assertEqual(config_parent.stat().st_mode & 0o777, 0o755)
+                    self.assertEqual(config_parent.stat().st_uid, 0)
+                    self.assertEqual(spool.stat().st_uid, service_uid)
+                    self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
+                finally:
+                    process.terminate()
+                    process.communicate(timeout=3)
 
     def test_startup_rejects_limits_that_exceed_sidecar_allocation_bounds(self) -> None:
         limit_overrides = (
             "max_header_count=257",
             "max_total_header_bytes=65537",
             "max_event_json_bytes=16385",
-            "request_body_limit=1048577",
-            "response_body_limit=1048577",
         )
         for override in limit_overrides:
             with self.subTest(override=override), tempfile.TemporaryDirectory(
@@ -1309,9 +2070,6 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                         "transaction_id_header=x-request-id",
                         "request_body_mode=streaming",
                         "response_body_mode=streaming",
-                        "request_body_limit=64",
-                        "response_body_limit=64",
-                        "body_limit_action=reject",
                         "phase4_mode=strict",
                         "default_block_status=403",
                         "default_error_status=502",
@@ -1348,7 +2106,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 "STOCK_SIDECAR_RECEIPT_PATH": str(receipt),
                 "STOCK_SIDECAR_RECEIPT_BINDING": binding,
             }
-            with self._fixture("", lambda _request: normal, environment=environment) as (
+            with self._fixture("", lambda _request: normal, environment=environment, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
                 sidecar, upstream, _events, _config,
             ):
                 self.assertEqual(_status(sidecar.exchange(self._request())), 200)
@@ -1381,7 +2139,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 '"id:9801006,phase:1,deny,status:451,log"',
                 lambda _request: normal,
                 environment=environment,
-            ) as (sidecar, upstream, _events, _config):
+                engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
                 self.assertEqual(_status(sidecar.exchange(self._request("/p1-terminal"))), 451)
                 self.assertEqual(upstream.record_count(), 0)
             value = json.loads(receipt.read_text(encoding="utf-8"))
@@ -1427,15 +2185,15 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 'SecRule RESPONSE_BODY "@contains stock-p4-safe-marker" '
                 '"id:9801007,phase:4,deny,status:429,log"',
                 lambda _request: response,
-                response_limit=len(response_body),
+                engine_response_limit=1048576,
                 phase4_mode="safe",
                 environment=environment,
-            ) as (sidecar, upstream, events, _config):
+                engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
                 client_response = sidecar.exchange(self._request())
                 self.assertEqual(_status(client_response), 200)
                 self.assertTrue(client_response.endswith(response_body))
                 self.assertEqual(upstream.record_count(), 1)
-                event_text = self._wait_for_event(events, "MSCONN_EVENT_RESPONSE_BLOCKED")
+                event_text = self._wait_for_event(events, "MSCONN_EVENT_PHASE4_LATE_INTERVENTION")
             value = json.loads(receipt.read_text(encoding="utf-8"))
         self.assertEqual(value["schema_version"], 2)
         self.assertEqual(value["receipt_kind"], "non_allow")
@@ -1477,7 +2235,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         def responder(_request: bytes) -> bytes:
             return b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", responder) as (_sidecar, _upstream_server, _events, config):
+        with self._fixture("", responder, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (_sidecar, _upstream_server, _events, config):
             completed = subprocess.run(
                 [str(self.begin_smoke), str(config)], cwd=ROOT, text=True,
                 capture_output=True, check=False,
@@ -1500,7 +2258,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 + response_body
             )
 
-        with self._fixture("", responder, request_limit=len(body)) as (sidecar, upstream, _events, _config):
+        with self._fixture("", responder, engine_request_limit=2097152, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             response = sidecar.exchange(self._request(body=body))
             self.assertEqual(_status(response), 200)
             self.assertTrue(response.endswith(response_body))
@@ -1512,7 +2270,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             'SecRule REQUEST_URI "@streq /endpoint-metadata" '
             '"id:9801006,phase:1,deny,status:451,log"',
             lambda _request: normal,
-        ) as (sidecar, upstream, events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request("/endpoint-metadata"))), 451)
             self.assertEqual(upstream.record_count(), 0)
             event_text = self._wait_for_event(events, "MSCONN_EVENT_REQUEST_BLOCKED")
@@ -1531,14 +2289,14 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         with self._fixture(
             'SecRule REQUEST_URI "@streq /p1-block" "id:9801001,phase:1,deny,status:451,log"',
             lambda _request: normal,
-        ) as (sidecar, upstream, _events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request("/p1-block"))), 451)
             self.assertEqual(upstream.record_count(), 0)
 
         with self._fixture(
             'SecRule REQUEST_BODY "@contains p2-marker" "id:9801002,phase:2,deny,status:418,log"',
             lambda _request: normal,
-        ) as (sidecar, upstream, events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             request_body = b"p2-marker"
             self.assertEqual(_status(sidecar.exchange(self._request(body=request_body))), 418)
             self.assertEqual(upstream.record_count(), 0)
@@ -1553,12 +2311,12 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         with self._fixture(
             'SecRule RESPONSE_HEADERS:X-Block-P3 "@streq yes" "id:9801003,phase:3,deny,status:422,log"',
             lambda _request: p3_response,
-        ) as (sidecar, upstream, _events, _config):
+            engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request())), 422)
             self.assertEqual(upstream.record_count(), 1)
 
         # Two bounded sidecar reads exercise a multi-chunk P4 stream while
-        # remaining below libmodsecurity's independent default body ceiling.
+        # remaining below the explicitly selected native response-body limit.
         p4_body = b"p4-marker-" + b"x" * 3000
         p4_response = (
             b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n"
@@ -1568,14 +2326,14 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         )
         with self._fixture(
             'SecRule RESPONSE_BODY "@contains p4-marker" "id:9801004,phase:4,deny,status:429,log"',
-            lambda _request: p4_response, response_limit=len(p4_body),
+            lambda _request: p4_response, engine_response_limit=1048576,
             phase4_mode="safe",
-        ) as (sidecar, upstream, events, _config):
+            engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             response = sidecar.exchange(self._request())
             self.assertEqual(_status(response), 200)
             self.assertTrue(response.endswith(p4_body))
             self.assertEqual(upstream.record_count(), 1)
-            event_text = self._wait_for_event(events, "MSCONN_EVENT_RESPONSE_BLOCKED")
+            event_text = self._wait_for_event(events, "MSCONN_EVENT_PHASE4_LATE_INTERVENTION")
             self.assertIn('"requested_action":"deny"', event_text)
             self.assertIn('"actual_action":"log_only"', event_text)
             self.assertIn('"transport_result":"log_only"', event_text)
@@ -1584,9 +2342,9 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
 
         with self._fixture(
             'SecRule RESPONSE_BODY "@contains p4-marker" "id:9801005,phase:4,deny,status:429,log"',
-            lambda _request: p4_response, response_limit=len(p4_body),
+            lambda _request: p4_response, engine_response_limit=1048576,
             phase4_mode="strict",
-        ) as (sidecar, upstream, events, _config):
+            engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             response = sidecar.exchange(self._request())
             self.assertEqual(_status(response), 200)
             # A committed HTTP/1.1 response cannot be replaced retroactively.
@@ -1594,29 +2352,55 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             # pre-commit 429 decision after the original 200 status line.
             self.assertNotIn(b"HTTP/1.1 429", response)
             self.assertEqual(upstream.record_count(), 1)
-            event_text = self._wait_for_event(events, "MSCONN_EVENT_RESPONSE_BLOCKED")
+            event_text = self._wait_for_event(events, "MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200")
             self.assertIn('"actual_action":"abort_connection"', event_text)
             self.assertIn('"connection_aborted":true', event_text)
             self.assertNotIn(p4_body.decode("ascii"), event_text)
             self.assertNotIn("body_payload", event_text)
 
+    def test_request_marker_after_former_cap_reaches_native_p2_without_upstream(self) -> None:
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        body = b"x" * (1048576 + 2048) + b"marker-after-former-request-cap"
+        with self._fixture(
+            'SecRule REQUEST_BODY "@contains marker-after-former-request-cap" "id:9801194,phase:2,deny,status:451,log,t:none"',
+            lambda _request: normal, engine_request_limit=2097152,
+            engine_request_limit_action="Reject", engine_response_limit=1048576,
+            engine_response_limit_action="Reject", timeout_ms=5000,
+        ) as (sidecar, upstream, events, _config):
+            response = sidecar.exchange(self._request(body=body))
+            self.assertEqual(_status(response), 451)
+            self.assertEqual(upstream.record_count(), 0)
+            text = self._wait_for_event(events, '"rule_id":"9801194"')
+            self.assertNotIn("marker-after-former-request-cap", text)
+
+    def test_spooled_request_larger_than_former_cap_is_replayed_after_native_p2(self) -> None:
+        body = b"x" * (1048576 + 2048)
+        normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        with self._fixture("", lambda _request: normal,
+            engine_request_limit=2097152, engine_request_limit_action="Reject",
+            engine_response_limit=1048576, engine_response_limit_action="Reject", timeout_ms=5000,
+        ) as (sidecar, upstream, _events, _config):
+            self.assertEqual(_status(sidecar.exchange(self._request(body=body))), 200)
+            self.assertEqual(upstream.record_count(), 1)
+            self.assertEqual(upstream.records[0].split(b"\r\n\r\n", 1)[1], body)
+
     def test_limits_and_unsafe_framing_fail_closed_without_upstream_release(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal, request_limit=4) as (sidecar, upstream, events, _config):
+        with self._fixture("", lambda _request: normal, engine_request_limit=4, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
             request_body = b"12345"
-            self.assertEqual(_status(sidecar.exchange(self._request(body=request_body))), 413)
+            self.assertEqual(_status(sidecar.exchange(self._request(body=request_body))), 403)
             self.assertEqual(upstream.record_count(), 0)
             event_text = self._wait_for_event(events, "MSCONN_EVENT_BODY_LIMIT")
             self.assertNotIn(request_body.decode("ascii"), event_text)
 
-        oversized_response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345"
-        with self._fixture("", lambda _request: oversized_response, response_limit=4) as (sidecar, upstream, events, _config):
-            self.assertEqual(_status(sidecar.exchange(self._request())), 413)
+        oversized_response = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\n12345"
+        with self._fixture("", lambda _request: oversized_response, engine_response_limit=4, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, events, _config):
+            self.assertEqual(_status(sidecar.exchange(self._request())), 200)
             self.assertEqual(upstream.record_count(), 1)
             self._wait_for_event(events, "MSCONN_EVENT_BODY_LIMIT")
 
-        with self._fixture("", lambda _request: normal) as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             unsafe = (
                 b"POST / HTTP/1.1\r\nHost: example.test\r\nTransfer-Encoding: chunked\r\n"
                 b"Connection: close\r\n\r\n0\r\n\r\n"
@@ -1637,7 +2421,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         head_response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n"
         no_content = b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", lambda _request: head_response, response_limit=4) as (
+        with self._fixture("", lambda _request: head_response, engine_response_limit=4, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             request = b"HEAD /head HTTP/1.1\r\nHost: example.test\r\nConnection: close\r\n\r\n"
@@ -1646,20 +2430,20 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             self.assertIn(b"Content-Length: 5", response)
             self.assertEqual(upstream.record_count(), 1)
 
-        with self._fixture("", lambda _request: no_content) as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: no_content, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             response = sidecar.exchange(self._request())
             self.assertEqual(_status(response), 204)
             self.assertEqual(upstream.record_count(), 1)
 
         invalid_no_content = b"HTTP/1.1 204 No Content\r\nContent-Length: 1\r\n\r\nx"
-        with self._fixture("", lambda _request: invalid_no_content) as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: invalid_no_content, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(self._request())), 502)
             self.assertEqual(upstream.record_count(), 1)
 
     def test_not_modified_representation_length_is_metadata_only(self) -> None:
         not_modified = b"HTTP/1.1 304 Not Modified\r\nContent-Length: 5\r\n\r\n"
 
-        with self._fixture("", lambda _request: not_modified, response_limit=4) as (
+        with self._fixture("", lambda _request: not_modified, engine_response_limit=4, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             response = sidecar.exchange(self._request("/cached"))
@@ -1675,7 +2459,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
         )
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal) as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             self.assertEqual(_status(sidecar.exchange(request)), 200)
             self.assertEqual(upstream.record_count(), 1)
             with upstream.records_lock:
@@ -1689,7 +2473,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             (b"EXPECT: unsupported\r\n", b""),
         )
 
-        with self._fixture("", lambda _request: normal, timeout_ms=250) as (
+        with self._fixture("", lambda _request: normal, timeout_ms=250, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             for expectation, body in expectations:
@@ -1705,7 +2489,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
     def test_timeout_and_client_cancel_emit_distinct_terminal_events(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal, timeout_ms=120) as (sidecar, _upstream, events, _config):
+        with self._fixture("", lambda _request: normal, timeout_ms=120, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, _upstream, events, _config):
             with sidecar.connect() as client:
                 client.sendall(
                     b"POST /slow HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4\r\n\r\na"
@@ -1719,7 +2503,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
             self.assertEqual(_status(bytes(response)), 504)
             self._wait_for_event(events, "engine_timeout")
 
-        with self._fixture("", lambda _request: normal) as (sidecar, _upstream, events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, _upstream, events, _config):
             client = sidecar.connect()
             try:
                 client.sendall(
@@ -1729,30 +2513,98 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 client.close()
             self._wait_for_event(events, "client_cancel")
 
-    def test_client_reset_during_a_rule_block_records_an_abort_host_action(self) -> None:
+    def test_client_reset_during_a_rule_block_does_not_invent_an_abort_host_action(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
         rule = 'SecRule REQUEST_BODY "@contains block-reset" "id:9801102,phase:2,deny,status:418,log"'
 
-        with self._fixture(rule, lambda _request: normal) as (sidecar, upstream, events, _config):
-            client = sidecar.connect()
-            try:
-                client.sendall(self._request(body=b"block-reset"))
-                # The complete P2 input has been queued before the RST.  A
-                # reset forces the pending small decision response through
-                # the adapter's failed-delivery path instead of allowing a
-                # normal visible status to be inferred.
-                client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-            finally:
-                client.close()
-            event_text = self._wait_for_event(events, '"actual_action":"abort_connection"')
-            self.assertIn('"connection_aborted":true', event_text)
-            self.assertIn('"rule_id":"9801102"', event_text)
-            self.assertEqual(upstream.record_count(), 0)
+        with tempfile.TemporaryDirectory(prefix="sidecar-send-gate-", dir=_temporary_root()) as temporary:
+            directory = Path(temporary)
+            wrapper = directory / "send_gate.c"
+            wrapper.write_text(r'''
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+ssize_t __real_send(int, const void *, size_t, int);
+ssize_t __wrap_send(int fd, const void *data, size_t size, int flags) {
+    static int notified;
+    if (!notified && size >= 12 && memcmp(data, "HTTP/1.1 418", 12) == 0) {
+        char signal = 'R';
+        ssize_t received;
+        notified = 1;
+        if (write(atoi(getenv("SIDECAR_TEST_NOTIFY_FD")), &signal, 1) != 1) return -1;
+        do { received = read(atoi(getenv("SIDECAR_TEST_RELEASE_FD")), &signal, 1); }
+        while (received < 0 && errno == EINTR);
+        if (received != 1) return -1;
+    }
+    return __real_send(fd, data, size, flags);
+}
+''')
+            binary = directory / "sidecar"
+            self._compile(binary, SIDECAR_SOURCE, define_main=True,
+                          include_directory=Path(os.environ["MODSECURITY_INCLUDE_DIR"]),
+                          send_wrapper=wrapper)
+            notify_read, notify_write = os.pipe()
+            release_read, release_write = os.pipe()
+            with contextlib.ExitStack() as stack:
+                for descriptor in (notify_read, notify_write, release_read, release_write):
+                    stack.callback(os.close, descriptor)
+                stack.enter_context(mock.patch.object(self, "binary", binary))
+                sidecar, upstream, events, _config = stack.enter_context(self._fixture(
+                    rule, lambda _request: normal,
+                    engine_response_limit=1048576, engine_response_limit_action="Reject",
+                    engine_request_limit=1048576, engine_request_limit_action="Reject",
+                    environment={"SIDECAR_TEST_NOTIFY_FD": str(notify_write),
+                                 "SIDECAR_TEST_RELEASE_FD": str(release_read)},
+                    pass_fds=(notify_write, release_read)))
+                client = sidecar.connect()
+                try:
+                    client.sendall(self._request(body=b"block-reset"))
+                    self.assertTrue(select.select([notify_read], [], [], 5)[0],
+                                    "productive P2 decision write was not reached")
+                    self.assertEqual(os.read(notify_read, 1), b"R")
+                    # The write barrier is reached only after the productive
+                    # native decision. Capture its identity before inducing the
+                    # real reset, rather than accepting any later error event.
+                    decisions = [json.loads(line) for line in events.read_text().splitlines()
+                                 if "MSCONN_EVENT_ENGINE_DECISION" in line]
+                    self.assertEqual(len(decisions), 1)
+                    decision = decisions[0]
+                    self.assertEqual(decision["rule_id"], "9801102")
+                    self.assertEqual(decision["body_bytes_seen"], len(b"block-reset"))
+                    self.assertEqual(decision["actual_action"], "")
+                    client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+                finally:
+                    client.close()
+                    self.assertEqual(os.write(release_write, b"R"), 1)
+                event_text = self._wait_for_event(events, "MSCONN_EVENT_CONNECTOR_ERROR")
+                self.assertNotIn('"actual_action":"abort_connection"', event_text)
+                self.assertNotIn('"connection_aborted":true', event_text)
+                technical = [json.loads(line) for line in event_text.splitlines()
+                             if "MSCONN_EVENT_CONNECTOR_ERROR" in line]
+                self.assertTrue(technical)
+                for event in technical:
+                    self.assertEqual(event["transaction_id"], decision["transaction_id"])
+                    self.assertEqual(event["phase"], "request_body")
+                    self.assertEqual(event["status"], "error")
+                    self.assertEqual(event["requested_action"], "error")
+                    self.assertEqual(event.get("actual_action", ""), "")
+                    self.assertEqual(event.get("rule_id", ""), "")
+                self.assertIn('"rule_id":"9801102"', event_text)
+                self.assertEqual(upstream.record_count(), 0)
+                # A reset must release the request owner without poisoning a
+                # subsequent real decision or an independently allowed request.
+                self.assertEqual(_status(sidecar.exchange(
+                    self._request(body=b"block-reset"))), 418)
+                self.assertEqual(upstream.record_count(), 0)
+                self.assertEqual(_status(sidecar.exchange(self._request("/after-reset"))), 200)
+                self.assertEqual(upstream.record_count(), 1)
 
     def test_parallel_capacity_and_connection_reuse_are_bounded(self) -> None:
         normal = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 
-        with self._fixture("", lambda _request: normal, timeout_ms=2000) as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, timeout_ms=2000, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             held_clients: list[socket.socket] = []
             try:
                 for _ in range(16):
@@ -1768,7 +2620,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 for client in held_clients:
                     client.close()
 
-        with self._fixture("", lambda _request: normal) as (sidecar, upstream, _events, _config):
+        with self._fixture("", lambda _request: normal, engine_response_limit=1048576, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (sidecar, upstream, _events, _config):
             with sidecar.connect() as client:
                 request = self._request()
                 client.sendall(request + request)
@@ -1799,7 +2651,7 @@ class StockSidecarLoopbackContractTest(unittest.TestCase):
                 return released_response
             return large_response
 
-        with self._fixture("", responder, response_limit=len(large_body), timeout_ms=2500) as (
+        with self._fixture("", responder, engine_response_limit=1048576, timeout_ms=2500, engine_response_limit_action="Reject", engine_request_limit=1048576, engine_request_limit_action="Reject") as (
             sidecar, upstream, _events, _config,
         ):
             held_clients: list[socket.socket] = []

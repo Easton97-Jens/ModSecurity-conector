@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.c_source_contract import function_definition
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -267,7 +269,16 @@ int main(void)
         self.assertIn("pthread_mutex_lock(&service->runtime_lock)", begin)
         self.assertIn("pthread_mutex_unlock(&service->runtime_lock)", begin)
         self.assertIn(
-            "msconnector_runtime_transaction_begin(service->runtime,", begin
+            "msconnector_runtime_transaction_begin_request_stream(service->runtime,",
+            begin,
+        )
+        self.assertLess(
+            begin.index("pthread_mutex_lock(&service->runtime_lock)"),
+            begin.index("msconnector_runtime_transaction_begin_request_stream("),
+        )
+        self.assertLess(
+            begin.index("msconnector_runtime_transaction_begin_request_stream("),
+            begin.index("pthread_mutex_unlock(&service->runtime_lock)"),
         )
         self.assertNotIn("session->service->runtime_lock", begin)
         self.assertEqual(begin.count("session->service"), 1)
@@ -692,6 +703,20 @@ void haproxy_modsecurity_transaction_abort(
     (void)transaction;
 }
 
+int haproxy_modsecurity_transaction_finish_with_decision(
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision) {
+    (void)decision;
+    return haproxy_modsecurity_transaction_finish(transaction);
+}
+
+void haproxy_modsecurity_transaction_abort_with_error(
+        haproxy_modsecurity_transaction *transaction,
+        msconnector_transaction_error_class error) {
+    (void)error;
+    haproxy_modsecurity_transaction_abort(transaction);
+}
+
 int haproxy_modsecurity_transaction_begin(
         haproxy_modsecurity_engine *engine,
         const haproxy_modsecurity_request *request,
@@ -710,6 +735,15 @@ int haproxy_modsecurity_transaction_begin(
         *transaction = (haproxy_modsecurity_transaction *)(uintptr_t)1U;
     }
     return transaction_begin_result;
+}
+
+int haproxy_modsecurity_transaction_begin_request_authorization(
+        haproxy_modsecurity_engine *engine,
+        const haproxy_modsecurity_request *request,
+        haproxy_modsecurity_decision *decision,
+        haproxy_modsecurity_transaction **transaction) {
+    return haproxy_modsecurity_transaction_begin(
+        engine, request, decision, transaction);
 }
 
 int haproxy_modsecurity_eval_request(
@@ -791,12 +825,6 @@ int msconnector_response_companion_transport_ensure_running(
     (void)transport;
     (void)error;
     return 0;
-}
-
-void msconnector_error_init(msconnector_error *error) {
-    if (error != 0) {
-        memset(error, 0, sizeof(*error));
-    }
 }
 
 void msconnector_late_intervention_policy_init(
@@ -998,7 +1026,7 @@ static void test_notify_header_argument(
     if (expected_header_count > 1U) {
         assert(strcmp(request.headers[1].value, "two") == 0);
     }
-    assert(request.is_response == expected_response);
+    assert(request.http_metadata.is_response == expected_response);
     assert(request.has_headers_bin == expected_binary);
     assert(request.has_headers_text == expected_text);
     free_notify_request(&request);
@@ -1014,13 +1042,15 @@ static void test_notify_header_arguments_preserve_type_and_response_role(void) {
     assert(append_string(&header_pairs, "one") == 0);
     assert(append_string(&header_pairs, "X-Two") == 0);
     assert(append_string(&header_pairs, "two") == 0);
+    assert(append_string(&header_pairs, "") == 0);
+    assert(append_string(&header_pairs, "") == 0);
     memset(&binary_headers, 0, sizeof(binary_headers));
     assert(append_varint(&binary_headers, header_pairs.len) == 0);
     assert(append_bytes(
         &binary_headers, header_pairs.data, sizeof(header_pairs.data), header_pairs.len) == 0);
 
     memset(&text_headers, 0, sizeof(text_headers));
-    assert(append_string(&text_headers, "X-One: one\r\nX-Two: two\r\n") == 0);
+    assert(append_string(&text_headers, "X-One: one\r\nX-Two: two\r\n\r\n") == 0);
 
     test_notify_header_argument(
         "headers_bin", SPOP_DATA_BIN, &binary_headers, 0, 1, 0, 2U);
@@ -1060,7 +1090,7 @@ static void test_spop_binary_header_terminator_requires_full_consumption(void) {
     free_notify_request(&request);
 }
 
-static void test_response_header_key_marks_response_for_nonbytes(void) {
+static void test_response_header_key_rejects_nonbytes(void) {
     spop_buffer argument;
     notify_request request;
     size_t pos = 0U;
@@ -1070,10 +1100,10 @@ static void test_response_header_key_marks_response_for_nonbytes(void) {
     assert(append_typed_bool(&argument, 1) == 0);
     assert(parse_notify_header_argument(&request,
         (const unsigned char *)"response_headers", sizeof("response_headers") - 1U,
-        argument.data, argument.len, &pos) == 0);
+        argument.data, argument.len, &pos) == -1);
     assert(pos == argument.len);
     assert(request.header_count == 0U);
-    assert(request.is_response == 1);
+    assert(request.http_metadata.is_response == 0);
     free_notify_request(&request);
 }
 
@@ -1100,11 +1130,11 @@ static void test_notify_body_key_argument(
     }
     assert(parse_notify_body_key_argument(&request,
         (const unsigned char *)argument_name, strlen(argument_name),
-        argument.data, argument.len, &pos) == 0);
+        argument.data, argument.len, &pos) == (expected_body ? 0 : -1));
     assert(pos == argument.len);
     assert(request.has_body == expected_body);
-    assert(request.is_response == expected_response);
-    assert(request.is_response_body == expected_response_body);
+    assert(request.http_metadata.is_response == expected_response);
+    assert(request.http_metadata.is_response_body == expected_response_body);
     if (expected_body) {
         assert(request.body_len == 4U);
         assert(memcmp(request.body, "body", 4U) == 0);
@@ -1133,8 +1163,8 @@ static void test_unknown_body_key_does_not_consume_or_mutate(void) {
         argument.data, argument.len, &pos) == 1);
     assert(pos == 0U);
     assert(request.has_body == 0);
-    assert(request.is_response == 0);
-    assert(request.is_response_body == 0);
+    assert(request.http_metadata.is_response == 0);
+    assert(request.http_metadata.is_response_body == 0);
     free_notify_request(&request);
 }
 
@@ -1185,7 +1215,7 @@ static void test_spop_rejects_overflow_and_truncated_protocol_values(void) {
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(notify.data, notify.len, &request) == 0);
     assert(request.has_notify == 1);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     assert(strcmp(request.message_name, "check-request") == 0);
     free_notify_request(&request);
 
@@ -1435,6 +1465,8 @@ static void test_spop_missing_endpoints_bypass_queue_and_ack_deny(void) {
 
         memset(&state, 0, sizeof(state));
         config_init(&state.config);
+        assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+        state.decision_log_lock_initialized = 1;
         copy_spop_string(state.config.fail_mode, sizeof(state.config.fail_mode),
             (const unsigned char *)fail_modes[index], strlen(fail_modes[index]));
         copy_spop_string(state.config.mode, sizeof(state.config.mode),
@@ -1473,6 +1505,7 @@ static void test_spop_missing_endpoints_bypass_queue_and_ack_deny(void) {
         assert(transaction_begin_calls == 0U);
         assert(close(sockets[0]) == 0);
         assert(close(sockets[1]) == 0);
+        assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
         free_notify_request(&request);
         }
     }
@@ -1488,6 +1521,8 @@ static void test_spop_valid_engine_decision_stays_detect_only(void) {
 
     memset(&state, 0, sizeof(state));
     config_init(&state.config);
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
     copy_spop_string(state.config.mode, sizeof(state.config.mode),
         (const unsigned char *)"detect-only", sizeof("detect-only") - 1U);
     state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
@@ -1495,6 +1530,10 @@ static void test_spop_valid_engine_decision_stays_detect_only(void) {
         SPOP_ACK_ENGINE_DECISION));
     assert(spop_owner_queue_init(&state) == 0);
     memset(&request, 0, sizeof(request));
+    request.has_headers_bin = 1;
+    request.has_body = request.has_body_len_arg = 1;
+    request.http_metadata.has_http_version = 1;
+    strcpy(request.http_metadata.http_version, "1.1");
     request.has_method = 1;
     request.has_path = 1;
     request.has_uri = 1;
@@ -1532,6 +1571,7 @@ static void test_spop_valid_engine_decision_stays_detect_only(void) {
     assert(close(sockets[0]) == 0);
     assert(close(sockets[1]) == 0);
     spop_owner_queue_destroy(&state);
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
     transaction_begin_result = 1;
     transaction_begin_disruptive = 0;
 }
@@ -1546,6 +1586,8 @@ static void test_spop_valid_engine_block_is_enforced_after_owner_queue(void) {
 
     memset(&state, 0, sizeof(state));
     config_init(&state.config);
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
     /* The explicit availability override must not bypass a successful
      * blocking engine decision. */
     copy_spop_string(state.config.fail_mode, sizeof(state.config.fail_mode),
@@ -1554,6 +1596,10 @@ static void test_spop_valid_engine_block_is_enforced_after_owner_queue(void) {
     assert(production_ack_enforces(&state.config, SPOP_ACK_ENGINE_DECISION));
     assert(spop_owner_queue_init(&state) == 0);
     memset(&request, 0, sizeof(request));
+    request.has_headers_bin = 1;
+    request.has_body = request.has_body_len_arg = 1;
+    request.http_metadata.has_http_version = 1;
+    strcpy(request.http_metadata.http_version, "1.1");
     request.has_method = 1;
     request.has_path = 1;
     request.has_uri = 1;
@@ -1591,6 +1637,7 @@ static void test_spop_valid_engine_block_is_enforced_after_owner_queue(void) {
     assert(close(sockets[0]) == 0);
     assert(close(sockets[1]) == 0);
     spop_owner_queue_destroy(&state);
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
     transaction_begin_result = 1;
     transaction_begin_disruptive = 0;
 }
@@ -1605,6 +1652,8 @@ static void test_spop_malformed_notify_ack_stays_blocking_in_detect_only(void) {
 
     memset(&state, 0, sizeof(state));
     config_init(&state.config);
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
     copy_spop_string(state.config.mode, sizeof(state.config.mode),
         (const unsigned char *)"detect-only", sizeof("detect-only") - 1U);
     state.engine = (haproxy_modsecurity_engine *)(uintptr_t)1U;
@@ -1633,11 +1682,13 @@ static void test_spop_malformed_notify_ack_stays_blocking_in_detect_only(void) {
     assert(payload_has_set_var_blocked_true(&ack_payload));
     assert(close(sockets[0]) == 0);
     assert(close(sockets[1]) == 0);
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
 }
 
 static void test_spop_notify_message_and_argument_contract(void) {
     spop_buffer payload;
     notify_request request;
+    spop_buffer header_pairs;
 
     memset(&payload, 0, sizeof(payload));
     assert(append_notify_message_start(&payload, "check-request", 1U) == 0);
@@ -1670,7 +1721,7 @@ static void test_spop_notify_message_and_argument_contract(void) {
     assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
     free_notify_request(&request);
 
-    /* headers_bin and headers are distinct compatibility fallback wires. */
+    /* Neither representation may hide an incomplete header collection. */
     memset(&payload, 0, sizeof(payload));
     assert(append_notify_message_start(&payload, "check-request", 2U) == 0);
     assert(append_string(&payload, "headers_bin") == 0);
@@ -1678,9 +1729,32 @@ static void test_spop_notify_message_and_argument_contract(void) {
     assert(append_string(&payload, "headers") == 0);
     assert(append_typed_string(&payload, "X-Fallback: yes\n") == 0);
     memset(&request, 0, sizeof(request));
-    assert(parse_notify_payload(payload.data, payload.len, &request) == 0);
-    assert(request.header_count == 1U);
+    assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
     free_notify_request(&request);
+
+    /* Two complete representations must describe the same headers. */
+    memset(&header_pairs, 0, sizeof(header_pairs));
+    assert(append_string(&header_pairs, "X-Fallback") == 0);
+    assert(append_string(&header_pairs, "yes") == 0);
+    assert(append_string(&header_pairs, "") == 0);
+    assert(append_string(&header_pairs, "") == 0);
+    for (int mismatch = 0; mismatch <= 1; ++mismatch) {
+        memset(&payload, 0, sizeof(payload));
+        assert(append_notify_message_start(&payload, "check-request", 2U) == 0);
+        assert(append_string(&payload, "headers_bin") == 0);
+        assert(append_byte(&payload, SPOP_DATA_BIN) == 0);
+        assert(append_varint(&payload, header_pairs.len) == 0);
+        assert(append_bytes(&payload, header_pairs.data, sizeof(header_pairs.data),
+            header_pairs.len) == 0);
+        assert(append_string(&payload, "headers") == 0);
+        assert(append_typed_string(&payload,
+            mismatch ? "X-Fallback: no\n\n" : "X-Fallback: yes\n\n") == 0);
+        memset(&request, 0, sizeof(request));
+        assert(parse_notify_payload(payload.data, payload.len, &request) ==
+            (mismatch ? -1 : 0));
+        assert(request.header_count == (mismatch ? 0U : 1U));
+        free_notify_request(&request);
+    }
 }
 
 static void test_spop_rejects_response_arguments_on_request_messages(void) {
@@ -1692,7 +1766,7 @@ static void test_spop_rejects_response_arguments_on_request_messages(void) {
     memset(&payload, 0, sizeof(payload));
     assert(append_notify_message_start(&payload, "check-request", 1U) == 0);
     assert(append_string(&payload, "response_headers") == 0);
-    assert(append_typed_string(&payload, "X-Response: yes\r\n") == 0);
+    assert(append_typed_string(&payload, "X-Response: yes\r\n\r\n") == 0);
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(payload.data, payload.len, &request) == -1);
     free_notify_request(&request);
@@ -1701,10 +1775,10 @@ static void test_spop_rejects_response_arguments_on_request_messages(void) {
     memset(&payload, 0, sizeof(payload));
     assert(append_notify_message_start(&payload, "check-response", 1U) == 0);
     assert(append_string(&payload, "response_headers") == 0);
-    assert(append_typed_string(&payload, "X-Response: yes\r\n") == 0);
+    assert(append_typed_string(&payload, "X-Response: yes\r\n\r\n") == 0);
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(payload.data, payload.len, &request) == 0);
-    assert(request.is_response == 1);
+    assert(request.http_metadata.is_response == 1);
     assert(request.header_count == 1U);
     free_notify_request(&request);
 }
@@ -1726,7 +1800,7 @@ static void test_spop_rejects_malformed_text_headers_and_bounds_count(void) {
     free_notify_request(&request);
 
     memset(&argument, 0, sizeof(argument));
-    assert(append_typed_string(&argument, "X-One: one\r\nX-Two: two\r\n") == 0);
+    assert(append_typed_string(&argument, "X-One: one\r\nX-Two: two\r\n\r\n") == 0);
     memset(&request, 0, sizeof(request));
     {
         size_t pos = 0U;
@@ -1795,13 +1869,12 @@ static void test_spop_rejects_unenforced_timeout_and_worker_settings(void) {
     assert(config_set(&config, "max-transactions", "4097") == -1);
     assert(config_set(&config, "max-transactions", "0") == -1);
     assert(config_set(&config, "max-transactions", "999999999999999999999") == -1);
-    assert(config_set(&config, "request-body-limit", "10485760") == 0);
-    assert(config.request_body_limit == 10485760U);
+    assert(config_set(&config, "request-body-limit", "10485760") == -1);
     assert(config_set(&config, "request-body-limit", "10485761") == -1);
     assert(config_set(&config, "request-body-limit", "4294967296") == -1);
     assert(config_set(&config, "request-body-limit", "not-a-number") == -1);
-    assert(config_set(&config, "response-body-limit", "0") == 0);
-    assert(config_set(&config, "response-body-limit", "10485760") == 0);
+    assert(config_set(&config, "response-body-limit", "0") == -1);
+    assert(config_set(&config, "response-body-limit", "10485760") == -1);
     assert(config_set(&config, "response-body-limit", "10485761") == -1);
     assert(config_set(&config, "port", "65535") == 0);
     assert(config.port == 65535U);
@@ -1944,7 +2017,7 @@ int main(void) {
     test_spop_duplicate_request_id_preserves_active_transaction();
     test_notify_header_arguments_preserve_type_and_response_role();
     test_spop_binary_header_terminator_requires_full_consumption();
-    test_response_header_key_marks_response_for_nonbytes();
+    test_response_header_key_rejects_nonbytes();
     test_notify_body_arguments_preserve_type_and_response_role();
     test_unknown_body_key_does_not_consume_or_mutate();
     test_spop_rejects_overflow_and_truncated_protocol_values();
@@ -1974,6 +2047,27 @@ int main(void) {
             "__TRANSACTION_STATE_SOURCE__",
             (ROOT / "common" / "src" / "transaction_state.c").as_posix(),
         )
+        binding_source = (
+            ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.c"
+        ).read_text(encoding="utf-8")
+        harness_source += "\n" + "\n".join(
+            function_definition(binding_source, name)
+            for name in (
+                "contract_phase_from_decision",
+                "haproxy_modsecurity_error_event_write_checked",
+            )
+        )
+        event_source = (ROOT / "common/src/event_jsonl.c").read_text(
+            encoding="utf-8"
+        )
+        harness_source += "\n" + "\n".join(
+            function_definition(event_source, name)
+            for name in (
+                "event_stream_error",
+                "msconnector_event_file_write",
+                "msconnector_event_file_close",
+            )
+        )
         temporary_parent = os.environ.get("TMPDIR")
         with tempfile.TemporaryDirectory(
             prefix="haproxy-append-string-boundary-", dir=temporary_parent
@@ -1998,6 +2092,7 @@ int main(void) {
                     "-I",
                     str(ROOT / "connectors" / "haproxy" / "src"),
                     str(harness),
+                    str(ROOT / "common/src/error.c"),
                     "-Wl,--gc-sections",
                     "-o",
                     str(binary),

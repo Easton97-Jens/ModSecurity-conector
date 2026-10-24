@@ -227,7 +227,7 @@ spoe-group request-check
     messages check-request
 
 spoe-message check-request
-    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_len
+    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_size http_version=req.ver
 EOF
 }
 
@@ -246,10 +246,10 @@ mode=block
 fail-mode=closed
 runtime-mode=production
 response-companion=native-htx
+response-phases=true
 response-companion-socket=$SOCKET_PATH
 response-companion-uid=$SERVICE_UID
 response-companion-gid=$SERVICE_GID
-response-body-limit=65532
 response-body-timeout=$body_timeout_ms
 spoe-timeout=2000
 max-transactions=64
@@ -383,6 +383,16 @@ if not any(
 PY
 }
 
+assert_no_unexpected_technical_events() {
+    case_root=$1
+    for physical_log in "$case_root/haproxy.stderr.log" "$case_root/decision.jsonl"; do
+        [ -f "$physical_log" ] || die "normal case physical log missing: $physical_log"
+        if grep -Eq '"event"[[:space:]]*:[[:space:]]*"(connector_error|protocol_error)"' "$physical_log"; then
+            die "normal case contains an unexpected physical connector/protocol error: $physical_log"
+        fi
+    done
+}
+
 run_case() {
     case_name=$1
     rules_file=$2
@@ -399,6 +409,7 @@ run_case() {
     assert_status "$observed_status" "$expected_status" "$case_name"
     if [ "$send_spoe" = yes ]; then
         assert_p2_evidence "$RUN_ROOT/cases/$case_name/decision.jsonl"
+        assert_no_unexpected_technical_events "$RUN_ROOT/cases/$case_name"
     fi
 }
 
@@ -472,6 +483,7 @@ PY
         die "HTTP/1.1 connection-reuse proof failed"
     fi
     assert_p2_evidence "$case_root/decision.jsonl"
+    assert_no_unexpected_technical_events "$case_root"
     if ! grep -Fq 'host_action=log_only' "$case_root/haproxy.stderr.log"; then
         die "connection-reuse case did not record the P4 safe/log-only host action"
     fi
@@ -535,6 +547,18 @@ BACKEND_PORT=${COMBINED_SPOP_HTX_BACKEND_PORT:-}
 PYTHON_BIN=${COMBINED_SPOP_HTX_PYTHON:-python3}
 CURL_BIN=${COMBINED_SPOP_HTX_CURL:-curl}
 TIMEOUT_BIN=${COMBINED_SPOP_HTX_TIMEOUT:-timeout}
+PREPARED_HAPROXY_BIN=${COMBINED_SPOP_HTX_PREPARED_HAPROXY_BIN:-}
+PREPARED_SPOA_BIN=${COMBINED_SPOP_HTX_PREPARED_SPOA_BIN:-}
+PREPARED_PROVENANCE=${COMBINED_SPOP_HTX_PREPARED_PROVENANCE:-}
+PREPARED_SOURCE_EQUIVALENCE=${COMBINED_SPOP_HTX_PREPARED_SOURCE_EQUIVALENCE:-}
+prepared_mode=0
+if [ -n "$PREPARED_HAPROXY_BIN$PREPARED_SPOA_BIN$PREPARED_PROVENANCE$PREPARED_SOURCE_EQUIVALENCE" ]; then
+    require_value "$PREPARED_HAPROXY_BIN" COMBINED_SPOP_HTX_PREPARED_HAPROXY_BIN
+    require_value "$PREPARED_SPOA_BIN" COMBINED_SPOP_HTX_PREPARED_SPOA_BIN
+    require_value "$PREPARED_PROVENANCE" COMBINED_SPOP_HTX_PREPARED_PROVENANCE
+    require_value "$PREPARED_SOURCE_EQUIVALENCE" COMBINED_SPOP_HTX_PREPARED_SOURCE_EQUIVALENCE
+    prepared_mode=1
+fi
 
 require_value "$RUNTIME_ROOT" COMBINED_SPOP_HTX_RUNTIME_ROOT
 require_value "$ALLOWED_ROOT" COMBINED_SPOP_HTX_ALLOWED_ROOT
@@ -615,6 +639,16 @@ printf 'owner=combined_spop_htx\nprotocol=MRC1-v2\nsource_root=%s\n' "$REPO_ROOT
 trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 
+if [ "$prepared_mode" -eq 1 ]; then
+    if ! "$PYTHON_BIN" "$SCRIPT_DIR/prepared_artifacts.py" "$REPO_ROOT" \
+            "$PREPARED_HAPROXY_BIN" "$PREPARED_SPOA_BIN" "$PREPARED_PROVENANCE" \
+            "$PREPARED_SOURCE_EQUIVALENCE" "$MODSECURITY_LIBRARY" "$EXPECTED_HAPROXY_VERSION" \
+            >"$EVIDENCE_ROOT/prepared-artifacts.json"; then
+        die "explicit prepared artifacts failed source/provenance validation"
+    fi
+    HAPROXY_BIN=$PREPARED_HAPROXY_BIN
+    SPOA_BIN=$PREPARED_SPOA_BIN
+else
 printf '%s\n' "combined_spop_htx: building current task-worktree SPOP runtime" >&2
 if ! "$TIMEOUT_BIN" "$BUILD_TIMEOUT_SECONDS" make -C "$CONNECTOR_DIR" \
         REPO_ROOT="$REPO_ROOT" BUILD_ROOT="$RUN_ROOT/build" \
@@ -639,6 +673,7 @@ if ! "$TIMEOUT_BIN" "$BUILD_TIMEOUT_SECONDS" make -C "$CONNECTOR_DIR" \
 fi
 HAPROXY_BIN="$RUN_ROOT/overlay/worktree/haproxy"
 [ -x "$HAPROXY_BIN" ] || die "current-source HTX build did not create $HAPROXY_BIN"
+fi
 if ! "$HAPROXY_BIN" -v >"$EVIDENCE_ROOT/haproxy-version.txt" 2>&1; then
     die "current-source HAProxy binary is not runnable"
 fi
@@ -672,6 +707,12 @@ stop_case_services
 
 run_connection_reuse_case
 stop_case_services
+
+# Recheck after service reap so a terminal event arriving after the client
+# completed cannot escape the normal-case evidence gate.
+for normal_case in p3-deny p4-safe connection-reuse; do
+    assert_no_unexpected_technical_events "$RUN_ROOT/cases/$normal_case"
+done
 
 printf 'owner=combined_spop_htx\nresult=PASS\nchecks=p1-p2-ack-handle,p3-deny,p4-safe-eos,client-cancel,ttl-expiry,missing-correlation,connection-reuse\n' >"$EVIDENCE_ROOT/summary.txt"
 run_result=PASS

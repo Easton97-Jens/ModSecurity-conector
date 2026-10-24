@@ -12,10 +12,9 @@ int main(void)
     assert(!msconnector_traefik_forwardauth_response_companion_init(&companion,
         "/run/modsecurity/invalid\nname.sock", 100U));
     assert(msconnector_traefik_forwardauth_response_companion_set_limits(
-        &companion, 4U, 64U, 128U));
+        &companion, 4U, 64U));
     assert(companion.max_header_count == 4U);
     assert(companion.max_header_bytes == 64U);
-    assert(companion.max_response_body_bytes == 128U);
     assert(strstr(companion.socket_path, "/run/modsecurity/") == companion.socket_path);
     return 0;
 }

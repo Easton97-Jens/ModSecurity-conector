@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ast
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -26,6 +28,101 @@ def replace_once(path: Path, old: str, new: str) -> None:
     if source.count(old) != 1:
         raise AssertionError(f"expected one mutable fragment in {path}: {old!r}")
     path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+
+def is_check_call(node: ast.AST, method: str) -> bool:
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and isinstance(node.value.func.value, ast.Name)
+        and node.value.func.value.id == "checks"
+        and node.value.func.attr == method
+    )
+
+
+def reviewed_ast_dump(node: object) -> str:
+    """Keep the reviewed 3.14 field format independent of ast.dump defaults."""
+    if isinstance(node, list):
+        return "[" + ", ".join(reviewed_ast_dump(item) for item in node) + "]"
+    if not isinstance(node, ast.AST):
+        return repr(node)
+    fields = []
+    for name, value in ast.iter_fields(node):
+        # Python 3.15 adds eager/lazy import state. Only its eager default is
+        # equivalent to the reviewed schema; lazy imports must change the hash.
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and name == "is_lazy" and value == 0:
+            continue
+        if value is None and getattr(type(node), name, ...) is None:
+            continue
+        field_type = type(node)._field_types.get(name, object)
+        if value == [] and getattr(field_type, "__origin__", ...) is list:
+            continue
+        fields.append(f"{name}={reviewed_ast_dump(value)}")
+    return f"{type(node).__name__}(" + ", ".join(fields) + ")"
+
+
+class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
+    def test_consecutive_module_checks_are_batched(self) -> None:
+        tree = ast.parse((CHECKER_DIRECTORY / "apache_common_adoption_base.py").read_text())
+        for first, second in zip(tree.body, tree.body[1:]):
+            self.assertFalse(is_check_call(first, "append") and is_check_call(second, "append"))
+
+    def test_batching_preserves_every_predicate_message_and_order(self) -> None:
+        tree = ast.parse((CHECKER_DIRECTORY / "apache_common_adoption_base.py").read_text())
+        normalized = []
+        for node in tree.body:
+            if is_check_call(node, "extend"):
+                self.assertEqual(len(node.value.args), 1)
+                self.assertIsInstance(node.value.args[0], ast.List)
+                self.assertFalse(node.value.keywords)
+                normalized.extend(ast.Expr(value=ast.Call(
+                    func=ast.Attribute(value=ast.Name(id="checks", ctx=ast.Load()),
+                                       attr="append", ctx=ast.Load()),
+                    args=[item], keywords=[])) for item in node.value.args[0].elts)
+            else:
+                normalized.append(node)
+        tree.body = normalized
+        # Reviewed full-chunk engine-owned policy and combined I09/I11 AST; positions are omitted and only the
+        # batching seam is expanded.
+        digest = hashlib.sha256(reviewed_ast_dump(tree).encode()).hexdigest()
+        self.assertEqual(digest, "2ea7f8e9c46f644deea24fe8879d7f9e30f2d820ce355302c0901779a762c49b")
+
+    def test_reviewed_dump_retains_every_semantic_change(self) -> None:
+        source = "checks.append((predicate == 1, 'first'))\nchecks.append((other, 'second'))"
+        baseline = ast.parse(source)
+        predicate = ast.parse(source.replace("== 1", "!= 1"))
+        message = ast.parse(source.replace("'first'", "'changed'"))
+        order = ast.parse(source)
+        order.body.reverse()
+        context = ast.parse(source)
+        next(node for node in ast.walk(context) if isinstance(node, ast.Name)).ctx = ast.Store()
+        eager = ast.parse("import dependency")
+        lazy = ast.parse("import dependency")
+        if "is_lazy" not in lazy.body[0]._fields:
+            lazy.body[0]._fields += ("is_lazy",)
+        lazy.body[0].is_lazy = 1
+        for label, before, after in (
+            ("predicate", baseline, predicate),
+            ("message", baseline, message),
+            ("order", baseline, order),
+            ("context", baseline, context),
+            ("lazy import", eager, lazy),
+        ):
+            with self.subTest(label=label):
+                self.assertNotEqual(reviewed_ast_dump(before), reviewed_ast_dump(after))
+
+    def test_status_comparison_is_not_a_second_assignment(self) -> None:
+        source = """void apache_log_intervention_event(void) {
+            event.decision.status = technical ? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;
+            if (event.decision.status == MSCONNECTOR_STATUS_ERROR) event.decision.rule_id = "";
+        }"""
+        self.assertTrue(checker_base.typed_event_status_assignment(source))
+        self.assertFalse(checker_base.typed_event_status_assignment(source.replace(
+            "if (event.decision.status ==", "event.decision.status = 0; if (event.decision.status ==")))
+        self.assertFalse(checker_base.typed_event_status_assignment(source.replace(
+            "technical ? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED",
+            "MSCONNECTOR_STATUS_BLOCKED")))
 
 
 class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
@@ -146,7 +243,7 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
 
         self._assert_rejected(
             mutate,
-            "Apache Phase2 bounded bucket helper reads, plans, records, appends",
+            "Apache Phase2 bucket helper validates pointers and arithmetic, records and appends complete chunks, captures intervention, and forwards after native success",
         )
 
     def test_unreachable_pipeline_decoy_is_rejected(self) -> None:
@@ -161,11 +258,9 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             )
             replace_once(
                 filters,
-                "    if (plan.truncated)\n"
-                "        msr->request_body_truncated = 1;\n"
+                "    msr->request_body_bytes_inspected += len;\n"
                 "    APR_BUCKET_REMOVE(bucket);\n",
-                "    if (plan.truncated)\n"
-                "        msr->request_body_truncated = 1;\n"
+                "    msr->request_body_bytes_inspected += len;\n"
                 "    }\n"
                 "    APR_BUCKET_REMOVE(bucket);\n",
             )
@@ -258,18 +353,60 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             "Apache input-filter errors enter Apache core through the input-side terminal bridge",
         )
 
-    def test_unbounded_append_is_rejected(self) -> None:
+    def test_prefix_truncation_is_rejected(self) -> None:
         def mutate(filters: Path) -> None:
             replace_once(
                 filters,
-                "            (const unsigned char *)data, plan.append_size) != 1) {\n",
-                "            (const unsigned char *)data, len) != 1) {\n",
+                "            (const unsigned char *)data, len))) {\n",
+                "            (const unsigned char *)data, len / 2U))) {\n",
             )
 
         self._assert_rejected(
             mutate,
-            "Apache Phase2 bounded bucket helper reads, plans, records, appends",
+            "Apache Phase2 bucket helper validates pointers and arithmetic, records and appends complete chunks, captures intervention, and forwards after native success",
         )
+
+    def test_inverted_shared_request_append_guard_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "!msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,",
+                "msconnector_native_body_append_can_continue(msc_append_request_body(msr->t,")
+        self._assert_rejected(mutate, "Apache Phase2 bucket helper validates pointers and arithmetic, records and appends complete chunks, captures intervention, and forwards after native success")
+
+    def test_inverted_shared_phase_guard_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))",
+                "if (msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))")
+        self._assert_rejected(mutate, "Apache Phase2 one-shot gate precedes processing")
+
+    def test_missing_serialization_failure_return_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "        return apache_event_sink_result(msr, r,\n"
+                "            json_truncated ? MSCONNECTOR_ERROR_EVENT_TOO_LARGE\n"
+                "                : MSCONNECTOR_ERROR_INTERNAL, mandatory);\n",
+                "")
+        self._assert_rejected(mutate, "Apache P3/P4 events reject serialization failure")
+
+    def test_unchecked_or_incomplete_physical_write_is_rejected(self) -> None:
+        for original, changed in (
+            ("rc = apr_file_write_full(file, line, length, &written);",
+             "(void)apr_file_write_full(file, line, length, &written);"),
+            ("rc != APR_SUCCESS || written != length", "rc != APR_SUCCESS"),
+            ("close_rc != APR_SUCCESS", "close_rc == APR_SUCCESS"),
+        ):
+            with self.subTest(original=original):
+                def mutate(filters: Path) -> None:
+                    replace_once(filters, original, changed)
+                self._assert_rejected(mutate, "Apache P3/P4 events reject serialization failure")
+
+    def test_technical_errors_cannot_be_logged_as_rule_blocks(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED;",
+                "? MSCONNECTOR_STATUS_BLOCKED : MSCONNECTOR_STATUS_BLOCKED;")
+        self._assert_rejected(mutate, "Apache P3/P4 intervention events distinguish technical errors")
 
     def test_phase3_response_header_failures_are_not_ignored(self) -> None:
         mutations = (

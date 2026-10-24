@@ -14,7 +14,8 @@ minimale Fälle.
 
 ## Grenzen
 
-- Verwendet nur Artefakte unter `BUILD_ROOT`.
+- Hält private Case-Artefakte unter `BUILD_ROOT`; aktivierte Worker-Docroots
+  verwenden den unten beschriebenen, separat autorisierten externen Projection Parent.
 - Erstellt oder ändert kein `<external-source-root>/*`-Repository.
 - Importiert keine NGINX- oder ModSecurity-nginx-Quelle in dieses Monorepo.
 - Meldet `pass` nur, wenn NGINX den von YAML erwarteten HTTP-Status für a zurückgibt
@@ -83,6 +84,19 @@ Folglich weder ein erfolgreicher Build noch das Vorhandensein des Konfigurations
 ist ein HTTP/2-Laufzeitanspruch.
 
 ## Geteilte Fälle
+
+Canonical-Lifecycle-Aufrufer aktivieren `NGINX_DOCROOT_PROJECTION=1` und übergeben
+einen bestehenden, externen, root-owned `NGINX_DOCROOT_PROJECTION_PARENT` sowie
+einen sicheren, frischen direkten Child-Pfad `NGINX_DOCROOT_PROJECTION_ROOT`.
+Bei einem Multi-Case-Batch bleibt dieser Root ein nicht angelegter Namens-Seed:
+Der Parent-Dispatch weist jedem Case einen eigenen Geschwisterpfad
+`nginx-case-<UUID>` zu. Der native First-Byte-Wrapper weist unabhängig einen
+Geschwisterpfad `nginx-first-byte-<UUID>` unter demselben Parent zu. Nur der
+Projection-Helper legt das ausgewählte Child an; bestehende Children und
+Symlinks bleiben verboten und werden nie zur Wiederverwendung gelöscht.
+Direkte Harness-Aufrufe mit `RUN_ONE_CASE=1` verwenden weiterhin exakt den
+übergebenen frischen Root. Private Regeln, Logs, Cache und Canonical Evidence
+werden nicht in den Projection Parent verschoben.
 
 Standardmäßig iteriert der Harness jede `*.yaml`-Datei in:
 

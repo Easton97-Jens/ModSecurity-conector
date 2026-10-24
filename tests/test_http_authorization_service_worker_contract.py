@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "common" / "runtime" / "http_authorization_service.c"
 COMPANION_FIXTURE = ROOT / "tests" / "http_authorization_service_response_companion_lifecycle_smoke.c"
+TRUSTED_FIXTURE = ROOT / "tests" / "http_authorization_service_trusted_binding_smoke.c"
 
 
 class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
@@ -79,6 +80,19 @@ class HttpAuthorizationServiceWorkerContractTests(unittest.TestCase):
         self.assertIn("test_failed_companion_quarantines_service", fixture)
         self.assertIn("test_concurrent_owner_worker_release", fixture)
         self.assertIn("test_no_companion_deferred_release", fixture)
+
+    def test_timeout_target_runs_dynamic_trusted_binding_service_smoke(self) -> None:
+        script = (ROOT / "ci/checks/common/check-http-authorization-service-timeout.sh").read_text(encoding="utf-8")
+        fixture = TRUSTED_FIXTURE.read_text(encoding="utf-8")
+        self.assertIn('"$TRUSTED_SOURCE"', script)
+        self.assertIn('"$TRUSTED_BINARY"', script)
+        self.assertIn('"$REPO_ROOT/common/runtime/http_authorization_service.c"', script)
+        self.assertIn("msconnector_http_authorization_service_main_with_trusted_binding", fixture)
+        self.assertIn("request_response(port, request, response", fixture)
+        for scenario in ("claim-failure", "begin-failure", "mapping-failure", "finish-failure",
+                         "finalize-failure", "handoff-failure", "complete-failure-deny",
+                         "complete-revoke-failure"):
+            self.assertIn('"' + scenario + '"', fixture)
 
     def test_deferred_cleanup_releases_only_profiles_without_a_companion(self) -> None:
         timeout_handler = self.source.split(

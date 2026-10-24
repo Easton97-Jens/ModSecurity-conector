@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -89,8 +90,8 @@ typedef struct runtime_header {
 } runtime_header;
 
 typedef struct notify_request {
-    /* Anonymous C17 member groups keep the protocol representation cohesive
-     * while retaining the established request->field access contract. */
+    /* Protocol values, owned payload and presence markers retain the existing
+     * direct access; HTTP route metadata has its own named state. */
     struct {
     char message_name[64];
     char request_id[128];
@@ -127,10 +128,16 @@ typedef struct notify_request {
     int has_headers_text;
     int has_body;
     int has_body_len_arg;
-    int has_response_status;
-    int is_response;
-    int is_response_body;
     };
+    /* HTTP version and response route metadata parsed for this notify frame. */
+    struct {
+        int has_http_version;
+        char http_version[4];
+        unsigned int advertised_body_len;
+        int has_response_status;
+        int is_response;
+        int is_response_body;
+    } http_metadata;
 } notify_request;
 
 typedef struct agent_config {
@@ -167,8 +174,6 @@ typedef struct agent_config {
     unsigned int expected_status;
     };
     struct {
-    unsigned int request_body_limit;
-    unsigned int response_body_limit;
     unsigned int response_body_timeout_ms;
     unsigned int spoe_timeout_ms;
     unsigned int worker_count;
@@ -246,6 +251,8 @@ typedef struct agent_state {
     FILE *decision_log;
     pthread_mutex_t decision_log_lock;
     int decision_log_lock_initialized;
+    /* Protected by decision_log_lock; one failed physical sink stays terminal. */
+    msconnector_error decision_log_error;
     spop_owner_queue owner_queue;
     haproxy_spop_response_companion_backend response_backend;
     haproxy_spop_response_companion_slot *response_slots;
@@ -341,7 +348,7 @@ static int close_owned_stream(FILE **stream, int owns_stream) {
         return 0;
     }
     if (owns_stream) {
-        rc = fclose(*stream);
+        rc = msconnector_event_file_close(stream, NULL) ? 0 : -1;
     }
     *stream = 0;
     return rc;
@@ -1286,19 +1293,37 @@ static int parse_headers_bin(notify_request *request, const unsigned char *value
             return -1;
         }
     }
-    request->has_headers_bin = 1;
-    return 0;
+    return -1;
+}
+
+static int parse_header_text_line(notify_request *request,
+        const unsigned char *value, size_t start, size_t end)
+{
+    size_t colon = start;
+    size_t header_value_start;
+
+    while (colon < end && value[colon] != ':') {
+        colon++;
+    }
+    if (colon == end) {
+        return -1;
+    }
+    header_value_start = colon + 1U;
+    while (header_value_start < end &&
+            (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
+        header_value_start++;
+    }
+    return add_request_header(request, value + start, colon - start,
+        value + header_value_start, end - header_value_start);
 }
 
 static int parse_headers_text(notify_request *request, const unsigned char *value, size_t value_len) {
     size_t start = 0;
+    int complete = 0;
 
     while (start < value_len) {
         size_t end = start;
         size_t next_start;
-        size_t colon;
-        size_t name_len;
-        size_t header_value_start;
 
         while (end < value_len && value[end] != '\n') {
             end++;
@@ -1315,29 +1340,16 @@ static int parse_headers_text(notify_request *request, const unsigned char *valu
             if (next_start < value_len) {
                 return -1;
             }
+            complete = 1;
             break;
         }
-        colon = start;
-        while (colon < end && value[colon] != ':') {
-            colon++;
-        }
-        if (colon == end) {
-            return -1;
-        }
-        name_len = colon - start;
-        header_value_start = colon + 1U;
-        while (header_value_start < end &&
-                (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
-            header_value_start++;
-        }
-        if (add_request_header(request, value + start, name_len,
-                value + header_value_start, end - header_value_start) != 0) {
+        if (parse_header_text_line(request, value, start, end) != 0) {
             return -1;
         }
         start = next_start;
     }
-    request->has_headers_text = 1;
-    return 0;
+    request->has_headers_text = complete;
+    return complete ? 0 : -1;
 }
 
 static int read_typed_bytes_ref(
@@ -1375,65 +1387,75 @@ static int read_typed_bytes_ref(
     return 0;
 }
 
-static int parse_notify_headers_bin(
-        notify_request *request,
-        const unsigned char *data,
-        size_t len,
-        size_t *pos,
-        int is_response) {
-    const unsigned char *value = 0;
-    size_t value_len = 0;
-    unsigned int typed_type = 0;
-
-    if (read_typed_bytes_ref(data, len, pos, &value, &value_len, &typed_type) != 0) {
-        return -1;
-    }
-    if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
-            parse_headers_bin(request, value, value_len) != 0) {
-        return -1;
-    }
-    if (is_response) {
-        request->is_response = 1;
+/* Both fetches describe the same complete ordered header collection. */
+static int store_notify_header_collection(notify_request *request,
+        notify_request *parsed, int other_present)
+{
+    if (other_present) {
+        if (parsed->header_count != request->header_count) {
+            return -1;
+        }
+        for (unsigned int index = 0U; index < request->header_count; ++index) {
+            if (strcasecmp(request->headers[index].name,
+                    parsed->headers[index].name) != 0 ||
+                    strcmp(request->headers[index].value,
+                    parsed->headers[index].value) != 0) {
+                return -1;
+            }
+        }
+    } else {
+        clear_request_headers(request);
+        request->headers = parsed->headers;
+        request->header_count = parsed->header_count;
+        parsed->headers = 0;
+        parsed->header_count = 0;
     }
     return 0;
 }
 
-static int parse_notify_headers_text(
-        notify_request *request,
-        const unsigned char *data,
-        size_t len,
-        size_t *pos,
-        int is_response) {
+static int parse_notify_headers(notify_request *request,
+        const unsigned char *data, size_t len, size_t *pos,
+        int is_response, int binary)
+{
     const unsigned char *value = 0;
     size_t value_len = 0;
     unsigned int typed_type = 0;
+    notify_request parsed;
 
-    if (read_typed_bytes_ref(data, len, pos, &value, &value_len, &typed_type) != 0) {
+    if (read_typed_bytes_ref(data, len, pos, &value, &value_len, &typed_type) != 0 ||
+            (typed_type != SPOP_DATA_STR && typed_type != SPOP_DATA_BIN)) {
         return -1;
     }
-    if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
-        notify_request text_request;
-
-        memset(&text_request, 0, sizeof(text_request));
-        if (parse_headers_text(&text_request, value, value_len) != 0) {
-            free_notify_request(&text_request);
-            return -1;
-        }
-        if (text_request.header_count >= request->header_count &&
-                text_request.header_count > 0) {
-            clear_request_headers(request);
-            request->headers = text_request.headers;
-            request->header_count = text_request.header_count;
-            request->has_headers_text = 1;
-            text_request.headers = 0;
-            text_request.header_count = 0;
-        }
-        free_notify_request(&text_request);
+    memset(&parsed, 0, sizeof(parsed));
+    int parse_result = binary ? parse_headers_bin(&parsed, value, value_len) :
+        parse_headers_text(&parsed, value, value_len);
+    if (parse_result != 0 || store_notify_header_collection(request, &parsed,
+            binary ? request->has_headers_text : request->has_headers_bin) != 0) {
+        free_notify_request(&parsed);
+        return -1;
     }
+    if (binary) {
+        request->has_headers_bin = 1;
+    } else {
+        request->has_headers_text = 1;
+    }
+    free_notify_request(&parsed);
     if (is_response) {
-        request->is_response = 1;
+        request->http_metadata.is_response = 1;
     }
     return 0;
+}
+
+static int parse_notify_headers_bin(notify_request *request,
+        const unsigned char *data, size_t len, size_t *pos, int is_response)
+{
+    return parse_notify_headers(request, data, len, pos, is_response, 1);
+}
+
+static int parse_notify_headers_text(notify_request *request,
+        const unsigned char *data, size_t len, size_t *pos, int is_response)
+{
+    return parse_notify_headers(request, data, len, pos, is_response, 0);
 }
 
 /* Returns zero when a known header argument was consumed, one when the
@@ -1732,15 +1754,15 @@ static int parse_notify_body_argument(
         return -1;
     }
     if (typed_type != SPOP_DATA_STR && typed_type != SPOP_DATA_BIN) {
-        return 0;
+        return -1;
     }
     if (copy_bytes(&request->body, &request->body_len, value, value_len) != 0) {
         return -1;
     }
     request->has_body = 1;
     if (response_body) {
-        request->is_response = 1;
-        request->is_response_body = 1;
+        request->http_metadata.is_response = 1;
+        request->http_metadata.is_response_body = 1;
     }
     return 0;
 }
@@ -1839,7 +1861,7 @@ static int parse_notify_uint_argument(
     notify_uint_argument arguments[] = {
         {(const unsigned char *)"client_port", sizeof("client_port") - 1U, &request->client_port, &request->has_client_port},
         {(const unsigned char *)"server_port", sizeof("server_port") - 1U, &request->server_port, &request->has_server_port},
-        {(const unsigned char *)"response_status", sizeof("response_status") - 1U, &request->response_status, &request->has_response_status},
+        {(const unsigned char *)"response_status", sizeof("response_status") - 1U, &request->response_status, &request->http_metadata.has_response_status},
     };
 
     for (size_t index = 0U; index < sizeof(arguments) / sizeof(arguments[0]); ++index) {
@@ -1903,7 +1925,7 @@ static int parse_notify_response_header_argument(
                         header_value_len) != 0)) {
             return -1;
         }
-        request->is_response = 1;
+        request->http_metadata.is_response = 1;
         return 0;
     }
     return 1;
@@ -1916,14 +1938,27 @@ static int parse_notify_body_length_argument(
         const unsigned char *data,
         size_t len,
         size_t *pos) {
-    unsigned int ignored_body_len = 0U;
 
     if (!KEY_EQUALS_LITERAL(arg_name, arg_name_len, "body_len") &&
             !KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_body_len")) {
         return 1;
     }
-    return read_typed_uint32_loose(data, len, pos, &ignored_body_len,
-        &request->has_body_len_arg);
+    /* HAProxy integer fetches are encoded as signed INT64. Accept only
+     * nonnegative, representable integer types; never NULL, boolean, string,
+     * or a saturated integer as evidence of a complete sample. */
+    if (*pos >= len) {
+        return -1;
+    }
+    unsigned int type = data[(*pos)++];
+    uint64_t value;
+    if ((type != 2U && type != SPOP_DATA_UINT32 && type != 4U && type != 5U) ||
+            read_varint(data, len, pos, &value) != 0 || value > UINT_MAX ||
+            (type == 2U && value > INT32_MAX)) {
+        return -1;
+    }
+    request->http_metadata.advertised_body_len = (unsigned int)value;
+    request->has_body_len_arg = 1;
+    return 0;
 }
 
 /* Response-bearing arguments are valid only on response notifications.  Do
@@ -1947,6 +1982,28 @@ static int notify_argument_is_response_bearing(
         KEY_EQUALS_LITERAL(arg_name, arg_name_len, "response_header_server");
 }
 
+static int parse_notify_http_version_argument(notify_request *request,
+        const unsigned char *arg_name, size_t arg_name_len,
+        const unsigned char *data, size_t len, size_t *pos)
+{
+    if (!KEY_EQUALS_LITERAL(arg_name, arg_name_len, "http_version")) {
+        return 1;
+    }
+    const unsigned char *value = NULL;
+    size_t value_len = 0U;
+    unsigned int type = 0U;
+    if (read_typed_bytes_ref(data, len, pos, &value, &value_len, &type) != 0 ||
+            type != SPOP_DATA_STR || value_len != 3U ||
+            (memcmp(value, "1.0", 3U) != 0 && memcmp(value, "1.1", 3U) != 0 &&
+             memcmp(value, "2.0", 3U) != 0 && memcmp(value, "3.0", 3U) != 0)) {
+        return -1;
+    }
+    memcpy(request->http_metadata.http_version, value, 3U);
+    request->http_metadata.http_version[3] = '\0';
+    request->http_metadata.has_http_version = 1;
+    return 0;
+}
+
 static int parse_notify_argument(
         notify_request *request,
         const unsigned char *arg_name,
@@ -1956,9 +2013,15 @@ static int parse_notify_argument(
         size_t *pos) {
     int result;
 
-    if (!request->is_response &&
+    if (!request->http_metadata.is_response &&
             notify_argument_is_response_bearing(arg_name, arg_name_len)) {
         return -1;
+    }
+
+    result = parse_notify_http_version_argument(request, arg_name,
+        arg_name_len, data, len, pos);
+    if (result != 1) {
+        return result;
     }
 
     result = parse_notify_header_argument(request, arg_name, arg_name_len, data, len, pos);
@@ -2013,10 +2076,10 @@ static int parse_notify_message_header(const unsigned char *data, size_t len,
     }
     copy_spop_string(request->message_name, sizeof(request->message_name),
         message_name, message_name_len);
-    request->is_response =
+    request->http_metadata.is_response =
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response") ||
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
-    request->is_response_body =
+    request->http_metadata.is_response_body =
         KEY_EQUALS_LITERAL(message_name, message_name_len, "check-response-body");
     *nb_args = argument_count;
     request->has_notify = 1;
@@ -2522,8 +2585,6 @@ static void config_init(agent_config *config) {
     config->response_companion_gid = UINT_MAX;
     copy_spop_string(config->log_file, sizeof(config->log_file),
         (const unsigned char *)"-", sizeof("-") - 1U);
-    config->request_body_limit = 65532U;
-    config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
     config->spoe_timeout_ms = 2000U;
     /* A slow or incomplete HELLO consumes one bounded peer worker only. */
@@ -2648,20 +2709,6 @@ static int config_set_scalar_identity(agent_config *config, const char *key,
 
 static int config_set_scalar_limits(agent_config *config, const char *key,
         const char *value) {
-    if (strcmp(key, "request-body-limit") == 0) {
-        return parse_bounded_uint(value, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
-            &config->request_body_limit) == 0 ? 1 : -1;
-    }
-    if (strcmp(key, "response-body-limit") == 0) {
-        if (parse_bounded_uint_range(value, 0UL, MSCONNECTOR_MAX_CONFIG_BODY_BYTES,
-                &config->response_body_limit) != 0) {
-            return -1;
-        }
-        if (config->response_body_limit > 0U) {
-            config->response_phases_enabled = 1;
-        }
-        return 1;
-    }
     if (strcmp(key, "response-body-timeout") == 0) {
         return parse_bounded_uint_range(value, 0UL, 60000UL,
             &config->response_body_timeout_ms) == 0 ? 1 : -1;
@@ -2733,6 +2780,14 @@ static int config_set_endpoint(agent_config *config, const char *key, const char
 
 static int config_set(agent_config *config, const char *key, const char *value) {
     if (config == 0 || key == 0 || value == 0) {
+        return -1;
+    }
+    if (strcmp(key, "request-body-limit") == 0 ||
+            strcmp(key, "response-body-limit") == 0 ||
+            strcmp(key, "body-limit-action") == 0) {
+        fprintf(stderr,
+            "%s is removed; configure native SecRequestBodyLimit/Action or SecResponseBodyLimit/Action in the rules file\n",
+            key);
         return -1;
     }
     {
@@ -2845,10 +2900,6 @@ static int load_config_file(agent_config *config, const char *path) {
     return 0;
 }
 
-static int fail_mode_closed(const agent_config *config) {
-    return strcmp(config->fail_mode, "closed") == 0;
-}
-
 static int mode_enforces(const agent_config *config) {
     return strcmp(config->mode, "detect-only") != 0;
 }
@@ -2930,37 +2981,29 @@ static const char *phase4_requested_action(
     return strcmp(name, "redirect") == 0 ? "redirect" : "deny";
 }
 
-static const char *phase4_actual_action(void) {
-    msconnector_late_intervention_policy policy;
-    msconnector_late_intervention_action action;
-    const char *name;
-
-    /* SPOE response rules run before HAProxy commits the response.  This is a
-     * host-model property, not a runtime-verification claim. */
-    msconnector_late_intervention_policy_init(&policy);
-    action = msconnector_late_intervention_resolve(&policy, 0, 0, 0);
-    name = msconnector_late_intervention_action_name(action);
-    return strcmp(name, "deny_if_possible") == 0 ? "deny" : name;
-}
-
-static void phase4_common_event_write(
+static int phase4_common_event_write(
         FILE *file,
         const notify_request *request,
         const haproxy_modsecurity_decision *decision,
         const char *requested_action,
         const char *actual_action,
-        int original_status,
-        const char *reason_code) {
+        const char *reason_code,
+        msconnector_error *error) {
     msconnector_event event;
     char line[4096];
     char rule_id[32];
     int json_truncated = 0;
+    int original_status;
 
     if (file == 0 || request == 0 || decision == 0 ||
             requested_action == 0 || actual_action == 0) {
-        return;
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event inputs are unavailable", "haproxy-spoe-spop");
+        return 0;
     }
 
+    original_status = request->http_metadata.has_response_status ?
+        (int)request->response_status : 200;
     (void)snprintf(rule_id, sizeof(rule_id), "%u", decision->rule_id);
     msconnector_event_init(&event);
     event.meta.message_id = MSCONN_EVENT_RESPONSE_BLOCKED;
@@ -2987,7 +3030,7 @@ static void phase4_common_event_write(
     if (strcmp(actual_action, "deny") == 0) {
         event.http.visible_http_status = decision->status;
     }
-    event.http.transport_result = "http_status";
+    event.http.transport_result = "not_observable";
     if (strcmp(actual_action, "abort_connection") == 0) {
         event.http.transport_result = "connection_aborted";
     } else if (strcmp(actual_action, "log_only") == 0) {
@@ -3003,10 +3046,19 @@ static void phase4_common_event_write(
     event.flags.body_started = 0;
     event.flags.connection_aborted = 0;
 
-    if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-            &json_truncated)) {
-        fputs(line, file);
+    if (!msconnector_event_write_jsonl_line(&event, line, sizeof(line),
+            &json_truncated) || json_truncated) {
+        msconnector_error_set(error, json_truncated ? MSCONNECTOR_ERROR_EVENT_TOO_LARGE :
+            MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event serialization failed", "haproxy-spoe-spop");
+        return 0;
     }
+    if (!msconnector_event_file_write(file, line, error)) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_IO,
+            "SPOP event write or flush failed", "haproxy-spoe-spop");
+        return 0;
+    }
+    return 1;
 }
 
 static const char *safe_decision_reason_code(
@@ -3046,42 +3098,32 @@ static const char *safe_decision_reason_code(
     return "modsecurity_allow";
 }
 
-static void decision_log_write(
-        agent_state *state,
+static void decision_log_render_metadata(
+        FILE *file,
+        const agent_state *state,
         const notify_request *request,
         const haproxy_modsecurity_decision *decision,
         int modsecurity_processed,
-        const char *decision_text) {
-    /*
-     * Canonical evidence is metadata-only.  Do not serialize request values,
-     * redirect targets, matched data, or libmodsecurity intervention messages:
-     * those strings can contain bodies, credentials, cookies, or other input.
-     */
-    FILE *file;
-    const char *reason_code;
+        const char *decision_text,
+        int phase4_disruptive) {
+    /* Canonical evidence never includes payloads or native intervention text. */
     const char *decision_name;
-    const char *requested_action = 0;
-    const char *actual_action = 0;
-    int phase4_disruptive;
+    const char *reason_code;
+    const char *requested_action = NULL;
+    const char *actual_action = NULL;
     int original_status;
     time_t now;
-
-    if (state == 0 || state->decision_log == 0 || request == 0 || decision == 0 ||
-            !state->decision_log_lock_initialized ||
-            pthread_mutex_lock(&state->decision_log_lock) != 0) {
-        return;
-    }
-    file = state->decision_log;
     decision_name = safe_decision_name(decision_text, decision);
     reason_code = safe_decision_reason_code(
         decision, modsecurity_processed, decision_text);
-    phase4_disruptive = request->is_response_body && decision->phase == 4 &&
-        decision->disruptive != 0;
-    original_status = request->has_response_status ?
+
+    original_status = request->http_metadata.has_response_status ?
         (int)request->response_status : 200;
     if (phase4_disruptive) {
         requested_action = phase4_requested_action(decision, decision_text);
-        actual_action = phase4_actual_action();
+        /* ACK construction requests host control; no host outcome has yet
+         * been observed. The native companion records its actual outcome later. */
+        actual_action = "";
     }
     now = time(0);
     fputc('{', file);
@@ -3106,10 +3148,10 @@ static void decision_log_write(
     JSON_FIELD_INT("phase", decision->phase);
     JSON_FIELD_BOOL("live_executed", 1);
     JSON_FIELD_BOOL("modsecurity_processed", modsecurity_processed);
-    JSON_FIELD_BOOL("request_headers_seen", !request->is_response && request->header_count > 0U);
-    JSON_FIELD_BOOL("request_body_seen", !request->is_response && request->has_body);
-    JSON_FIELD_BOOL("response_headers_seen", request->is_response && request->header_count > 0U);
-    JSON_FIELD_BOOL("response_body_seen", request->is_response_body && request->has_body);
+    JSON_FIELD_BOOL("request_headers_seen", !request->http_metadata.is_response && request->header_count > 0U);
+    JSON_FIELD_BOOL("request_body_seen", !request->http_metadata.is_response && request->has_body);
+    JSON_FIELD_BOOL("response_headers_seen", request->http_metadata.is_response && request->header_count > 0U);
+    JSON_FIELD_BOOL("response_body_seen", request->http_metadata.is_response_body && request->has_body);
     JSON_FIELD_UINT("expected_status", state->config.expected_status);
     JSON_FIELD_STRING("observed_status", "");
     JSON_FIELD_STRING("result", "");
@@ -3128,7 +3170,7 @@ static void decision_log_write(
         JSON_FIELD_BOOL("body_started", 0);
         JSON_FIELD_BOOL("response_committed", 0);
         JSON_FIELD_BOOL("connection_aborted", 0);
-        JSON_FIELD_STRING("transport_result", "http_status");
+        JSON_FIELD_STRING("transport_result", "not_observable");
     }
     JSON_FIELD_BOOL("redirect_present", decision->redirect_url[0] != '\0');
     JSON_FIELD_INT("rule_id", decision->rule_id);
@@ -3140,16 +3182,144 @@ static void decision_log_write(
     fputs("\"reason\":", file);
     json_write_string(file, reason_code);
     fputs("}\n", file);
-    if (phase4_disruptive) {
-        phase4_common_event_write(file, request, decision, requested_action,
-            actual_action, original_status, reason_code);
-    }
+
 #undef JSON_FIELD_STRING
 #undef JSON_FIELD_UINT
 #undef JSON_FIELD_INT
 #undef JSON_FIELD_BOOL
-    fflush(file);
+}
+
+static void decision_log_finish_staging(
+        FILE *file,
+        int event_serialized,
+        const size_t *serialized_size,
+        msconnector_error *error) {
+    /* This FILE is the serialization memory stream, not the physical sink.
+     * Its stdio failure is an allocation/serialization error at this boundary. */
+    if (!event_serialized && error->code == MSCONNECTOR_ERROR_IO) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event staging failed", "haproxy-spoe-spop");
+    }
+    if ((ferror(file) || fflush(file) != 0) &&
+            error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP decision serialization failed", "haproxy-spoe-spop");
+    }
+    if (fclose(file) != 0 && error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP decision serialization close failed", "haproxy-spoe-spop");
+    }
+    if (!event_serialized && error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP event serialization result is unavailable", "haproxy-spoe-spop");
+    }
+    if (error->code == MSCONNECTOR_ERROR_NONE && *serialized_size > RUNTIME_TEXT_LIMIT) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+            "SPOP decision record exceeds the bounded sink size", "haproxy-spoe-spop");
+    }
+}
+
+static int decision_log_stage_error_event(FILE *file,
+        const notify_request *request,
+        const haproxy_modsecurity_decision *decision, msconnector_error *error) {
+    char line[4096];
+    if (!haproxy_modsecurity_error_event_write_checked(decision, request->request_id,
+            line, sizeof(line), error)) {
+        return 0;
+    }
+    if (fputs(line, file) == EOF || ferror(file)) {
+        /* This is the bounded serialization stream, not the physical sink. */
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP technical event serialization failed", "haproxy-spoe-spop");
+        return 0;
+    }
+    return 1;
+}
+
+static int decision_log_write(
+        agent_state *state,
+        const notify_request *request,
+        const haproxy_modsecurity_decision *decision,
+        int modsecurity_processed,
+        const char *decision_text) {
+    /*
+     * Canonical evidence is metadata-only.  Do not serialize request values,
+     * redirect targets, matched data, or libmodsecurity intervention messages:
+     * those strings can contain bodies, credentials, cookies, or other input.
+     */
+    FILE *file;
+    int phase4_disruptive;
+    char *serialized = NULL;
+    size_t serialized_size = 0U;
+    msconnector_error error;
+    int success = 0;
+    int event_serialized = 1;
+
+    if (state == 0 || request == 0 || decision == 0 ||
+            !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        return 0;
+    }
+    /* An omitted decision log is optional. A configured failed sink is not. */
+    if (state->decision_log_error.code != MSCONNECTOR_ERROR_NONE) {
+        goto unlock;
+    }
+    if (state->decision_log == NULL) {
+        success = state->config.decision_log[0] == '\0';
+        if (!success) {
+            msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_IO,
+                "SPOP decision sink is unavailable", "haproxy-spoe-spop");
+        }
+        goto unlock;
+    }
+    msconnector_error_init(&error);
+    /* Stage both records so serialization failure never touches the sink. All
+     * inputs are bounded fields; the combined record also has a hard size cap. */
+    file = open_memstream(&serialized, &serialized_size);
+    if (file == NULL) {
+        msconnector_error_set(&state->decision_log_error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP decision serialization allocation failed", "haproxy-spoe-spop");
+        goto unlock;
+    }
+    phase4_disruptive = modsecurity_processed && request->http_metadata.is_response_body &&
+        decision->phase == 4 && decision->disruptive != 0 &&
+        decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE;
+    decision_log_render_metadata(file, state, request, decision,
+        modsecurity_processed, decision_text, phase4_disruptive);
+    if (phase4_disruptive) {
+        event_serialized = phase4_common_event_write(file, request, decision,
+            phase4_requested_action(decision, decision_text), "",
+            safe_decision_reason_code(decision, modsecurity_processed, decision_text),
+            &error);
+    } else if (decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        event_serialized = decision_log_stage_error_event(file, request, decision, &error);
+    }
+    decision_log_finish_staging(file, event_serialized, &serialized_size, &error);
+    if (error.code == MSCONNECTOR_ERROR_NONE &&
+            !msconnector_event_file_write(state->decision_log, serialized, &error)) {
+        msconnector_error_set(&error, MSCONNECTOR_ERROR_IO,
+            "SPOP decision sink write or flush failed", "haproxy-spoe-spop");
+    }
+    free(serialized);
+    if (error.code != MSCONNECTOR_ERROR_NONE) {
+        state->decision_log_error = error;
+    } else {
+        success = 1;
+    }
+unlock:
     (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return success;
+}
+
+static int decision_log_failed(agent_state *state) {
+    int failed;
+    if (state == NULL || !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        return 1;
+    }
+    failed = state->decision_log_error.code != MSCONNECTOR_ERROR_NONE;
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return failed;
 }
 
 static int production_config_has_safe_peer_limits(const agent_config *config) {
@@ -3344,13 +3514,19 @@ static const char *set_processing_failure(
         haproxy_modsecurity_decision *decision,
         int phase,
         const char *reason) {
-    if (fail_mode_closed(&state->config)) {
-        runtime_init_decision(decision, phase, "deny", 503, reason);
-        decision->disruptive = 1;
-        return "fail-closed";
-    }
-    runtime_init_decision(decision, phase, "pass", 200, reason);
-    return "fail-open";
+    char retained_reason[sizeof(decision->log_message)];
+    const msconnector_transaction_error_class retained_class =
+        decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ?
+        decision->error_class : MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+    const int retained_phase = decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ?
+        decision->phase : phase;
+    (void)state;
+    /* Processing/API errors remain technical failures in observer and open modes. */
+    copy_cstring(retained_reason, sizeof(retained_reason), reason != NULL ? reason : "");
+    runtime_init_decision(decision, retained_phase, "deny", 503, retained_reason);
+    decision->error_class = retained_class;
+    decision->disruptive = 1;
+    return "fail-closed";
 }
 
 static const char *set_admission_failure(
@@ -3358,6 +3534,7 @@ static const char *set_admission_failure(
         int phase,
         const char *reason) {
     runtime_init_decision(decision, phase, "deny", 503, reason);
+    decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
     decision->disruptive = 1;
     return "admission-failure";
 }
@@ -3372,6 +3549,7 @@ static const char *set_response_correlation_failure(
         int phase) {
     runtime_init_decision(decision, phase, "error", 502,
         "canonical response transaction correlation is missing or expired");
+    decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING;
     decision->disruptive = 1;
     return "correlation-failure";
 }
@@ -3381,6 +3559,7 @@ static const char *set_response_phase_disabled_failure(
         int phase) {
     runtime_init_decision(decision, phase, "deny", 503,
         "response phase is disabled for this SPOP agent");
+    decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
     decision->disruptive = 1;
     return "response-phase-disabled";
 }
@@ -3397,7 +3576,7 @@ static int protocol_failure_requires_enforcement(const char *decision_text) {
 static int send_malformed_notify_outcome(
         int fd,
         const spop_frame *frame,
-        const agent_state *state,
+        agent_state *state,
         FILE *log) {
     haproxy_modsecurity_decision decision;
     spop_buffer ack_payload;
@@ -3413,6 +3592,14 @@ static int send_malformed_notify_outcome(
     runtime_init_decision(&decision, 2, "deny", 400,
         "invalid SPOP NOTIFY payload");
     decision.disruptive = 1;
+    decision.error_class = MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
+    {
+        notify_request request = {0};
+        ensure_notify_request_id(&request, frame);
+        if (!decision_log_write(state, &request, &decision, 0, decision_text)) {
+            return -1;
+        }
+    }
     if (build_decision_ack_payload(&ack_payload, &decision,
             safe_decision_reason_code(&decision, 0, decision_text),
             1, 0) != 0) {
@@ -3425,34 +3612,6 @@ static int send_malformed_notify_outcome(
         1);
     return send_frame(fd, SPOP_FRM_ACK, frame->stream_id, frame->frame_id,
         &ack_payload);
-}
-
-static unsigned int bounded_body_length(
-        size_t body_len,
-        unsigned int limit,
-        int limit_enabled) {
-    unsigned int bounded = body_len <= 0xffffffffUL ? (unsigned int)body_len : 0U;
-
-    if (limit_enabled && bounded > limit) {
-        bounded = limit;
-    }
-    return bounded;
-}
-
-static int body_exceeds_limit(size_t body_len, unsigned int limit,
-        int limit_enabled)
-{
-    return limit_enabled && (body_len > (size_t)limit || body_len > 0xffffffffUL);
-}
-
-static const char *set_body_limit_failure(
-        haproxy_modsecurity_decision *decision, int phase, int response)
-{
-    runtime_init_decision(decision, phase, "deny", response ? 502 : 413,
-        response ? "response body exceeds the configured limit" :
-        "request body exceeds the configured limit");
-    decision->disruptive = 1;
-    return "body-limit";
 }
 
 static const char *notify_request_method(const notify_request *request) {
@@ -3493,17 +3652,14 @@ static const char *notify_test_header(const notify_request *request) {
 
 static void build_response_from_notify(
         const notify_request *request,
-        const agent_state *state,
         haproxy_modsecurity_response *response) {
     memset(response, 0, sizeof(*response));
-    response->status = request->has_response_status ? (int)request->response_status : 200;
+    response->status = request->http_metadata.has_response_status ? (int)request->response_status : 200;
     response->protocol = "HTTP/1.1";
     response->headers = (const haproxy_modsecurity_header *)request->headers;
     response->header_count = request->header_count;
     response->body = request->body;
-    response->body_len = bounded_body_length(request->body_len,
-        state->config.response_body_limit,
-        state->config.response_body_limit > 0U);
+    response->body_len = (unsigned int)request->body_len;
 }
 
 typedef enum spop_ack_decision_origin {
@@ -3669,6 +3825,25 @@ static int spop_owner_queue_submit(
         void *result,
         unsigned int timeout_ms);
 
+static void finish_production_response_transaction(
+        agent_state *state,
+        const notify_request *request,
+        haproxy_modsecurity_transaction *transaction,
+        haproxy_modsecurity_decision *decision,
+        spop_ack_decision_origin *decision_origin,
+        const char **decision_text,
+        int modsec_rc) {
+    const int phase = request->http_metadata.is_response_body ? 4 : 3;
+    if (modsec_rc != 0) {
+        haproxy_modsecurity_transaction_abort_with_error(transaction, decision->error_class);
+    } else if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
+        *decision_origin = SPOP_ACK_FAILURE_DECISION;
+        *decision_text = set_processing_failure(state, decision, phase,
+            "transaction finish failed");
+        (void)decision_log_write(state, request, decision, 0, *decision_text);
+    }
+}
+
 static void process_production_response_notify(
         agent_state *state,
         const notify_request *request,
@@ -3679,7 +3854,7 @@ static void process_production_response_notify(
     haproxy_modsecurity_response response;
     haproxy_modsecurity_transaction *transaction;
     int modsec_rc;
-    int phase = request->is_response_body ? 4 : 3;
+    int phase = request->http_metadata.is_response_body ? 4 : 3;
 
     if (!state->config.response_phases_enabled) {
         *decision_text = set_response_phase_disabled_failure(decision, phase);
@@ -3698,16 +3873,8 @@ static void process_production_response_notify(
         decision_log_write(state, request, decision, 0, *decision_text);
         return;
     }
-    if (body_exceeds_limit(request->body_len,
-            state->config.response_body_limit,
-            state->config.response_body_limit > 0U)) {
-        haproxy_modsecurity_transaction_abort(transaction);
-        *decision_text = set_body_limit_failure(decision, phase, 1);
-        decision_log_write(state, request, decision, 0, *decision_text);
-        return;
-    }
-    build_response_from_notify(request, state, &response);
-    if (request->is_response_body) {
+    build_response_from_notify(request, &response);
+    if (request->http_metadata.is_response_body) {
         /* SPOE/SPOP has no HTTP response-EOS field in this NOTIFY contract.
          * Append only; calling process_response_body() here would finalize P4
          * for every chunk.  The transaction remains bounded by the cache and
@@ -3731,32 +3898,36 @@ static void process_production_response_notify(
             *decision_text = decision->action;
         }
     }
-    if (request->is_response_body && modsec_rc == 0 &&
+    if (!decision_log_write(state, request, decision, *modsec_processed, *decision_text)) {
+        haproxy_modsecurity_transaction_abort(transaction);
+        return;
+    }
+    if (request->http_metadata.is_response_body && modsec_rc == 0 &&
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
             *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed while awaiting response EOS");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
-    } else if (!request->is_response_body && state->config.response_body_limit > 0U &&
+    } else if (!request->http_metadata.is_response_body &&
             decision->disruptive == 0) {
         if (transaction_cache_store(state, request->request_id, transaction) != 0) {
             haproxy_modsecurity_transaction_abort(transaction);
             *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, phase,
                 "transaction cache store failed after response headers");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
         }
     } else {
-        haproxy_modsecurity_transaction_finish(transaction);
+        finish_production_response_transaction(state, request, transaction,
+            decision, decision_origin, decision_text, modsec_rc);
     }
-    decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
 static void build_modsecurity_request_from_notify(
         const notify_request *request,
-        unsigned int body_limit,
-        int body_limit_enabled,
         const char *rules_file,
         haproxy_modsecurity_request *modsec_request) {
     memset(modsec_request, 0, sizeof(*modsec_request));
@@ -3767,11 +3938,12 @@ static void build_modsecurity_request_from_notify(
     modsec_request->server_port = request->has_server_port ? (int)request->server_port : 0;
     modsec_request->method = notify_request_method(request);
     modsec_request->uri = notify_request_uri(request);
+    modsec_request->http_version = request->http_metadata.has_http_version ?
+        request->http_metadata.http_version : NULL;
     modsec_request->headers = (const haproxy_modsecurity_header *)request->headers;
     modsec_request->header_count = request->header_count;
     modsec_request->body = request->body;
-    modsec_request->body_len = bounded_body_length(request->body_len,
-        body_limit, body_limit_enabled);
+    modsec_request->body_len = (unsigned int)request->body_len;
     modsec_request->rules_file = rules_file;
 }
 
@@ -3786,16 +3958,80 @@ static void finish_or_store_request_transaction(
         return;
     }
     if (decision->disruptive != 0 || !state->config.response_phases_enabled) {
-        haproxy_modsecurity_transaction_finish(transaction);
+        if (haproxy_modsecurity_transaction_finish_with_decision(transaction, decision) != 0) {
+            *decision_origin = SPOP_ACK_FAILURE_DECISION;
+            *decision_text = set_processing_failure(state, decision, decision->phase,
+                "transaction finish failed");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
+        }
         return;
     }
     if (transaction_cache_store(state, request->request_id, transaction) == 0) {
         return;
     }
-    haproxy_modsecurity_transaction_finish(transaction);
+    haproxy_modsecurity_transaction_abort_with_error(transaction,
+        MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     *decision_origin = SPOP_ACK_FAILURE_DECISION;
     *decision_text = set_processing_failure(state, decision, 2,
         "transaction cache store failed");
+    (void)decision_log_write(state, request, decision, 0, *decision_text);
+}
+
+static int parse_sample_content_length(const char *text, size_t *length)
+{
+    const unsigned char *value = (const unsigned char *)text;
+    size_t parsed = 0U;
+    if (*value == '\0') {
+        return -1;
+    }
+    for (; *value != '\0'; ++value) {
+        if (*value < '0' || *value > '9' ||
+                parsed > (SIZE_MAX - (*value - '0')) / 10U) {
+            return -1;
+        }
+        parsed = parsed * 10U + (*value - '0');
+    }
+    *length = parsed;
+    return 0;
+}
+
+static int notify_request_has_complete_body_sample(const notify_request *request)
+{
+    size_t declared_length = 0U;
+    int has_content_length = 0;
+
+    if (!request->http_metadata.has_http_version ||
+            (strcmp(request->http_metadata.http_version, "1.0") != 0 &&
+             strcmp(request->http_metadata.http_version, "1.1") != 0 &&
+             strcmp(request->http_metadata.http_version, "2.0") != 0) ||
+            !request->has_body || !request->has_body_len_arg ||
+            (!request->has_headers_bin && !request->has_headers_text) ||
+            request->body_len > UINT_MAX ||
+            request->body_len != (size_t)request->http_metadata.advertised_body_len) {
+        return 0;
+    }
+    for (unsigned int index = 0U; index < request->header_count; ++index) {
+        const runtime_header *header = &request->headers[index];
+        if (strcasecmp(header->name, "Transfer-Encoding") == 0) {
+            /* body_size is only the currently advertised chunk total for
+             * chunked input. This protocol has no trusted HTTP EOM marker. */
+            return 0;
+        }
+        if (strcasecmp(header->name, "Content-Length") == 0) {
+            if (has_content_length ||
+                    parse_sample_content_length(header->value, &declared_length) != 0) {
+                return 0;
+            }
+            has_content_length = 1;
+        }
+    }
+    /* Only HTTP/1 without framing proves an empty request. HTTP/2 and /3
+     * can carry future DATA without Content-Length; no HTTP EOM marker is
+     * available here. Positive samples require an unambiguous total. */
+    return declared_length == request->body_len &&
+        (has_content_length || (request->body_len == 0U &&
+         request->http_metadata.has_http_version && request->http_metadata.http_version[0] == '1'));
+
 }
 
 static void process_production_request_notify(
@@ -3816,15 +4052,21 @@ static void process_production_request_notify(
         decision_log_write(state, request, decision, 0, *decision_text);
         return;
     }
-    if (body_exceeds_limit(request->body_len, state->config.request_body_limit, 1)) {
-        *decision_text = set_body_limit_failure(decision, 2, 0);
+    /* This route owns one complete SPOP sample, not a request streaming
+     * protocol. Reject incomplete representation as transport admission, not
+     * an Engine body-limit result or an invented inspection prefix. */
+    if (!notify_request_has_complete_body_sample(request)) {
+        *decision_text = set_admission_failure(decision, 2,
+            "incomplete SPOP request body sample is unsupported");
         decision_log_write(state, request, decision, 0, *decision_text);
         return;
     }
-    build_modsecurity_request_from_notify(request, state->config.request_body_limit,
-        1, 0, &modsec_request);
-    modsec_rc = haproxy_modsecurity_transaction_begin(
-        state->engine, &modsec_request, decision, &transaction);
+    build_modsecurity_request_from_notify(request, 0, &modsec_request);
+    modsec_rc = state->config.response_phases_enabled ?
+        haproxy_modsecurity_transaction_begin(
+            state->engine, &modsec_request, decision, &transaction) :
+        haproxy_modsecurity_transaction_begin_request_authorization(
+            state->engine, &modsec_request, decision, &transaction);
     if (modsec_rc != 0) {
         const char *reason = decision->log_message[0] != '\0' ?
             decision->log_message : "ModSecurity request processing failed";
@@ -3841,6 +4083,12 @@ static void process_production_request_notify(
             *decision_text = decision->action;
         }
     }
+    if (!decision_log_write(state, request, decision, *modsec_processed, *decision_text)) {
+        if (transaction != NULL) {
+            haproxy_modsecurity_transaction_abort(transaction);
+        }
+        return;
+    }
     if (modsec_rc == 0 && decision->disruptive == 0 &&
             strcmp(state->config.response_companion, "native-htx") == 0) {
         struct timespec now;
@@ -3854,11 +4102,12 @@ static void process_production_request_notify(
             *decision_origin = SPOP_ACK_FAILURE_DECISION;
             *decision_text = set_processing_failure(state, decision, 2,
                 "response companion clock unavailable");
+            (void)decision_log_write(state, request, decision, 0, *decision_text);
         } else {
             now_ms = (uint64_t)now.tv_sec * UINT64_C(1000) +
                 (uint64_t)now.tv_nsec / UINT64_C(1000000);
-            if (!msconnector_response_companion_transport_ensure_running(
-                    &state->response_transport, &companion_error) ||
+            if (msconnector_response_companion_transport_ensure_running(
+                    &state->response_transport, &companion_error) != 1 ||
                     haproxy_modsecurity_transaction_handoff_response_companion(transaction) != 0 ||
                     !haproxy_spop_response_companion_handoff(
                         &state->response_backend, transaction, now_ms,
@@ -3869,6 +4118,7 @@ static void process_production_request_notify(
                 *decision_origin = SPOP_ACK_FAILURE_DECISION;
                 *decision_text = set_processing_failure(state, decision, 2,
                     "response companion handoff failed closed");
+                (void)decision_log_write(state, request, decision, 0, *decision_text);
             } else {
                 transaction = 0;
             }
@@ -3876,7 +4126,6 @@ static void process_production_request_notify(
     }
     finish_or_store_request_transaction(state, request, transaction, decision,
         decision_origin, decision_text);
-    decision_log_write(state, request, decision, *modsec_processed, *decision_text);
 }
 
 static void submit_production_notify_task(
@@ -3926,8 +4175,8 @@ static int process_production_notify(
     int enforce;
     spop_ack_decision_origin decision_origin = SPOP_ACK_FAILURE_DECISION;
     int phase = 2;
-    if (request->is_response) {
-        phase = request->is_response_body ? 4 : 3;
+    if (request->http_metadata.is_response) {
+        phase = request->http_metadata.is_response_body ? 4 : 3;
     }
     char response_handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE];
 
@@ -3938,18 +4187,24 @@ static int process_production_notify(
     result.decision_origin = &decision_origin;
     result.decision_text = &decision_text;
     result.response_handle = response_handle;
-    if (request->is_response && !state->config.response_phases_enabled) {
+    if (request->http_metadata.is_response && !state->config.response_phases_enabled) {
         /* Reject before owner-queue admission: this agent cannot legitimately
          * own a response transaction, even if the queue is unavailable. */
         decision_text = set_response_phase_disabled_failure(&decision, phase);
         decision_log_write(state, request, &decision, 0, decision_text);
-    } else if (!request->is_response &&
+    } else if (!request->http_metadata.is_response &&
             !notify_request_has_required_endpoints(request)) {
         decision_text = set_admission_failure(&decision, phase,
             "missing client or server endpoint");
         decision_log_write(state, request, &decision, 0, decision_text);
     } else {
         submit_production_notify_task(state, request, phase, &result);
+    }
+    /* No successful ACK, rule block, fail-open fallback, or companion handle
+     * publication can hide a mandatory physical event-sink failure. Preserve
+     * the existing technical decision; the peer closes this failed operation. */
+    if (decision_log_failed(state)) {
+        return -1;
     }
     enforce = protocol_failure_requires_enforcement(decision_text) ||
         production_ack_enforces(&state->config, decision_origin);
@@ -3974,7 +4229,10 @@ static void run_spop_production_task(void *opaque)
 {
     spop_production_task_context *context = (spop_production_task_context *)opaque;
 
-    if (context->request.is_response) {
+    if (decision_log_failed(context->state)) {
+        return;
+    }
+    if (context->request.http_metadata.is_response) {
         process_production_response_notify(context->state, &context->request,
             &context->decision, &context->modsec_processed,
             &context->decision_origin, &context->decision_text);
@@ -4435,9 +4693,13 @@ typedef struct spop_bridge_task_context {
      * was borrowed from that callback. */
     haproxy_spop_response_companion_decision_storage decision_storage;
     msconnector_decision decision;
+    msconnector_decision outcome_decision;
+    haproxy_spop_response_companion_decision_storage outcome_storage;
     msconnector_error error;
     int success;
     int transaction_consumed;
+    int error_event_attempted;
+    char transaction_id[128];
 } spop_bridge_task_context;
 
 typedef struct spop_bridge_task_result {
@@ -4488,19 +4750,24 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
             return 0;
         }
         msconnector_decision_set_allow(destination);
+        destination->phase = source->phase;
         return 1;
     }
     if (storage == NULL || source->rule_id != NULL || source->reason == NULL ||
             source->log_message != NULL || !source->intervention.disruptive ||
             source->intervention.status != source->http_status ||
-            source->intervention.log_message != source->reason) {
+            source->intervention.log_message == NULL) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP response decision has an unsupported borrowed-text shape",
             "haproxy-spoe-spop");
         return 0;
     }
+    /* Common owns each decision text field independently. Equal native
+     * metadata need not retain pointer aliases across that boundary. */
     if (!copy_bridge_native_decision_text(storage->log_message,
-            sizeof(storage->log_message), source->reason)) {
+            sizeof(storage->log_message), source->reason) ||
+            strncmp(source->intervention.log_message, storage->log_message,
+                sizeof(storage->log_message)) != 0) {
         msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
             "SPOP response decision log text exceeds bounded storage",
             "haproxy-spoe-spop");
@@ -4508,9 +4775,11 @@ static int copy_spop_bridge_decision(msconnector_decision *destination,
     }
     if (source->kind == MSCONNECTOR_DECISION_KIND_REDIRECT) {
         if (source->redirect_url == NULL ||
-                source->intervention.redirect_url != source->redirect_url ||
+                source->intervention.redirect_url == NULL ||
                 !copy_bridge_native_decision_text(storage->redirect_url,
-                    sizeof(storage->redirect_url), source->redirect_url)) {
+                    sizeof(storage->redirect_url), source->redirect_url) ||
+                strncmp(source->intervention.redirect_url, storage->redirect_url,
+                    sizeof(storage->redirect_url)) != 0) {
             msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
                 "SPOP response redirect exceeds bounded storage",
                 "haproxy-spoe-spop");
@@ -4546,6 +4815,8 @@ static void destroy_spop_bridge_task(void *opaque) {
     if (context != NULL) {
         msconnector_secure_zero(&context->decision_storage,
             sizeof(context->decision_storage));
+        msconnector_secure_zero(&context->outcome_storage,
+            sizeof(context->outcome_storage));
     }
     free(context);
 }
@@ -4566,6 +4837,18 @@ static void copy_spop_bridge_result(const void *opaque, void *result) {
     }
 }
 
+static enum msconnector_phase bridge_phase_from_native_decision(int phase)
+{
+    switch (phase) {
+    case 1: return MSCONNECTOR_PHASE_REQUEST_HEADERS;
+    case 2: return MSCONNECTOR_PHASE_REQUEST_BODY;
+    case 3: return MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    case 4: return MSCONNECTOR_PHASE_RESPONSE_BODY;
+    case 5: return MSCONNECTOR_PHASE_LOGGING;
+    default: return MSCONNECTOR_PHASE_CONNECTION;
+    }
+}
+
 static int set_bridge_native_decision(spop_bridge_task_context *context,
         const haproxy_modsecurity_decision *native_decision)
 {
@@ -4576,6 +4859,7 @@ static int set_bridge_native_decision(spop_bridge_task_context *context,
     }
     if (native_decision->disruptive == 0) {
         msconnector_decision_set_allow(&context->decision);
+        context->decision.phase = bridge_phase_from_native_decision(native_decision->phase);
         return 1;
     }
     storage = context->command.decision_storage;
@@ -4594,7 +4878,116 @@ static int set_bridge_native_decision(spop_bridge_task_context *context,
         msconnector_decision_set_deny(&context->decision,
             native_decision->status, NULL, storage->log_message);
     }
+    context->decision.phase = bridge_phase_from_native_decision(native_decision->phase);
     return 1;
+}
+
+static int spop_bridge_error_event_flush(spop_bridge_task_context *context,
+        haproxy_modsecurity_decision *native_decision, msconnector_error *error) {
+    char line[4096];
+    const int rendered = context->transaction_consumed ?
+        haproxy_modsecurity_error_event_write_checked(native_decision,
+            context->transaction_id, line, sizeof(line), error) :
+        haproxy_modsecurity_transaction_error_event_write_checked(context->transaction,
+            native_decision, line, sizeof(line), error);
+    if (!rendered) {
+        return 0;
+    }
+    if (line[0] == '\0') {
+        return 1;
+    }
+    if (!msconnector_event_file_write(context->state->decision_log, line, error)) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_IO,
+            "SPOP response event sink write or flush failed", "haproxy-spoe-spop");
+        return 0;
+    }
+    return 1;
+}
+
+static int spop_bridge_error_event_write(spop_bridge_task_context *context,
+        haproxy_modsecurity_decision *native_decision)
+{
+    agent_state *state = context->state;
+    msconnector_error error;
+    int success = 0;
+    if (state == NULL || !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        if (context->error.code == MSCONNECTOR_ERROR_NONE) {
+            msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
+                "SPOP response event sink is unavailable", "haproxy-spoe-spop");
+        }
+        return 0;
+    }
+    error = state->decision_log_error;
+    if (error.code != MSCONNECTOR_ERROR_NONE) {
+        goto finish;
+    }
+    if (context->error_event_attempted) {
+        success = 1;
+        goto finish;
+    }
+    context->error_event_attempted = 1;
+    if (state->decision_log == NULL) {
+        success = state->config.decision_log[0] == '\0';
+        if (!success) {
+            msconnector_error_set(&error, MSCONNECTOR_ERROR_IO,
+                "SPOP response event sink is unavailable", "haproxy-spoe-spop");
+        }
+        goto finish;
+    }
+    success = spop_bridge_error_event_flush(context, native_decision, &error);
+finish:
+    if (error.code != MSCONNECTOR_ERROR_NONE) {
+        state->decision_log_error = error;
+        if (context->error.code == MSCONNECTOR_ERROR_NONE) {
+            context->error = error;
+        }
+    }
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return success;
+}
+
+/* The native decision stays in its owner. Only an accepted OUTCOME supplies
+ * an actual host translation; write before RELEASE consumes that native owner. */
+static int spop_bridge_outcome_event_write(spop_bridge_task_context *context)
+{
+    agent_state *state = context->state;
+    msconnector_event event;
+    char line[8192];
+    int success;
+    int event_result = haproxy_modsecurity_transaction_response_event(context->transaction,
+        context->command.decision, &event, &context->error);
+    if (event_result == 0) { return 0; }
+    if (state == NULL || !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        msconnector_error_set(&context->error, MSCONNECTOR_ERROR_IO,
+            "SPOP response event sink is unavailable", "haproxy-spoe-spop");
+        return 0;
+    }
+    if (event_result == 2 ||
+            (state->decision_log == NULL && state->config.decision_log[0] == '\0')) {
+        success = state->decision_log_error.code == MSCONNECTOR_ERROR_NONE;
+    } else {
+        success = msconnector_event_write_jsonl_stream(&event, state->decision_log,
+            line, sizeof(line), &state->decision_log_error);
+    }
+    if (!success && context->error.code == MSCONNECTOR_ERROR_NONE) {
+        context->error = state->decision_log_error;
+    }
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return success;
+}
+
+static msconnector_transaction_error_class spop_bridge_terminal_error(
+        const haproxy_spop_response_companion_owner_command *command)
+{
+    if (command->operation != HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL) {
+        return command->error_class;
+    }
+    if (command->connection_aborted) {
+        return MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT;
+    }
+    return MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL;
 }
 
 static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
@@ -4639,22 +5032,97 @@ static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
         context->success = haproxy_modsecurity_transaction_record_response_companion_outcome(
             context->transaction, command->action, command->transport_result,
             command->visible_http_status, command->connection_aborted) == 0;
+        if (context->success) {
+            context->success = spop_bridge_outcome_event_write(context);
+        }
         break;
     case HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE:
-        context->success = haproxy_modsecurity_transaction_finish(
-            context->transaction) == 0;
+        context->success = haproxy_modsecurity_transaction_finish_with_decision(
+            context->transaction, native_decision) == 0;
         context->transaction_consumed = 1;
         break;
     case HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL:
     case HAPROXY_SPOP_RESPONSE_COMPANION_EXPIRE:
     case HAPROXY_SPOP_RESPONSE_COMPANION_FAIL:
-        haproxy_modsecurity_transaction_abort(context->transaction);
+        native_decision->error_class = spop_bridge_terminal_error(command);
+        native_decision->phase = 4;
+        context->success = spop_bridge_error_event_write(context, native_decision);
+        haproxy_modsecurity_transaction_abort_with_error(context->transaction,
+            native_decision->error_class);
         context->transaction_consumed = 1;
-        context->success = 1;
         break;
     default:
         break;
     }
+}
+
+static msconnector_transaction_error_class spop_bridge_operation_error(
+        const spop_bridge_task_context *context,
+        const haproxy_modsecurity_decision *native_decision)
+{
+    if (native_decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return native_decision->error_class;
+    }
+    if (context->transaction_consumed) {
+        return MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+    }
+    const msconnector_transaction_error_class retained_error =
+        haproxy_modsecurity_transaction_error(context->transaction);
+    if (retained_error == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE;
+    }
+    return retained_error;
+}
+
+static msconnector_error_code spop_bridge_error_code(
+        msconnector_transaction_error_class error_class)
+{
+    switch (error_class) {
+    case MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT: return MSCONNECTOR_ERROR_BODY_TOO_LARGE;
+    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE: return MSCONNECTOR_ERROR_MODSECURITY_FAILURE;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT: return MSCONNECTOR_ERROR_TIMEOUT;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE: return MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE;
+    case MSCONNECTOR_TRANSACTION_ERROR_EVENT_LIMIT: return MSCONNECTOR_ERROR_EVENT_TOO_LARGE;
+    case MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR: return MSCONNECTOR_ERROR_HOST_API_FAILURE;
+    case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL: return MSCONNECTOR_ERROR_PROTOCOL;
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISSING: return MSCONNECTOR_ERROR_CORRELATION_MISSING;
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_EXPIRED: return MSCONNECTOR_ERROR_CORRELATION_EXPIRED;
+    case MSCONNECTOR_TRANSACTION_ERROR_CORRELATION_MISMATCH: return MSCONNECTOR_ERROR_CORRELATION_MISMATCH;
+    case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL:
+    case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT: return MSCONNECTOR_ERROR_IO;
+    case MSCONNECTOR_TRANSACTION_ERROR_CLEANUP_INCOMPLETE: return MSCONNECTOR_ERROR_INTERNAL;
+    default: return MSCONNECTOR_ERROR_PHASE_SEQUENCE;
+    }
+}
+
+static void record_spop_bridge_operation_failure(spop_bridge_task_context *context,
+        haproxy_modsecurity_decision *native_decision)
+{
+    const msconnector_transaction_error_class error_class =
+        spop_bridge_operation_error(context, native_decision);
+    if (context->error.code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(&context->error, spop_bridge_error_code(error_class),
+            "SPOP response companion owner operation failed", "haproxy-spoe-spop");
+    }
+    if (native_decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        native_decision->error_class = error_class;
+        native_decision->phase = context->command.operation ==
+            HAPROXY_SPOP_RESPONSE_COMPANION_RESPONSE_HEADERS ? 3 : 4;
+    }
+    spop_bridge_error_event_write(context, native_decision);
+}
+
+static int spop_bridge_sink_ready(spop_bridge_task_context *context) {
+    agent_state *state = context->state;
+    if (state == NULL || !state->decision_log_lock_initialized ||
+            pthread_mutex_lock(&state->decision_log_lock) != 0) {
+        msconnector_error_set(&context->error, MSCONNECTOR_ERROR_INTERNAL,
+            "SPOP response event sink is unavailable", "haproxy-spoe-spop");
+        return 0;
+    }
+    context->error = state->decision_log_error;
+    (void)pthread_mutex_unlock(&state->decision_log_lock);
+    return context->error.code == MSCONNECTOR_ERROR_NONE;
 }
 
 static void run_spop_bridge_task(void *opaque) {
@@ -4667,11 +5135,25 @@ static void run_spop_bridge_task(void *opaque) {
     msconnector_error_init(&context->error);
     msconnector_decision_init(&context->decision);
     memset(&native_decision, 0, sizeof(native_decision));
+    (void)snprintf(context->transaction_id, sizeof(context->transaction_id), "%s",
+        haproxy_modsecurity_transaction_id(context->transaction));
     context->success = 0;
+    if (!spop_bridge_sink_ready(context)) {
+        const int operation = context->command.operation;
+        if (operation == HAPROXY_SPOP_RESPONSE_COMPANION_RELEASE ||
+                operation == HAPROXY_SPOP_RESPONSE_COMPANION_CANCEL ||
+                operation == HAPROXY_SPOP_RESPONSE_COMPANION_EXPIRE ||
+                operation == HAPROXY_SPOP_RESPONSE_COMPANION_FAIL) {
+            haproxy_modsecurity_transaction_abort_with_error(context->transaction,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+            context->transaction_consumed = 1;
+        }
+        return;
+    }
     run_spop_bridge_native_operation(context, &native_decision);
     if (!context->success) {
-        msconnector_error_set(&context->error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
-            "SPOP response companion owner operation failed", "haproxy-spoe-spop");
+        record_spop_bridge_operation_failure(context, &native_decision);
+        return;
     }
     if (!set_bridge_native_decision(context, &native_decision)) {
         context->success = 0;
@@ -4761,6 +5243,9 @@ static int prepare_spop_bridge_outcome(
     }
     memcpy(context->transport_result, command->transport_result, result_len + 1U);
     context->command.transport_result = context->transport_result;
+    if (!copy_spop_bridge_decision(&context->outcome_decision,
+            &context->outcome_storage, command->decision, error)) { return -1; }
+    context->command.decision = &context->outcome_decision;
     return 0;
 }
 
@@ -5038,17 +5523,6 @@ static int run_spop_owner_queue_self_test(void)
     return rc;
 }
 
-static int run_spop_body_limit_self_test(void)
-{
-    if (body_exceeds_limit(1024U, 1024U, 1) ||
-            !body_exceeds_limit(1025U, 1024U, 1) ||
-            !body_exceeds_limit(SIZE_MAX, 1024U, 1) ||
-            body_exceeds_limit(SIZE_MAX, 1024U, 0)) {
-        return -1;
-    }
-    return 0;
-}
-
 static int run_spop_request_id_validation_self_test(void)
 {
     static const unsigned char valid[] = {
@@ -5094,6 +5568,129 @@ static int run_spop_request_id_validation_self_test(void)
         }
     }
     return 0;
+}
+
+static int self_test_rejects_sample_at_admission(notify_request *request)
+{
+    agent_state state;
+    haproxy_modsecurity_decision decision;
+    int processed = 0;
+    spop_ack_decision_origin origin = SPOP_ACK_FAILURE_DECISION;
+    const char *text = NULL;
+    char handle[HAPROXY_SPOP_RESPONSE_COMPANION_HANDLE_STORAGE] = {0};
+    memset(&state, 0, sizeof(state));
+    memset(&decision, 0, sizeof(decision));
+    request->has_client_ip = 1;
+    request->has_server_ip = 1;
+    strcpy(request->client_ip, "127.0.0.1");
+    strcpy(request->server_ip, "127.0.0.1");
+    process_production_request_notify(&state, request, &decision,
+        &processed, &origin, &text, handle);
+    return !processed && decision.disruptive && decision.status == 503 &&
+        !decision.body_limit && text != NULL &&
+        strcmp(text, "admission-failure") == 0 && handle[0] == '\0' ? 0 : -1;
+}
+
+static int run_spop_sample_framing_self_test(void)
+{
+    static const char *lengths[] = {"4", "", "-1", "+4", "4,4", "4 ",
+        "184467440737095516160", "5"};
+    for (size_t index = 0U; index < sizeof(lengths) / sizeof(lengths[0]); ++index) {
+        notify_request request;
+        memset(&request, 0, sizeof(request));
+        request.has_headers_bin = 1;
+        request.has_body = 1;
+        request.has_body_len_arg = 1;
+        request.body_len = 4U;
+        request.http_metadata.advertised_body_len = 4U;
+        int result = add_request_header(&request,
+            (const unsigned char *)"Content-Length", 14U,
+            (const unsigned char *)lengths[index], strlen(lengths[index]));
+        int complete = notify_request_has_complete_body_sample(&request);
+        if (result != 0 || complete != (index == 0U)) {
+            free_notify_request(&request);
+            return -1;
+        }
+        if (index == 0U) {
+            result = add_request_header(&request,
+                (const unsigned char *)"Content-Length", 14U,
+                (const unsigned char *)"4", 1U);
+            complete = notify_request_has_complete_body_sample(&request);
+        }
+        free_notify_request(&request);
+        if (result != 0 || complete) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int run_spop_sample_typed_arguments_self_test(void)
+{
+    static const unsigned char invalid_types[] = {0U, SPOP_DATA_BOOL,
+        SPOP_DATA_STR, SPOP_DATA_BIN};
+    for (size_t index = 0U; index < sizeof(invalid_types); ++index) {
+        notify_request request;
+        unsigned char input[] = {invalid_types[index], 0U};
+        size_t pos = 0U;
+        memset(&request, 0, sizeof(request));
+        int body_result = parse_notify_body_argument(&request, input,
+            sizeof(input), &pos, 0);
+        free_notify_request(&request);
+        if (body_result == 0 && index < 2U) {
+            return -1;
+        }
+        pos = 0U;
+        if (parse_notify_body_length_argument(&request,
+                (const unsigned char *)"body_len", 8U, input,
+                sizeof(input), &pos) == 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int run_spop_incomplete_request_sample_self_test(void)
+{
+    notify_request request;
+    memset(&request, 0, sizeof(request));
+    if (notify_request_has_complete_body_sample(&request) ||
+            self_test_rejects_sample_at_admission(&request) != 0) {
+        return -1;
+    }
+    request.has_headers_bin = 1;
+    request.has_body = 1;
+    request.has_body_len_arg = 1;
+    if (notify_request_has_complete_body_sample(&request)) {
+        return -1;
+    }
+    request.http_metadata.has_http_version = 1;
+    strcpy(request.http_metadata.http_version, "2.0");
+    if (notify_request_has_complete_body_sample(&request)) {
+        return -1;
+    }
+    strcpy(request.http_metadata.http_version, "1.1");
+    /* Explicit empty HTTP/1 input with complete unframed headers is legitimate. */
+    if (!notify_request_has_complete_body_sample(&request)) {
+        return -1;
+    }
+    request.body_len = 4U;
+    request.http_metadata.advertised_body_len = 4U;
+    /* Matching prefix lengths alone do not establish complete framing. */
+    if (notify_request_has_complete_body_sample(&request)) {
+        return -1;
+    }
+    request.body_len = 0U;
+    request.http_metadata.advertised_body_len = 0U;
+    if (add_request_header(&request, (const unsigned char *)"Transfer-Encoding",
+            17U, (const unsigned char *)"chunked", 7U) != 0 ||
+            notify_request_has_complete_body_sample(&request)) {
+        free_notify_request(&request);
+        return -1;
+    }
+    free_notify_request(&request);
+    return run_spop_sample_framing_self_test() == 0 &&
+        run_spop_sample_typed_arguments_self_test() == 0 ? 0 : -1;
 }
 
 static int run_spop_notify_failure_self_test(void)
@@ -5389,7 +5986,7 @@ static int evaluate_legacy_notify(
     haproxy_modsecurity_request modsec_request;
 
     if (rules_file != 0 && rules_file[0] != '\0') {
-        build_modsecurity_request_from_notify(request, 0U, 0, rules_file,
+        build_modsecurity_request_from_notify(request, rules_file,
             &modsec_request);
         log_line(log, "rules file loaded path=%s", rules_file);
         return haproxy_modsecurity_eval_request(&modsec_request, decision);
@@ -5486,7 +6083,7 @@ static int handle_notify_frame(
         "NOTIFY request metadata method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu",
         request.has_method, request.has_path, request.has_uri, request.has_host,
         request.has_test_header, request.header_count, (unsigned long)request.body_len);
-    if (!request.is_response && (!request.has_host ||
+    if (!request.http_metadata.is_response && (!request.has_host ||
             request.host[0] == '\0')) {
         log_line(log, "NOTIFY rejected: missing request host");
         free_notify_request(&request);
@@ -5945,7 +6542,21 @@ static int run_spop_malformed_notify_socket_self_test(void)
         close(sockets[1]);
         return -1;
     }
+    /* Match the production owner lifecycle even when the decision sink is
+     * omitted: mandatory event admission still uses its initialized lock. */
+    if (pthread_mutex_init(&production_state.decision_log_lock, NULL) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    production_state.decision_log_lock_initialized = 1;
     rc = handle_connection(sockets[0], &production_state, stderr, 0, 0, 2000U);
+    if (pthread_mutex_destroy(&production_state.decision_log_lock) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return -1;
+    }
+    production_state.decision_log_lock_initialized = 0;
     if (rc == 0 || client_expect_frame(sockets[1], SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
             client_expect_malformed_ack(sockets[1], 1U, 1U) != 0) {
         close(sockets[0]);
@@ -6059,9 +6670,9 @@ static int run_spop_protocol_self_tests(void)
     if (self_test_rejects_oversized_endpoint_port() != 0 ||
             self_test_rejects_fin_unset_frame() != 0 ||
             run_spop_owner_queue_self_test() != 0 ||
-            run_spop_body_limit_self_test() != 0 ||
             run_spop_request_id_validation_self_test() != 0 ||
             run_spop_notify_failure_self_test() != 0 ||
+            run_spop_incomplete_request_sample_self_test() != 0 ||
             run_spop_malformed_notify_socket_self_test() != 0 ||
             run_spop_write_deadline_self_test() != 0 ||
             run_spop_peer_close_write_self_test() != 0) {
@@ -6340,6 +6951,16 @@ static int run_server(const legacy_server_config *config) {
     return accept_rc == 0 ? 0 : 1;
 }
 
+static FILE *open_private_event_stream(const char *path)
+{
+    int fd = -1;
+    FILE *file;
+    if (!msconnector_open_private_event_file(path, &fd)) { return NULL; }
+    file = fdopen(fd, "a");
+    if (file == NULL) { (void)close(fd); }
+    return file;
+}
+
 static FILE *open_append_file_or_standard(const char *path, FILE *standard_file) {
     char dir[4096];
 
@@ -6387,7 +7008,8 @@ static int open_agent_logs(
     if (config->decision_log[0] == '\0') {
         return 0;
     }
-    *decision_log = open_append_file_or_standard(config->decision_log, stdout);
+    *decision_log = config->decision_log[0] == '\0' ? stdout :
+        open_private_event_stream(config->decision_log);
     if (*decision_log == 0) {
         if (stderr != NULL) {
             fprintf(stderr, "failed to open decision log: %s\n",
@@ -6642,9 +7264,8 @@ static int initialize_native_response_companion(
 
     if (config->response_companion_uid != (unsigned int)geteuid() ||
             config->response_companion_gid != (unsigned int)getegid() ||
-            config->response_companion_socket[0] == '\0' ||
-            config->response_body_limit == 0U) {
-        fprintf(stderr, "native-htx companion requires explicit private socket, matching uid/gid and response-body-limit\n");
+            config->response_companion_socket[0] == '\0') {
+        fprintf(stderr, "native-htx companion requires explicit private socket, matching uid/gid\n");
         return -1;
     }
     state->response_slots = calloc(capacity, sizeof(*state->response_slots));
@@ -6670,7 +7291,7 @@ static int initialize_native_response_companion(
             &state->response_transport, &backend_vtable,
             &(msconnector_response_companion_transport_options){
                 "haproxy-spoe-spop", config->response_companion_socket,
-                SPOP_BRIDGE_MAX_HEADERS, 65536U, config->response_body_limit,
+                SPOP_BRIDGE_MAX_HEADERS, 65536U,
                 config->spoe_timeout_ms},
             &companion_error) ||
             !msconnector_response_companion_transport_start(
@@ -6735,11 +7356,10 @@ static int run_agent_server(const agent_config *config) {
         goto cleanup;
     }
     log_line(log,
-        "HAProxy ModSecurity SPOA production agent listening on %s:%u rules_file=%s rules_dir=%s modsecurity_conf=%s crs_root=%s mode=%s fail_mode=%s response_phases=%d response_body_limit=%u",
+        "HAProxy ModSecurity SPOA production agent listening on %s:%u rules_file=%s rules_dir=%s modsecurity_conf=%s crs_root=%s mode=%s fail_mode=%s response_phases=%d",
         config->host, bound_port, config->rules_file, config->rules_dir,
         config->modsecurity_conf, config->crs_root, config->mode,
-        config->fail_mode, config->response_phases_enabled,
-        config->response_body_limit);
+        config->fail_mode, config->response_phases_enabled);
     {
         const spop_accept_loop_config accept_config = {
             listen_fd, &state, log, 0, 0, 0,
@@ -6888,30 +7508,23 @@ static int validate_production_config(const agent_config *config) {
     /* Raw SPOE/SPOP has no HTTP response-EOS transport.  native-htx is the
      * explicit owner-preserving deployment: SPOP publishes one bounded opaque
      * handle, while the HTX filter claims it for P3/P4.  Bind its private UDS
-     * endpoint, peer identity, and response-body limit before the agent can
+     * endpoint and peer identity before the agent can
      * start; the SPOP process must never fabricate an HTX callback or expose
      * a native transaction pointer. */
     if (strcmp(config->response_companion, "native-htx") == 0 &&
             (config->response_companion_socket[0] == '\0' ||
              config->response_companion_uid == UINT_MAX ||
-             config->response_companion_gid == UINT_MAX ||
-             config->response_body_limit == 0U)) {
+             config->response_companion_gid == UINT_MAX)) {
         fprintf(stderr,
-            "native-htx requires response-companion-socket, response-companion-uid/gid and response-body-limit\n");
+            "native-htx requires response-companion-socket, response-companion-uid/gid\n");
         return -1;
     }
     /* native-htx is a complete response companion: the SPOP owner publishes
      * one bounded handle and the native HTX filter claims it before P3, sends
      * borrowed P4 chunks, and closes at exactly one response EOS.  The
-     * deployment-specific private socket/UID/GID/body-limit checks above are
+     * deployment-specific private socket/UID/GID checks above are
      * mandatory; the combined host lifecycle is covered by the connector
      * harness and component tests. */
-    if (strcmp(config->response_companion, "none") == 0 &&
-            config->response_body_limit > 0U) {
-        fprintf(stderr,
-            "response-body-limit is unsupported with response-companion=none: selected SPOE/SPOP has no response EOS\n");
-        return -1;
-    }
     if (strcmp(config->response_companion, "none") == 0 &&
             config->response_body_timeout_ms > 0U) {
         fprintf(stderr,

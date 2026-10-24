@@ -1,5 +1,7 @@
 # HAProxy Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: partial; historical SPOA runtime records do not promote canonical
@@ -32,8 +34,7 @@ The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
 `REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 `REQUEST_COOKIES_NAMES`, `REQUEST_BODY`, `FILES`, and `XML`. URL-encoded,
 JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
-evidence, limited by HAProxy request buffering, SPOE frame size, and configured
-request-body limits. Response-header and audit-log paths use SPOE response
+evidence, limited by HAProxy request buffering, SPOE frame size, and the single request-body sample. Response-header and audit-log paths use SPOE response
 messages. A separate HTX observer overlay is selected by the full-lifecycle
 profile through `full-lifecycle-haproxy-htx` and has a dedicated real-host
 transport smoke for incremental request and response chunks. It remains
@@ -236,8 +237,9 @@ cancel, timeout, and cleanup abort the transaction; an SPOP notification or
 `wait-for-body` sample is never an EOS signal.
 
 The production SPOP agent accepts `response-companion=native-htx` only with an
-explicit private companion socket, matching uid/gid, and a non-zero bounded
-response-body limit. The implemented combined profile registers the HTX request
+explicit private companion socket and matching uid/gid.
+The removed `response-body-limit` option is rejected; engine directives alone
+configure response inspection limits. The implemented combined profile registers the HTX request
 data filter after P1, binds the SPOP-published opaque handle to
 `stream->uniq_id`, and invokes the common response-header/DATA/EOS callbacks
 from HAProxy's `http_payload`/`http_end` hooks. A missing, malformed, expired,
@@ -306,6 +308,10 @@ capabilities.
 
 ## Phase-4 mode and response-body limit ownership
 
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
+
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through
@@ -328,3 +334,49 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+The SPOE/SPOP profile transports one request-body sample in a frame of at most 65536 bytes, including metadata. It does not implement incremental request transport. If the advertised body length differs from the delivered sample, the agent rejects the incomplete representation as an unsupported transport admission; this is not a BODY_LIMIT result. Native HTX passes complete borrowed DATA slices incrementally. The smoke helper’s test upstream retains its 64 KiB request/response fixture capacity; those harness tests do not prove larger host bodies.
+
+## Physical Common decision sinks
+
+The native HTX filter accepts the optional `events-file /task/common-events.jsonl`
+argument. Use a private regular append file owned by the runtime uid with mode
+`0600`; every parent component must satisfy the existing trusted-parent policy.
+The shared opener rejects symlinks in every component. Configured SPOP decision
+logs use the same opener. An unsafe path fails initialization; there is no
+fallback to another event destination.
+
+The native filter writes bounded Common JSONL metadata for disruptive native
+decisions and technical causes. It excludes body bytes, headers, URI and native
+log text. Ordinary Allow produces no invented decision event. A mutex protects
+the configured stream; serialization, `fputs`, `ferror`, `fflush` and `fclose`
+are checked, the first sink error is sticky, and subsequent requests fail closed
+on that sink failure. A failed native decision write retains its observed phase
+and any earlier technical cause. Closing consumes the owned stream once.
+Successful flushing proves stream acceptance, not durable storage or client
+transport. Native filter deinitialization can alert on close failure but cannot
+set a process exit status through its void callback.
+
+For the response companion, the native owner emits a decision event only after
+validated OUTCOME and before RELEASE. Phase, decision kind, native status and
+rule identity are checked against the held native transaction; queued metadata
+is copied into owned bounded storage. Valid P4 Allow may record OUTCOME from
+the completed state without an invented P4 decision event. The owner cannot
+observe the HTX phase4-mode setting from the current wire contract, so its event
+omits optional `late_intervention_mode`. Prove host mode separately from the
+effective filter configuration and actual transport. Native direct events use
+their own known filter configuration.
+
+For Strict postcommit H1, the native filter erases queued response bytes and
+invokes the ready frontend transport hard-shutdown API before the H1 mux can send
+a clean TLS close_notify. H2 retains its per-stream shutdown.
+
+Native precommit P1/P2/P3 redirects use HAProxy's literal `Location` reply API
+with the original supported status. The connector owns the URL before native
+cleanup and rejects truncated or control-character values. The companion
+records the actual redirect OUTCOME before RELEASE.
+
+SDK, sink-fault, concurrency, sanitizer, API and mutation controls provide
+component evidence. I12 still requires fresh integrated host/client runs and
+independent qualification; see the
+[consolidated PR #410 Change Record](../../reports/audits/change-records/CR-20261024-pr410-sonar-remediation.md).

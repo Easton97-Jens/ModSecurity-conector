@@ -38,6 +38,7 @@ http:
       forwardAuth:
         address: http://__AUTH_ADDRESS__/authorize
         trustForwardHeader: false
+        preserveRequestMethod: true
         # The service/coordinator's hard policy limit is 32 bytes.  Permit one
         # extra byte only so the service can emit a correlated P2-limit 413;
         # bodies over 33 bytes are rejected fail-closed by Traefik and are not

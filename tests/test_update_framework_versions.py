@@ -868,7 +868,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         rendered = SYNC._render_targets(self.root, SYNC.parse_common(self.common), NEW_FRAMEWORK_SHA)
         lock = self.root / "ci/tooling/project-versions.lock.json"
         payload = json.loads(lock.read_bytes())
-        payload["python_version"] = "3.14.8"
+        payload["python_version"] = "3.15.8"
         lock.write_text(json.dumps(payload, indent=2) + "\n")
         before = self.all_target_bytes()
         with self.assertRaisesRegex(SYNC.SyncError, "changed concurrently"):

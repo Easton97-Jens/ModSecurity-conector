@@ -1,3 +1,3 @@
 module github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware
 
-go 1.26.5
+go 1.26.9

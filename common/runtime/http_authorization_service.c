@@ -44,6 +44,7 @@
 #define AUTH_LISTENER_POLL_TIMEOUT_MS 100
 
 typedef struct authorization_cli {
+    const msconnector_http_authorization_trusted_binding *trusted_binding;
     const char *config_path;
     const char *listen_spec;
     int check_config;
@@ -58,8 +59,9 @@ typedef struct parsed_http_request {
     size_t header_buffer_size;
     msconnector_header *headers;
     size_t header_count;
-    uint8_t *body;
+    const uint8_t *body;
     size_t body_size;
+    size_t content_length;
     char *method;
     char *uri;
     char *http_version;
@@ -84,7 +86,6 @@ typedef struct authorization_connection {
 } authorization_connection;
 
 typedef struct authorization_request_limits {
-    size_t body_limit;
     size_t total_header_limit;
     size_t header_count_limit;
     msconnector_request_mapper_contract mapper_contract;
@@ -93,6 +94,7 @@ typedef struct authorization_request_limits {
 struct authorization_worker;
 
 typedef struct authorization_service {
+    msconnector_http_authorization_trusted_binding trusted_binding;
     msconnector_runtime *runtime;
     const msconnector_http_authorization_profile *profile;
     msconnector_http_authorization_profile profile_copy;
@@ -359,7 +361,6 @@ static void parsed_request_destroy(parsed_http_request *request) {
     if (request == NULL) {
         return;
     }
-    free(request->body);
     free(request->headers);
     free(request->header_buffer);
     memset(request, 0, sizeof(*request));
@@ -652,59 +653,27 @@ static int transfer_encoding_supported(const parsed_http_request *request) {
     return count == 0U || (count == 1U && header_value_equals(header, "identity"));
 }
 
-static int read_request_body(
-    const authorization_connection *connection,
-    parsed_http_request *request,
-    const char *body_start,
-    size_t buffered_body_size,
-    size_t body_limit,
-    char *error,
-    size_t error_len) {
+/* Keep only the body bytes already borrowed from the bounded header buffer.
+ * Remaining entity bytes are read incrementally into a fixed working buffer. */
+static int prepare_request_body(
+    parsed_http_request *request, const char *body_start,
+    size_t buffered_body_size, char *error, size_t error_len) {
     size_t content_length = 0U;
-    size_t copied;
-    int content_length_result;
-    const msconnector_header *content_length_header;
     if (!transfer_encoding_supported(request)) {
         (void)snprintf(error, error_len, "%s", "chunked request bodies are unsupported");
         return 0;
     }
-    content_length_header = msconnector_headers_find_first(
-        request->headers, request->header_count, "content-length");
-    if (content_length_header != NULL) {
-        content_length_result = msconnector_headers_parse_content_length(
-            request->headers, request->header_count, &content_length);
-        if (content_length_result != 1) {
-            (void)snprintf(error, error_len, "%s", "invalid content-length header");
-            return 0;
-        }
-    }
-    if (content_length > body_limit) {
-        (void)snprintf(error, error_len, "%s", "request body exceeds configured limit");
+    if (msconnector_headers_find_first(request->headers, request->header_count,
+            "content-length") != NULL &&
+        msconnector_headers_parse_content_length(request->headers,
+            request->header_count, &content_length) != 1) {
+        (void)snprintf(error, error_len, "%s", "invalid content-length header");
         return 0;
     }
-    if (content_length == 0U) {
-        return 1;
-    }
-    request->body = malloc(content_length);
-    if (request->body == NULL) {
-        (void)snprintf(error, error_len, "%s", "request body allocation failed");
-        return 0;
-    }
-    copied = buffered_body_size < content_length ? buffered_body_size : content_length;
-    if (copied > 0U) {
-        memcpy(request->body, body_start, copied);
-    }
-    while (copied < content_length) {
-        const int received = recv_more(
-            connection->socket_fd, request->body, content_length, &copied,
-            connection->read_deadline);
-        if (received != 1) {
-            (void)snprintf(error, error_len, "%s",
-                received < 0 ? "request body read timed out" : "incomplete request body");
-            return 0;
-        }
-    }
-    request->body_size = content_length;
+    request->content_length = content_length;
+    request->body = (const uint8_t *)body_start;
+    request->body_size = buffered_body_size < content_length
+        ? buffered_body_size : content_length;
     return 1;
 }
 
@@ -768,8 +737,7 @@ static int read_http_request(
     }
     body_start = header_end + 4;
     buffered_body_size = used - (size_t)(body_start - request->header_buffer);
-    if (!read_request_body(connection, request, body_start, buffered_body_size,
-            limits->body_limit,
+    if (!prepare_request_body(request, body_start, buffered_body_size,
             error, error_len)) {
         return 0;
     }
@@ -1067,10 +1035,6 @@ static int error_status_from_message(const char *message) {
     if (message != NULL && strstr(message, "timed out") != NULL) {
         return 408;
     }
-    if (message != NULL && strstr(message, "body") != NULL &&
-        strstr(message, "limit") != NULL) {
-        return 413;
-    }
     if (message != NULL &&
         (strstr(message, "header") != NULL || strstr(message, "Header") != NULL) &&
         (strstr(message, "limit") != NULL ||
@@ -1150,11 +1114,176 @@ static void authorization_response_set_decision(
     response->success = 1;
 }
 
+static int authorization_stream_request_body(
+    authorization_service *service, const authorization_connection *connection,
+    const parsed_http_request *parsed, msconnector_runtime_transaction *transaction,
+    msconnector_decision *decision, msconnector_error *error, int *lock_held) {
+    unsigned char scratch[16384];
+    size_t remaining = parsed->content_length - parsed->body_size;
+    if (msconnector_runtime_request_body_mode(service->runtime) == MSCONNECTOR_BODY_MODE_NONE) {
+        if (parsed->content_length == 0U) return 1; /* begin already closed P2 */
+        msconnector_error_set(error, MSCONNECTOR_ERROR_UNSUPPORTED_PHASE,
+            "request body is disabled", "http_authorization_service");
+        return 0;
+    }
+    if (msconnector_runtime_transaction_append_request_body_chunk(transaction,
+            parsed->body, parsed->body_size, error) != 1) return 0;
+    while (remaining > 0U) {
+        size_t received_size = 0U;
+        const size_t capacity = remaining < sizeof(scratch) ? remaining : sizeof(scratch);
+        int received;
+        /* A slow socket must not monopolize the shared engine/service lock. */
+        if (pthread_mutex_unlock(&service->runtime_lock) != 0) {
+            msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+                "runtime lock release failed", "http_authorization_service");
+            return 0;
+        }
+        *lock_held = 0;
+        received = recv_more(connection->socket_fd, scratch, capacity, &received_size,
+            connection->read_deadline);
+        if (pthread_mutex_lock(&service->runtime_lock) != 0) {
+            msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+                "runtime lock acquisition failed", "http_authorization_service");
+            return 0;
+        }
+        *lock_held = 1;
+        if (received != 1) {
+            msconnector_error terminal_error;
+            msconnector_error_init(&terminal_error);
+            (void)msconnector_runtime_transaction_fail(transaction,
+                MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL, &terminal_error);
+            msconnector_error_set(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+                received < 0 ? "request body read timed out" : "incomplete request body",
+                "http_authorization_service");
+            return 0;
+        }
+        if (msconnector_runtime_transaction_append_request_body_chunk(transaction,
+                scratch, received_size, error) != 1) return 0;
+        remaining -= received_size;
+    }
+    return msconnector_runtime_transaction_finish_request_body(transaction, decision, error);
+}
+
+static void authorization_response_set_stream_error(
+    const authorization_service *service, const msconnector_error *common_error,
+    authorization_response_state *response) {
+    authorization_response_set_runtime_error(service, common_error, response);
+    if (common_error->code == MSCONNECTOR_ERROR_HOST_API_FAILURE &&
+        common_error->source != NULL &&
+        strcmp(common_error->source, "http_authorization_service") == 0) {
+        response->status = error_status_from_message(common_error->message);
+    }
+}
+
+static int authorization_begin_trusted_request(authorization_service *service,
+    msconnector_request *request, msconnector_runtime_transaction **transaction,
+    msconnector_decision *decision, msconnector_error *error, int *binding_claimed) {
+    msconnector_http_authorization_provenance_storage storage = {0};
+    msconnector_runtime_trusted_provenance provenance;
+    msconnector_header filtered[MSCONNECTOR_MAX_HEADER_COUNT];
+    const msconnector_header *original_headers = request->headers;
+    size_t original_count = request->header_count;
+    size_t kept = 0U;
+    int success;
+    *binding_claimed = 0;
+    if (service->trusted_binding.claim == NULL) {
+        return msconnector_runtime_transaction_begin_request_stream(service->runtime,
+            request, NULL, transaction, decision, error);
+    }
+    if (!service->trusted_binding.claim(service->trusted_binding.userdata,
+            request, &storage, error)) return 0;
+    *binding_claimed = 1;
+    if (request->header_count > MSCONNECTOR_MAX_HEADER_COUNT) return 0;
+    for (size_t i = 0U; i < request->header_count; ++i) {
+        const msconnector_header *header = &request->headers[i];
+        const size_t private_size = strlen(service->trusted_binding.token_header);
+        if (header->name != NULL && header->name_size == private_size &&
+            strncasecmp(header->name, service->trusted_binding.token_header, private_size) == 0)
+            continue;
+        filtered[kept++] = *header;
+    }
+    request->headers = filtered;
+    request->header_count = kept;
+    provenance.run_id = storage.run_id;
+    provenance.transport_case_id = storage.transport_case_id;
+    provenance.connection_id = storage.connection_id;
+    provenance.connection_reused = storage.connection_reused;
+    success = msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+        service->runtime, request, NULL, &provenance, transaction, decision, error);
+    msconnector_secure_zero(&storage, sizeof(storage));
+    request->headers = original_headers;
+    request->header_count = original_count;
+    return success;
+}
+
+/* Mapping diagnostics borrow a bounded caller-owned output buffer. */
+typedef struct authorization_mapping_error {
+    char *data;
+    size_t capacity;
+} authorization_mapping_error;
+
+static int authorization_handoff_response_transaction(
+    const authorization_service *service,
+    msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    char *response_handle,
+    msconnector_error *error,
+    authorization_response_state *response) {
+    const msconnector_decision_action action =
+        msconnector_decision_action_from_decision(decision);
+    if (!response->success || service->profile->handoff_response_companion == NULL ||
+        (action != MSCONNECTOR_DECISION_ACTION_ALLOW &&
+         action != MSCONNECTOR_DECISION_ACTION_LOG_ONLY)) {
+        return 0;
+    }
+    if (service->profile->handoff_response_companion(service->runtime,
+            transaction, service->profile->response_companion_userdata,
+            response_handle, error) != 1) {
+        authorization_response_set_runtime_error(service, error, response);
+        return 0;
+    }
+    /* The companion owns this live Common/native transaction until P3/P4 EOS
+     * or TTL cleanup. The request-only service must not finish or destroy it. */
+    memmove(response->copied_response_handle, response_handle,
+        sizeof(response->copied_response_handle));
+    response->response_handle = response->copied_response_handle;
+    return 1;
+}
+
+static void authorization_finish_request_transaction(
+    const authorization_service *service,
+    msconnector_runtime_transaction **transaction,
+    authorization_response_state *response) {
+    if (*transaction != NULL) {
+        msconnector_error finish_error;
+        msconnector_error_init(&finish_error);
+        if (msconnector_runtime_transaction_finish(*transaction, &finish_error) != 1 &&
+            response->success) {
+            authorization_response_set_runtime_error(service, &finish_error, response);
+        }
+    }
+    response->terminal_response_marker =
+        service->profile->terminal_response_marker_header != NULL &&
+        service->profile->terminal_response_marker_value != NULL;
+    if (service->trusted_binding.claim != NULL && *transaction != NULL) {
+        msconnector_runtime_transaction_snapshot snapshot;
+        msconnector_error cleanup_error;
+        msconnector_error_init(&cleanup_error);
+        if (!msconnector_runtime_transaction_finalize_and_snapshot(transaction,
+                &snapshot, &cleanup_error)) {
+            authorization_response_set_runtime_error(service, &cleanup_error, response);
+        }
+    }
+    msconnector_runtime_transaction_destroy(transaction);
+}
+
 static void authorization_process_runtime_request(
     authorization_service *service,
+    const authorization_connection *connection,
+    const parsed_http_request *parsed,
+    int *lock_held,
     const msconnector_generic_request_source *source,
-    char *error,
-    size_t error_len,
+    const authorization_mapping_error *mapping_error,
     authorization_response_state *response) {
     msconnector_request request;
     msconnector_runtime_transaction *transaction = NULL;
@@ -1162,50 +1291,47 @@ static void authorization_process_runtime_request(
     msconnector_error common_error;
     char response_handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
     int response_companion_owns_transaction = 0;
+    int binding_claimed = 0;
     memset(&request, 0, sizeof(request));
     msconnector_error_init(&common_error);
     msconnector_decision_set_allow(&decision);
     msconnector_secure_zero(response_handle, sizeof(response_handle));
     response->response_handle = NULL;
     if (!service->profile->map_request(source, &service->request_limits.mapper_contract,
-            &request, error, error_len)) {
+            &request, mapping_error->data, mapping_error->capacity)) {
         response->status = 400;
         response->decision_name = "mapping_error";
         response->success = 0;
-    } else if (!msconnector_runtime_transaction_begin(service->runtime, &request, NULL,
-            &transaction, &decision, &common_error)) {
+    } else if (authorization_begin_trusted_request(service, &request,
+            &transaction, &decision, &common_error, &binding_claimed) != 1) {
         authorization_response_set_runtime_error(service, &common_error, response);
     } else {
-        authorization_response_set_decision(service, &decision, response);
-        if (service->profile->handoff_response_companion != NULL &&
-            (msconnector_decision_action_from_decision(&decision) ==
-                MSCONNECTOR_DECISION_ACTION_ALLOW ||
-             msconnector_decision_action_from_decision(&decision) ==
-                MSCONNECTOR_DECISION_ACTION_LOG_ONLY)) {
-            if (!service->profile->handoff_response_companion(service->runtime,
-                    transaction, service->profile->response_companion_userdata,
-                    response_handle, &common_error)) {
-                authorization_response_set_runtime_error(service, &common_error, response);
-            } else {
-                /* The companion owns this live Common/native transaction until
-                 * P3/P4 EOS or TTL cleanup. It is not safe for the
-                 * request-only authorization service to finish or destroy it. */
-                response_companion_owns_transaction = 1;
-                memmove(response->copied_response_handle, response_handle,
-                    sizeof(response->copied_response_handle));
-                response->response_handle = response->copied_response_handle;
-            }
+        if (!msconnector_decision_action_is_disruptive(
+                msconnector_decision_action_from_decision(&decision)) &&
+            authorization_stream_request_body(service, connection, parsed,
+                transaction, &decision, &common_error, lock_held) != 1) {
+            authorization_response_set_stream_error(service, &common_error, response);
+        } else {
+            authorization_response_set_decision(service, &decision, response);
         }
-    }
-    if (!response_companion_owns_transaction && transaction != NULL &&
-        !msconnector_runtime_transaction_finish(transaction, &common_error)) {
-        authorization_response_set_runtime_error(service, &common_error, response);
+        response_companion_owns_transaction = authorization_handoff_response_transaction(
+            service, transaction, &decision, response_handle, &common_error, response);
     }
     if (!response_companion_owns_transaction) {
-        response->terminal_response_marker =
-            service->profile->terminal_response_marker_header != NULL &&
-            service->profile->terminal_response_marker_value != NULL;
-        msconnector_runtime_transaction_destroy(&transaction);
+        authorization_finish_request_transaction(service, &transaction, response);
+    }
+    if (binding_claimed && service->trusted_binding.complete != NULL &&
+        !service->trusted_binding.complete(service->trusted_binding.userdata,
+            &request, response->status, response->response_handle, &common_error)) {
+        if (response_companion_owns_transaction && response->response_handle != NULL &&
+            service->profile->revoke_response_companion != NULL) {
+            msconnector_error revoke_error;
+            msconnector_error_init(&revoke_error);
+            (void)service->profile->revoke_response_companion(
+                service->profile->response_companion_userdata,
+                response->response_handle, &revoke_error);
+        }
+        authorization_response_set_runtime_error(service, &common_error, response);
     }
     msconnector_secure_zero(response_handle, sizeof(response_handle));
 }
@@ -1274,8 +1400,8 @@ static int handle_authorization_request(
     source.server.port = parsed.server_port;
     source.headers = parsed.headers;
     source.header_count = parsed.header_count;
-    source.body.data = parsed.body;
-    source.body.size = parsed.body_size;
+    source.body.data = NULL;
+    source.body.size = 0U;
     if (pthread_mutex_lock(&service->runtime_lock) != 0) {
         response.status = 500;
         response.decision_name = "runtime_error";
@@ -1284,8 +1410,11 @@ static int handle_authorization_request(
         parsed_request_destroy(&parsed);
         return 0;
     }
-    authorization_process_runtime_request(service, &source, error, sizeof(error), &response);
-    if (pthread_mutex_unlock(&service->runtime_lock) != 0) {
+    int runtime_lock_held = 1;
+    const authorization_mapping_error mapping_error = {error, sizeof(error)};
+    authorization_process_runtime_request(service, connection, &parsed,
+        &runtime_lock_held, &source, &mapping_error, &response);
+    if (runtime_lock_held && pthread_mutex_unlock(&service->runtime_lock) != 0) {
         parsed_request_destroy(&parsed);
         return 0;
     }
@@ -1421,6 +1550,7 @@ static int authorization_service_init(
     }
     memset(service, 0, sizeof(*service));
     service->runtime = runtime;
+    if (cli->trusted_binding != NULL) service->trusted_binding = *cli->trusted_binding;
     /* Workers can outlive the entry-point stack during bounded shutdown.
      * Keep a bounded, fully-owned profile copy with the heap-owned service.
      * Mapping callbacks are code pointers; all textual and header data is
@@ -1431,8 +1561,6 @@ static int authorization_service_init(
     service->connection_timeout_ms = cli->connection_timeout_ms;
     service->max_connections = cli->max_connections;
     msconnector_runtime_request_contract(runtime, &service->request_limits.mapper_contract);
-    service->request_limits.body_limit =
-        msconnector_runtime_request_body_limit(runtime);
     service->request_limits.total_header_limit =
         msconnector_runtime_total_header_limit(runtime);
     service->request_limits.header_count_limit =
@@ -1930,12 +2058,22 @@ int msconnector_http_authorization_service_main(
     int argc,
     char **argv,
     const msconnector_http_authorization_profile *profile) {
+    return msconnector_http_authorization_service_main_with_trusted_binding(
+        argc, argv, profile, NULL);
+}
+
+int msconnector_http_authorization_service_main_with_trusted_binding(
+    int argc, char **argv, const msconnector_http_authorization_profile *profile,
+    const msconnector_http_authorization_trusted_binding *binding) {
     authorization_cli cli;
     char error[AUTH_ERROR_SIZE];
-    if (!validate_profile(profile) || !parse_cli(argc, argv, &cli)) {
+    if ((binding != NULL && (binding->claim == NULL || binding->token_header == NULL ||
+            binding->token_header[0] == '\0')) ||
+        !validate_profile(profile) || !parse_cli(argc, argv, &cli)) {
         print_usage(argc > 0 && argv != NULL ? argv[0] : "authorization-service");
         return 2;
     }
+    cli.trusted_binding = binding;
     if (cli.check_config) {
         error[0] = '\0';
         if (!msconnector_runtime_config_check(profile->connector_name,

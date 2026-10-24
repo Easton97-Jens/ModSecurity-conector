@@ -2,6 +2,7 @@
 #define MSCONNECTOR_ENVOY_EXT_PROC_COMMON_RUNTIME_BRIDGE_H
 
 #include <stddef.h>
+#include "msconnector/error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -115,6 +116,12 @@ void msc_envoy_ext_proc_transaction_mark_response_committed(
     msc_envoy_ext_proc_transaction *transaction,
     int body_started);
 
+/* New callers must check one for success. The compatibility void entry point
+ * above retains failures internally but cannot report them immediately. */
+int msc_envoy_ext_proc_transaction_mark_response_committed_checked(
+    msc_envoy_ext_proc_transaction *transaction,
+    int body_started, char *error, size_t error_len);
+
 int msc_envoy_ext_proc_transaction_record_host_action(
     msc_envoy_ext_proc_transaction *transaction,
     int action,
@@ -125,6 +132,26 @@ int msc_envoy_ext_proc_transaction_record_host_action(
 
 const char *msc_envoy_ext_proc_transaction_id(
     const msc_envoy_ext_proc_transaction *transaction);
+
+/* Finishes and destroys exactly once; returns 0 on an earlier or finish error.
+ * finish_error_code receives the canonical finish error separately from any
+ * earlier retained adapter cause. Successful destruction after an incomplete
+ * lifecycle does not imply an unsafe cleanup or a successful rule decision.
+ * The compatibility void entry point below retains the same ownership rule. */
+int msc_envoy_ext_proc_transaction_close_checked(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len,
+    int *finish_error_code);
+
+typedef enum msc_envoy_ext_proc_observed_close_cause {
+    MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED = 0,
+    MSC_ENVOY_EXT_PROC_CLOSE_TIMEOUT,
+    MSC_ENVOY_EXT_PROC_CLOSE_RESTART
+} msc_envoy_ext_proc_observed_close_cause;
+
+/* Records only an observed composite expiry/restart before checked finish. */
+int msc_envoy_ext_proc_transaction_observed_close(
+    msc_envoy_ext_proc_transaction *transaction,
+    msc_envoy_ext_proc_observed_close_cause cause, char *error, size_t error_len);
 
 void msc_envoy_ext_proc_transaction_close(
     msc_envoy_ext_proc_transaction *transaction);

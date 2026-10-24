@@ -239,8 +239,7 @@ def assert_hash_locked_ci_test_dependency_installation(
     normalized = normalize_shell_script(validator)
     install_step = "Install hash-locked CI test dependency"
     install_command = (
-        "python3 -m pip install --disable-pip-version-check --no-input "
-        "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+        "python3 ci/tools/install-ci-dependencies.py --ci-toolcache"
     )
     workflow_test = "tests.test_ci_security_workflows"
 
@@ -1868,7 +1867,8 @@ jobs:
         self.assertIn('--parent-sha "$EXPECTED_PARENT_SHA" --format github-output >> "$GITHUB_OUTPUT"', verification)
         self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
         self.assertIn('test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"', job)
-        self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
+        self.assertIn("python3 ci/tools/install-ci-dependencies.py --ci-toolcache", job)
+        self.assertIn("--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock", job)
         self.assertIn('test "${#CRS_RUNTIME_RUN_ID}" -le 48', job)
         self.assertIn("EVIDENCE_ROOT: \"\"", job)
 
@@ -3531,6 +3531,53 @@ sudo -n chmod 0750 "$namespace_parent"
         dependabot = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
         self.assertNotIn('package-ecosystem: "github-actions"', dependabot)
         self.assertIn('package-ecosystem: "pip"', dependabot)
+        configuration = yaml.safe_load(dependabot)
+        self.assertEqual(configuration["version"], 2)
+        self.assertCountEqual(
+            [entry["package-ecosystem"] for entry in configuration["updates"]],
+            ["pip", "gomod"],
+        )
+        pip = next(entry for entry in configuration["updates"]
+                   if entry["package-ecosystem"] == "pip")
+        self.assertEqual(pip, {
+            "package-ecosystem": "pip", "directory": "/",
+            "schedule": {"interval": "weekly"},
+            "cooldown": {"default-days": 7}, "open-pull-requests-limit": 5,
+        })
+        parent_manifests = list(ROOT.glob("go.mod"))
+        for directory in ROOT.iterdir():
+            if directory.is_dir() and directory.name not in {"modules", ".git", ".codex", ".venv"}:
+                parent_manifests.extend(directory.rglob("go.mod"))
+        module_directories = {
+            "/" + manifest.parent.relative_to(ROOT).as_posix() if manifest.parent != ROOT else "/"
+            for manifest in parent_manifests if manifest.is_file()
+        }
+        self.assertTrue(module_directories)
+        gomod = next(entry for entry in configuration["updates"]
+                     if entry["package-ecosystem"] == "gomod")
+
+        def assert_go_update_scope(candidate):
+            self.assertEqual(set(candidate["directories"]), module_directories)
+            self.assertEqual(len(candidate["directories"]), len(module_directories))
+            self.assertEqual(candidate["schedule"], {"interval": "weekly"})
+            self.assertEqual(candidate["cooldown"], {"default-days": 7})
+            self.assertEqual(candidate["open-pull-requests-limit"], 5)
+            self.assertNotIn("directory", candidate)
+            self.assertNotIn("target-branch", candidate)
+            self.assertNotIn("ignore", candidate)
+
+        assert_go_update_scope(gomod)
+        for module_directory in sorted(module_directories):
+            with self.subTest(go_module=module_directory):
+                self.assertIn(module_directory, gomod["directories"])
+        invalid_scopes = (
+            dict(gomod, directories=gomod["directories"][:-1]),
+            dict(gomod, directories=[*gomod["directories"], "/modules/ModSecurity-test-Framework"]),
+        )
+        for candidate in invalid_scopes:
+            with self.subTest(invalid_directories=candidate["directories"]):
+                with self.assertRaises(AssertionError):
+                    assert_go_update_scope(candidate)
 
         workflow_name = "update-workflow-tools.yml"
         workflow = self.workflow(workflow_name)
@@ -3681,6 +3728,9 @@ sudo -n chmod 0750 "$namespace_parent"
 
         self.assertNotIn("secrets.", jobs["resolve-python-patch"])
         self.assertNotIn("secrets.", jobs["validate-python-patch"])
+        candidate_install = 'python3 ci/tools/install-ci-dependencies.py --ci-toolcache --expected-version "$CANDIDATE_VERSION"'
+        self.assertIn(candidate_install, normalize_shell_script(jobs["validate-python-patch"]))
+        self.assertEqual(workflow.count(candidate_install), 1)
 
         self.assertEqual(job_permissions(jobs["resolve-python-patch"]), {"contents": "read"})
         self.assertEqual(job_permissions(jobs["validate-python-patch"]), {"contents": "read"})
@@ -3714,8 +3764,7 @@ sudo -n chmod 0750 "$namespace_parent"
         publisher_normalized = normalize_shell_script(publisher)
         publisher_install_step = "Install hash-locked CI test dependency"
         publisher_install_command = (
-            "python3 -m pip install --disable-pip-version-check --no-input "
-            "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+            "python3 ci/tools/install-ci-dependencies.py --ci-toolcache"
         )
         self.assertIn(publisher_install_step, publisher)
         self.assertIn(publisher_install_command, publisher_normalized)
@@ -3748,9 +3797,9 @@ sudo -n chmod 0750 "$namespace_parent"
             'python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json',
             publisher,
         )
-        self.assertIn("UPDATE_BRANCH: automation/update-python-314", publisher)
-        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
-        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"', publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-python-315", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.15 patch update"', publisher)
+        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-315-updater -->"', publisher)
         self.assertIn("FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e", publisher)
         self.assertIn(
             'PUBLISH_REMOTE_URL="https://github.com/Easton97-Jens/ModSecurity-conector.git"',
@@ -3834,8 +3883,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("secrets.", outcome)
         self.assertNotIn("publisher_app_token", outcome)
         self.assertIn("case \"$UPDATE_AVAILABLE\" in", outcome)
-        self.assertIn("No Python 3.14 patch update is available.", outcome)
-        self.assertIn("Kein Python-3.14-Patch-Update ist verfügbar.", outcome)
+        self.assertIn("No Python 3.15 patch update is available.", outcome)
+        self.assertIn("Kein Python-3.15-Patch-Update ist verfügbar.", outcome)
 
     def test_go_release_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-go-version.yml"
@@ -3871,7 +3920,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("latest_version", resolver)
         self.assertNotIn("1.26", resolver)
         self.assertIn("component_version_tuple", resolver)
-        self.assertIn("component_current_tuple < target_tuple", resolver)
+        self.assertIn("component_available != requirement_available", resolver)
+        self.assertIn("requirement.get(\"update_available\") is not update", resolver)
+        self.assertIn('"golang.org/x/net": "v0.61.0"', resolver)
+        self.assertIn('"golang.org/x/sys": "v0.49.0"', resolver)
+        self.assertIn('"golang.org/x/text": "v0.43.0"', resolver)
         self.assertIn("toolchain_update_available", resolver)
         self.assertIn("component_update_available", resolver)
         self.assertIn('"connectors/envoy/ext_proc"', resolver)
@@ -3891,6 +3944,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertEqual(candidate.count("go mod tidy -diff"), 4)
         self.assertEqual(candidate.count("go mod verify"), 4)
         self.assertEqual(candidate.count("go test -mod=readonly ./..."), 4)
+        self.assertEqual(candidate.count("go test -race -mod=readonly ./..."), 4)
         self.assertEqual(candidate.count("go vet -mod=readonly ./..."), 4)
         self.assertEqual(candidate.count("go build -mod=readonly ./..."), 4)
         self.assertIn("connectors/traefik/native_middleware", candidate)
@@ -3899,11 +3953,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("Create and validate the bounded Go component candidate", candidate)
         self.assertIn("--validate-component-files", candidate)
         self.assertIn('--repository-root "$GITHUB_WORKSPACE"', candidate)
-        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", candidate)
+        self.assertIn("python3 ../../../scripts/update-go-components.py --apply-requirements --json", candidate)
         self.assertNotIn("go get", candidate)
         self.assertLess(
             candidate.index("--validate-component-files"),
-            candidate.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+            candidate.index("python3 ../../../scripts/update-go-components.py --apply-requirements --json"),
         )
         self.assertNotIn("--baseline-go-mod", candidate)
         self.assertNotIn("--candidate-go-mod", candidate)
@@ -3939,11 +3993,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("--force-with-lease", publisher)
         self.assertIn('python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
         self.assertIn("--validate-component-files", publisher)
-        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", publisher)
+        self.assertIn("python3 ../../../scripts/update-go-components.py --apply-requirements --json", publisher)
         self.assertNotIn("go get", publisher)
         self.assertLess(
             publisher.index("--validate-component-files"),
-            publisher.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+            publisher.index("python3 ../../../scripts/update-go-components.py --apply-requirements --json"),
         )
         self.assertNotIn("--baseline-go-mod", publisher)
         self.assertNotIn("--candidate-go-mod", publisher)
@@ -3960,6 +4014,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("UPDATE_BRANCH: automation/update-go-release", publisher)
         self.assertIn('PR_TITLE: "chore(ci): propose latest stable Go update"', publisher)
         self.assertIn("validate-go-release", publisher)
+        self.assertIn("needs.validate-go-release.result == 'success'", job_if_expression(publisher))
         self.assertNotIn("1.26", publisher)
         self.assertIn("connectors/envoy/ext_proc/go.mod", publisher)
         self.assertIn("connectors/envoy/ext_proc/go.sum", publisher)
@@ -3980,6 +4035,28 @@ sudo -n chmod 0750 "$namespace_parent"
             "Module directives: only the fixed google.golang.org/grpc security bundle may change",
             publisher,
         )
+
+    def test_go_candidate_pr_validation_is_read_only_and_tests_all_modules(self) -> None:
+        text = self.workflow("validate-go-candidate.yml")
+        candidate = self.jobs("validate-go-candidate.yml")["go-candidate"]
+        self.assertEqual(job_permissions(candidate), {"contents": "read"})
+        self.assertIn("  pull_request:", text)
+        self.assertNotIn("pull_request_target", text)
+        self.assertNotIn("secrets.", text)
+        self.assertNotIn("continue-on-error", text)
+        self.assertNotIn("write", text)
+        self.assertNotIn("create-go-update-pr", text)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", candidate)
+        self.assertIn("persist-credentials: false", candidate)
+        self.assertIn("submodules: false", candidate)
+        self.assertIn("cache: false", candidate)
+        self.assertIn("go-version-file: .go-version", candidate)
+        self.assertIn("GOTOOLCHAIN: local", candidate)
+        self.assertIn("GOWORK: off", candidate)
+        for module in ("envoy/ext_proc", "traefik/native_middleware", "traefik/composite_middleware", "traefik/response_observer"):
+            self.assertIn(f"connectors/{module}", candidate)
+        for command in ("go mod tidy -diff", "go mod verify", "go test -mod=readonly ./...", "go test -race -mod=readonly ./...", "go vet -mod=readonly ./...", "go build -mod=readonly ./..."):
+            self.assertIn(command, candidate)
 
     def test_sarif_upload_permissions_are_scoped(self) -> None:
         codeql = self.workflow("ci-security-codeql.yml")

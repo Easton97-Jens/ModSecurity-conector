@@ -22,7 +22,6 @@ KNOWN = [
     "modsecurity_use_error_log",
     "modsecurity_phase4_mode",
     "modsecurity_phase4_log",
-    "modsecurity_phase4_body_limit",
 ]
 NGINX_DIRECTIVE_NOT_APPLICABLE: dict[str, str] = {
     "modsecurity_transaction_id_expr": "Apache expression syntax is not supported by NGINX; use modsecurity_transaction_id with NGINX variables instead.",
@@ -190,6 +189,10 @@ for raw in re.findall(r'AP_INIT_[A-Z0-9_]+\(\s*"([^"]+)"', APACHE_CONFIG_C.read_
 
 nginx_text = NGINX_MODULE_C.read_text()
 nginx_directives = {macros.get(macro, macro) for macro in parse_nginx_directive_macros(nginx_text)}
+for surface in (set(macros.values()), set(specs), set(canonicals), apache_directives, nginx_directives):
+    if "modsecurity_phase4_body_limit" in surface:
+        print("removed directive registered: modsecurity_phase4_body_limit")
+        ok = False
 expected_nginx_directives = set(KNOWN) - set(NGINX_DIRECTIVE_NOT_APPLICABLE)
 for name in sorted(expected_nginx_directives):
     if name not in nginx_directives:

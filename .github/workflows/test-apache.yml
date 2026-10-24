@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -43,6 +43,12 @@ jobs:
             make
       - name: Verify Apache intervention cleanup source contract
         run: python3 -m unittest -v tests.test_apache_intervention_cleanup
+      - name: Verify Apache native and APR lifecycle failures
+        run: python3 -m unittest -v tests.test_apache_native_lifecycle
+      - name: Verify native response limits before EOS and after commit
+        run: make check-apache-native-response-limit
+      - name: Verify Apache physical event sink and caller failures
+        run: make check-apache-event-sink
       - name: Verify Apache Autotools bootstrap from tracked source only
         env:
           APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}
@@ -60,7 +66,7 @@ jobs:
           persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -97,6 +103,8 @@ jobs:
           test -f config/testing/import-status.json
           test -f docs/testing-and-evidence.md
           grep -q 'Status:' connectors/apache/TODO.md
+      - name: Verify Apache collector and existing adoption mutations
+        run: python3 -m unittest -v tests.test_apache_common_adoption tests.test_apache_native_adoption
       - name: Syntax and dry-run checks
         run: |
           make setup-dev

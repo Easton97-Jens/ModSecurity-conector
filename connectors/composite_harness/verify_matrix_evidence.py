@@ -476,15 +476,17 @@ def _verify_oversize(
     events: list[dict[str, Any]], action_events: list[dict[str, Any]], client_status: Any,
     request_terminal: bool, response_observed: bool,
 ) -> None:
-    oversize = _matching_action(action_events, "deny", (413, 413))
     p2 = next((event for event in events if event.get("phase") == "P2"), None)
+    native_status = p2.get("visible_status") if p2 is not None else None
+    oversize = None
+    if native_status in (403, 413):
+        oversize = _matching_action(action_events, "deny", (native_status, native_status))
     if (
         oversize is None
         or p2 is None
-        or p2.get("visible_status") != 413
-        or client_status != 413
+        or client_status != native_status
     ):
-        raise EvidenceError("P2 oversize requires a raw 413 P2 decision and request-side deny action")
+        raise EvidenceError("P2 oversize requires matching native 403/413 P2, request-side deny and client statuses")
     if not request_terminal or response_observed:
         raise EvidenceError("P2 oversize requires request termination before upstream observation")
 

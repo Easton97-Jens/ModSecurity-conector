@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -36,6 +36,11 @@ jobs:
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow
+      - name: Execute lighttpd technical-error callers and negative controls
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-lighttpd-callers
       - name: Run private fixture namespace contract tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"

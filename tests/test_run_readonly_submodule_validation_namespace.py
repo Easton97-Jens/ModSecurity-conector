@@ -821,9 +821,9 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
 
         if not mapped(account.pw_uid, "uid_map") or not mapped(group.gr_gid, "gid_map"):
             self.skipTest("dedicated unprivileged identity capability is unavailable")
-        # The fixture is intentionally below the host's sticky /tmp.  A jail
-        # that merely bind-mounts /source would still leave this path visible.
-        with tempfile.TemporaryDirectory(dir="/tmp", prefix="readonly-namespace-") as raw:
+        # Honor the configured external task temporary root.  A jail that
+        # merely bind-mounts /source would still leave the physical host path visible.
+        with tempfile.TemporaryDirectory(prefix="readonly-namespace-") as raw:
             root = Path(raw); os.chmod(root, 0o755)
             source = root / "source"; framework = source / "modules" / "framework"
             framework.mkdir(parents=True); (source / ".git" / "modules").mkdir(parents=True)

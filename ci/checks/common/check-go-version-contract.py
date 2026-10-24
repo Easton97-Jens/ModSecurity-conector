@@ -14,10 +14,14 @@ from pathlib import Path
 from typing import TextIO
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from workflow_action_pins import read_action_reference  # noqa: E402
+
+
 CANONICAL_VERSION_FILE = ".go-version"
 CODEQL_WORKFLOW = Path(".github/workflows/ci-security-codeql.yml")
-SETUP_GO_REFERENCE = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0"
-SETUP_PYTHON_REFERENCE = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0"
+SETUP_GO_REFERENCE = read_action_reference(Path(__file__).resolve().parents[3], "actions/setup-go")
+SETUP_PYTHON_REFERENCE = read_action_reference(Path(__file__).resolve().parents[3], "actions/setup-python")
 EXPECTED_JOBS = frozenset({"envoy-go", "traefik-go"})
 TRUSTED_VERSION_JOB = "trusted-go-version"
 VERSION_RE = re.compile(

@@ -55,15 +55,22 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
             outside_path = str(outside)
             canonical_path = str(canonical)
             certificate_path = str(certificate)
+            engine_policy = {
+                "request_body_limit": 32,
+                "request_body_no_files_limit": 32,
+                "request_body_limit_action": "Reject",
+                "response_body_limit": 1048576,
+                "response_body_limit_action": "Reject",
+            }
             with self.assertRaisesRegex(ValueError, "below the runtime root"):
-                HELPER.write_rules(runtime_root, outside_path, canonical_path)
+                HELPER.write_rules(runtime_root, outside_path, canonical_path, **engine_policy)
             self.assertFalse(outside.exists())
 
             redirected = root / "redirected.conf"
             redirected.symlink_to(outside)
             redirected_path = str(redirected)
             with self.assertRaisesRegex(ValueError, "below the runtime root|symbolic link"):
-                HELPER.write_rules(runtime_root, redirected_path, canonical_path)
+                HELPER.write_rules(runtime_root, redirected_path, canonical_path, **engine_policy)
             self.assertFalse(outside.exists())
 
             self.assertEqual(

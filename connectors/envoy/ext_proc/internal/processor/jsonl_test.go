@@ -200,7 +200,12 @@ func TestJSONLObserverRejectsUnexpectedExistingFileTypes(t *testing.T) {
 func TestJSONLObserverRejectsExistingFileWithUnsafePermissions(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")
-	if err := os.WriteFile(path, nil, 0o666); err != nil {
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Establish the unsafe fixture explicitly: a restrictive runner umask
+	// must not turn this rejection case into a valid private file.
+	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NewJSONLObserver(path); err == nil {
@@ -212,5 +217,83 @@ func TestJSONLObserverRejectsExistingFileWithUnsafePermissions(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o644 {
 		t.Fatalf("rejected event log mode changed to %o", got)
+	}
+}
+
+func TestJSONLObserverRetainsPhysicalSinkFailure(t *testing.T) {
+	for _, mode := range []string{"closed", "read-only"} {
+		t.Run(mode, func(t *testing.T) {
+			testJSONLObserverPhysicalSinkFailure(t, mode)
+		})
+	}
+}
+
+func testJSONLObserverPhysicalSinkFailure(t *testing.T, mode string) {
+	t.Helper()
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode == "closed" {
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	observer := &JSONLObserver{file: file}
+	first := observer.Record(Summary{TransactionID: "failed"})
+	if first == nil {
+		t.Fatal("Record(failing descriptor) = nil, want physical failure")
+	}
+	// Replace the file with a usable descriptor: a retry must not touch it.
+	_ = file.Close()
+	healthy, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer.file = healthy
+	for i := 0; i < 3; i++ {
+		if got := observer.Record(Summary{TransactionID: "retry"}); got != first {
+			t.Fatalf("Record(retry) = %v, want first error %v", got, first)
+		}
+	}
+	if got := observer.Close(); got != first {
+		t.Fatalf("Close() = %v, want first error %v", got, first)
+	}
+	if got := observer.Record(Summary{}); got != first {
+		t.Fatalf("Record(after close) = %v, want first error %v", got, first)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) != 0 {
+		t.Fatalf("Record(retry) wrote %d bytes, want 0", len(content))
+	}
+}
+
+func TestJSONLObserverRetainsCloseFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	observer := &JSONLObserver{file: file}
+	first := observer.Close()
+	if first == nil {
+		t.Fatal("Close(closed descriptor) = nil, want failure")
+	}
+	if got := observer.Close(); got != first {
+		t.Fatalf("Close(retry) = %v, want %v", got, first)
+	}
+	if got := observer.Record(Summary{}); got != first {
+		t.Fatalf("Record(after failed close) = %v, want %v", got, first)
 	}
 }

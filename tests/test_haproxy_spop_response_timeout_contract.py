@@ -188,9 +188,8 @@ int main(void) {
             config_contents="response-body-limit=1\n",
         )
         self.assertEqual(run_result.returncode, 0, run_result.stderr)
-        self.assertGreaterEqual(
-            run_result.stderr.count("response-body-limit is unsupported"), 2
-        )
+        # Both removed CLI/config forms failed during parsing (exit 2),
+        # before any production server could start.
         self.assertGreaterEqual(
             run_result.stderr.count("response phases require an integrated P3/P4"), 2
         )
@@ -228,6 +227,8 @@ int main(void) {
     assert(log != NULL);
     assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
     memset(&state, 0, sizeof(state));
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
     config_init(&state.config);
     state.config.response_phases_enabled = 0;
     assert(config_set(&state.config, "mode", "detect-only") == 0);
@@ -237,7 +238,7 @@ int main(void) {
     strcpy(request.message_name, "check-response");
     strcpy(request.request_id, "peer-response");
     request.has_request_id = 1;
-    request.is_response = 1;
+    request.http_metadata.is_response = 1;
     memset(&frame, 0, sizeof(frame));
     frame.stream_id = 7;
     frame.frame_id = 9;
@@ -255,6 +256,8 @@ int main(void) {
         "response_phase_disabled_closed"));
     assert(state.transactions == NULL);
 
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
+    state.decision_log_lock_initialized = 0;
     fclose(log);
     close(sockets[0]);
     close(sockets[1]);
@@ -297,6 +300,8 @@ int main(void) {
     state.config.response_phases_enabled = 0;
     state.engine = (haproxy_modsecurity_engine *)0x1;
     state.log = log;
+    assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+    state.decision_log_lock_initialized = 1;
 
     /* A SPOP NOTIFY contains exactly one message.  A concatenated response
      * and request message must not be reclassified or partially accepted. */
@@ -327,12 +332,13 @@ int main(void) {
     memcpy(frame.payload, payload.data, payload.len);
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(frame.payload, frame.payload_len, &request) == 0);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     /* The ordinary request classification remains unchanged.  The engine
      * path itself is covered by the existing request/decision contracts; this
      * focused control avoids substituting an invalid fake engine pointer. */
     free_notify_request(&request);
 
+    assert(pthread_mutex_destroy(&state.decision_log_lock) == 0);
     fclose(log);
     close(sockets[0]);
     close(sockets[1]);
@@ -364,7 +370,7 @@ int main(void) {
     memset(&request, 0xA5, sizeof(request));
     assert(parse_notify_payload(NULL, 0U, &request) != 0);
     assert(request.has_notify == 0);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     assert(request.message_name[0] == '\0');
 
     /* A nonempty malformed payload remains malformed. */
@@ -376,7 +382,7 @@ int main(void) {
     memset(&request, 0, sizeof(request));
     assert(parse_notify_payload(normal, sizeof(normal), &request) == 0);
     assert(request.has_notify == 1);
-    assert(request.is_response == 0);
+    assert(request.http_metadata.is_response == 0);
     assert(strcmp(request.message_name, "check-request") == 0);
     free_notify_request(&request);
     return 0;

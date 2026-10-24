@@ -7,6 +7,7 @@
 #include "msconnector/error.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
+#include "../../../tests/fixtures/http_authorization_runtime_lifecycle_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -32,18 +33,11 @@
 #define TEST_DEFAULT_CONNECTION_COUNT 8U
 #define TEST_SEQUENTIAL_REQUEST_COUNT 64U
 #define TEST_PARALLEL_REQUEST_COUNT 4U
-#define TEST_REDIRECT_URL_SIZE 1152U
 
 struct msconnector_runtime {
     unsigned int active_transactions;
     int event_integration_configured;
     int transaction_profile_configured;
-};
-
-struct msconnector_runtime_transaction {
-    msconnector_runtime *runtime;
-    int finished;
-    char redirect_url[TEST_REDIRECT_URL_SIZE];
 };
 
 static msconnector_runtime fake_runtime = {0U};
@@ -119,13 +113,9 @@ void msconnector_runtime_request_contract(
     (void)runtime;
     msconnector_request_mapper_contract_init(contract);
     contract->max_header_count = 64U;
-    contract->max_body_bytes = 1024U;
+
 }
 
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime) {
-    (void)runtime;
-    return 1024U;
-}
 
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime) {
     (void)runtime;
@@ -149,10 +139,11 @@ static int smoke_request_is_supported(const char *method, const char *uri) {
             strcmp(uri, "/overlong-redirect") == 0 ||
             strcmp(uri, "/deny") == 0;
     }
-    return strcmp(method, "POST") == 0 && strcmp(uri, "/redirect-p2") == 0;
+    return strcmp(method, "POST") == 0 &&
+        (strcmp(uri, "/redirect-p2") == 0 || strcmp(uri, "/stall") == 0);
 }
 
-int msconnector_runtime_transaction_begin(
+int msconnector_runtime_transaction_begin_request_stream(
     msconnector_runtime *runtime,
     const msconnector_request *request,
     const char *host_request_id,
@@ -238,22 +229,6 @@ int msconnector_runtime_transaction_finish(
 const char *msconnector_runtime_transaction_id(
     const msconnector_runtime_transaction *transaction) {
     return transaction == NULL ? NULL : "timeout-smoke";
-}
-
-void msconnector_runtime_transaction_destroy(
-    msconnector_runtime_transaction **transaction) {
-    if (transaction != NULL) {
-        free(*transaction);
-        *transaction = NULL;
-    }
-}
-
-int msconnector_runtime_error_http_status(
-    const msconnector_runtime *runtime,
-    msconnector_error_code code) {
-    (void)runtime;
-    (void)code;
-    return 500;
 }
 
 static int smoke_map_request(
@@ -1461,6 +1436,7 @@ static int rejects_unknown_or_invalid_option_values(void) {
 }
 
 int main(void) {
+    msconnector_test_request_stream_stubs_smoke();
     const char incomplete_headers[] =
         "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
     const char incomplete_body[] =

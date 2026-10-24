@@ -58,11 +58,11 @@ export CONNECTOR_ROOT="$(git rev-parse --show-toplevel)"
 test -f "$CONNECTOR_ROOT/Makefile"
 ```
 
-The repository native middleware module requires Go 1.26.5; this differs from the optional Traefik-v3.7.10 host-source requirement in Section 6.
+The repository native middleware module requires Go 1.26.9; this differs from the optional Traefik-v3.7.10 host-source requirement in Section 6.
 
 ```sh
 go version
-grep -Fx "go 1.26.5" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"
+grep -Fx "go 1.26.9" "$CONNECTOR_ROOT/connectors/traefik/native_middleware/go.mod"
 ```
 
 ## 5. Prepare libmodsecurity v3
@@ -246,9 +246,6 @@ rules_file=$RULES_FILE
 transaction_id_header=x-request-id
 request_body_mode=streaming
 response_body_mode=streaming
-request_body_limit=4096
-response_body_limit=4096
-body_limit_action=reject
 phase4_mode=safe
 default_block_status=403
 default_error_status=500

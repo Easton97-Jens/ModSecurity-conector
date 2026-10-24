@@ -152,6 +152,7 @@ for source in \
     "$REPO_ROOT/connectors/traefik/metadata.c" \
     "$REPO_ROOT/connectors/traefik/src/traefik_modsecurity_mapper.c" \
     "$REPO_ROOT/connectors/traefik/src/traefik_forwardauth_response_companion.c" \
+    "$REPO_ROOT/connectors/traefik/src/traefik_provenance.c" \
     "$REPO_ROOT/connectors/traefik/src/traefik_forwardauth_service_main.c"
 do
     [ -f "$source" ] || continue

@@ -11,6 +11,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -18,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -29,9 +30,14 @@ jobs:
       - name: Set up Go for response observer tests
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: connectors/envoy/ext_proc/go.mod
+          go-version-file: .go-version
           check-latest: false
           cache: false
+      - name: Execute Envoy technical-error callers and negative controls
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-envoy-callers
       - name: Test Envoy response observer
         working-directory: connectors/envoy/ext_proc
         env:
@@ -53,6 +59,50 @@ jobs:
           TMPDIR: ${{ runner.temp }}
           PYTHONDONTWRITEBYTECODE: "1"
         run: python3 -m unittest -v tests.test_private_runtime_sockets tests.test_envoy_transport_hardening_contract
+      - name: Set up repository-selected Go for the native bridge
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Install native bridge build prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            build-essential autoconf automake libtool pkg-config bison flex \
+            libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+          # Parent owns the CPython 3.15 artifact; preserve Framework dependency versions.
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+      - name: Compile and execute the real Common and CGo bridge tests
+        env:
+          GOTOOLCHAIN: local
+          ENVOY_EXT_PROC_COMMON_TEST: "1"
+          ALLOW_RUNTIME_DOWNLOADS: "1"
+          ALLOW_RUNTIME_BUILDS: "1"
+          RUNTIME_COMPONENT_TARGET: shared
+          VERIFIED_RUN_ROOT: ${{ runner.temp }}/pr382-envoy-native
+          SOURCE_ROOT: ${{ runner.temp }}/pr382-envoy-native/src
+          BUILD_ROOT: ${{ runner.temp }}/pr382-envoy-native/build
+          TMP_ROOT: ${{ runner.temp }}/pr382-envoy-native/tmp
+          LOG_ROOT: ${{ runner.temp }}/pr382-envoy-native/logs
+          CACHE_ROOT: ${{ runner.temp }}/pr382-envoy-native/cache-v2
+          CONNECTOR_COMPONENT_CACHE: ${{ runner.temp }}/pr382-envoy-native/cache-v2/shared
+          GOCACHE: ${{ runner.temp }}/pr382-envoy-native/go-cache
+          GOTMPDIR: ${{ runner.temp }}/pr382-envoy-native/tmp/go
+          PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          CODEX_RUN_ROOT: ${{ runner.temp }}/pr382-envoy-native/component-tests
+          TMPDIR: ${{ runner.temp }}/pr382-envoy-native/tmp
+        run: |
+          set -eu
+          umask 077
+          mkdir -p "$GOTMPDIR"
+          go version
+          sh ci/provisioning/cache/with-runtime-components.sh \
+            sh connectors/envoy/build/build_ext_proc.sh
+          sh ci/provisioning/cache/with-runtime-components.sh \
+            make check-native-engine-body-inspection PYTHON="$PYTHON"
       - name: Collect host runtime preflight evidence
         if: always()
         env:

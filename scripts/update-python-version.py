@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely check or update the repository's Python 3.14 patch version."""
+"""Safely check or update the repository's Python 3.15 patch version."""
 
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ from version_updater_common import (
 CANONICAL_RELEASE_API_URL = "https://www.python.org/api/v2/downloads/release/?is_published=true"
 RELEASE_API_URL = CANONICAL_RELEASE_API_URL
 VERSION_FILENAME = ".python-version"
-VERSION_RE = re.compile(r"^3\.14\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
-RELEASE_NAME_RE = re.compile(r"^Python 3\.14\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
+VERSION_RE = re.compile(r"^3\.15\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
+RELEASE_NAME_RE = re.compile(r"^Python 3\.15\.(?P<patch>0|[1-9]\d*)$", re.ASCII)
 RELEASE_ENDPOINT = ReleaseEndpoint(
     canonical_url=CANONICAL_RELEASE_API_URL,
     hostname="www.python.org",
@@ -36,22 +36,22 @@ _RELEASE_METADATA = ReleaseMetadataSource(RELEASE_ENDPOINT, lambda: RELEASE_API_
 
 @dataclass(frozen=True, order=True)
 class PythonVersion:
-    """A validated stable Python 3.14 patch version."""
+    """A validated stable Python 3.15 patch version."""
 
     patch: int
 
     def __str__(self) -> str:
-        return f"3.14.{self.patch}"
+        return f"3.15.{self.patch}"
 
 
 def parse_stable_version(value: object) -> PythonVersion:
     """Return a stable supported version or reject every other representation."""
 
     if type(value) is not str:
-        raise VersionError("version must be a string in the exact form 3.14.N")
+        raise VersionError("version must be a string in the exact form 3.15.N")
     match = VERSION_RE.fullmatch(value)
     if match is None:
-        raise VersionError("version must be an exact stable 3.14.N value with nonnegative N")
+        raise VersionError("version must be an exact stable 3.15.N value with nonnegative N")
     return PythonVersion(patch=int(match.group("patch")))
 
 
@@ -67,7 +67,7 @@ def _required_boolean(record: dict[str, object], field: str, index: int) -> bool
 
 
 def select_latest_stable_version(metadata: object) -> PythonVersion:
-    """Select the highest published, non-prerelease stable 3.14 patch."""
+    """Select the highest published, non-prerelease stable 3.15 patch."""
 
     if type(metadata) is not list:
         raise MetadataError("release metadata must be a JSON array")
@@ -82,16 +82,16 @@ def select_latest_stable_version(metadata: object) -> PythonVersion:
         if not _required_boolean(record, "is_published", index):
             raise MetadataError("release metadata contained an unpublished release")
         pre_release = _required_boolean(record, "pre_release", index)
-        if not name.startswith("Python 3.14.") or pre_release:
+        if not name.startswith("Python 3.15.") or pre_release:
             continue
 
         match = RELEASE_NAME_RE.fullmatch(name)
         if match is None:
-            raise MetadataError(f"release metadata record {index} has an invalid stable 3.14 name")
+            raise MetadataError(f"release metadata record {index} has an invalid stable 3.15 name")
         candidates.append(PythonVersion(patch=int(match.group("patch"))))
 
     if not candidates:
-        raise MetadataError("release metadata contains no published stable Python 3.14 patch")
+        raise MetadataError("release metadata contains no published stable Python 3.15 patch")
     return max(candidates)
 
 
@@ -111,7 +111,7 @@ _RUNTIME = UpdaterRuntime(
     script_path=__file__,
     version_filename=VERSION_FILENAME,
     version_label="Python",
-    version_metavar="3.14.N",
+    version_metavar="3.15.N",
     description=__doc__,
     parse_stable_version=parse_stable_version,
     resolve_latest_stable_version=resolve_latest_stable_version,

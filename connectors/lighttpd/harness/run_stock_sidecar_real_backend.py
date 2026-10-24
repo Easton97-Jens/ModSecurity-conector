@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import contextmanager, ExitStack
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -20,12 +22,18 @@ import time
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+_CI_LIB = REPOSITORY_ROOT / "ci" / "lib"
+if str(_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(_CI_LIB))
+from runtime_path_utils import open_private_runtime_root  # noqa: E402
+
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40,64}$", re.ASCII)
 _LIGHTTPD_VERSION = re.compile(r"\blighttpd/(\d+\.\d+\.\d+)\b", re.ASCII)
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _METADATA_KEY = re.compile(r"^[A-Za-z_]\w*$", re.ASCII)
 _CASE_NAME = re.compile(r"^[a-z0-9_]+$", re.ASCII)
 _MAX_CLIENT_RESPONSE_BYTES = 128 * 1024
+_CLIENT_REQUEST_ARTIFACT = "request.http"
 _MAX_EVENT_FILE_BYTES = 64 * 1024
 _MAX_RECEIPT_BYTES = 16 * 1024
 _BACKEND_ACCESS_LOG_WAIT_SECONDS = 6.0
@@ -62,7 +70,19 @@ _ENGINE_EVENT_EXPECTED_FIELDS = {
     "status": "blocked",
     "action": "deny",
     "requested_action": "deny",
-    "actual_action": "deny",
+    "actual_action": "",
+}
+_UNOBSERVED_ERROR_EVENTS = {
+    "MSCONN_EVENT_ENGINE_TIMEOUT": "engine_timeout",
+    "MSCONN_EVENT_ENGINE_UNAVAILABLE": "engine_unavailable",
+    "MSCONN_EVENT_INVALID_ENGINE_RESPONSE": "invalid_engine_response",
+    "MSCONN_EVENT_PROTOCOL_ERROR": "protocol_error",
+    "MSCONN_EVENT_CONFIG_ERROR": "config_error",
+    "MSCONN_EVENT_RULE_PARSE_ERROR": "rule_parse_error",
+    "MSCONN_EVENT_INTERNAL_ERROR": "connector_error",
+    "MSCONN_EVENT_CONNECTOR_ERROR": "connector_error",
+    "MSCONN_EVENT_CLIENT_CANCEL": "client_cancel",
+    "MSCONN_EVENT_UPSTREAM_DISCONNECT": "upstream_disconnect",
 }
 _EVENT_REQUIRED_STRING_KEYS = (
     "timestamp", "level", "message_id", "message", "event", "connector",
@@ -117,8 +137,10 @@ class RealBackendCase:
     name: str
     request: bytes
     rules: tuple[str, ...]
-    request_limit: int
-    response_limit: int
+    engine_request_limit: int
+    engine_request_limit_action: str
+    engine_response_limit: int
+    engine_response_limit_action: str
     phase4_mode: str
     expected_status: int
     expected_body: bytes
@@ -140,8 +162,10 @@ REAL_BACKEND_CASES = (
         name="allow_full",
         request=http_request("GET", _HEALTH_PATH),
         rules=(),
-        request_limit=65536,
-        response_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=200,
         expected_body=b"stock-backend-health",
@@ -161,8 +185,10 @@ REAL_BACKEND_CASES = (
         name="allow_empty",
         request=http_request("GET", "/empty.txt"),
         rules=(),
-        request_limit=65536,
-        response_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=200,
         expected_body=b"",
@@ -185,8 +211,10 @@ REAL_BACKEND_CASES = (
             'SecRule REQUEST_URI "@streq /p1-block" '
             '"id:9821001,phase:1,deny,status:451,log"',
         ),
-        request_limit=65536,
-        response_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=451,
         expected_body=b"",
@@ -195,7 +223,7 @@ REAL_BACKEND_CASES = (
         expected_contract_action="deny",
         expected_error_class="none",
         expected_response_committed=False,
-        expected_engine_event="MSCONN_EVENT_REQUEST_BLOCKED",
+        expected_engine_event="MSCONN_EVENT_ENGINE_DECISION",
         expected_host_action_event="MSCONN_EVENT_REQUEST_BLOCKED",
         expected_rule_id="9821001",
         expected_actual_action="deny",
@@ -209,8 +237,10 @@ REAL_BACKEND_CASES = (
             'SecRule REQUEST_BODY "@contains stock-p2-marker" '
             '"id:9821002,phase:2,deny,status:418,log"',
         ),
-        request_limit=65536,
-        response_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=418,
         expected_body=b"",
@@ -219,7 +249,7 @@ REAL_BACKEND_CASES = (
         expected_contract_action="deny",
         expected_error_class="none",
         expected_response_committed=False,
-        expected_engine_event="MSCONN_EVENT_REQUEST_BLOCKED",
+        expected_engine_event="MSCONN_EVENT_ENGINE_DECISION",
         expected_host_action_event="MSCONN_EVENT_REQUEST_BLOCKED",
         expected_rule_id="9821002",
         expected_actual_action="deny",
@@ -230,18 +260,20 @@ REAL_BACKEND_CASES = (
         name="p2_body_limit",
         request=http_request("POST", _HEALTH_PATH, b"12345"),
         rules=(),
-        request_limit=4,
-        response_limit=65536,
+        engine_request_limit=4,
+        engine_request_limit_action="Reject",
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
-        expected_status=413,
+        expected_status=403,
         expected_body=b"",
-        expected_phase_sequence=("P1",),
+        expected_phase_sequence=("P1", "P2"),
         expected_engine_decision="block",
         expected_contract_action="deny",
         expected_error_class="body_limit",
         expected_response_committed=False,
         expected_engine_event="MSCONN_EVENT_BODY_LIMIT",
-        expected_host_action_event="MSCONN_EVENT_INTERNAL_ERROR",
+        expected_host_action_event="MSCONN_EVENT_BODY_LIMIT",
         expected_rule_id=None,
         expected_actual_action="deny",
         expected_transport_result="http_status",
@@ -254,8 +286,10 @@ REAL_BACKEND_CASES = (
             'SecRule RESPONSE_HEADERS:Content-Type "@contains text/plain" '
             '"id:9821003,phase:3,deny,status:422,log"',
         ),
-        request_limit=65536,
-        response_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="strict",
         expected_status=422,
         expected_body=b"",
@@ -264,7 +298,7 @@ REAL_BACKEND_CASES = (
         expected_contract_action="deny",
         expected_error_class="none",
         expected_response_committed=False,
-        expected_engine_event="MSCONN_EVENT_RESPONSE_BLOCKED",
+        expected_engine_event="MSCONN_EVENT_ENGINE_DECISION",
         expected_host_action_event="MSCONN_EVENT_RESPONSE_BLOCKED",
         expected_rule_id="9821003",
         expected_actual_action="deny",
@@ -278,8 +312,10 @@ REAL_BACKEND_CASES = (
             'SecRule RESPONSE_BODY "@contains stock-p4-marker" '
             '"id:9821004,phase:4,deny,status:429,log"',
         ),
-        request_limit=65536,
-        response_limit=65536,
+        engine_request_limit=65536,
+        engine_request_limit_action="Reject",
+        engine_response_limit=65536,
+        engine_response_limit_action="Reject",
         phase4_mode="safe",
         expected_status=200,
         expected_body=b"stock-p4-marker",
@@ -288,8 +324,8 @@ REAL_BACKEND_CASES = (
         expected_contract_action="rate_limit",
         expected_error_class="none",
         expected_response_committed=True,
-        expected_engine_event="MSCONN_EVENT_RESPONSE_BLOCKED",
-        expected_host_action_event="MSCONN_EVENT_RESPONSE_BLOCKED",
+        expected_engine_event="MSCONN_EVENT_ENGINE_DECISION",
+        expected_host_action_event="MSCONN_EVENT_PHASE4_LATE_INTERVENTION",
         expected_rule_id="9821004",
         expected_actual_action="log_only",
         expected_transport_result="log_only",
@@ -638,9 +674,9 @@ def request_body(request: bytes) -> bytes:
 
 
 def expected_snapshot_request_bytes(case: RealBackendCase) -> int:
-    # The sidecar rejects Content-Length over its P2 limit before it accepts a
-    # request-body byte. Every other catalog case has one bounded body stream.
-    return 0 if case.expected_error_class == "body_limit" else len(request_body(case.request))
+    # This catalog sets the native engine limit. The sidecar therefore accepts
+    # the complete bounded request before libModSecurity returns BODY_LIMIT.
+    return len(request_body(case.request))
 
 
 def receipt_case_path(runtime_root: Path, initial: Path, case: RealBackendCase) -> Path:
@@ -886,10 +922,28 @@ def _validate_event_enums(record: dict[str, object]) -> None:
         ("status", _EVENT_STATUS_VALUES),
         ("action", _EVENT_ACTION_VALUES),
         ("requested_action", _EVENT_ACTION_VALUES),
-        ("actual_action", _EVENT_ACTION_VALUES),
         ("transport_result", _EVENT_TRANSPORT_RESULTS),
     )
     if any(record[key] not in values for key, values in allowed_values):
+        raise RuntimeError("Stock lighttpd event has an invalid Common enum")
+    if record["actual_action"] == "":
+        engine = record["message_id"] == "MSCONN_EVENT_ENGINE_DECISION" and \
+            record["event"] == "engine_decision" and record["status"] == "blocked" and \
+            record["action"] == record["requested_action"] and \
+            record["requested_action"] in {"deny", "redirect", "drop", "rate_limit",
+                                           "abort_connection", "stream_reset"}
+        policy = record["message_id"] == "MSCONN_EVENT_BODY_LIMIT" and \
+            record["event"] == "body_limit" and \
+            record["status"] == "blocked" and record["action"] == "deny" and \
+            record["requested_action"] == "deny" and record["rule_id"] == ""
+        error = _UNOBSERVED_ERROR_EVENTS.get(record["message_id"])
+        technical = error is not None and record["event"] == error and \
+            record["status"] == "error" and record["action"] == "error" and \
+            record["requested_action"] == "error" and record["rule_id"] == ""
+        if record["transport_result"] not in {"", "not_observable"} or \
+                not (engine or technical or policy):
+            raise RuntimeError("Stock lighttpd event has an invalid unobserved action")
+    elif record["actual_action"] not in _EVENT_ACTION_VALUES:
         raise RuntimeError("Stock lighttpd event has an invalid Common enum")
 
 
@@ -1041,10 +1095,13 @@ def _event_matches_identity(record: dict[str, object], case: RealBackendCase) ->
 
 
 def _is_engine_event_candidate(record: dict[str, object], case: RealBackendCase) -> bool:
+    event_name = "body_limit" if case.expected_engine_event == \
+        "MSCONN_EVENT_BODY_LIMIT" else "engine_decision"
     return record.get("message_id") == case.expected_engine_event and \
         _event_matches_identity(record, case) and \
         all(record.get(key) == value for key, value in _ENGINE_EVENT_EXPECTED_FIELDS.items()) and \
-        record.get("transport_result") == "" and \
+        record.get("event") == event_name and \
+        record.get("transport_result") in {"", "not_observable"} and \
         record.get("visible_http_status") == record.get("original_http_status") and \
         record.get("response_committed") is case.expected_response_committed and \
         record.get("late_intervention") is False
@@ -1197,8 +1254,13 @@ def write_case_runtime_inputs(case_root: Path, case: RealBackendCase) -> tuple[P
         "\n".join((
             "SecRuleEngine On",
             "SecRequestBodyAccess On",
+            f"SecRequestBodyLimit {case.engine_request_limit}",
+            f"SecRequestBodyNoFilesLimit {case.engine_request_limit}",
+            f"SecRequestBodyLimitAction {case.engine_request_limit_action}",
             "SecResponseBodyAccess On",
             "SecResponseBodyMimeType text/plain",
+            f"SecResponseBodyLimit {case.engine_response_limit}",
+            f"SecResponseBodyLimitAction {case.engine_response_limit_action}",
             *case.rules,
             "",
         )),
@@ -1212,9 +1274,6 @@ def write_case_runtime_inputs(case_root: Path, case: RealBackendCase) -> tuple[P
             "transaction_id_header=x-request-id",
             "request_body_mode=streaming",
             "response_body_mode=streaming",
-            f"request_body_limit={case.request_limit}",
-            f"response_body_limit={case.response_limit}",
-            "body_limit_action=reject",
             f"phase4_mode={case.phase4_mode}",
             "default_block_status=403",
             "default_error_status=502",
@@ -1242,6 +1301,89 @@ def stop(process: subprocess.Popen[bytes]) -> None:
         process.wait(timeout=5)
 
 
+def write_observation(path: Path, value: dict[str, object]) -> None:
+    # All callers use the newly created, service-owned private attempt directory.
+    with path.open("x", encoding="utf-8") as output:
+        path.chmod(0o600)
+        json.dump(value, output, sort_keys=True)
+        output.write("\n")
+
+
+@contextmanager
+def retained_attempt(runtime_root: Path):
+    private_directory(runtime_root, "STOCK_SIDECAR_RUNTIME_ROOT")
+    root = Path(tempfile.mkdtemp(prefix="stock-real-h1-", dir=runtime_root))
+    root.chmod(0o700)
+    started = time.time_ns()
+    outcome = "completed"
+    try:
+        yield root
+    except BaseException:
+        outcome = "failed"
+        raise
+    finally:
+        artifacts = []
+        for path in sorted(root.rglob("*")):
+            info = path.lstat()
+            if stat.S_ISREG(info.st_mode):
+                path.chmod(0o600)
+                artifacts.append({"path": str(path.relative_to(root)),
+                                  "sha256": file_sha256(path, "retained runtime artifact"),
+                                  "bytes": info.st_size})
+        write_observation(root / "attempt.json", {
+            "started_unix_ns": started, "finished_unix_ns": time.time_ns(),
+            "outcome": outcome, "artifacts": artifacts,
+            "raw_artifacts_retained": True,
+            "raw_http_fixture_payloads_retained": True,
+        })
+
+
+def stop_with_receipt(process: subprocess.Popen[bytes], port: int, path: Path) -> None:
+    try:
+        stop(process)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise CleanupFailure("Stock lighttpd child could not be reaped") from error
+    listener_connected = None
+    listener_probe_error = None
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+            listener_connected = True
+    except ConnectionRefusedError:
+        listener_connected = False
+    except OSError as error:
+        listener_probe_error = type(error).__name__
+    listener_closed = listener_connected is False
+    write_observation(path, {"pid": process.pid, "wait_returncode": process.returncode,
+                             "process_reaped": process.returncode is not None,
+                             "listener_closed_observed": listener_closed,
+                             "listener_connected_observed": listener_connected,
+                             "listener_probe_error": listener_probe_error,
+                             "observed_unix_ns": time.time_ns()})
+    if not listener_closed or process.returncode is None:
+        raise CleanupFailure("Stock lighttpd child cleanup could not be established")
+
+
+def launch_logged(argv: list[str], root: Path, label: str,
+                  *, env: dict[str, str] | None = None) -> subprocess.Popen[bytes]:
+    process = None
+    try:
+        with (root / f"{label}-stdout.log").open("xb") as stdout, \
+                (root / f"{label}-stderr.log").open("xb") as stderr:
+            process = subprocess.Popen(argv, stdout=stdout, stderr=stderr, env=env)
+        write_observation(root / f"{label}-launch.json", {
+            "argv": argv, "cwd": str(Path.cwd()), "pid": process.pid,
+            "uid": os.geteuid(), "gid": os.getegid(), "started_unix_ns": time.time_ns(),
+        })
+    except BaseException:
+        if process is not None:
+            try:
+                stop(process)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                raise CleanupFailure("Stock lighttpd launch failure child could not be reaped") from error
+        raise
+    return process
+
+
 def free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("127.0.0.1", 0))
@@ -1261,24 +1403,142 @@ def wait_ready(port: int, process: subprocess.Popen[bytes], label: str) -> None:
     raise RuntimeError(f"{label} listener did not become ready")
 
 
-def exchange(port: int, request: bytes) -> tuple[int, bytes]:
-    with socket.create_connection(("127.0.0.1", port), timeout=5.0) as client:
-        client.sendall(request)
-        response = bytearray()
-        while True:
-            chunk = client.recv(4096)
-            if not chunk:
-                break
-            if len(response) > _MAX_CLIENT_RESPONSE_BYTES - len(chunk):
-                raise RuntimeError("Stock lighttpd client response exceeds its bounded catalog limit")
-            response.extend(chunk)
-    head, separator, body = bytes(response).partition(b"\r\n\r\n")
+def validate_client_descriptors(request_descriptor: int, response_descriptor: int) -> None:
+    if request_descriptor < 3 or response_descriptor < 3 or request_descriptor == response_descriptor:
+        raise RuntimeError("Stock lighttpd client requires distinct inherited artifact descriptors")
+    identities = []
+    for descriptor in (request_descriptor, response_descriptor):
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or \
+                stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1:
+            raise RuntimeError("Stock lighttpd client artifact descriptor is not owner-private")
+        identities.append((info.st_dev, info.st_ino))
+    if identities[0] == identities[1] or os.fstat(response_descriptor).st_size != 0:
+        raise RuntimeError("Stock lighttpd client requires distinct fresh output")
+    if fcntl.fcntl(request_descriptor, fcntl.F_GETFL) & os.O_ACCMODE == os.O_WRONLY or \
+            fcntl.fcntl(response_descriptor, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDONLY:
+        raise RuntimeError("Stock lighttpd client artifact descriptor access is invalid")
+
+
+def client_exchange(port: int, request_descriptor: int, response_descriptor: int) -> None:
+    validate_client_descriptors(request_descriptor, response_descriptor)
+    with os.fdopen(request_descriptor, "rb", closefd=False) as source:
+        request = source.read()
+    response = bytearray()
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=5.0) as client:
+            client.sendall(request)
+            while True:
+                chunk = client.recv(4096)
+                if not chunk:
+                    break
+                if len(response) > _MAX_CLIENT_RESPONSE_BYTES - len(chunk):
+                    raise RuntimeError("Stock lighttpd client response exceeds its bounded catalog limit")
+                response.extend(chunk)
+    finally:
+        with os.fdopen(response_descriptor, "wb", closefd=False) as output:
+            output.write(response)
+
+
+@contextmanager
+def client_artifacts(evidence_root: Path, request: bytes):
+    with open_private_runtime_root(evidence_root) as root, ExitStack() as artifacts:
+        streams = {}
+        for name in (_CLIENT_REQUEST_ARTIFACT, "response.http", "stdout.log", "stderr.log"):
+            descriptor = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                 0o600, dir_fd=root.descriptor)
+            stream = artifacts.enter_context(os.fdopen(descriptor, "w+b"))
+            os.fchmod(stream.fileno(), 0o600)
+            if name == _CLIENT_REQUEST_ARTIFACT:
+                stream.write(request)
+                stream.flush()
+                stream.seek(0)
+            streams[name] = stream
+        yield streams[_CLIENT_REQUEST_ARTIFACT], streams["response.http"], streams["stdout.log"], streams["stderr.log"]
+
+
+def run_client(argv: list[str], descriptors: tuple[int, int], stdout, stderr) -> tuple[int, bool]:
+    timed_out = False
+    with subprocess.Popen(argv, stdout=stdout, stderr=stderr, pass_fds=descriptors) as process:
+        try:
+            process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            process.kill()
+            process.wait(timeout=5)
+        return process.returncode, timed_out
+
+
+def client_framing(raw: bytes, returncode: int):
+    head, separator, body = raw.partition(b"\r\n\r\n")
+    status_line = head.split(b"\r\n", 1)[0].split()
+    observed_status = int(status_line[1]) if separator and len(status_line) >= 2 and \
+        status_line[1].isdigit() else None
+    lengths = [line.partition(b":")[2].strip() for line in head.split(b"\r\n")[1:]
+               if line.partition(b":")[0].lower() == b"content-length"]
+    content_length = int(lengths[0]) if len(lengths) == 1 and lengths[0].isdigit() else None
+    transfer_encoding = any(line.partition(b":")[0].lower() == b"transfer-encoding"
+                            for line in head.split(b"\r\n")[1:])
+    framing_complete = bool(separator) and not transfer_encoding and \
+        (len(body) == content_length if lengths else returncode == 0)
+    return head, separator, body, status_line, observed_status, content_length, transfer_encoding, framing_complete
+
+
+def exchange(port: int, request: bytes, evidence_root: Path) -> tuple[int, bytes]:
+    evidence_root.mkdir(mode=0o700)
+    started = time.time_ns()
+    with client_artifacts(evidence_root, request) as (source, response, stdout, stderr):
+        descriptors = source.fileno(), response.fileno()
+        argv = [sys.executable, str(Path(__file__).resolve()), "--client-exchange",
+                str(port), *(str(descriptor) for descriptor in descriptors)]
+        returncode, timed_out = run_client(argv, descriptors, stdout, stderr)
+        response.seek(0)
+        raw = response.read(_MAX_CLIENT_RESPONSE_BYTES + 1)
+    head, separator, body, status_line, observed_status, content_length, transfer_encoding, framing_complete = \
+        client_framing(raw, returncode)
+    write_observation(evidence_root / "client.json", {
+        "argv": argv, "cwd": str(Path.cwd()), "started_unix_ns": started,
+        "finished_unix_ns": time.time_ns(), "wait_returncode": returncode,
+        "signal": -returncode if returncode < 0 else None, "timed_out": timed_out,
+        "http_status": observed_status, "response_bytes": len(raw),
+        "body_bytes": len(body) if separator else None,
+        "body_sha256": hashlib.sha256(body).hexdigest() if separator else None,
+        "headers_sha256": hashlib.sha256(head).hexdigest() if separator else None,
+        "content_length": content_length, "framing_complete": framing_complete,
+    })
+    if returncode != 0 or timed_out:
+        raise RuntimeError("Stock lighttpd client exchange failed; retained its actual exit and bytes")
     if not separator:
         raise RuntimeError("sidecar returned no complete HTTP response")
-    status_line = head.split(b"\r\n", 1)[0].split()
     if len(status_line) < 2 or not status_line[1].isdigit():
         raise RuntimeError("sidecar returned an invalid HTTP status line")
+    if transfer_encoding:
+        raise RuntimeError("Stock lighttpd client framing requires an unsupported transfer decoder")
+    if not framing_complete:
+        raise CaseObservationError("Stock lighttpd client received incomplete or invalid response framing")
     return int(status_line[1]), body
+
+
+class CleanupFailure(RuntimeError):
+    """Prevent another case from starting while a previous child may survive."""
+
+
+class CaseObservationError(RuntimeError):
+    """An observed result disagrees with the fixed catalog contract."""
+
+
+def follow_up_health(case: RealBackendCase, sidecar_port: int, case_root: Path,
+                     backend_access_log: Path, baseline_backend_requests: int) -> str:
+    if case.name != "p4_safe_rate_limit":
+        return "not_run"
+    status, body = exchange(sidecar_port, http_request("GET", _HEALTH_PATH),
+                            case_root / "follow-up-client")
+    if status != 200 or body != b"stock-backend-health":
+        raise RuntimeError("Stock lighttpd did not remain healthy after P4 Safe")
+    wait_for_backend_requests(
+        backend_access_log, baseline_backend_requests + case.expected_backend_requests + 1
+    )
+    return "passed"
 
 
 def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
@@ -1297,12 +1557,12 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
     verify_artifact_digest(
         sidecar_binary, "MSCONNECTOR_STOCK_SIDECAR_BINARY", sidecar_binary_digest
     )
-    sidecar = subprocess.Popen(
+    sidecar = launch_logged(
         [str(sidecar_binary), "--config", str(runtime_config),
          "--listen", f"127.0.0.1:{sidecar_port}",
-         "--upstream", f"127.0.0.1:{backend_port}", "--timeout-ms", "3000"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+         "--upstream", f"127.0.0.1:{backend_port}", "--timeout-ms", "3000",
+         "--spool-directory", str(case_root)],
+        case_root, "sidecar",
         env={
             **os.environ,
             "STOCK_SIDECAR_RECEIPT_PATH": str(snapshot_path),
@@ -1311,12 +1571,17 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
     )
     try:
         wait_ready(sidecar_port, sidecar, "Stock lighttpd sidecar")
-        status, body = exchange(sidecar_port, case.request)
+        status, body = exchange(sidecar_port, case.request, case_root / "client")
         if status != case.expected_status or body != case.expected_body:
-            raise RuntimeError("Stock lighttpd client result disagrees with its fixed catalog case")
+            raise CaseObservationError("Stock lighttpd client result disagrees with its fixed catalog case")
         wait_for_backend_requests(
             backend_access_log, baseline_backend_requests + case.expected_backend_requests
         )
+        observed_backend_requests = backend_request_count(backend_access_log) - baseline_backend_requests
+        write_observation(case_root / "backend.json", {
+            "baseline": baseline_backend_requests, "requests_observed": observed_backend_requests,
+            "access_log": str(backend_access_log), "observed_unix_ns": time.time_ns(),
+        })
         snapshot = wait_for_sidecar_receipt(snapshot_path, receipt_binding, case)
         event = select_host_action_event(events_path, case, snapshot)
         if case.expected_host_action_event is None:
@@ -1333,15 +1598,8 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
                 not isinstance(original_status, int) or isinstance(original_status, bool) or \
                 not 0 <= original_status <= 599:
             raise RuntimeError("Stock lighttpd receipt projection is not internally consistent")
-        follow_up_health = "not_run"
-        if case.name == "p4_safe_rate_limit":
-            follow_status, follow_body = exchange(sidecar_port, http_request("GET", _HEALTH_PATH))
-            if follow_status != 200 or follow_body != b"stock-backend-health":
-                raise RuntimeError("Stock lighttpd did not remain healthy after P4 Safe")
-            wait_for_backend_requests(
-                backend_access_log, baseline_backend_requests + case.expected_backend_requests + 1
-            )
-            follow_up_health = "passed"
+        health = follow_up_health(case, sidecar_port, case_root, backend_access_log,
+                                  baseline_backend_requests)
         if sidecar.poll() is not None:
             raise RuntimeError("Stock lighttpd sidecar stopped during an active catalog case")
         verified = {
@@ -1389,14 +1647,13 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
             "transport_result": transport_result,
             "cleanup_status": snapshot["cleanup_status"],
             "cleanup_complete": snapshot["cleanup_complete"],
-            "backend_requests_observed": case.expected_backend_requests,
+            "backend_requests_observed": observed_backend_requests,
             "process_healthy": True,
-            "follow_up_health": follow_up_health,
+            "follow_up_health": health,
             "payloads_persisted": False,
             "opaque_handles_persisted": False,
         }
-        publish_verified_receipt(verified_path, verified)
-        return {
+        outcome = {
             "case": case.name,
             "status": status,
             "phase_sequence": snapshot["observed_phase_sequence"],
@@ -1404,7 +1661,48 @@ def run_case(*, runtime_root: Path, initial_receipt: Path, temporary_root: Path,
             "verified_receipt": verified_path,
         }
     finally:
-        stop(sidecar)
+        cleanup_error = None
+        try:
+            stop_with_receipt(sidecar, sidecar_port, case_root / "process-cleanup.json")
+        except CleanupFailure as error:
+            cleanup_error = error
+        try:
+            # Preserve independent backend evidence even if client/schema checks fail.
+            observed = backend_request_count(backend_access_log) - baseline_backend_requests \
+                if backend_access_log.exists() else None
+            write_observation(case_root / "backend-final.json", {
+                "baseline": baseline_backend_requests, "requests_observed": observed,
+                "access_log": str(backend_access_log), "observed_unix_ns": time.time_ns(),
+                "access_log_sha256": file_sha256(backend_access_log, "backend access log")
+                if backend_access_log.exists() else None,
+                "missing_evidence_reason": None if backend_access_log.exists() else "backend access log absent",
+            })
+        finally:
+            if cleanup_error is not None:
+                raise cleanup_error
+    publish_verified_receipt(verified_path, verified)
+    return outcome
+
+
+def run_catalog(**inputs) -> list[dict[str, object]]:
+    outcomes: list[dict[str, object]] = []
+    for case in REAL_BACKEND_CASES:
+        try:
+            outcome = {**run_case(case=case, **inputs), "result": "PASS"}
+        except CleanupFailure:
+            raise
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+            outcome = {"case": case.name,
+                       "result": "FAIL" if isinstance(error, CaseObservationError) else "BLOCKED",
+                       "error": str(error), "error_class": type(error).__name__}
+        case_root = inputs["temporary_root"] / "cases" / case.name
+        case_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        write_observation(case_root / "outcome.json", {
+            key: str(value) if isinstance(value, Path) else value
+            for key, value in outcome.items()
+        })
+        outcomes.append(outcome)
+    return outcomes
 
 
 def main() -> int:
@@ -1434,8 +1732,7 @@ def main() -> int:
     stock_version = host_version(stock_binary)
     if stock_version != host_contract["LIGHTTPD_VERSION"]:
         raise RuntimeError("Stock lighttpd version does not match its selected contract")
-    with tempfile.TemporaryDirectory(prefix="stock-real-h1-", dir=runtime_root) as temporary:
-        root = Path(temporary)
+    with retained_attempt(runtime_root) as root:
         docroot = root / "htdocs"
         docroot.mkdir()
         (docroot / "health.txt").write_bytes(b"stock-backend-health")
@@ -1465,10 +1762,9 @@ def main() -> int:
             artifact_attestation, _ATTESTATION_LABEL,
             artifact_attestation_digest,
         )
-        backend = subprocess.Popen(
+        backend = launch_logged(
             [str(stock_binary), "-D", "-m", str(module_dir), "-f", str(backend_config)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            root, "backend",
         )
         try:
             wait_ready(backend_port, backend, "unchanged Stock lighttpd backend")
@@ -1493,23 +1789,29 @@ def main() -> int:
                 ],
                 "artifact_attestation_sha256": artifact_attestation_digest,
             }
-            outcomes = [
-                run_case(
-                    runtime_root=runtime_root,
-                    initial_receipt=receipt,
-                    temporary_root=root,
-                    sidecar_binary=sidecar_binary,
-                    sidecar_binary_digest=sidecar_binary_digest,
-                    backend_port=backend_port,
-                    backend_access_log=backend_access_log,
-                    case=case,
-                    metadata=metadata,
-                )
-                for case in REAL_BACKEND_CASES
-            ]
+            outcomes = run_catalog(
+                runtime_root=runtime_root,
+                initial_receipt=receipt,
+                temporary_root=root,
+                sidecar_binary=sidecar_binary,
+                sidecar_binary_digest=sidecar_binary_digest,
+                backend_port=backend_port,
+                backend_access_log=backend_access_log,
+                metadata=metadata,
+            )
+            write_observation(root / "catalog-summary.json", {
+                "cases_attempted": len(outcomes),
+                "counts": {result: sum(o["result"] == result for o in outcomes)
+                           for result in ("PASS", "FAIL", "BLOCKED")},
+                "evidence_scope": "bounded_real_backend_catalog",
+            })
         finally:
-            stop(backend)
+            stop_with_receipt(backend, backend_port, root / "backend-cleanup.json")
     for outcome in outcomes:
+        if outcome["result"] != "PASS":
+            print(f"lighttpd_stock_sidecar_real_backend: {outcome['result']} "
+                  f"case={outcome['case']} error={outcome['error']}", file=sys.stderr)
+            continue
         print(
             "lighttpd_stock_sidecar_real_backend: PASS "
             f"case={outcome['case']} status={outcome['status']} "
@@ -1517,12 +1819,17 @@ def main() -> int:
             f"actual_action={outcome['actual_host_action']} traffic_owner=sidecar "
             f"backend=unchanged-stock-lighttpd receipt={outcome['verified_receipt']}"
         )
-    return 0
+    if any(outcome["result"] == "FAIL" for outcome in outcomes):
+        return 1
+    return 77 if any(outcome["result"] != "PASS" for outcome in outcomes) else 0
 
 
 if __name__ == "__main__":
     try:
+        if len(sys.argv) == 5 and sys.argv[1] == "--client-exchange":
+            client_exchange(int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]))
+            raise SystemExit(0)
         raise SystemExit(main())
-    except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
         print(f"lighttpd_stock_sidecar_real_backend: BLOCKED: {error}", file=sys.stderr)
         raise SystemExit(77)

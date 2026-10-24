@@ -11,6 +11,8 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261013-pr382-consolidated](CR-20261013-pr382-consolidated.de.md) | English companion: `CR-20261013-pr382-consolidated.md` — vom Benutzer autorisierte Zusammenfassung der 122 in PR #382 hinzugefügten EN/DE-Paare; vollständige historische Evidence bleibt über unveränderliche Git-Links erhalten. Bestehende `origin/master`-Records bleiben erhalten; aktuelle Remediation und offene I12-Evidence werden getrennt ausgewiesen.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)
   | English companion: `CR-20260919-submodule-updater-workflows-capability.md` —
   der aktuelle Benutzer hat diese Parent-only-Korrektur für GitHub-Actions-Lauf

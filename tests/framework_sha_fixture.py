@@ -34,7 +34,7 @@ def set_framework_sha_fixture(root: Path, framework_sha: str) -> None:
                or re.fullmatch(r"[0-9a-f]{40}", payload[key]) is None
                for key in ("framework_sha", "mrts_sha"))
         or not isinstance(payload["python_version"], str)
-        or re.fullmatch(r"3\.14\.(?:0|[1-9][0-9]*)", payload["python_version"]) is None
+        or re.fullmatch(r"3\.15\.(?:0|[1-9][0-9]*)", payload["python_version"]) is None
         or len(payload["python_version"]) > 32
         or not isinstance(payload["go_version"], str)
         or re.fullmatch(r"[1-9][0-9]*\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", payload["go_version"]) is None

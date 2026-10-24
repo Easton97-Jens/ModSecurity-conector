@@ -1,10 +1,13 @@
 #include "traefik_modsecurity_mapper.h"
 #include "traefik_forwardauth_response_companion.h"
+#include "traefik_provenance.h"
 
 #include "common/runtime/http_authorization_service.h"
 #include "connectors/profile_registry.h"
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 static const char *const traefik_original_uri_headers[] = {
     "X-Forwarded-Uri",
@@ -44,8 +47,7 @@ static int traefik_handoff_response_companion(
         }
         if (!msconnector_traefik_forwardauth_response_companion_set_limits(companion,
                 msconnector_runtime_header_count_limit(runtime),
-                msconnector_runtime_total_header_limit(runtime),
-                msconnector_runtime_response_body_limit(runtime))) {
+                msconnector_runtime_total_header_limit(runtime))) {
             return 0;
         }
         traefik_response_companion_ready = 1;
@@ -55,7 +57,7 @@ static int traefik_handoff_response_companion(
             &companion->transport_initialized, &companion->transport_ready,
             &(msconnector_response_companion_transport_options){
                 "traefik", companion->socket_path, companion->max_header_count,
-                companion->max_header_bytes, companion->max_response_body_bytes,
+                companion->max_header_bytes,
                 configured_timeout == 0U ?
                 MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_DEFAULT_TIMEOUT_MS :
                 configured_timeout}, error)) {
@@ -90,6 +92,15 @@ static int traefik_revoke_response_companion(void *userdata,
         &companion->runtime_transactions, response_handle, error);
 }
 
+static int traefik_confirm_response_companion(void *userdata,
+    const char *response_handle, msconnector_error *error)
+{
+    msconnector_traefik_forwardauth_response_companion *companion = userdata;
+    return companion != NULL && traefik_response_companion_ready &&
+        msconnector_runtime_response_companion_confirm_preclaim(
+            &companion->runtime_transactions, response_handle, error);
+}
+
 static const msconnector_http_authorization_profile traefik_forwardauth_profile = {
     "traefik",
     "forwardAuth",
@@ -109,11 +120,28 @@ static const msconnector_http_authorization_profile traefik_forwardauth_profile 
 int main(int argc, char **argv)
 {
     msconnector_http_authorization_profile profile = traefik_forwardauth_profile;
+    const char *provenance_socket = getenv("MSCONNECTOR_TRAEFIK_PROVENANCE_SOCKET");
+    int serving = 0;
+    int result;
+    static const msconnector_http_authorization_trusted_binding binding = {
+        msconnector_traefik_provenance_claim, NULL,
+        MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER,
+        msconnector_traefik_provenance_complete
+    };
 
     profile.transaction_profile = msconnector_profile_registry_find(
         "traefik-forwardauth");
-    return msconnector_http_authorization_service_main(
-        argc,
-        argv,
-        &profile);
+    for (int i = 1; i < argc; ++i)
+        if (strcmp(argv[i], "--serve") == 0) serving = 1;
+    if (provenance_socket == NULL || provenance_socket[0] == '\0' || !serving)
+        return msconnector_http_authorization_service_main(argc, argv, &profile);
+    if (!msconnector_traefik_provenance_start_with_confirmation(provenance_socket,
+            traefik_confirm_response_companion, &traefik_response_companion)) {
+        fprintf(stderr, "traefik trusted provenance listener initialization failed\n");
+        return 1;
+    }
+    result = msconnector_http_authorization_service_main_with_trusted_binding(
+        argc, argv, &profile, &binding);
+    msconnector_traefik_provenance_stop();
+    return result;
 }

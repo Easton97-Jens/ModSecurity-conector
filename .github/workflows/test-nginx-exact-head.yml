@@ -35,10 +35,15 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Verify exact PR head
         run: |
           set -eu
@@ -239,6 +244,8 @@ jobs:
             /bin/sh -eu -s <<'RUNTIME_FIXTURE'
           /usr/bin/python3 -I connectors/nginx/harness/run_github_hosted_functional_a.py
           /usr/bin/python3 -I tests/run_nginx_body_buffer_fixture.py \
+            --response-body-limit 1048576 \
+            --response-body-limit-action Reject \
             --connector-root "$CONNECTOR_ROOT" \
             --expected-head "$EXPECTED_PARENT_SHA" \
             --nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.6.tar.gz" \

@@ -14,7 +14,8 @@ minimal cases.
 
 ## Boundaries
 
-- Uses only artifacts under `BUILD_ROOT`.
+- Keeps private case artifacts under `BUILD_ROOT`; opted-in worker docroots
+  use the separately authorized external projection parent described below.
 - Does not build or modify any `<external-source-root>/*` repository.
 - Does not import NGINX or ModSecurity-nginx source into this monorepo.
 - Reports `pass` only when NGINX returns the YAML-expected HTTP status for a
@@ -81,6 +82,17 @@ Consequently neither a successful build nor the presence of the configure flag
 is an HTTP/2 runtime claim.
 
 ## Shared Cases
+
+Canonical lifecycle callers enable `NGINX_DOCROOT_PROJECTION=1` and supply an
+existing, external, root-owned `NGINX_DOCROOT_PROJECTION_PARENT` plus a safe,
+fresh direct-child `NGINX_DOCROOT_PROJECTION_ROOT`. For a multi-case batch,
+that root is an uncreated naming seed: Parent dispatch assigns each case a
+distinct `nginx-case-<UUID>` sibling. The native First-Byte wrapper independently
+assigns a `nginx-first-byte-<UUID>` sibling under the same parent. Only the
+projection helper creates the selected child; existing children and symlinks
+remain rejected and are never deleted for reuse. Direct `RUN_ONE_CASE=1`
+harness calls still consume the exact supplied fresh root. Private rules,
+logs, cache and canonical evidence are not moved into the projection parent.
 
 By default the harness iterates every `*.yaml` file in:
 

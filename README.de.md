@@ -97,6 +97,13 @@ Platzhalter stehen unter [Build](docs/build/README.de.md) und
 
 ## Evidence-Grenze
 
+Konfigurationsmigration: `modsecurity_phase4_body_limit` ist entfernt,
+einschließlich Apache, NGINX und Common. Aus bestehenden Host-Konfigurationen
+entfernen; für die WAF-Policy Engine-Regeln `SecResponseBodyLimit` /
+`SecResponseBodyLimitAction` verwenden. Unabhängige Host-Ressourcen-Guards
+bleiben aktiv. Siehe den
+[Vertrag zur Eigentümerschaft von Response-Limits](docs/phase4-mode-budget.de.md).
+
 Evidence wird unter einem externen Runtime-/Evidence-Baum abgelegt,
 normalerweise <code>EVIDENCE_ROOT/connector/run-id</code>. Die Namen
 <code>connector</code> und <code>run-id</code> sind konzeptionelle

@@ -13,7 +13,7 @@ The closed schema has exactly five keys:
 | `schema_version` | Integer schema identifier |
 | `framework_sha` | Exact ordinary Framework revision |
 | `mrts_sha` | Exact nested MRTS revision |
-| `python_version` | Stable Python 3.14 patch toolchain |
+| `python_version` | Stable Python 3.15 patch toolchain |
 | `go_version` | Stable Go toolchain |
 
 Read the selected values directly from the linked JSON record; this reference

@@ -15,6 +15,7 @@ http:
       forwardAuth:
         address: http://__AUTH_ADDRESS__/authorize
         trustForwardHeader: false
+        preserveRequestMethod: true
         # P2 is deliberately buffered and bounded.  Do not remove either
         # option: forwardAuth has no streaming request-body callback, and an
         # omitted option would silently disable P2.

@@ -3,6 +3,7 @@
 #endif
 
 #include "msconnector/event_jsonl.h"
+#include "msconnector/event_protocol.h"
 
 #include <errno.h>
 #include <string.h>
@@ -15,6 +16,56 @@
 #endif
 
 #define MSCONNECTOR_EVENT_SINK_PATH_SIZE 4096U
+
+static int event_stream_error(msconnector_error *error,
+    msconnector_error_code code, const char *message) {
+    /* JSONL-only consumers keep their existing standalone link contract. */
+    if (error != NULL && error->code == MSCONNECTOR_ERROR_NONE) {
+        *error = (msconnector_error){code, message, "event_jsonl"};
+    }
+    return 0;
+}
+
+int msconnector_event_file_write(FILE *file, const char *serialized,
+    msconnector_error *error) {
+    if (error != NULL && error->code != MSCONNECTOR_ERROR_NONE) { return 0; }
+    if (file == NULL || serialized == NULL || serialized[0] == '\0') {
+        return event_stream_error(error, MSCONNECTOR_ERROR_INTERNAL,
+            "event stream input is unavailable");
+    }
+    if (fputs(serialized, file) == EOF || ferror(file) ||
+            fflush(file) != 0 || ferror(file)) {
+        return event_stream_error(error, MSCONNECTOR_ERROR_IO,
+            "event stream write or flush failed");
+    }
+    return 1;
+}
+
+int msconnector_event_file_close(FILE **file, msconnector_error *error) {
+    FILE *owned;
+    int failed;
+    if (file == NULL || *file == NULL) { return 1; }
+    owned = *file;
+    *file = NULL;
+    failed = ferror(owned) != 0;
+    if (fclose(owned) != 0) { failed = 1; }
+    if (failed) {
+        return event_stream_error(error, MSCONNECTOR_ERROR_IO,
+            "event stream close failed");
+    }
+    return error == NULL || error->code == MSCONNECTOR_ERROR_NONE;
+}
+
+int msconnector_event_write_jsonl_stream(const msconnector_event *event,
+    FILE *file, char *scratch, size_t scratch_size, msconnector_error *error) {
+    int truncated = 0;
+    if (error != NULL && error->code != MSCONNECTOR_ERROR_NONE) { return 0; }
+    if (!msconnector_event_write_jsonl_line(event, scratch, scratch_size, &truncated)) {
+        return event_stream_error(error, truncated ? MSCONNECTOR_ERROR_EVENT_TOO_LARGE :
+            MSCONNECTOR_ERROR_INTERNAL, "event serialization failed");
+    }
+    return msconnector_event_file_write(file, scratch, error);
+}
 
 #if defined(O_NOFOLLOW) && defined(O_DIRECTORY) && !defined(_WIN32)
 static int open_event_parent(const char *path, char *path_copy, int *out_directory_fd,
@@ -69,14 +120,26 @@ static int validate_event_file(int fd) {
 #endif
 
 int msconnector_event_write_jsonl_line(const msconnector_event *event, char *dst, size_t dst_size, int *truncated) {
+    msconnector_event canonical;
     int local_truncated = 0;
     int ok;
     size_t len;
     if (truncated != 0) { *truncated = 0; }
     if (dst != 0 && dst_size > 0) { dst[0] = '\0'; }
     if (dst == 0 || dst_size == 0) { if (truncated != 0) { *truncated = 1; } return 0; }
+    /* Validate the complete original representation first. In particular,
+     * replacing a technical message with a canonical code must not hide an
+     * oversized field, invalid transport metadata, or a redaction failure.
+     * This uses the existing bounded serializer, not a second validator. */
     ok = msconnector_event_write_json_ex(event, dst, dst_size, &local_truncated);
-    if (!ok && dst[0] == '\0') {
+    if (!ok || !msconnector_event_protocol_view(event, &canonical)) {
+        dst[0] = '\0';
+        if (truncated != 0) { *truncated = local_truncated != 0; }
+        return 0;
+    }
+    ok = msconnector_event_write_json_ex(&canonical, dst, dst_size, &local_truncated);
+    if (!ok) {
+        dst[0] = '\0';
         if (truncated != 0) { *truncated = local_truncated != 0; }
         return 0;
     }

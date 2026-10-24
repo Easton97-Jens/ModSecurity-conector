@@ -70,7 +70,38 @@ argument, or expected artifact.
 | \`make check-framework-fixture-syntax\` | Validates Framework fixture syntax from the root target; it is a syntax/contract check, not a runtime result. |
 | \`make check-test-matrix\` | Checks generated test-matrix consistency and ownership boundaries. |
 | \`make quick-check\` | Runs the repository's focused quick contract checks. It does not create canonical runtime evidence. |
+| `make check-native-engine-body-inspection` | Runs genuine libModSecurity request/response limits and Companion C serialization/phase regressions. Requires a C17 compiler, headers and library; the Envoy native CI job also runs it. Component results do not establish live connector host evidence. |
+| `make check-native-lifecycle-observer` | Verifies the test-only GNU linker observer with real Common state, a controlled native ABI and the explicitly selected SDK. Requires `NATIVE_OBSERVER_TEST_OUT`, `MODSECURITY_INCLUDE_DIR` and `MODSECURITY_LIB_DIR`; missing configuration blocks the target. |
 | \`make lint\` | Runs broad syntax, contract, documentation, and governance checks, including root test-related contracts. |
+
+The native suite accepts the existing `MODSECURITY_PREFIX`,
+`MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_FILE` and `MODSECURITY_LIB_DIR`
+SDK selection; invalid explicit paths fail before compilation. With an external
+library, executables use its directory as their runtime search path. Inspection
+fixtures set native limits/actions explicitly. Lossless byte escapes must retain
+phase and event integrity; escaped-field overflow must neither write nor advance
+the hash chain. Lightweight event-protocol tests retain their separate dependency
+boundary.
+
+The lifecycle observer records actual API entry/return pairs, separate host and
+canonical transaction IDs, Common state snapshots and per-process final receipts.
+Link it only into test artifacts with the fourteen `--wrap` symbols listed in
+`tests/test_native_lifecycle_observer.py`. A supervisor supplies a private inherited
+append descriptor and retains its original JSONL. Same-object internal calls can
+bypass wrapping; missing receipts or outstanding mappings leave cleanup unqualified.
+Native MIME selection and actual host EOS remain `null`. Successful component
+tests or API counts alone do not establish a host lifecycle result.
+Native append records include actual byte counts and null/non-null input kinds;
+these APIs expose no EOS argument, so empty appends cannot qualify host EOS.
+
+The optional `ci/runtime/lifecycle/native-lifecycle-sdk.cpp` helper reads the
+selected C++ SDK's public transaction ID after rejecting a runtime version
+mismatch. Bind the exact headers/library hashes and qualify both real constructors
+before linking it into a host test artifact. This includes anonymous native IDs;
+the caller's input ID remains separate and no Common/native correlation is inferred.
+The version check alone does not qualify an arbitrary ABI-compatible-looking build.
+Without this helper the observer retains its opaque native ABI behavior. Rejected
+or oversized IDs invalidate measurement while preserving the native call and errno.
 
 Use [test levels](../docs/testing-and-evidence.md),
 [core lifecycle testing](../docs/testing-and-evidence.md), and the

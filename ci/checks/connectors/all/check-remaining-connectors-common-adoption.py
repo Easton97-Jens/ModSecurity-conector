@@ -69,7 +69,6 @@ def configuration_checks(connector: str, base: Path, errors: list[str]) -> None:
         "transaction_id_header=",
         "request_body_mode=",
         "response_body_mode=",
-        "request_body_limit=",
         "default_block_status=",
         "default_error_status=",
         "event_path=",
@@ -236,7 +235,6 @@ def shared_runtime_checks(errors: list[str]) -> None:
     ):
         require(errors, token in runtime, f"shared remaining-connector runtime missing {token}")
     for invariant in (
-        "content_length > body_limit",
         "header_count > 0U",
         "request->body.size > 0U",
     ):
@@ -244,6 +242,19 @@ def shared_runtime_checks(errors: list[str]) -> None:
     require(errors, "body_payload" not in runtime, "shared event path exposes a body payload field")
     require(errors, "request_body_payload" not in runtime, "shared event path exposes request body payload")
     require(errors, "response_body_payload" not in runtime, "shared event path exposes response body payload")
+    for retired in (
+        "msconnector_runtime_request_body_limit(",
+        "runtime->config.request_body_limit",
+        "runtime->config.body_limit_action",
+        "msconnector_runtime_body_limit_action(",
+        "apply_body_limit_plan",
+    ):
+        require(errors, retired not in runtime, f"shared runtime retains connector policy {retired}")
+    require(
+        errors,
+        "msconnector_runtime_transaction_begin_request_stream" in service,
+        "authorization service must stream body input before native P2 completion",
+    )
 
 
 def main() -> int:

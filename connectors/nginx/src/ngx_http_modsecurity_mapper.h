@@ -14,6 +14,7 @@ int ngx_http_modsecurity_map_request(
     ngx_http_request_t *r,
     const msconnector_request_mapper_contract *contract,
     msconnector_request *out,
+    ngx_int_t *failure_status,
     char *error,
     size_t error_len);
 

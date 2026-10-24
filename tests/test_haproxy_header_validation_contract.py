@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from tests.c_source_contract import function_definition
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,7 @@ static int request_case(const haproxy_modsecurity_header *headers,
     char error[128];
     memset(&source, 0, sizeof(source));
     source.method = "GET";
+    source.http_version = "1.1";
     source.uri = "/";
     source.client_ip = "192.0.2.10";
     source.client_port = 12345;
@@ -72,6 +74,7 @@ static int endpoint_case(const char *client_ip, const char *server_ip,
 
     memset(&source, 0, sizeof(source));
     source.method = "GET";
+    source.http_version = "1.1";
     source.uri = "/";
     source.client_ip = client_ip;
     source.client_port = 12345;
@@ -284,11 +287,10 @@ int main(void) {
             "static int self_test_rejects_oversized_endpoint_port(void)", SPOP_RUNTIME
         )
         self.assertIn("append_typed_uint32(&payload, 65536U)", SPOP_RUNTIME)
-        self_test_start = SPOP_RUNTIME.index("static int run_self_test(")
-        self_test_end = SPOP_RUNTIME.index("typedef struct legacy_server_config", self_test_start)
-        self.assertIn(
-            "self_test_rejects_oversized_endpoint_port()", SPOP_RUNTIME[self_test_start:self_test_end]
-        )
+        self.assertIn("run_spop_protocol_self_tests()",
+            function_definition(SPOP_RUNTIME, "run_self_test"))
+        self.assertIn("self_test_rejects_oversized_endpoint_port() != 0",
+            function_definition(SPOP_RUNTIME, "run_spop_protocol_self_tests"))
 
     def test_spop_requires_fin_before_payload_parsing(self) -> None:
         parser_start = SPOP_RUNTIME.index("static int recv_frame(")
@@ -303,12 +305,10 @@ int main(void) {
         )
         self.assertIn("static int self_test_rejects_fin_unset_frame(void)", SPOP_RUNTIME)
         self.assertIn("send_frame_with_flags(sockets[0], SPOP_FRM_NOTIFY, 0U", SPOP_RUNTIME)
-        self_test_start = SPOP_RUNTIME.index("static int run_self_test(")
-        self_test_end = SPOP_RUNTIME.index("typedef struct legacy_server_config", self_test_start)
-        self.assertIn(
-            "self_test_rejects_fin_unset_frame()",
-            SPOP_RUNTIME[self_test_start:self_test_end],
-        )
+        self.assertIn("run_spop_protocol_self_tests()",
+            function_definition(SPOP_RUNTIME, "run_self_test"))
+        self.assertIn("self_test_rejects_fin_unset_frame() != 0",
+            function_definition(SPOP_RUNTIME, "run_spop_protocol_self_tests"))
 
     def test_response_mapper_failure_precedes_raw_response_header_loop(self) -> None:
         mapper_start = BINDING.index("static int map_response_for_transaction(")
