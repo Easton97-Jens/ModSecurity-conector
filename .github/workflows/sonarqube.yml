@@ -83,13 +83,12 @@ jobs:
           python3 -m pip install --disable-pip-version-check --no-input \
             --only-binary=:all: --require-hashes -r ci/requirements/sonar-coverage.txt
           mkdir -p "$RUNNER_TEMP/sonar-coverage"
-          echo "PATH=$RUNNER_TEMP/sonar-python/bin:$PATH" >> "$GITHUB_ENV"
           export COVERAGE_FILE="$RUNNER_TEMP/sonar-coverage/python.data"
-          python3 -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
+          "$RUNNER_TEMP/sonar-python/bin/python" -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
             ci/checks/analysis/run-sonar-coverage.py --language python \
             --output-root "$RUNNER_TEMP/sonar-coverage" --temp-root "$RUNNER_TEMP"
           export COVERAGE_FILE="$RUNNER_TEMP/sonar-coverage/python/python.data"
-          python3 -m coverage combine --append --rcfile=ci/sonar-coverage.ini "$RUNNER_TEMP/sonar-coverage"
+          "$RUNNER_TEMP/sonar-python/bin/python" -m coverage combine --append --rcfile=ci/sonar-coverage.ini "$RUNNER_TEMP/sonar-coverage"
       - name: Set up canonical Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -100,25 +99,25 @@ jobs:
         run: |
           set -euo pipefail
           export COVERAGE_FILE="$RUNNER_TEMP/sonar-coverage/python/python.data"
-          python3 -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
+          "$RUNNER_TEMP/sonar-python/bin/python" -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
             ci/checks/analysis/run-sonar-coverage.py --language go \
             --output-root "$RUNNER_TEMP/sonar-coverage" --temp-root "$RUNNER_TEMP"
       - name: Measure real native Common tests
         run: |
           set -euo pipefail
           export COVERAGE_FILE="$RUNNER_TEMP/sonar-coverage/python/python.data"
-          python3 -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
+          "$RUNNER_TEMP/sonar-python/bin/python" -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
             ci/checks/analysis/run-sonar-coverage.py --language native \
             --output-root "$RUNNER_TEMP/sonar-coverage" --temp-root "$RUNNER_TEMP"
       - name: Finalize same-revision Python coverage from all producer processes
         run: |
           set -euo pipefail
           export COVERAGE_FILE="$RUNNER_TEMP/sonar-coverage/python/python.data"
-          python3 -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
+          "$RUNNER_TEMP/sonar-python/bin/python" -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
             ci/checks/analysis/run-sonar-coverage.py --language finalize-python \
             --output-root "$RUNNER_TEMP/sonar-coverage" --temp-root "$RUNNER_TEMP"
           # Include the finalizer's coverage data after that process has exited.
-          python3 ci/checks/analysis/run-sonar-coverage.py --language finalize-python \
+          "$RUNNER_TEMP/sonar-python/bin/python" ci/checks/analysis/run-sonar-coverage.py --language finalize-python \
             --output-root "$RUNNER_TEMP/sonar-coverage" --temp-root "$RUNNER_TEMP"
       - name: Install existing native header prerequisites
         shell: bash

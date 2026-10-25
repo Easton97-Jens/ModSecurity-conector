@@ -120,6 +120,8 @@ sensitive payloads are stored in this record.
 
 ## Runtime evidence
 
+First PR-head CI at `d094e1dacd1f540b1ffcf35b7da5bd4b3c255665`, [run 40230520936](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230520936), passed canonical Python setup and all 61 selected Python tests. Go setup selected `1.27.1`, then the coverage step failed before scanning because setup-go restored a global Python ahead of the venv on PATH (`No module named coverage`). The workflow now names the dedicated venv interpreter for every coverage producer/merge/finalizer. No scanner upload or gate result is claimed for that failed attempt.
+
 Final integrated local coverage pipeline: Python54tests, Go37tests and native Common tests all passed; finalization merged the real Go/native producer-process coverage into Python XML and validated all report paths. Reports are explicitly marked as development evidence from uncommitted changes; final CI must regenerate them for the clean commit. Local source, workflow, bilingual, link, archive and whitespace checks passed. No full hosted runtime qualification is claimed.
 
 No hosted connector runtime evidence was collected or claimed. Coverage tests,

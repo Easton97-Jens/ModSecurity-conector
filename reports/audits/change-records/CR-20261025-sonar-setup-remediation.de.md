@@ -131,6 +131,8 @@ Dieser Record enthält keine Credentials oder sensiblen Rohpayloads.
 
 ## Runtime-Evidence
 
+Die erste PR-Head-CI bei `d094e1dacd1f540b1ffcf35b7da5bd4b3c255665`, [Lauf 40230520936](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230520936), bestand kanonisches Python-Setup und alle 61 ausgewählten Python-Tests. Go-Setup wählte `1.27.1`; danach scheiterte der Coverage-Schritt vor dem Scan, weil setup-go globales Python im PATH vor die venv setzte (`No module named coverage`). Der Workflow nennt nun für jeden Coverage-Producer, Merge und Finalizer explizit den venv-Interpreter. Für diesen fehlgeschlagenen Versuch wird weder Scanner-Upload noch Gate-Ergebnis behauptet.
+
 Finale integrierte lokale Coverage-Pipeline: Python54Tests, Go37Tests und native Common-Tests bestanden; die Finalisierung führte die echte Go-/Native-Producer-Prozess-Coverage mit der Python-XML zusammen und validierte sämtliche Reportpfade. Reports sind ausdrücklich als Entwicklungsnachweise aus nicht committeten Änderungen markiert; die finale CI muss sie für den sauberen Commit neu erzeugen. Lokale Source-, Workflow-, zweisprachige, Link-, Archiv- und Whitespace-Prüfungen bestanden. Keine vollständige gehostete Runtime-Qualifikation wird behauptet.
 
 Es wurde keine gehostete Connector-Runtime-Evidence erhoben oder beansprucht.
