@@ -162,8 +162,8 @@ class PythonVersionContractTest(unittest.TestCase):
             )
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
 
-    def test_expected_inventory_has_36_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 36)
+    def test_expected_inventory_has_37_normal_jobs_and_one_special_job(self) -> None:
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 37)
         self.assertIn(
             CHECKER.JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
@@ -180,6 +180,7 @@ class PythonVersionContractTest(unittest.TestCase):
             CHECKER.JobIdentity("update-workflow-tools.yml", "resolver"),
             CHECKER.JobIdentity("update-workflow-tools.yml", "validator"),
             CHECKER.JobIdentity("verified-report-governance.yml", "report-governance"),
+            CHECKER.JobIdentity("sonarqube.yml", "analysis"),
         ):
             with self.subTest(identity=identity):
                 self.assertIn(identity, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS)

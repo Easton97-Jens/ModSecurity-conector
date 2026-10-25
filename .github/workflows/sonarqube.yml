@@ -1,0 +1,116 @@
+name: SonarQube Cloud
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: sonarqube-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analysis:
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: "off"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Keep analysis output outside the checkout
+        shell: bash
+        run: |
+          {
+            echo "GOCACHE=$RUNNER_TEMP/sonar-go/build"
+            echo "GOMODCACHE=$RUNNER_TEMP/sonar-go/modules"
+            echo "TMPDIR=$RUNNER_TEMP"
+            echo "SONAR_USER_HOME=$RUNNER_TEMP/sonar-cache"
+          } >> "$GITHUB_ENV"
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Validate Parent analysis scope
+        run: |
+          python3 ci/checks/analysis/check-sonar-scope.py
+          python3 -m unittest -v tests.test_sonar_scope
+      - name: Set up canonical Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Generate focused Go coverage in each module
+        shell: bash
+        run: |
+          set -euo pipefail
+          reports="$RUNNER_TEMP/sonar-coverage"
+          mkdir -p "$reports"
+          (
+            cd connectors/envoy/ext_proc
+            go test -mod=readonly -list '^TestClientFramesBoundedOrderedOperations$' ./internal/responseobserver |
+              grep -Fx 'TestClientFramesBoundedOrderedOperations'
+            go test -mod=readonly -count=1 -run '^TestClientFramesBoundedOrderedOperations$' \
+              -coverprofile="$reports/envoy.out" ./internal/responseobserver
+            go tool cover -func="$reports/envoy.out" >/dev/null
+          )
+          (
+            cd connectors/traefik/native_middleware
+            go test -mod=readonly -list '^TestMiddlewareForwardsRequestAuthorityAsHostHeader$' . |
+              grep -Fx 'TestMiddlewareForwardsRequestAuthorityAsHostHeader'
+            go test -mod=readonly -count=1 -run '^TestMiddlewareForwardsRequestAuthorityAsHostHeader$' \
+              -coverprofile="$reports/traefik-native.out" .
+            go tool cover -func="$reports/traefik-native.out" >/dev/null
+          )
+          (
+            cd connectors/traefik/composite_middleware
+            go test -mod=readonly -list '^TestStripInternalHeadersRemovesTrailerForms$' . |
+              grep -Fx 'TestStripInternalHeadersRemovesTrailerForms'
+            go test -mod=readonly -count=1 -run '^TestStripInternalHeadersRemovesTrailerForms$' \
+              -coverprofile="$reports/traefik-composite.out" .
+            go tool cover -func="$reports/traefik-composite.out" >/dev/null
+          )
+          (
+            cd connectors/traefik/response_observer
+            go test -mod=readonly -list '^TestResponseHeaderEncodingUsesLengthThenBytesOrder$' . |
+              grep -Fx 'TestResponseHeaderEncodingUsesLengthThenBytesOrder'
+            go test -mod=readonly -count=1 -run '^TestResponseHeaderEncodingUsesLengthThenBytesOrder$' \
+              -coverprofile="$reports/traefik-observer.out" .
+            go tool cover -func="$reports/traefik-observer.out" >/dev/null
+          )
+          for report in "$reports"/*.out; do
+            test -s "$report"
+          done
+      - name: Analyze exact revision and await Quality Gate
+        uses: sonarsource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scannerVersion: 8.1.0.6389
+          args: >-
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+            -Dsonar.working.directory=${{ runner.temp }}/sonar-work
+            -Dsonar.go.coverage.reportPaths=${{ runner.temp }}/sonar-coverage/envoy.out,${{ runner.temp }}/sonar-coverage/traefik-native.out,${{ runner.temp }}/sonar-coverage/traefik-composite.out,${{ runner.temp }}/sonar-coverage/traefik-observer.out
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=600
