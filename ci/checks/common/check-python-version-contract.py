@@ -82,6 +82,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("protocol-contract.yml", "nginx-profile-and-client-preflight"),
         JobIdentity("protocol-contract.yml", "protocol-contract"),
         JobIdentity("quick-framework-check.yml", "quick-check"),
+        JobIdentity("sonarqube.yml", "analysis"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "prepare-manifests"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "verify-evidence"),
         JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),

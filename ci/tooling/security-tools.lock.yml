@@ -3,6 +3,10 @@ checked_at: "2026-08-08"
 
 # These values are revalidated against official upstream tag or release APIs.
 pinned_actions:
+  sonarsource/sonarqube-scan-action:
+    version: v8.3.0
+    commit_sha: d209202bc7d53ff1cc128f7f907dac145c9d6ae9
+    upstream: https://github.com/sonarsource/sonarqube-scan-action
   actions/checkout:
     version: v7.0.1
     commit_sha: 3d3c42e5aac5ba805825da76410c181273ba90b1
