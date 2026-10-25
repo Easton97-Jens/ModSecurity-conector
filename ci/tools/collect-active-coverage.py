@@ -19,6 +19,7 @@ from ci.lib.active_coverage import (CoverageError, ParentOperationTrace, case_bu
                                     make_manifest, python_lines, regular_bytes,
                                     source_path, system_native_library, trace_python, validate_manifest,
                                     write_collector_trace, write_generic_report)
+from ci.lib.sonar_source_roles import CFAMILY_SUFFIXES
 from ci.lib.active_test_inventory import (GO_MODULES, execute_selected, load_inventory,
                                          select_executions)
 
@@ -39,7 +40,7 @@ def source_snapshot() -> dict[str, str]:
     result = {}
     for name in paths:
         if (name not in DEPENDENCY_INPUTS and
-                Path(name).suffix not in {".py", ".go", ".c", ".h", ".cc", ".cpp", ".sh"}
+                Path(name).suffix not in CFAMILY_SUFFIXES | {".py", ".go", ".sh"}
                 and name not in {"config/testing/sonar-source-roles.json", ".sonarcloud.properties",
                                  "sonar-project.properties"}):
             continue
@@ -153,7 +154,7 @@ def collect_observations(selected: tuple[dict, ...], output: Path,
 def validate_measurements(selected: tuple[dict, ...], observations: dict,
                           go_sources: dict) -> dict:
     measured_python = [name for name in observations if name.endswith(".py")]
-    measured_native = [name for name in observations if Path(name).suffix in {".c", ".cc", ".cpp", ".h"}]
+    measured_native = [name for name in observations if Path(name).suffix in CFAMILY_SUFFIXES]
     measured_cpp = "common/scripts/modsecurity_targeted_eval.cc" in observations
     if not measured_cpp:
         raise CoverageError("selected coverage must measure the actual C++ evaluator source")
@@ -232,7 +233,8 @@ def collect(output: Path, strict_skips: bool) -> int:
     return 0
 
 
-def verify(output: Path) -> int:
+def verify_report_identity(output: Path) -> tuple[dict, tuple[dict, ...]]:
+    """Share exact report/source/selection checks across producer and consumers."""
     inventory = load_inventory(ROOT)
     selected = select_executions(inventory, ("coverage",))
     value = json.loads(regular_bytes(output / MANIFEST_REPORT))
@@ -250,6 +252,11 @@ def verify(output: Path) -> int:
         raise CoverageError("coverage manifest does not bind the complete admitted coverage group")
     if value["case_budget"] != case_budget(inventory.core_case_ids, inventory.offline_case_ids, expected_cases):
         raise CoverageError("coverage manifest does not bind the exact admitted core and offline exception budgets")
+    return value, selected
+
+
+def verify(output: Path) -> int:
+    value, selected = verify_report_identity(output)
     if value["build_identity"] != build_identity(selected):
         raise CoverageError("coverage toolchain, SDK or module dependency identity changed before scanner import")
     _github_outputs(output, value)
@@ -257,12 +264,46 @@ def verify(output: Path) -> int:
     return 0
 
 
+def verify_artifact(output: Path, expected_revision: str) -> int:
+    """Recheck a trusted same-run artifact after the producer's full verification.
+
+    SDK/compiler identities are attested by the producer; a consumer does not
+    claim that another runner rebuilt or locally verified those binaries.
+    """
+    if git_output("rev-parse", "HEAD") != expected_revision:
+        raise CoverageError("coverage artifact consumer checked out another revision")
+    value, selected = verify_report_identity(output)
+    build = value["build_identity"]
+    for field, names in (
+            ("dependency_inputs", PYTHON_DEPENDENCY_INPUTS),
+            ("analysis_inputs", ("config/testing/sonar-source-roles.json",
+                                 ".sonarcloud.properties", "sonar-project.properties"))):
+        expected = {name: digest(regular_bytes(ROOT / name)) for name in names}
+        if build.get(field) != expected:
+            raise CoverageError("coverage artifact analysis or dependency inputs changed")
+    expected_modules = {}
+    for item in selected:
+        module = item["selector"].get("module")
+        if module:
+            expected_modules[module] = {
+                name: digest(regular_bytes(ROOT / module / name))
+                if (ROOT / module / name).exists() else None
+                for name in ("go.mod", "go.sum")}
+    if build.get("modules") != expected_modules:
+        raise CoverageError("coverage artifact module dependencies changed")
+    _github_outputs(output, value)
+    print("COVERAGE_ARTIFACT_IDENTITY_VERIFIED: producer-attested SDK/toolchain")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("run", "verify"):
+    for name in ("run", "verify", "verify-artifact"):
         command = commands.add_parser(name)
         command.add_argument("--output-root", type=Path, required=True)
+        if name == "verify-artifact":
+            command.add_argument("--expected-revision", required=True)
         if name == "run":
             command.add_argument("--strict-skips", action="store_true")
     traced = commands.add_parser("trace-python")
@@ -276,6 +317,8 @@ def main() -> int:
             return compile_instrumented(arguments.arguments)
         if arguments.command == "trace-python":
             return trace_python(arguments.target, arguments.output)
+        if arguments.command == "verify-artifact":
+            return verify_artifact(arguments.output_root, arguments.expected_revision)
         if arguments.command == "verify":
             return verify(arguments.output_root)
         return collect(arguments.output_root, arguments.strict_skips)

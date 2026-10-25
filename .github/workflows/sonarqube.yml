@@ -1,0 +1,130 @@
+name: SonarQube Cloud
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sonarqube-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  required:
+    name: Sonar C++17 (required)
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: $/.github/workflows/sonar-coverage.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  advisory:
+    name: Sonar C++${{ matrix.cpp }} (advisory)
+    needs: required
+    # Run after verified report publication even when the required gate fails.
+    if: >-
+      always() && !cancelled() &&
+      needs.required.outputs.verified == 'true' &&
+      needs.required.outputs.head == (github.event.pull_request.head.sha || github.sha)
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cpp: "20"
+            project: Easton97-Jens_ModSecurity-conector_cpp20_advisory
+          - cpp: "23"
+            project: Easton97-Jens_ModSecurity-conector_cpp23_advisory
+    # Both advisory projects use their master branch, so serialize project writes.
+    concurrency:
+      group: sonar-project-${{ matrix.project }}-advisory
+      cancel-in-progress: false
+    env:
+      PYTHONNOUSERSITE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out the exact verified source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: false
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Download only the fully verified same-run artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.required.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/parent-coverage
+      - name: Recheck artifact report, source, inventory and selection identity
+        id: coverage
+        env:
+          ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 ci/tools/collect-active-coverage.py verify-artifact \
+            --output-root "$RUNNER_TEMP/parent-coverage" \
+            --expected-revision "$ANALYZED_SHA"
+      - name: Analyze exact revision and await advisory Quality Gate
+        id: scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_USER_HOME: ${{ runner.temp }}/sonar-cache
+        with:
+          scannerVersion: 8.1.0.6389
+          skipSignatureVerification: 'false'
+          args: >-
+            -Dsonar.projectKey=${{ matrix.project }}
+            -Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}
+            -Dsonar.branch.name=master
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+            -Dsonar.working.directory=${{ runner.temp }}/sonar-work
+            -Dsonar.coverageReportPaths=${{ steps.coverage.outputs.generic_report }}
+            -Dsonar.go.coverage.reportPaths=${{ steps.coverage.outputs.go_reports }}
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=600
+      - name: Report the actual advisory analysis outcome
+        if: always()
+        env:
+          CPP_STANDARD: ${{ matrix.cpp }}
+          SONAR_PROJECT: ${{ matrix.project }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          {
+            echo "### Full Parent Sonar scan / Vollständiger Parent-Sonar-Scan: C++$CPP_STANDARD"
+            echo "Project / Projekt: $SONAR_PROJECT"
+            echo "Revision: $ANALYZED_SHA"
+            echo "Advisory / Unverbindlich: true"
+            echo "Reporting override only; no C++$CPP_STANDARD build/runtime qualification."
+            echo "Nur Berichtsstandard; keine C++$CPP_STANDARD-Build-/Laufzeitqualifizierung."
+            echo "Scanner and gate / Scanner und Gate: $SCAN_OUTCOME"
+            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
+              sed -n '/^\(ceTaskId\|dashboardUrl\|projectKey\)=/p' "$RUNNER_TEMP/sonar-work/report-task.txt"
+            else
+              echo 'No server report published / Kein Serverreport veröffentlicht'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

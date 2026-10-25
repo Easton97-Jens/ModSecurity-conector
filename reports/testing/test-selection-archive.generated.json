@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source; no automatic execution and no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "929b8a25254eb261bbe3b9a4426e42674b4e1a995176f566dbf78c1e6f74e1d4",
+  "inventory_sha256": "95bdcb8593c35596b1415aceb23b270192d5770929bc272d771b77989dfb7586",
   "on_demand_definition_count": 5541,
   "purpose": "Non-executable archive disposition; only config/testing/active-cases.json selects active cases.",
   "schema_version": 1,
@@ -2857,6 +2857,13 @@
     },
     {
       "contains_selected_definitions": [
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_fork_guard_bypass",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_global_token",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_secret_in_shell",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_other_action",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_standard_matrix_keeps_full_parent_scope",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_standard_matrix_rejects_decisive_higher_standards",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_alternate_secret_access",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_python_patch_updater_separates_trusted_stages_and_writer_scope"
       ],
       "on_demand_definitions": [
@@ -2895,7 +2902,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "64229d96060e5780e4538a883fdcfe7f21727e4e2fcc020a99961ad12cb5a642"
+      "source_sha256": "0c8ae8d08071b7e66c24319b5342b9b9277d84cb92c1f570de1c1aedc26a714a"
     },
     {
       "contains_selected_definitions": [],
@@ -3117,6 +3124,39 @@
       ],
       "source": "tests/test_connector_guides.py",
       "source_sha256": "886b6628ccdc1780be68c919699da1e9e0c5de99b17e3b40d2f8ae6dcc6dceea"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_valid_artifact_uses_real_manifest_checks_without_sdk_build",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_wrong_checkout_revision",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_wrong_manifest_revision",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_generic_report_hash",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_go_report_hash",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_generic_source_hash",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_go_source_hash",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_inventory_identity",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_selected_cases",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_exact_case_budget",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_dependency_input",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_analysis_input",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_module_dependency",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_dirty_checkout",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_required_verify_calls_full_sdk_build_identity",
+        "tests.test_coverage_artifact.CoverageArtifactTests.test_required_verify_rejects_changed_sdk_build_identity"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_coverage_artifact.py",
+      "source_sha256": "adead05195c8341e44095fc1531ae741a647edc2ef759cb5d70d124adf1417e5"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_coverage_cfamily_scope.CoverageCFamilyScopeTests.test_gcov_codec_retains_all_cfamily_suffixes",
+        "tests.test_coverage_cfamily_scope.CoverageCFamilyScopeTests.test_snapshot_binds_all_cfamily_suffixes",
+        "tests.test_coverage_cfamily_scope.CoverageCFamilyScopeTests.test_actual_native_fixture_paths_remain_main"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_coverage_cfamily_scope.py",
+      "source_sha256": "2700c0a41c34c763b09aebf18851ed9055c68330f2b75232e54d2180a6a4f9ba"
     },
     {
       "contains_selected_definitions": [],
@@ -7642,9 +7682,16 @@
       "source_sha256": "8b9fdde844e074a6e467a999b1d3e073ccd5d5ee05b706462738bd745444a45e"
     },
     {
-      "contains_selected_definitions": [],
+      "contains_selected_definitions": [
+        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_preserves_strict_producer_boundary",
+        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_foreign_producer",
+        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_fork_guard_bypass",
+        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_write_permission",
+        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_inherited_secrets",
+        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_inline_execution"
+      ],
       "on_demand_definitions": [
-        "tests.test_python_version_contract.PythonVersionContractTest.test_expected_inventory_has_41_normal_jobs_and_one_candidate_job",
+        "tests.test_python_version_contract.PythonVersionContractTest.test_expected_inventory_tracks_normal_and_candidate_jobs",
         "tests.test_python_version_contract.PythonVersionContractTest.test_valid_yaml_control_is_accepted",
         "tests.test_python_version_contract.PythonVersionContractTest.test_manual_mapping_parser_preserves_the_narrow_contract_shapes",
         "tests.test_python_version_contract.PythonVersionContractTest.test_structural_version_and_executable_recognition_remain_ascii_only",
@@ -7677,7 +7724,7 @@
         "tests.test_python_version_contract.WorkflowActionPinsTest.test_missing_action_is_rejected"
       ],
       "source": "tests/test_python_version_contract.py",
-      "source_sha256": "e93768547a37c66e94c027f2d011099d0fa2fb4e8f0673832469ef2438733719"
+      "source_sha256": "f5403d029de345f853a58966cece90e6c331b2d1782be1f4cd7b4477c4944731"
     },
     {
       "contains_selected_definitions": [],
@@ -8370,6 +8417,21 @@
       ],
       "source": "tests/test_sonar_reliability_contract.py",
       "source_sha256": "f49e9c3cc067dbcb6524e2ed5fcee04a3b7c44a0ac9422bc842c9b55e9638f55"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_sonar_scope.SonarScopeTests.test_preserves_cfamily_tests_and_connector_build_scripts",
+        "tests.test_sonar_scope.SonarScopeTests.test_rejects_python_minor_drift",
+        "tests.test_sonar_scope.SonarScopeTests.test_rejects_language_blind_test_scope",
+        "tests.test_sonar_scope.SonarScopeTests.test_rejects_nested_build_script_exclusion",
+        "tests.test_sonar_scope.SonarScopeTests.test_rejects_ambiguous_property_files",
+        "tests.test_sonar_scope.SonarScopeTests.test_scope_patterns_reject_foreign_glob_syntax",
+        "tests.test_sonar_scope.SonarScopeTests.test_requires_independent_submodule_boundary",
+        "tests.test_sonar_scope.SonarScopeTests.test_requires_review_when_go_module_inventory_changes"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_sonar_scope.py",
+      "source_sha256": "711893c7f1f18e0b08c9ee5a806a1637d36a2141ee5d2104abaedc48c71373ff"
     },
     {
       "contains_selected_definitions": [

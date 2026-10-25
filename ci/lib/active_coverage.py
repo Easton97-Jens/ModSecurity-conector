@@ -23,7 +23,7 @@ import trace
 import types
 import xml.etree.ElementTree as ET
 
-from ci.lib.sonar_source_roles import is_test_source, load_roles
+from ci.lib.sonar_source_roles import CFAMILY_SUFFIXES, is_test_source, load_roles
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_REPORT_BYTES = 64 * 1024 * 1024
@@ -598,7 +598,7 @@ def _gcov_source_lines(value: dict, root: Path, lines: dict[str, dict[int, int]]
         if not source.is_absolute() or not source.is_relative_to(root):
             continue
         name = source.relative_to(root).as_posix()
-        if (source.suffix not in {".c", ".cc", ".cpp", ".h"} or
+        if (source.suffix not in CFAMILY_SUFFIXES or
                 name.startswith("modules/") or _is_test_source(name, root)):
             continue
         current = source_path(root, name)

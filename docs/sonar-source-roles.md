@@ -15,7 +15,7 @@ The contract preserves four standard test patterns, the three existing exact
 native C test files and the existing
 <code>fuzz/common_http_headers_fuzz.c</code> fixture. It additionally identifies
 45 individually reviewed fixture files. Every additional file has its exact
-path, TEST role, purpose, source evidence and an actual caller or test
+path, fixture-purpose TEST role, purpose, source evidence and an actual caller or test
 consumer recorded in the contract. Evidence includes exact checked-in line
 anchors; a changed anchor fails the scope check and requires source review.
 
@@ -56,16 +56,22 @@ The [classification helper](../ci/lib/sonar_source_roles.py) loads the same
 contract and exposes <code>is_test_source(relativepath)</code>. It rejects
 absolute, noncanonical, traversing and symlinked inputs. Batch consumers can
 load <code>SourceRoles</code> once and pass that validated contract to the helper.
-Coverage producers use the same roles rather than treating test-fixture hits as
-production coverage. A role check is a static source check, not a test run or a
+Coverage producers use the same roles to omit Python/Go test files. For
+CFamily the helper always returns <code>False</code>: native fixtures remain
+MAIN and eligible for genuine coverage reports. This analysis classification
+does not claim the fixtures are production implementations. A role check is a static source check, not a test run or a
 coverage import.
 
 ## Evidence boundaries
 
 The historical I12 results retain their original source/run identities. Listing
 these fixtures does not reopen a historical campaign, add active cases, assert
-<code>I12_COMPLETE</code> or establish current-head host behavior. TEST files
-remain analyzed as tests; no production exclusion is introduced.
+<code>I12_COMPLETE</code> or establish current-head host behavior. Only Python/Go fixtures become
+Sonar TEST files. Every C/C++ file and header stays MAIN because CFamily does
+not support <code>sonar.tests</code>. The 45 reviewed plus four retained
+fixture entries remain purpose/caller provenance; the four standard patterns
+now start with <code>tests/**/*.py</code>. No blanket I12 or production
+exclusion is introduced.
 
 The existing Sonar coverage requirement remains <code>new_coverage &gt;= 80</code>.
 Correct classification does not establish that the threshold is achievable or

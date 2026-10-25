@@ -54,6 +54,7 @@ not need a parallel lock schema.
 
 | Action | Version | Immutable commit |
 | --- | --- | --- |
+| `SonarSource/sonarqube-scan-action` | `v8.3.0` | `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
 | `actions/create-github-app-token` | `v3.3.0` | `64ab729a6294000f5aa4a4bc0b73d1f32bc45510` |
 | `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |

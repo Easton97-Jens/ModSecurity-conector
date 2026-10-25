@@ -15,7 +15,7 @@ Der Vertrag erhält vier Standard-Testmuster, die drei bestehenden exakten
 nativen C-Testdateien und die bestehende Fixture
 <code>fuzz/common_http_headers_fuzz.c</code>. Zusätzlich bezeichnet er
 45 einzeln geprüfte Fixture-Dateien. Für jede zusätzliche Datei enthält der
-Vertrag den exakten Pfad, die Rolle TEST, den Zweck, die Quelle als
+Vertrag den exakten Pfad, die Fixture-Zweckrolle TEST, den Zweck, die Quelle als
 Nachweis und einen tatsächlichen Aufrufer oder Testverbraucher. Die Nachweise
 enthalten exakte versionierte Zeilenanker; ein geänderter Anker lässt die
 Umfangsprüfung scheitern und erfordert eine Quellprüfung.
@@ -59,7 +59,10 @@ Vertrag und stellt <code>is_test_source(relativepath)</code> bereit. Er lehnt
 absolute, nichtkanonische, traversierende und symlinkbehaftete Eingaben ab.
 Batch-Verbraucher können <code>SourceRoles</code> einmal laden und den geprüften
 Vertrag an den Helper übergeben. Coverage-Produzenten nutzen dieselben Rollen,
-statt Fixture-Treffer als Produktionsabdeckung zu behandeln. Eine Rollenprüfung
+um Python-/Go-Testdateien auszunehmen. Für CFamily liefert der Helper stets
+<code>False</code>: Auch native Fixtures bleiben MAIN und damit für echte
+Coverageberichte zulässig. Diese Analyseklassifikation behauptet keine
+Produktionsrolle der Fixtures. Eine Rollenprüfung
 ist eine statische Quellprüfung, kein Testlauf und kein Coverage-Import.
 
 ## Nachweisgrenzen
@@ -67,8 +70,12 @@ ist eine statische Quellprüfung, kein Testlauf und kein Coverage-Import.
 Die historischen I12-Ergebnisse behalten ihre ursprünglichen Quell-/Laufidentitäten.
 Die Auflistung dieser Fixtures eröffnet keine historische Kampagne, fügt keine
 aktiven Fälle hinzu, behauptet kein <code>I12_COMPLETE</code> und belegt kein
-Hostverhalten am aktuellen Head. TEST-Dateien bleiben als Tests analysiert; es
-wird kein Produktionsausschluss eingeführt.
+Hostverhalten am aktuellen Head. Nur Python-/Go-Fixtures werden für Sonar
+als TEST klassifiziert. Sämtliche C/C++-Dateien und Header bleiben MAIN, weil
+CFamily <code>sonar.tests</code> nicht unterstützt. Die 45 geprüften plus vier
+erhaltenen Fixture-Einträge bleiben als Zweck-/Aufrufernachweis bestehen; die
+vier Standardmuster beginnen jetzt mit <code>tests/**/*.py</code>. Es gibt
+keinen pauschalen I12- oder Produktionsausschluss.
 
 Die bestehende Sonar-Coverage-Anforderung bleibt
 <code>new_coverage &gt;= 80</code>. Eine korrekte Klassifikation belegt weder, dass

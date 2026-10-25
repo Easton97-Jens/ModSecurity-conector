@@ -1,17 +1,37 @@
 name: Selected coverage and Sonar analysis
 
 on:
-  pull_request:
-    branches: [master]
-  push:
-    branches: [master]
-  workflow_dispatch:
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: true
+    outputs:
+      verified:
+        description: Reports passed full source, inventory and SDK/build verification
+        value: ${{ jobs.selected-coverage.outputs.verified }}
+      head:
+        description: Exact verified source revision
+        value: ${{ jobs.selected-coverage.outputs.head }}
+      artifact_id:
+        description: Immutable same-run verified coverage artifact ID
+        value: ${{ jobs.selected-coverage.outputs.artifact_id }}
+      artifact_name:
+        description: Same-run verified coverage artifact name
+        value: ${{ jobs.selected-coverage.outputs.artifact_name }}
 
 permissions: {}
 
 jobs:
   selected-coverage:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    outputs:
+      verified: ${{ steps.attest.outputs.verified }}
+      head: ${{ steps.attest.outputs.head }}
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      artifact_name: parent-selected-coverage-${{ github.run_id }}-${{ github.run_attempt }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -79,6 +99,7 @@ jobs:
         run: |
           python3 ci/tools/run-active-tests.py --check --group coverage
           python3 ci/tools/sync-sonar-test-scope.py --check
+          python3 ci/checks/analysis/check-sonar-scope.py
       - name: Check admitted offline timing bounds without coverage overhead
         run: |
           python3 ci/tools/run-active-tests.py --group offline-timing \
@@ -140,8 +161,8 @@ jobs:
             --strict-skips --output-root "$RUNNER_TEMP/parent-coverage"
       - name: Verify report, source, inventory and build identity before import
         run: python3 ci/tools/collect-active-coverage.py verify --output-root "$RUNNER_TEMP/parent-coverage"
-      - name: Retain actual line observations and revision-bound report manifest
-        if: ${{ !cancelled() && (steps.coverage.outcome == 'success' || steps.coverage.outcome == 'failure') }}
+      - name: Retain fully verified line observations and revision-bound report manifest
+        id: artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: parent-selected-coverage-${{ github.run_id }}-${{ github.run_attempt }}
@@ -155,7 +176,15 @@ jobs:
             ${{ runner.temp }}/parent-coverage/**/python.json
             ${{ runner.temp }}/parent-coverage/**/python-subprocess/*.json
             ${{ runner.temp }}/parent-coverage/**/*.gcov.json.gz
-      - name: Analyze the current source and import its actual coverage
+      - name: Attest that this exact artifact passed full producer verification
+        id: attest
+        env:
+          ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+          echo "head=$ANALYZED_SHA" >> "$GITHUB_OUTPUT"
+      - name: Analyze the current source as required C++17 and import its actual coverage
+        id: scan
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -164,9 +193,25 @@ jobs:
           scannerVersion: 8.1.0.6389
           skipSignatureVerification: 'false'
           args: >-
+            -Dsonar.projectKey=Easton97-Jens_ModSecurity-conector
+            -Dsonar.cfamily.reportingCppStandardOverride=c++17
             -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
             -Dsonar.coverageReportPaths=${{ steps.coverage.outputs.generic_report }}
             -Dsonar.go.coverage.reportPaths=${{ steps.coverage.outputs.go_reports }}
             -Dsonar.working.directory=${{ runner.temp }}/sonar-work
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600
+      - name: Report required analysis outcome
+        if: always()
+        env:
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          {
+            echo "### Full Parent Sonar C++17 (required) / C++17 (verpflichtend)"
+            echo "Revision: $ANALYZED_SHA"
+            echo "Scanner and gate / Scanner und Gate: $SCAN_OUTCOME"
+            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
+              sed -n '/^\(ceTaskId\|dashboardUrl\|projectKey\)=/p' "$RUNNER_TEMP/sonar-work/report-task.txt"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

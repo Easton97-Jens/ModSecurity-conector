@@ -1,4 +1,4 @@
-"""One reviewed classification contract for Sonar's actual test sources.
+"""Reviewed fixture purposes and supported Sonar analysis-test classification.
 
 Classification never selects or executes a behavioral case. Product files and
 mixed operational tooling are not tests merely because they live below ci/ or a
@@ -18,7 +18,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = "config/testing/sonar-source-roles.json"
 MAX_BYTES = 16 * 1024 * 1024
-BASE_PATTERNS = ("tests/**", "**/test_*.py", "**/*_test.py", "**/*_test.go")
+BASE_PATTERNS = ("tests/**/*.py", "**/test_*.py", "**/*_test.py", "**/*_test.go")
+CFAMILY_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"})
+ANALYSIS_TEST_SUFFIXES = frozenset({".py", ".go"})
 RETAINED_EXACT = (
     "connectors/envoy/src/envoy_ext_authz_response_companion_test.c",
     "connectors/traefik/src/traefik_forwardauth_response_companion_test.c",
@@ -148,8 +150,12 @@ def load_roles(root: Path = ROOT) -> SourceRoles:
         raise SourceRoleError("reviewed fixture paths must be unique, sorted and distinct from retained tests")
     for path in RETAINED_EXACT:
         read_source(root, path)
-    patterns = (*value["standard_test_patterns"], *value["existing_exact_test_sources"], *names)
-    return SourceRoles(tuple(patterns), frozenset((*RETAINED_EXACT, *names)), tuple(reviewed),
+    # TEST in the review contract describes fixture purpose, not analyzer support.
+    # CFamily cannot use sonar.tests; its fixtures stay MAIN and coverage-eligible.
+    analysis_tests = [path for path in (*RETAINED_EXACT, *names)
+                      if PurePosixPath(path).suffix in ANALYSIS_TEST_SUFFIXES]
+    patterns = (*value["standard_test_patterns"], *analysis_tests)
+    return SourceRoles(tuple(patterns), frozenset(analysis_tests), tuple(reviewed),
                        hashlib.sha256(raw).hexdigest())
 
 
@@ -165,5 +171,7 @@ def is_test_source(relativepath: str, roles: SourceRoles | None = None,
     relative = str(canonical_relative(relativepath))
     read_source(root, relative)
     contract = roles or load_roles(root)
+    if PurePosixPath(relative).suffix not in ANALYSIS_TEST_SUFFIXES:
+        return False
     return (relative in contract.exact_tests or
             any(_standard_match(relative, pattern) for pattern in contract.patterns[:len(BASE_PATTERNS)]))

@@ -402,6 +402,7 @@ jobs:
             .github/workflows/test-nginx-exact-head.yml \
             .github/workflows/test-nginx.yml \
             .github/workflows/test-traefik.yml \
+            .github/workflows/sonarqube.yml \
             .github/workflows/update-go-version.yml \
             .github/workflows/update-python-version.yml \
             .github/workflows/update-submodules.yml \

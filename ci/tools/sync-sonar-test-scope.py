@@ -66,7 +66,7 @@ def main() -> int:
                 if old != new:
                     replace_line(name, old, new)
         print(f"SONAR_SOURCE_ROLES_OK: {len(roles.reviewed)} reviewed exact fixtures; "
-              f"{len(roles.exact_tests) - len(roles.reviewed)} retained exact tests; "
+              f"{len(roles.exact_tests)} exact Python/Go analysis tests; "
               f"contract_sha256={roles.sha256}")
         return 0
     except (SourceRoleError, OSError, UnicodeError) as exc:
