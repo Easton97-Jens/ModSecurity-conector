@@ -7,7 +7,7 @@
 The Parent repository uses one SonarQube Cloud project,
 `Easton97-Jens_ModSecurity-conector`, in organization `easton97-jens`. The
 organization key was read from the authenticated project API, not derived from
-the GitHub account name. One scan covers the maintained Parent components.
+the GitHub account name. Every standard variant scans the same maintained Parent components.
 Framework and MRTS remain independent repositories and analysis boundaries.
 
 These four similarly named mechanisms are distinct:
@@ -15,7 +15,7 @@ These four similarly named mechanisms are distinct:
 | Mechanism | Configuration and decision |
 | --- | --- |
 | Cloud Automatic Analysis | Runs on Sonar's infrastructure; reads `.sonarcloud.properties`, ignores `sonar-project.properties`, and cannot import coverage. Keep disabled for this project. |
-| CI-based SonarScanner CLI analysis | The selected method: `.github/workflows/sonarqube.yml` runs the full Parent scan using `sonar-project.properties`. |
+| CI-based SonarScanner CLI analysis | The selected method: `.github/workflows/sonarqube.yml` runs three full Parent scans using the same `sonar-project.properties`. |
 | CLI automatic configuration | `sonar.scanner.autoconfig.enabled=false` preserves explicit source/test classification. Enabling it would ignore the manual source/test settings and generate warnings. |
 | CFamily AutoConfig / Compilation Database | C/C++ analyzer modes within the CI scan. AutoConfig deduces compilation options; Compilation Database consumes real build commands through `sonar.cfamily.compile-commands`. This project selects AutoConfig. |
 
@@ -29,8 +29,8 @@ Authenticated discovery on 2026-10-25 found Cloud Automatic Analysis explicitly
 disabled and CLI automatic configuration disabled through the effective default.
 An earlier default-branch analysis that day used automatic analysis with scanner
 `7.2.0.5079` and reported both missing Python-version and test-scope warnings.
-Those historical results do not validate the new configuration. This change does
-not alter external project settings, rules, profiles, or Quality Gates.
+Those historical results do not validate the new configuration. Existing canonical project settings, rules, profiles and Quality Gates remain
+unchanged; the two new unbound advisory projects are described below.
 
 ## Language and component inventory
 
@@ -105,25 +105,38 @@ A future database migration must capture the real commands, compare all intended
 translation units against its entries, retain required includes/generated files,
 and document supported variants and any omitted units before switching modes.
 
-## Advisory newer C++ standards
+## Full-repository C++ standard scans
 
-`.github/workflows/cpp-compatibility-advisory.yml` separately compiles the real
-`common/scripts/modsecurity_targeted_eval.cc` under C++20 and C++23 with
-`-Wall -Wextra -Werror`. C++17 remains the authoritative build/reporting contract;
-these higher-standard results do not decide the Sonar gate or PR readiness.
-The matrix uses job-level `continue-on-error: true` and `fail-fast: false`.
-Compiler/provisioning failures remain visible in the logs and bilingual job
-summary as actual outcomes; neither variant cancels the other.
+The workflow runs the complete Parent source/test scope three times. It does
+not narrow newer-standard runs to the evaluator, a connector, or C++ files.
+Python, Go, C, Shell, Actions, JSON and YAML retain the same configuration and
+coverage producers in every variant. CFamily AutoConfig's documented
+`sonar.cfamily.reportingCppStandardOverride` selects C++17, C++20 or C++23 rule
+applicability and standard-dependent suggestions. Other languages retain their
+own language contracts; this is static analysis, not a native compiler build.
 
-`make fetch-modsecurity-v3` uses the pinned Framework source-provisioning path to
-verify the approved upstream commit and recursive graph. The advisory checker
-uses its real `headers/` directory and writes object files below
-`$RUNNER_TEMP/cpp-compatibility-<standard>/objects`. It accepts only
-`CPP_STANDARD=c++20|c++23`, requires absolute header/output directories, and
-rejects output inside the source checkout. No full library build, new system
-package, alternative Sonar scan, or change to the C++17 checker is required.
-This is compile-only compatibility evidence; it does not establish linking,
-execution, or hosted runtime compatibility.
+| C++ target | Sonar project | Decision |
+| --- | --- | --- |
+| `c++17` | `Easton97-Jens_ModSecurity-conector` | Required canonical PR/main-branch result. |
+| `c++20` | `Easton97-Jens_ModSecurity-conector_cpp20_advisory` | Full-Parent advisory result. |
+| `c++23` | `Easton97-Jens_ModSecurity-conector_cpp23_advisory` | Full-Parent advisory result. |
+
+The two public advisory projects were manually created in `easton97-jens` and
+verified unbound to a DevOps repository, with Automatic Analysis already false.
+They use their own `master` analysis branch explicitly, avoiding automatic PR
+routing. They cannot replace the canonical project's PR result. Their relevant
+quality-profile keys and `Sonar way` Quality Gate match the canonical project;
+no rules, profiles or thresholds were weakened. C++20/23 support is not as
+complete as C++17 support; retain analyzer limitations and failures visibly.
+
+Only the two higher-standard jobs use `continue-on-error: true` through the
+fixed matrix; `fail-fast: false` preserves all runs. Every scanner still waits
+for its real server-side gate. The bilingual job summary records the actual
+scanner/gate outcome, revision, project and Compute Engine task link, including
+failures. Advisory projects hold the latest serialized snapshot per standard;
+retain each task/analysis ID and exact SHA when comparing PRs. The authoritative
+project alone retains normal PR decoration. The superseded evaluator-only
+compiler jobs are removed.
 
 ## CI, tests, and coverage
 
@@ -253,3 +266,6 @@ Server `warningCount=0` does not mean the scanner log contains no warnings.
 
 - [Pinned Python coverage release and universal wheel](https://pypi.org/project/coverage/7.17.0/)
 - [Python coverage import](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/python-test-coverage)
+
+- [Manual project creation](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/administering-your-projects/setting-up-project)
+- [DevOps binding](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/about-sonarqube-cloud-solution/resources-structure/binding-with-dop)

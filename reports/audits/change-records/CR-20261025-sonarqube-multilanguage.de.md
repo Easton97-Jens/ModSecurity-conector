@@ -15,19 +15,19 @@
 Die automatische Parent-Analyse meldete keine explizite Python-Zielversion und
 erkannte Tests ohne `sonar.tests`. Verteilte Tests, unabhängige native Binaries
 und gepflegte Build-/CI-Skripte benötigen einen konsistenten Parent-Scan.
-Zusätzlich wünscht der Benutzer unverbindliche Tests höherer C++-Standards.
+Der Benutzer fordert unverbindliche repositoryweite Sonar-Analysen für C++20 und C++23 statt komponentenbegrenzter Compiler-Checks.
 
 ## Akzeptanzkriterien
 
 Python `3.14` aus Pin `3.14.7` verwenden, alle vorgesehenen Parent-Komponenten und
 vier Go-Module erhalten, CFamily-Tests im Source-Scope belassen, Ausschlüsse und
 Grenzen dokumentieren, echte unterstützte Reports erzeugen und die tatsächliche
-PR-Revision prüfen. C++20-/C++23-Tests müssen sichtbar und nicht entscheidend sein;
+PR-Revision prüfen. Repositoryweite C++20-/C++23-Sonar-Scans müssen sichtbar und nicht entscheidend sein;
 C++17 bleibt maßgeblich. Submodulinhalte, Regeln und Quality Gates nicht ändern.
 
 ## Implementierungsentscheidung und Begründung
 
-Ein manueller SonarScanner-CLI-Scan `8.1.0.6389` verwendet die unveränderliche
+Drei repositoryweite manuelle SonarScanner-CLI-Varianten `8.1.0.6389` verwenden die unveränderliche
 Action `v8.3.0` (`d209202bc7d53ff1cc128f7f907dac145c9d6ae9`). Organisation
 `easton97-jens` und bereits deaktivierte Cloud Automatic Analysis wurden über
 den kanonischen Wrapper verifiziert. Explizite Scanner-Autokonfiguration ist
@@ -57,20 +57,31 @@ auf den Secret-Kontext ab. Die drei Maintainability-Findings des ersten Scans
 wurden durch Aufteilen der Validierungsverantwortung, Entfernen einer redundanten
 Exception-Klasse und Trennen von Test-Assertions bearbeitet.
 
-Eine getrennte nicht blockierende C++20-/C++23-Matrix kompiliert den echten
-Evaluator mit `-Wall -Wextra -Werror` zu Objektdateien und verwendet den nativen
-gepinnten ModSecurity-Source-Fetch für echte Header. `continue-on-error: true`
-ist auf diese ausdrücklich gewünschten Advisory-Jobs beschränkt;
-`fail-fast: false` erhält beide Ergebnisse. C++17 und Sonar-Gates bleiben
-verbindlich. Es entstehen keine alternativen Sonar-Scans je Standard.
+Dieselbe vollständige Source-/Testkonfiguration und dieselben Python-/Go-
+Coverage-Erzeuger laufen in drei Varianten. C++17 verwendet das verbindliche
+kanonische Projekt. C++20/C++23 verwenden `sonar.cfamily.reportingCppStandardOverride`
+mit getrennten öffentlichen Projekten
+`Easton97-Jens_ModSecurity-conector_cpp20_advisory` und
+`Easton97-Jens_ModSecurity-conector_cpp23_advisory`. Beide Projekte wurden über
+den kanonischen Wrapper manuell angelegt und als ungebunden, Automatic Analysis
+false, Hauptbranch `master` zurückgelesen. Ihre relevanten Profile-Keys und das
+`Sonar way` Gate stimmen mit dem kanonischen Projekt überein. Ein redundanter
+Setting-Schreibversuch wurde von der API abgelehnt; Readback belegte den bereits
+korrekten deaktivierten Zustand.
+
+Der explizite Advisory-Hauptbranchparameter vermeidet kanonische PR-Zuordnung.
+`continue-on-error` stammt ausschließlich aus der festen Advisory-Matrix;
+C++17 bleibt verbindlich und jeder Scanner wartet auf sein tatsächliches Gate.
+Serialisierung je Projekt und Task-/SHA-Zusammenfassungen erhalten die
+Nachvollziehbarkeit. Partieller Source-Scope, alternative Properties-Datei,
+komponentenbezogene Compilation Database oder reine Compiler-Advisory-Jobs
+verbleiben nicht. Matrixvertrag und negative Gating-Kontrolle sind getestet.
 
 ## Geänderte Dateien
 
 - `sonar-project.properties`; `.github/workflows/sonarqube.yml`.
 - `ci/checks/analysis/check-sonar-scope.py`; `tests/test_sonar_scope.py`.
 - `ci/requirements/sonar-coverage.txt`; `ci/sonar-coverage.ini`.
-- `.github/workflows/cpp-compatibility-advisory.yml`;
-  `ci/checks/analysis/check-targeted-evaluator-cpp-advisory.sh`.
 - `tests/test_ci_security_workflows.py`;
   `ci/checks/common/check-python-version-contract.py`; `tests/test_python_version_contract.py`.
 - `ci/tooling/security-tools.lock.yml`; `ci/tools/update-workflow-tools.py`;
@@ -91,19 +102,16 @@ externe Coverage-Umgebungen.
 
 | Tatsächlicher Befehl oder begrenzte Prozedur | Beobachtetes Ergebnis |
 | --- | --- |
-| `rtk bypass .venv/bin/python ci/checks/analysis/check-sonar-scope.py --json` (Parent-Interpreterauswahl) | Bestanden: 1341 Sources, 239 Tests (216 Python / 23 Go), 136 CFamily-Units, vier Module. Manifest: `/var/tmp/codex/ModSecurity-conector/analysis/sonar-config-pr/scope-manifest-final.json`. |
-| Gezielte kombinierte `unittest -v`-Auswahl für Scope, Python-Inventar, unveränderliche Pins, Rechte, YAML, Updater-Allowlist und Sonar-Secretkontrollen | 19 Testmethoden einschließlich aller parametrisierten Negativvarianten bestanden; lokal keine vollständige Standardsuite ausgewählt. |
+| `rtk bypass .venv/bin/python ci/checks/analysis/check-sonar-scope.py --json` (Parent-Interpreterauswahl) | Bestanden: 1339 Sources, 239 Tests (216 Python / 23 Go), 136 CFamily-Units, vier Module. Manifest: `/var/tmp/codex/ModSecurity-conector/analysis/sonar-config-pr/scope-manifest-final.json`. |
+| Gezielte kombinierte `unittest -v`-Auswahl für Scope, Python-Inventar, unveränderliche Pins, Rechte, YAML, Updater-Allowlist und Sonar-Secretkontrollen | 21 Testmethoden einschließlich aller parametrisierten Negativvarianten bestanden; lokal keine vollständige Standardsuite ausgewählt. |
 | Tatsächlichen Python-Coverage-Workflow-Block aus YAML ausführen | Bestanden: isolierte binäre/hashverpflichtende Installation, echte CLI, acht Testmethoden, Kombination und XML. Checker 91.94% Lines, 88.33% Branches, 90.76% kombiniert. |
 | Go-Coverage-Workflow-Block mit Guards aus YAML ausführen | Bestanden: vier vorhandene Einzelszenario-Tests; vier gültige native Profile. Statements ausgewählter Pakete 17.2%, 23.6%, 5.4%, 6.8%. |
-| `rtk bypass actionlint .github/workflows/sonarqube.yml .github/workflows/cpp-compatibility-advisory.yml .github/workflows/update-workflow-tools.yml` | Bestanden. |
-| `rtk bypass zizmor --offline .github/workflows/sonarqube.yml .github/workflows/cpp-compatibility-advisory.yml .github/workflows/update-workflow-tools.yml` | Bestanden; keine Findings, neun bestehende Unterdrückungen. |
+| `rtk bypass actionlint .github/workflows/sonarqube.yml .github/workflows/update-workflow-tools.yml` | Bestanden. |
+| `rtk bypass zizmor --offline .github/workflows/sonarqube.yml .github/workflows/update-workflow-tools.yml` | Bestanden; keine Findings, sieben bestehende Unterdrückungen. |
 | `rtk bypass make check-bilingual-docs check-doc-links PYTHON=<Parent interpreter>` | Einschließlich neuer gestagter Dokumente bestanden. |
 | `rtk bypass git diff --check` | Bestanden. |
 | Vollständigen Python-Version-Checker mit unveränderter Basis vergleichen | Exit 1 in beiden Bäumen, identische 19 Basisdiagnosen; kein neuer Workflow ergänzt eine Diagnose. |
-| C++20-/C++23-Advisory-Checker mit GCC 15.2.0 und echten installierten ModSecurity-3.0.14-Headern über externen Include-Root-Alias | Beide echten Evaluator-Objektkompilierungen bestanden. Shell-Syntax/ShellCheck und Negativprüfungen für ungültigen Standard, Checkout-Ausgabe und fehlende Header bestanden. |
 
-Derselbe echte Evaluator kompilierte außerdem in beiden Modi erfolgreich gegen
-die gepinnten Upstream-Checkout-Header am Commit `1925753989ccce977cdaae417b55c9726c7cf02c`.
 
 Das portable Label `.venv/bin/python` bezeichnet oben den vorhandenen Parent-
 Interpreter und keine neue Umgebung im Task-Worktree. Gehostete Ergebnisse des
@@ -115,7 +123,7 @@ Der Scanner-Job hat nur `contents: read`; Workflow-Standards verweigern Rechte.
 Checkout-Credentials werden nicht gespeichert. Nur der feste Scanner-Schritt
 erhält `SONAR_TOKEN`; Fork-PRs führen diesen Job nicht aus. Signaturprüfung,
 Regeln und Quality Gates bleiben aktiv. Coverage-Tooling ist isoliert und
-hashgepinnt. Advisory-C++-Jobs besitzen lesende Rechte und keine Secrets.
+hashgepinnt. Alle Varianten besitzen lesende GitHub-Rechte. Nur ihr gepinnter Scanner-Schritt erhält das bestehende Analysetoken; Fork-PRs sind ausgeschlossen.
 Produktionslaufzeit, Autorisierung und Logging-Verhalten ändern sich nicht.
 
 ## Runtime-Evidence
@@ -142,8 +150,7 @@ Labels der gespeicherten Python-Architekturperspektive sind im Guide dokumentier
 `warningCount=0` bedeutet keine Warnungsfreiheit der Scanner-Logs.
 
 Coverage ist gezielt und keine vollständige Repository-Testausführung. C/C++-
-Coverage und Testausführungsreports fehlen. Advisory-Objekte beweisen weder
-Linken noch Laufzeitverhalten. Lokales Python `3.14.4`/Go `1.27.3` weichen von
+Coverage und Testausführungsreports fehlen. Statische Standardvarianten beweisen weder native Kompilierung noch Linken oder Laufzeitverhalten. Lokales Python `3.14.4`/Go `1.27.3` weichen von
 CI-Pins ab.
 
 ## Verbleibende Risiken
@@ -152,16 +159,17 @@ Ein Projektadministrator muss das gespeicherte `py Intended Model` mit dem
 Parent-only-Source-/Test-Scope abgleichen; kein Modell oder Architekturcheck
 wurde zum Verbergen von Warnungen entfernt. Shell-Parsing und CFamily-Treue
 bleiben Analyzer-Grenzen. Automatic Analysis muss deaktiviert bleiben.
-Der finale Folge-Head benötigt noch gehosteten Scan-/Import-/Gate- und
-Advisory-Ergebnis-Readback.
+Revision `ed2c9c7cb6739f802aba3d842f46e18e9f3d414c` schloss den kanonischen Task
+`AaF0TdarwSmsgR9Bxtvb`, Analyse `f474f764-2b07-48dc-9f5e-248f5f891140`, mit
+Gate OK und 90.8% New-Code-Coverage ab; ihre Current-Head-CI bestand. Die finale
+Drei-Standard-Matrix benötigt noch frischen gehosteten Projekt-/SHA-/Gate-Readback.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Vollständiger nativer Host-Build, Linken oder Runtime-Qualifikation waren für
 diesen Konfigurationstask nicht erforderlich. Keine sachfremde Basis-Python-
 Workflow-Migration oder historische I12-Kampagne ausgeführt. Die ersten
-gehosteten Pin-/Scope-/Go-Schritte bestanden; gehostete Python-Coverage und
-höhere Standards müssen am tatsächlichen neuen PR-Head bewertet werden.
+gehosteten Pin-/Scope-/Go-Schritte bestanden; die finalen repositoryweiten Standardvarianten müssen am tatsächlichen neuen PR-Head bewertet werden.
 Bestehende Gates wurden nicht für ein Bestehen abgeschwächt.
 
 ## Finaler Diff- und Review-Status

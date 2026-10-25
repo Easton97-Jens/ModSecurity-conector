@@ -1430,6 +1430,7 @@ def sonar_pr_secret_errors(text: str) -> list[str]:
         steps = job["steps"]
         scanner_steps = [step for step in steps if "SONAR_TOKEN" in step.get("env", {})]
         scanner = scanner_steps[0]
+        strategy = job["strategy"]
     except (KeyError, IndexError, TypeError, yaml.YAMLError):
         return ["missing fixed Sonar scanner structure"]
     expected_guard = (
@@ -1437,11 +1438,19 @@ def sonar_pr_secret_errors(text: str) -> list[str]:
         "(github.event_name == 'push' || "
         "github.event.pull_request.head.repo.full_name == github.repository)"
     )
+    expected_variants = [
+        {"cpp": "17", "project": "Easton97-Jens_ModSecurity-conector", "advisory": "false", "branch_args": ""},
+        {"cpp": "20", "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory", "advisory": "true", "branch_args": "-Dsonar.branch.name=master"},
+        {"cpp": "23", "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory", "advisory": "true", "branch_args": "-Dsonar.branch.name=master"},
+    ]
     checks = {
         "only the fixed analysis job is permitted": set(jobs) == {"analysis"},
         "same-repository guard must match exactly": " ".join(job.get("if", "").split()) == expected_guard,
         "workflow permissions must default deny": workflow.get("permissions") == {},
         "scanner job must be read only": job.get("permissions") == {"contents": "read"},
+        "standard/project/gating matrix must match exactly": strategy.get("matrix", {}).get("include") == expected_variants,
+        "only higher standards may be advisory": job.get("continue-on-error") == "${{ matrix.advisory }}",
+        "all standard analyses must finish independently": strategy.get("fail-fast") == "false",
         "only push/master and ordinary pull requests are permitted": workflow.get("on") == {
             "push": {"branches": ["master"]}, "pull_request": "",
         },
@@ -2651,6 +2660,21 @@ jobs:
         text = self.workflow("sonarqube.yml")
         unsafe = text.replace("uses: sonarsource/sonarqube-scan-action@", "uses: unknown/scanner@", 1)
         self.assertNotEqual(sonar_pr_secret_errors(unsafe), [])
+
+    def test_sonar_standard_matrix_keeps_full_parent_scope(self) -> None:
+        text = self.workflow("sonarqube.yml")
+        self.assertEqual(sonar_pr_secret_errors(text), [])
+        workflow = yaml.load(text, Loader=yaml.BaseLoader)
+        scanner = next(step for step in workflow["jobs"]["analysis"]["steps"] if step.get("id") == "scan")
+        args = scanner["with"]["args"]
+        self.assertIn("-Dsonar.projectKey=${{ matrix.project }}", args)
+        self.assertIn("-Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}", args)
+        self.assertNotRegex(args, r"-D(?:sonar\.(?:sources|tests|inclusions|exclusions)|project\.settings)=")
+        self.assertNotIn("projectBaseDir", scanner["with"])
+
+    def test_sonar_standard_matrix_rejects_decisive_higher_standards(self) -> None:
+        text = self.workflow("sonarqube.yml")
+        self.assertNotEqual(sonar_pr_secret_errors(text.replace("advisory: true", "advisory: false", 1)), [])
 
     def test_sonar_secret_contract_rejects_alternate_secret_access(self) -> None:
         text = self.workflow("sonarqube.yml")

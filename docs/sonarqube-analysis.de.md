@@ -7,7 +7,7 @@
 Das Parent-Repository verwendet ein SonarQube-Cloud-Projekt,
 `Easton97-Jens_ModSecurity-conector`, in der Organisation `easton97-jens`. Der
 Organization-Key wurde aus der authentifizierten Projekt-API gelesen und nicht
-aus dem GitHub-Kontonamen abgeleitet. Ein Scan erfasst die gepflegten
+aus dem GitHub-Kontonamen abgeleitet. Jede Standardvariante analysiert dieselben gepflegten
 Parent-Komponenten. Framework und MRTS bleiben eigenständige Repositories und
 Analysegrenzen.
 
@@ -16,7 +16,7 @@ Diese vier ähnlich benannten Mechanismen unterscheiden sich:
 | Mechanismus | Konfiguration und Entscheidung |
 | --- | --- |
 | Cloud Automatic Analysis | Läuft auf Sonars Infrastruktur; liest `.sonarcloud.properties`, ignoriert `sonar-project.properties` und kann keine Coverage importieren. Für dieses Projekt deaktiviert lassen. |
-| CI-basierte SonarScanner-CLI-Analyse | Gewählte Methode: `.github/workflows/sonarqube.yml` führt den vollständigen Parent-Scan mit `sonar-project.properties` aus. |
+| CI-basierte SonarScanner-CLI-Analyse | Gewählte Methode: `.github/workflows/sonarqube.yml` führt drei vollständige Parent-Scans mit derselben `sonar-project.properties` aus. |
 | Automatische CLI-Konfiguration | `sonar.scanner.autoconfig.enabled=false` erhält die explizite Source-/Testzuordnung. Aktivierung würde die manuellen Source-/Testeinstellungen ignorieren und Warnungen erzeugen. |
 | CFamily AutoConfig / Compilation Database | C/C++-Analyzermodi innerhalb des CI-Scans. AutoConfig leitet Compileroptionen ab; Compilation Database liest echte Buildbefehle über `sonar.cfamily.compile-commands`. Dieses Projekt wählt AutoConfig. |
 
@@ -31,8 +31,8 @@ explizit deaktiviert und die automatische CLI-Konfiguration über den wirksamen
 Standardwert deaktiviert. Eine frühere Standardbranch-Analyse desselben Tages
 verwendete automatische Analyse mit Scanner `7.2.0.5079` und meldete beide
 Warnungen zu fehlender Python-Version und fehlendem Test-Scope. Diese
-historischen Ergebnisse validieren die neue Konfiguration nicht. Diese Änderung
-ändert keine externen Projekteinstellungen, Regeln, Profile oder Quality Gates.
+historischen Ergebnisse validieren die neue Konfiguration nicht. Bestehende kanonische Projekteinstellungen, Regeln, Profile und Quality Gates
+bleiben unverändert; die beiden neuen ungebundenen Advisory-Projekte sind unten beschrieben.
 
 ## Sprach- und Komponentenbestand
 
@@ -115,27 +115,42 @@ beabsichtigten Translation Units mit den Einträgen vergleichen, erforderliche
 Includes/generierte Dateien erhalten und unterstützte Varianten sowie fehlende
 Units vor dem Moduswechsel dokumentieren.
 
-## Unverbindliche höhere C++-Standards
+## Repositoryweite C++-Standard-Scans
 
-`.github/workflows/cpp-compatibility-advisory.yml` kompiliert separat die echte
-`common/scripts/modsecurity_targeted_eval.cc` unter C++20 und C++23 mit
-`-Wall -Wextra -Werror`. C++17 bleibt der maßgebliche Build-/Berichtsvertrag;
-die Ergebnisse höherer Standards entscheiden weder Sonar-Gate noch PR-Reife.
-Die Matrix verwendet `continue-on-error: true` auf Jobebene und
-`fail-fast: false`. Compiler-/Provisionierungsfehler bleiben mit ihrem echten
-Ergebnis in Logs und bilingualer Jobzusammenfassung sichtbar; kein Modus bricht
-den anderen ab.
+Der Workflow führt den vollständigen Parent-Source-/Test-Scope dreimal aus.
+Höhere Standards werden nicht auf Evaluator, Connector oder C++-Dateien
+begrenzt. Python, Go, C, Shell, Actions, JSON und YAML behalten in jeder Variante
+dieselbe Konfiguration und dieselben Coverage-Erzeuger. Das dokumentierte
+`sonar.cfamily.reportingCppStandardOverride` von CFamily AutoConfig wählt C++17,
+C++20 oder C++23 für Regelanwendbarkeit und standardabhängige Vorschläge.
+Andere Sprachen behalten ihre eigenen Sprachverträge; dies ist statische Analyse
+und kein nativer Compiler-Build.
 
-`make fetch-modsecurity-v3` verwendet den gepinnten Framework-Source-
-Provisionierungsweg zur Verifikation des freigegebenen Upstream-Commits und
-rekursiven Graphen. Der Advisory-Checker verwendet dessen echtes `headers/`-
-Verzeichnis und schreibt Objektdateien unter
-`$RUNNER_TEMP/cpp-compatibility-<standard>/objects`. Er akzeptiert ausschließlich
-`CPP_STANDARD=c++20|c++23`, fordert absolute Header-/Ausgabeverzeichnisse und
-lehnt Ausgaben im Source-Checkout ab. Vollständiger Bibliotheksbuild, neue
-Systempakete, alternative Sonar-Scans oder Änderungen am C++17-Checker sind
-nicht erforderlich. Dies ist ausschließlich Kompilierungskompatibilität;
-Linken, Ausführung oder gehostete Laufzeitkompatibilität werden nicht belegt.
+| C++-Ziel | Sonar-Projekt | Entscheidung |
+| --- | --- | --- |
+| `c++17` | `Easton97-Jens_ModSecurity-conector` | Verbindliches kanonisches PR-/Hauptbranch-Ergebnis. |
+| `c++20` | `Easton97-Jens_ModSecurity-conector_cpp20_advisory` | Unverbindliches vollständiges Parent-Ergebnis. |
+| `c++23` | `Easton97-Jens_ModSecurity-conector_cpp23_advisory` | Unverbindliches vollständiges Parent-Ergebnis. |
+
+Die beiden öffentlichen Advisory-Projekte wurden in `easton97-jens` manuell
+angelegt und als ohne DevOps-Repository-Bindung sowie mit bereits deaktivierter
+Automatic Analysis bestätigt. Sie verwenden explizit ihren eigenen
+Analysebranch `master` und vermeiden automatische PR-Zuordnung. Sie können das
+PR-Ergebnis des kanonischen Projekts nicht ersetzen. Ihre relevanten
+Quality-Profile-Keys und das `Sonar way` Quality Gate stimmen mit dem kanonischen
+Projekt überein; Regeln, Profile oder Schwellen wurden nicht abgeschwächt.
+C++20/23 werden weniger vollständig als C++17 unterstützt; Analyzer-Grenzen und
+Fehler bleiben sichtbar.
+
+Nur die beiden höheren Standards verwenden über die feste Matrix
+`continue-on-error: true`; `fail-fast: false` erhält alle Läufe. Jeder Scanner
+wartet weiterhin auf sein echtes serverseitiges Gate. Die bilinguale
+Jobzusammenfassung protokolliert tatsächliches Scanner-/Gate-Ergebnis, Revision,
+Projekt und Compute-Engine-Task-Link einschließlich Fehlern. Advisory-Projekte
+enthalten den letzten serialisierten Snapshot je Standard; beim Vergleich von
+PRs jede Task-/Analyse-ID und den exakten SHA aufbewahren. Nur das maßgebliche
+Projekt behält normale PR-Dekoration. Die ersetzten reinen Evaluator-Compiler-
+Jobs sind entfernt.
 
 ## CI, Tests und Coverage
 
@@ -276,3 +291,6 @@ des Scanner-Logs.
 
 - [Gepinnte Python-Coverage-Version und Universal-Wheel](https://pypi.org/project/coverage/7.17.0/)
 - [Python-Coverage-Import](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/python-test-coverage)
+
+- [Manual project creation](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/administering-your-projects/setting-up-project)
+- [DevOps binding](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/about-sonarqube-cloud-solution/resources-structure/binding-with-dop)

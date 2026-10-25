@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   analysis:
+    name: Sonar C++${{ matrix.cpp }} (${{ matrix.advisory && 'advisory' || 'required' }})
     if: >-
       github.repository == 'Easton97-Jens/ModSecurity-conector' &&
       (github.event_name == 'push' ||
@@ -21,6 +22,26 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: ${{ matrix.advisory }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cpp: "17"
+            project: Easton97-Jens_ModSecurity-conector
+            advisory: false
+            branch_args: ""
+          - cpp: "20"
+            project: Easton97-Jens_ModSecurity-conector_cpp20_advisory
+            advisory: true
+            branch_args: -Dsonar.branch.name=master
+          - cpp: "23"
+            project: Easton97-Jens_ModSecurity-conector_cpp23_advisory
+            advisory: true
+            branch_args: -Dsonar.branch.name=master
+    concurrency:
+      group: sonar-project-${{ matrix.project }}-${{ matrix.advisory && 'advisory' || github.event.pull_request.number || github.ref }}
+      cancel-in-progress: false
     env:
       GOTOOLCHAIN: local
       GOWORK: "off"
@@ -117,15 +138,41 @@ jobs:
             test -s "$report"
           done
       - name: Analyze exact revision and await Quality Gate
+        id: scan
         uses: sonarsource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scannerVersion: 8.1.0.6389
           args: >-
+            -Dsonar.projectKey=${{ matrix.project }}
+            -Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}
+            ${{ matrix.branch_args }}
             -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
             -Dsonar.working.directory=${{ runner.temp }}/sonar-work
             -Dsonar.python.coverage.reportPaths=${{ runner.temp }}/sonar-coverage/python.xml
             -Dsonar.go.coverage.reportPaths=${{ runner.temp }}/sonar-coverage/envoy.out,${{ runner.temp }}/sonar-coverage/traefik-native.out,${{ runner.temp }}/sonar-coverage/traefik-composite.out,${{ runner.temp }}/sonar-coverage/traefik-observer.out
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600
+      - name: Report the actual analysis outcome
+        if: always()
+        env:
+          CPP_STANDARD: ${{ matrix.cpp }}
+          SONAR_PROJECT: ${{ matrix.project }}
+          ADVISORY: ${{ matrix.advisory }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          {
+            echo "### Full Parent Sonar scan / Vollständiger Parent-Sonar-Scan: C++$CPP_STANDARD"
+            echo "Project / Projekt: $SONAR_PROJECT"
+            echo "Revision: $ANALYZED_SHA"
+            echo "Advisory / Unverbindlich: $ADVISORY"
+            echo "Scanner and gate / Scanner und Gate: $SCAN_OUTCOME"
+            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
+              sed -n '/^\(ceTaskId\|dashboardUrl\|projectKey\)=/p' "$RUNNER_TEMP/sonar-work/report-task.txt"
+            else
+              echo 'No server report published / Kein Serverreport veröffentlicht'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
