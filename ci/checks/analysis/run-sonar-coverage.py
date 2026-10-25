@@ -26,6 +26,7 @@ RCFILE = ROOT / "ci/sonar-coverage.ini"
 PYTHON_TESTS = (
     "tests.test_sonar_scope",
     "tests.test_sonar_coverage",
+    "tests.test_sonar_native_context",
     "tests.test_sonar_evidence_boundaries",
     "tests.test_evidence_input_security",
     "tests.test_framework_revision_pins.RevisionLockTests.test_offline_loader_requires_no_git_repository",

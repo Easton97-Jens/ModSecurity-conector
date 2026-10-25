@@ -320,6 +320,13 @@ sichtbar lassen; niemals Regeln oder Schwellen für ein Bestehen abschwächen.
 
 ## Beobachtete Cloud-Grenzen und externe Folgeaktion
 
+Der [PR-#421-Abschlussnachweis](sonarqube-pr421-closeout.de.md) dokumentiert die
+unabhängigen Einzelentscheidungen, Marker-Korrektur, echte gepinnte
+Host-Header-Vorbereitung, den Vergleich der Analyzergrenzen mit der Basis und
+finale Runtime-Nachweise. Seine revisionsgebundenen Ergebnisse und externen
+Schritte ergänzen die historischen Beobachtungen unten; PR-Coverage qualifiziert
+nicht die kumulierte Master-Coverage.
+
 Authentifiziertes Readback bestätigte erneut die Basisrevision
 `9f44647593bac7947113558c6ad183ab118e80af`, Analyse
 `52df415d-2c24-43a3-a63a-de6e79c37d60`, aus

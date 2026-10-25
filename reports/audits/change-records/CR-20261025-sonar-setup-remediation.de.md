@@ -126,8 +126,7 @@ Refresh-Klassifikation oder Hashes auswählen. Korrekturen erzwingen
 aufrufereigene Eingabewurzeln und deskriptorbasierte Lesezugriffe auf reguläre
 Dateien einschließlich Symlink-/Traversal-Kontrollen. Legitime private
 Runtime-/Cache- und kanonische Source-Eingaben bleiben erhalten. Eine entfernte
-Ausnutzbarkeit wurde nicht nachgewiesen. Vierzehn Basis-Findings haben konkrete
-Gegennachweise durch bestehende Kontrollen oder Operatorberechtigung; die übrigen
+Ausnutzbarkeit wurde nicht nachgewiesen. Die Erstbewertung ordnete vierzehn Basis-Findings bestehenden Kontrollen oder Operatorberechtigung zu; die Marker-Bewertung war unvollständig und wird in der Fortsetzung ausdrücklich korrigiert; die übrigen
 Dateiinhalt-Gruppen benötigen frische Scanner-Verifikation. Kein Finding wurde
 für ein anderes Rating akzeptiert, unterdrückt oder als False Positive markiert.
 Dieser Record enthält keine Credentials oder sensiblen Rohpayloads.
@@ -138,8 +137,7 @@ Diese 46 Keys gehören zur Basisanalyse `52df415d-2c24-43a3-a63a-de6e79c37d60`
 bei `9f44647593bac7947113558c6ad183ab118e80af`. Bestehende Kontrollen oder
 bestimmungsgemäße Operatorberechtigung sind technische Gegennachweise, keine
 False-Positive-Transitions in Sonar. Eine frische PR-Analyse schließt alte
-Mainbranch-Finding-Keys nicht automatisch. Die erste Tabelle erfasst 14 Findings
-mit bestehenden Kontrollen/Operatorberechtigung; die zweite erfasst 32 Findings
+Mainbranch-Finding-Keys nicht automatisch. Die erste Tabelle erfasst 14 ursprüngliche Kontroll-/Operatorbewertungen einschließlich der ausdrücklich korrigierten Marker-Bewertung; die zweite erfasst 32 Findings
 mit Korrekturen an Consumer-Grenzen.
 
 | Exakte Basis-Finding-Keys | Source-Grenze | Technische Einordnung |
@@ -152,7 +150,7 @@ mit Korrekturen an Consumer-Grenzen.
 | `AaF0erq1Xd_g6jxuNaGF` | `ci/runtime/lifecycle/run-full-matrix-job.py` | Kanonische Repositories, geprüfte Runtime-Pfade und validierte Run-ID gehen als Argumentliste ohne Shell an den Subprozess. |
 | `AaF0erqcXd_g6jxuNaGC`, `AaF0erqcXd_g6jxuNaGB` | `ci/runtime/lifecycle/run-full-matrix-resume.py` | Kanonische Wurzeln, erlaubte Connector-/CRS-/MRTS-Werte, begrenztes numerisches Timeout und `shell=False`. |
 | `AaF0erpfXd_g6jxuNaF6`, `AaF0erpfXd_g6jxuNaF7` | `ci/runtime/lifecycle/run-verified-case.py` (`write_json`) | `runtime_artifact_path` prüft das Ziel unmittelbar vor dem Schreiben. |
-| `AaF0erp1Xd_g6jxuNaGA` | `ci/runtime/lifecycle/run-verified-report-run.py` (`prepare_verified_run_context`) | Das Ziel `current-run-id` wird aus validierten Runtime-Pfaden gebildet. |
+| `AaF0erp1Xd_g6jxuNaGA` | `ci/runtime/lifecycle/run-verified-report-run.py` (`prepare_verified_run_context`) | Früherer Gegenbeleg unvollständig: kanonischer Zielpfad allein sicherte weder vorgezogenen Marker-Read noch Blatt-Symlink-/FIFO-Zugriffe. Fortsetzung reproduzierte den Defekt und korrigiert diese Bewertung; siehe Abschlussnachweis unten. |
 | `AaF0erp1Xd_g6jxuNaF8` | `ci/runtime/lifecycle/run-verified-report-run.py` | Manifest-Ausgabe verwendet kanonisches `report_path`; JSON liefert Nutzdaten, keine Zielberechtigung. |
 | `AaF0erpTXd_g6jxuNaF5` | `ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py` | Rules-/Source-Pfade werden geprüft; Hashing verwendet `O_NOFOLLOW` und prüft einen regulären Dateideskriptor. |
 | `AaF0erukXd_g6jxuNaGe` | `connectors/lighttpd/harness/patched_event_validation.py` | Explizit vom Operator gewählte Events-Eingabe; keine zusätzliche HTTP- oder privilegierte Berechtigungsgrenze nachgewiesen. |
@@ -276,7 +274,7 @@ Die erste PR-Head-CI bei `d094e1dacd1f540b1ffcf35b7da5bd4b3c255665`, [Lauf 40230
 
 Finale integrierte lokale Coverage-Pipeline: Python54Tests, Go37Tests und native Common-Tests bestanden; die Finalisierung führte die echte Go-/Native-Producer-Prozess-Coverage mit der Python-XML zusammen und validierte sämtliche Reportpfade. Reports sind ausdrücklich als Entwicklungsnachweise aus nicht committeten Änderungen markiert; die finale CI muss sie für den sauberen Commit neu erzeugen. Lokale Source-, Workflow-, zweisprachige, Link-, Archiv- und Whitespace-Prüfungen bestanden. Keine vollständige gehostete Runtime-Qualifikation wird behauptet.
 
-Es wurde keine gehostete Connector-Runtime-Evidence erhoben oder beansprucht.
+Zum ursprünglichen Erstellungszeitpunkt wurde keine gehostete Connector-Runtime-Evidence erhoben oder beansprucht. Die Fortsetzung unten ergänzt den tatsächlichen Runtime-Readback bei `4ec7581056889f8c70f44c6725f6bfa65a7fc45b` mit ausdrücklich begrenztem Scope.
 Coverage-Tests, Source-Kompilierung, statische Checks und Scanner-Readback
 beweisen jeweils nur ihre eigene Ebene. Historischer Basis-CI-Lauf:
 [Lauf 40224506735](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40224506735).
@@ -298,8 +296,7 @@ in diesem Record noch nicht vor.
 Die Hauptprojekt-UUID ist `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`; die Modell-ID
 ist `cb04d3a3-7c8f-447c-99f0-ca49c97f054f`. Die effektiven Rollen
 `architectureadmin`/`admin` waren vorhanden. Der genaue Body in
-`config/analysis/sonar-python-architecture.patch.json` muss über den Editor für
-die beabsichtigte Architektur oder einen autorisierten Client mit
+`config/analysis/sonar-python-architecture.patch.json` benötigt einen unterstützten autorisierten Client mit
 `application/merge-patch+json` unter
 `PATCH /api/v2/architecture/models/cb04d3a3-7c8f-447c-99f0-ca49c97f054f`
 angewendet werden; danach muss ein Scan die Perspektivanwendung belegen. Beide
@@ -335,3 +332,19 @@ Dokumentation und vorbereiteter Modell-Payload beschreiben den überprüfbaren
 Patch. Der finale integrierte Diff, genaue Task-SHA, PR-Link und terminale Checks
 müssen vom Koordinator abgeglichen werden. Dieser Record behauptet weder
 `complete`, `verified_pr`, Merge noch eine Änderung an `master`.
+
+## Gezielte Fortsetzung von PR #421
+
+Der vollständige [EN/DE-Abschlussnachweis](../../../docs/sonarqube-pr421-closeout.de.md) ordnet die sechs aktuellen Anforderungen dem exakten bisherigen Head `4ec7581056889f8c70f44c6725f6bfa65a7fc45b` zu. Haupt-CE-Task `AaF03ulBdkEpBguA0oKZ`, Analyse `081d99d7-c136-4a67-b039-96507ad472a4`, endete erfolgreich; das Gate bleibt allein wegen drei offenen `pythonsecurity:S2083` auf ERROR. Die vollständigen Flüsse unterscheiden `request` von aufrufseitigem `run_dir`; pro Issue sind Kontrollen, neun tatsächlich bestandene Angriffs-/Kontrolltests und eine konkrete False-Positive-Vorlage dokumentiert. Keine Issue-Transition wurde ausgeführt.
+
+Die 23 historischen Findings je Advisory wurden unabhängig mit vollständigen normalisierten Flüssen geprüft: 22 Paare haben vorgeschlagene `not_actionable`-Gegenbelege, ein Marker-Paar erforderte erneute Prüfung. Die frühere Aussage oben zu `AaF0erp1Xd_g6jxuNaGA` war unvollständig. Tests reproduzierten vor der Korrektur Symlink-Lesen und externes Überschreiben von `current-run-id`; legitime Wiederherstellung bestand. Der Runner prüft nun Verzeichnisvertrauen vor Markerzugriff, liest begrenzt über gehaltene No-follow-/Nonblocking-Deskriptoren, prüft Dateityp/Eigentum/Modus/Linkanzahl und schreibt atomar. 16 Grenztests und acht verwandte Runtime-Tests bestanden; ein unabhängiges Review bestand die vorherigen sieben Markerfälle ohne konkreten verbleibenden Bypass. Eine abschließende Root-Prüfung reproduzierte danach mit dem achten Marker-Test, dass ein kurzes os.read einen gültigen Präfix vor nachfolgenden ungültigen Bytes akzeptierte. Eine begrenzte Leseschleife bis EOF oder maximal 4.097 Bytes behebt dies; der neue Test schlug vorher fehl und alle 16 Grenztests bestanden danach. Dieser achte Fall war nicht Teil des vorherigen unabhängigen Sieben-Fall-Reviews. Das belegt lokale Grenzkontrolle, keinen entfernten Exploit oder finalen Sonarabschluss.
+
+Der frische Architekturvergleich bestätigt unverändert 14 Framework-/MRTS-Entfernungen und 30 Parent-Labelumbenennungen bei erhaltenen Mustern, vier Untergruppen und Constraints. CLI `1.10.1` bietet weiterhin keinen Headerparameter; erneuter autorisierter PATCH ergab HTTP 415, Server-Readback blieb identisch. Der Abschlussnachweis enthält exakten Requestumfang und Schritte für einen unterstützten Zugang mit `application/merge-patch+json`, ohne Wrapperumgehung oder ungeprüfte UI-Anweisung. Perspektivanwendung bleibt extern blockiert.
+
+Der neue native Kontext-Helper und sechs bestandene Tests ergänzen echte Vertragspins, Archivprüfsummen und Configure-Provenienz. Ein realer Entwicklungsversuch konfigurierte NGINX erfolgreich, scheiterte dann jedoch an einer Abweichung des neuen lighttpd-Patchaufrufs vom bestehenden Parent-Patchweg. Der zweite Versuch bestand den unveränderten kanonischen Patch-/Stamp-/ABI-Weg, stoppte aber vor lighttpd-Konfiguration wegen fehlendem configure im genehmigten Archiv. Der dritte vollständige Headerprep-Entwicklungslauf bestand mit Exit 0, unverändertem Upstream-autogen unter Bash und echter gepatchter lighttpd-Konfiguration. Das Manifest hält `4ec7581056889f8c70f44c6725f6bfa65a7fc45b`, `uncommitted_changes: true`, elf Include-Verzeichnisse sowie Archiv-/Patch-/Configure- und Generated-File-Hashes fest. Neue Sonar-Zahlen fehlen weiterhin. `ci/checks/analysis/prepare-sonar-native-context.py` und `tests/test_sonar_native_context.py` ergänzen die Implementierung; die Workflow-Messung findet vor dem Coverage-Finalizer statt. Die ausgewählte Suite enthält nun 75 Methoden (61 bisherige, acht Marker-, sechs Header-Tests); die frische instrumentierte lokale Auswahl bestand alle 75 Tests in 7,256 s; Helper-Entwicklungs-Coverage ist 82,48 % für Linien und Branches, kein Sonar-Gatewert. Saubere Head-CI steht aus. Kein komponenteneigenes Skript wurde geändert. Keine unvollständige Compilation Database ersetzt AutoConfig. 193/2.260 Parsingfehler und 46/1.132 ungelöste Includes bleiben historische Head-Werte, C/C++-Taint bleibt ausdrücklich unbewiesen.
+
+Python-Simulationskostengrenze bei `runtime_path_utils.py:69` und beide Predecessor-Meldungen bestanden nachweislich bereits im Basis-Hauptprojekt und beiden Basis-Advisories. Die vollständigen aktuellen Advisories zeigen sie erneut; ihr Fehlen im gecachten Haupt-PR beweist keine Reparatur. FIFO-`exec 8<>` bleibt semantisch erhalten. Diese dokumentierten Analyzergrenzen werden weder ausgeschlossen noch als PR-Regression ausgegeben.
+
+Runtime-Lauf `40233061042` endete tatsächlich für fünf Connectoren und Aggregate erfolgreich, einschließlich Apache-Job `121290821692`: ausgewählter SQLi-Blockfall mit HTTP 403/Regel `942270`, Audit und Cleanup bestanden. Kompaktartefakt `12614940472` wurde inhaltlich und per Digest geprüft; Aggregate `12614138658` meldet nur ausgewählten Fall mit 5 passed/0 failed/6 blocked/13 not_run, `coverage_complete: false`, `merge_eligible: false`. Das ersetzt keine vollständige Runtime-Qualifikation. PR-Coverage 80,5 %, Advisory-Branch-Coverage 82,7 % und kumulierte Master-Baseline 0,6 % bleiben getrennt.
+
+Dieser Entwicklungsstand benötigt nach den Source-Änderungen einen neuen sauberen Head, terminale CI und exakte CE-/Analyse-/Gate-/Coverage-/Warnungsnachweise aller drei Projekte. Der PR bleibt Draft; kein Merge und keine Änderung an `master` erfolgten. Vollständige IDs, Gatebedingungen, Einschränkungen und Reststatus stehen im Abschlussnachweis. Die neuen Dateien sind handgepflegte technische Dokumentation, keine kanonischen Scannerartefakte.

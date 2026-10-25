@@ -115,8 +115,7 @@ Stored JSON evidence could select unrelated host files for summaries, excerpts,
 refresh classification or hashes. Corrections enforce caller-owned input roots
 and descriptor-based regular-file reads, including symlink/traversal controls,
 while preserving legitimate private-runtime/cache and canonical source inputs.
-Remote exploitation was not established. Fourteen baseline findings have
-concrete existing-control/operator-authority counterevidence; remaining
+Remote exploitation was not established. The initial review assigned fourteen baseline findings to existing controls/operator authority; its marker judgment was incomplete and is explicitly corrected in the continuation. Remaining
 file-content groups require fresh scanner verification. No finding was accepted,
 suppressed or marked false positive to change a rating. No credentials or raw
 sensitive payloads are stored in this record.
@@ -127,8 +126,7 @@ These 46 keys belong to baseline analysis `52df415d-2c24-43a3-a63a-de6e79c37d60`
 at `9f44647593bac7947113558c6ad183ab118e80af`. Existing controls or intended
 operator authority are technical counterevidence, not Sonar false-positive
 transitions. A fresh PR analysis does not automatically close old main-branch
-issue keys. The first table accounts for 14 existing-control/operator-authority
-findings; the second accounts for 32 caller-boundary remediation findings.
+issue keys. The first table records 14 initial control/operator judgments, including the explicitly corrected marker judgment; the second accounts for 32 caller-boundary remediation findings.
 
 | Exact baseline key(s) | Source boundary | Technical disposition |
 | --- | --- | --- |
@@ -140,7 +138,7 @@ findings; the second accounts for 32 caller-boundary remediation findings.
 | `AaF0erq1Xd_g6jxuNaGF` | `ci/runtime/lifecycle/run-full-matrix-job.py` | Canonical repositories, approved runtime paths and validated run ID feed an argv subprocess without a shell. |
 | `AaF0erqcXd_g6jxuNaGC`, `AaF0erqcXd_g6jxuNaGB` | `ci/runtime/lifecycle/run-full-matrix-resume.py` | Canonical roots, allowlisted connector/CRS/MRTS tokens, bounded numeric timeout and `shell=False`. |
 | `AaF0erpfXd_g6jxuNaF6`, `AaF0erpfXd_g6jxuNaF7` | `ci/runtime/lifecycle/run-verified-case.py` (`write_json`) | `runtime_artifact_path` checks the destination immediately before writing. |
-| `AaF0erp1Xd_g6jxuNaGA` | `ci/runtime/lifecycle/run-verified-report-run.py` (`prepare_verified_run_context`) | The `current-run-id` destination is constructed from validated runtime paths. |
+| `AaF0erp1Xd_g6jxuNaGA` | `ci/runtime/lifecycle/run-verified-report-run.py` (`prepare_verified_run_context`) | Earlier counterevidence was incomplete: a canonical destination alone protected neither the early marker read nor leaf symlink/FIFO access. Continuation reproduced the defect and corrects this judgment; see closeout below. |
 | `AaF0erp1Xd_g6jxuNaF8` | `ci/runtime/lifecycle/run-verified-report-run.py` | Manifest output uses canonical `report_path`; JSON supplies payload rather than destination authority. |
 | `AaF0erpTXd_g6jxuNaF5` | `ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py` | Rules/source paths are validated; hashing uses `O_NOFOLLOW` and a regular-file descriptor check. |
 | `AaF0erukXd_g6jxuNaGe` | `connectors/lighttpd/harness/patched_event_validation.py` | Explicit operator-selected events input; no additional HTTP or privileged authority boundary established. |
@@ -256,7 +254,7 @@ First PR-head CI at `d094e1dacd1f540b1ffcf35b7da5bd4b3c255665`, [run 40230520936
 
 Final integrated local coverage pipeline: Python54tests, Go37tests and native Common tests all passed; finalization merged the real Go/native producer-process coverage into Python XML and validated all report paths. Reports are explicitly marked as development evidence from uncommitted changes; final CI must regenerate them for the clean commit. Local source, workflow, bilingual, link, archive and whitespace checks passed. No full hosted runtime qualification is claimed.
 
-No hosted connector runtime evidence was collected or claimed. Coverage tests,
+At original preparation, no hosted connector runtime evidence was collected or claimed. The continuation below adds actual runtime readback at `4ec7581056889f8c70f44c6725f6bfa65a7fc45b` with an explicitly bounded scope. Coverage tests,
 source compilation, static checks and scanner readback prove their respective
 layers only. Historical baseline CI:
 [run 40224506735](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40224506735).
@@ -278,8 +276,7 @@ available in this record.
 The model's main project UUID is `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`; model ID
 is `cb04d3a3-7c8f-447c-99f0-ca49c97f054f`. Effective `architectureadmin`/`admin`
 roles were present. Applying the exact body in
-`config/analysis/sonar-python-architecture.patch.json` requires the intended
-architecture editor or an authorized client supporting
+`config/analysis/sonar-python-architecture.patch.json` requires a supported authorized client handling
 `application/merge-patch+json` at
 `PATCH /api/v2/architecture/models/cb04d3a3-7c8f-447c-99f0-ca49c97f054f`, followed
 by a scan proving perspective application. Both advisory projects have zero
@@ -309,3 +306,19 @@ Documentation and the prepared model payload describe the reviewable patch.
 The final integrated diff, exact task SHA, PR link and terminal checks must be
 reconciled by the coordinator. This record does not claim `complete`,
 `verified_pr`, merge or any change to `master`.
+
+## Targeted PR #421 continuation
+
+The complete [EN/DE closeout](../../../docs/sonarqube-pr421-closeout.md) maps the six current requirements to the exact previous head `4ec7581056889f8c70f44c6725f6bfa65a7fc45b`. Main CE task `AaF03ulBdkEpBguA0oKZ`, analysis `081d99d7-c136-4a67-b039-96507ad472a4`, completed successfully; the gate remains ERROR solely on three OPEN `pythonsecurity:S2083` issues. Complete flows distinguish `request` from invocation-owned `run_dir`; each issue has controls, nine actually passing attack/control tests and a concrete False Positive decision proposal. No issue transition was performed.
+
+The historical 23 findings per advisory were independently reviewed with complete normalized flows: 22 pairs have proposed `not_actionable` counterevidence, one marker pair required renewed review. The earlier claim above for `AaF0erp1Xd_g6jxuNaGA` was incomplete. Before correction, tests reproduced symlink reading and external overwrite through `current-run-id`; legitimate restoration passed. The runner now validates directory trust before marker access, reads bounded data through held no-follow/nonblocking descriptors, checks type/ownership/mode/link count and writes atomically. Sixteen boundary tests and eight related runtime tests passed; independent review passed the previous seven marker cases without a concrete surviving bypass. A final Root check then reproduced, with the eighth marker test, acceptance of a valid prefix when a short os.read preceded invalid trailing bytes. A bounded read loop through EOF or at most 4,097 bytes fixes this; the new test failed before correction and all 16 boundary tests passed afterward. This eighth case was not covered by the previous independent seven-case review. This establishes local boundary control, not a remote exploit or final Sonar closure.
+
+Fresh architecture comparison confirms the unchanged 14 Framework/MRTS removals and 30 Parent-label renames, preserving patterns, four nested groups and constraints. CLI `1.10.1` still has no header option; a repeated authorized PATCH returned HTTP 415, and server readback was identical. The closeout specifies the exact request delta and supported-access steps for `application/merge-patch+json`, without bypassing wrappers or prescribing unverified UI behavior. Perspective application remains externally blocked.
+
+The new native context helper and six passing tests add real contract pins, archive checksums and configure provenance. A real development probe configured NGINX successfully, then failed because the new lighttpd patch invocation differed from the existing Parent patch path. The second probe passed the unchanged canonical patch/stamp/ABI path but stopped before lighttpd configure because the approved archive has no configure script. The third complete header-preparation development run passed with exit 0, unchanged upstream autogen under Bash and actual patched-lighttpd configure. The manifest records `4ec7581056889f8c70f44c6725f6bfa65a7fc45b`, `uncommitted_changes: true`, eleven include directories and archive/patch/configure/generated-file hashes. New Sonar counts remain unproved. `ci/checks/analysis/prepare-sonar-native-context.py` and `tests/test_sonar_native_context.py` add the implementation; workflow measurement occurs before the coverage finalizer. The selected suite now contains 75 methods (61 existing, eight marker, six header tests); the fresh instrumented local selection passed all 75 tests in 7.256 s; helper development coverage is 82.48% for lines and branches, not a Sonar gate result. Clean-head CI remains pending. No component-owned script changed. No partial compilation database replaces AutoConfig. Parsing errors 193/2,260 and unresolved includes 46/1,132 remain historical head values, and C/C++ taint is explicitly unproved.
+
+The Python simulation-cost boundary at `runtime_path_utils.py:69` and both predecessor messages demonstrably existed in the baseline main project and both baseline advisories. Current full advisories repeat them; their absence in cached main-PR analysis proves no repair. FIFO `exec 8<>` retains its semantics. These documented analyzer boundaries are neither excluded nor asserted to be PR regressions.
+
+Runtime run `40233061042` actually completed successfully for five connectors and aggregate, including Apache job `121290821692`: selected SQLi block case HTTP 403/rule `942270`, audit and cleanup passed. Compact artifact `12614940472` was content/digest verified; aggregate `12614138658` reports only the selected case with 5 passed/0 failed/6 blocked/13 not_run, `coverage_complete: false`, `merge_eligible: false`. This does not qualify the complete runtime matrix. PR coverage 80.5%, advisory branch coverage 82.7% and accumulated master baseline 0.6% remain distinct.
+
+After the source changes this development state requires a new clean head, terminal CI and exact CE/analysis/gate/coverage/warning proof for all three projects. The PR remains Draft; no merge or `master` change occurred. Complete IDs, gate conditions, limitations and remaining dispositions are in the closeout. The new files are hand-maintained technical documentation, not canonical scanner artifacts.

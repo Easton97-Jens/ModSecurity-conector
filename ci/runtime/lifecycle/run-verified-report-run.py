@@ -40,7 +40,9 @@ from runtime_path_utils import (
     ensure_safe_runtime_directory,
     ensure_safe_writable_runtime_paths,
     is_under_root_home,
+    open_runtime_artifact_parent,
     read_runtime_artifact_text,
+    require_regular_runtime_artifact,
     runtime_artifact_path,
     runtime_path_rows,
     verified_runtime_paths,
@@ -1834,12 +1836,51 @@ def restore_current_verified_run_id(args: argparse.Namespace, current_run_file: 
     }
     if os.environ.get("VERIFIED_RUN_ID") or args.phase not in append_phases:
         return
+    # Validate directory ownership before accessing even the marker's metadata.
+    # Keep a no-follow parent descriptor and nonblocking leaf open so a swapped
+    # FIFO cannot block between path validation and the descriptor checks.
     try:
-        previous_run_id = current_run_file.read_text(encoding="utf-8").strip()
-    except OSError:
-        previous_run_id = ""
+        target = runtime_artifact_path(
+            current_run_file.parent, current_run_file, "current-run marker"
+        )
+        no_follow = getattr(os, "O_NOFOLLOW", None)
+        nonblocking = getattr(os, "O_NONBLOCK", None)
+        if no_follow is None or nonblocking is None:
+            raise ValueError("safe marker reads require no-follow and nonblocking opens")
+        parent_descriptor = open_runtime_artifact_parent(target)
+        descriptor = -1
+        try:
+            descriptor = os.open(
+                target.name, os.O_RDONLY | no_follow | nonblocking,
+                dir_fd=parent_descriptor,
+            )
+            require_regular_runtime_artifact(descriptor, "current-run marker")
+            details = os.fstat(descriptor)
+            if details.st_uid != os.geteuid() or details.st_mode & 0o022 or details.st_nlink != 1:
+                raise ValueError("current-run marker has unsafe ownership, permissions or links")
+            # A canonical ID is at most 128 characters; allow bounded legacy
+            # whitespace without allocating the size of a substituted file.
+            chunks = []
+            size = 0
+            while size <= 4096:
+                chunk = os.read(descriptor, 4097 - size)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                size += len(chunk)
+            if size > 4096:
+                raise ValueError("current-run marker is oversized")
+            previous_run_id = b"".join(chunks).decode("utf-8").strip()
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            os.close(parent_descriptor)
+    except FileNotFoundError:
+        return
+    except (OSError, ValueError):
+        raise ValueError("current-run marker is unavailable or unsafe") from None
     if previous_run_id:
-        os.environ["VERIFIED_RUN_ID"] = previous_run_id
+        os.environ["VERIFIED_RUN_ID"] = validate_verified_run_id(previous_run_id)
 
 
 def current_verified_run_id_or_error(
@@ -1945,7 +1986,10 @@ def prepare_verified_run_context(
     prepare_runtime_roots(paths)
     run_root = Path(paths["VERIFIED_RUN_INSTANCE_ROOT"])
     logs_dir = Path(paths["VERIFIED_RUN_INSTANCE_LOG_ROOT"])
-    current_run_file.write_text(verified_run_id + "\n", encoding="utf-8")
+    write_runtime_artifact_text_atomic(
+        Path(paths["VERIFIED_RUNS_ROOT"]), current_run_file,
+        verified_run_id + "\n", "current-run marker",
+    )
     commands_file = run_root / "verified-commands.json"
     env = dict(os.environ)
     timeout_budgets = verified_run_timeout_budgets(env)

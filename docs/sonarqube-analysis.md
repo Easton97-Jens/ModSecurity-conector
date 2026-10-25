@@ -291,6 +291,12 @@ rules or thresholds to obtain a pass.
 
 ## Observed Cloud limits and external follow-up
 
+The [PR #421 closeout](sonarqube-pr421-closeout.md) records the independent
+issue-by-issue decisions, current-run marker repair, real pinned host-header
+preparation, baseline analyzer-limit comparison and final runtime evidence.
+Its revision-bound results and external actions supplement the historical
+observations below; PR coverage does not qualify accumulated master coverage.
+
 Authenticated readback reconfirmed baseline revision
 `9f44647593bac7947113558c6ad183ab118e80af`, analysis
 `52df415d-2c24-43a3-a63a-de6e79c37d60`, from
