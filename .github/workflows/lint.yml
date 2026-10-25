@@ -33,6 +33,11 @@ jobs:
       - name: Install hash-locked CI test dependency
         run: |
           python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev
       - name: Initialize runner temp paths
         run: |
           set -eu

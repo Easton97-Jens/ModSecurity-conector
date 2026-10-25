@@ -1280,7 +1280,7 @@
       "sources": [
         {
           "path": "ci/checks/common/run-active-header-case.sh",
-          "sha256": "7acb0a7630c0225057fa30ab006e132c53c73bccaff16568665c0065946e103f"
+          "sha256": "709ab35c470172ad6405175273a2aee1ac326550682577539b2a8bb704a8ba85"
         },
         {
           "path": "common/include/msconnector/headers.h",
@@ -1322,7 +1322,7 @@
       "sources": [
         {
           "path": "ci/checks/common/run-active-header-case.sh",
-          "sha256": "7acb0a7630c0225057fa30ab006e132c53c73bccaff16568665c0065946e103f"
+          "sha256": "709ab35c470172ad6405175273a2aee1ac326550682577539b2a8bb704a8ba85"
         },
         {
           "path": "common/include/msconnector/headers.h",

@@ -28,6 +28,8 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install reviewed hash-bound CI dependencies
+        run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Verify current Framework-owned APR-util provenance and Parent source policy
         run: |
           sh ci/tools/print-framework-apr-util-env.sh "$PWD/modules/ModSecurity-test-Framework" "$PWD" >/dev/null

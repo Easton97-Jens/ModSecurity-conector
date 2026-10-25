@@ -131,6 +131,14 @@ jobs:
             echo "exact-head gate: private run root has an unexpected identity or mode" >&2
             exit 1
           }
+          # The inventory runner admits an existing invocation-owned temp root.
+          # RUN_ROOT was just created privately; do not create through shared paths.
+          /bin/mkdir -m 700 "$RUN_ROOT/tmp"
+          [ ! -L "$RUN_ROOT/tmp" ]
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$RUN_ROOT/tmp")" = "$RUNNER_UID:$RUNNER_GID:700" ] || {
+            echo "exact-head gate: private temp root has an unexpected identity or mode" >&2
+            exit 1
+          }
           if [ -e "$FUNCTIONAL_PARENT_ROOT" ] || [ -L "$FUNCTIONAL_PARENT_ROOT" ]; then
             echo "exact-head gate: functional parent is unexpectedly occupied" >&2
             exit 1
@@ -208,6 +216,13 @@ jobs:
           [ "$(/usr/bin/stat -c '%u:%g:%a' "$FUNCTIONAL_EVIDENCE_ROOT")" = \
             "$(/usr/bin/id -u):$(/usr/bin/id -g):700" ] || {
             echo "exact-head gate: Functional-A evidence root has an unexpected identity or mode" >&2
+            exit 1
+          }
+          test "$TMP_ROOT" = "$RUN_ROOT/tmp"
+          test ! -L "$TMP_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$TMP_ROOT")" = \
+            "$(/usr/bin/id -u):$(/usr/bin/id -g):700" ] || {
+            echo "exact-head gate: private temp root changed before inventory admission" >&2
             exit 1
           }
           /usr/bin/env -i \

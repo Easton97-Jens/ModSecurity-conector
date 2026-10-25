@@ -267,6 +267,11 @@ jobs:
             echo "source_root=$source_root"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev
       - name: Lint and py-compile
         run: |
           make setup-dev

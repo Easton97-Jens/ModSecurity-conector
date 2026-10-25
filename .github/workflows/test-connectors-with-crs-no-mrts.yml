@@ -74,6 +74,7 @@ jobs:
             mrts: no-mrts
             runtime_component_target: shared
     env:
+      GOTOOLCHAIN: local
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
       CRS: ${{ matrix.crs }}
@@ -108,6 +109,14 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Set up canonical Go for Envoy and Traefik builds
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
 
       - name: Verify pinned Parent, Framework, and MRTS revisions
         id: verify-revisions

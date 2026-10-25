@@ -28,6 +28,13 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev
+      - name: Install reviewed hash-bound CI dependencies
+        run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Initialize runner temp paths
         run: |
           set -eu

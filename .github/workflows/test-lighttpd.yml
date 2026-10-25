@@ -27,6 +27,18 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install and locate the actual Stock-sidecar development prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential libmodsecurity-dev libssl-dev libyajl-dev
+          header=$(dpkg-query -L libmodsecurity-dev | awk '/\/modsecurity\/modsecurity.h$/ { print; count++ } END { if (count != 1) exit 1 }')
+          library=$(dpkg-query -L libmodsecurity-dev | awk '/\/libmodsecurity.so$/ { print; count++ } END { if (count != 1) exit 1 }')
+          {
+            echo "MODSECURITY_INCLUDE_DIR=${header%/modsecurity/modsecurity.h}"
+            echo "MODSECURITY_LIB_DIR=${library%/libmodsecurity.so}"
+            echo "MODSECURITY_LIB_FILE=$library"
+          } >> "$GITHUB_ENV"
       - name: Check lighttpd Common and host contracts
         run: |
           set -eu
@@ -35,7 +47,7 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
-          python3 ci/tools/run-active-tests.py --group lighttpd
+          python3 ci/tools/run-active-tests.py --group lighttpd --strict-skips
       - name: Execute lighttpd technical-error callers and negative controls
         env:
           TMPDIR: ${{ runner.temp }}
@@ -49,4 +61,4 @@ jobs:
           namespace_temp_root="$(/usr/bin/mktemp -d "${RUNNER_TEMP}/lighttpd-namespace-contract.XXXXXX")"
           /usr/bin/chmod 700 -- "$namespace_temp_root"
           export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"
-          python3 ci/tools/run-active-tests.py --group lighttpd
+          python3 ci/tools/run-active-tests.py --group lighttpd --strict-skips

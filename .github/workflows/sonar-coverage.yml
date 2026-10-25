@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes build-essential libmodsecurity-dev
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
           header=$(dpkg-query -L libmodsecurity-dev | awk '/\/modsecurity\/modsecurity.h$/ { print; count++ } END { if (count != 1) exit 1 }')
           library=$(dpkg-query -L libmodsecurity-dev | awk '/\/libmodsecurity.so$/ { print; count++ } END { if (count != 1) exit 1 }')
           {

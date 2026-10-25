@@ -53,6 +53,11 @@ jobs:
           } >> "$GITHUB_ENV"
           mkdir -p ci-artifacts/open-connectors/final-checks
 
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev
       - name: Install local Python dependencies
         run: |
           set -eu

@@ -522,6 +522,17 @@ def _run_child(command: list[str], working_directory: Path, environment: dict[st
         signal.signal(signal.SIGTERM, previous_termination)
 
 
+def execution_timeout(execution: dict[str, Any]) -> int:
+    """Leave bounded provisioning time inside the existing 120-minute host jobs."""
+    selector = execution["selector"]
+    if selector["kind"] == "native" and selector["script"] in {
+            "ci/runtime/lifecycle/run-active-crs-case.sh",
+            "ci/runtime/lifecycle/run-active-no-crs-case.sh",
+            "ci/runtime/lifecycle/run-connector-stage.sh"}:
+        return 6000
+    return 600
+
+
 def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
                   race: bool, strict_skips: bool, coverage: bool,
                   coverage_root: Path | None = None) -> dict[str, Any]:
@@ -545,7 +556,8 @@ def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
         else:
             environment.update(coverage_environment(coverage_root, execution["id"]))
     with log.open("x", encoding="utf-8") as stream:
-        returncode = _run_child(command, working_directory, environment, stream)
+        returncode = _run_child(command, working_directory, environment, stream,
+                                timeout=execution_timeout(execution))
     text = log.read_text(encoding="utf-8", errors="replace")
     print(text, end="", flush=True)
     if returncode:
