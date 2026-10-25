@@ -80,8 +80,7 @@ make quick-check
 
 Dieser validiert statische Repository-Checks und zugelassene funktionale
 Teilmengen aus [config/testing/active-cases.json](config/testing/active-cases.json).
-Dieses einzige Inventar begrenzt das gesamte Projekt auf höchstens 100
-expandierte Verhaltensfälle. <code>make check-active-inventory</code> prüft die
+Dieses einzige Inventar erzwingt eine Kerngrenze von 100 Fällen und zählt die vom Nutzer autorisierte Offline-Python-Ausnahme getrennt: aktuell insgesamt 893 Fälle / 499 Ausführungen (100 Kernfälle + 793 geschützte Offline-Fälle). Die Ausnahme ergänzt keine Connector-E2E-Fälle. <code>make check-active-inventory</code> prüft die
 vollständige Auswahl ohne Teststart; <code>make test</code> führt sie mit ihren
 tatsächlichen Voraussetzungen aus. Normale Aliase beweisen keine vollständigen
 Profile oder Geschwisterpfade. NGINX-Hostprüfungen nutzen den geschützten

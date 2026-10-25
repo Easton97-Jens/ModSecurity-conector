@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -90,6 +91,34 @@ class ActiveTestInventoryTests(unittest.TestCase):
                 active.execute_selected(inventory, inventory.executions, self.output)
         child.assert_not_called()
 
+    def test_duplicate_python_definitions_are_rejected(self):
+        variants = {
+            "duplicate-method": "import unittest\nclass ControlTests(unittest.TestCase):\n"
+                                "    def test_pass(self): pass\n    def test_pass(self): pass\n",
+            "duplicate-class": "import unittest\nclass ControlTests(unittest.TestCase):\n"
+                               "    def test_pass(self): pass\nclass ControlTests(unittest.TestCase):\n"
+                               "    def test_pass(self): pass\n",
+        }
+        for label, content in variants.items():
+            with self.subTest(label=label):
+                self.source.write_text(content)
+                self.data["executions"][0]["sources"][0]["sha256"] = hashlib.sha256(self.source.read_bytes()).hexdigest()
+                with self.assertRaisesRegex(active.InventoryError, "one source-defined test method"):
+                    self.load()
+
+    def test_conflicting_shared_source_digests_are_rejected(self):
+        self.source.write_text(self.source.read_text() +
+                               "    def test_other(self):\n        self.assertTrue(True)\n")
+        self.data["executions"][0]["sources"][0]["sha256"] = hashlib.sha256(self.source.read_bytes()).hexdigest()
+        second = copy.deepcopy(self.data["executions"][0])
+        second["id"] = "fixture.other"
+        second["selector"]["target"] = "tests.fixture_active.ControlTests.test_other"
+        second["cases"][0]["id"] = "control.other"
+        second["sources"][0]["sha256"] = "0" * 64
+        self.data["executions"].append(second)
+        with self.assertRaisesRegex(active.InventoryError, "reviewed source digest mismatch"):
+            self.load()
+
     def test_parent_traversal_source_is_rejected(self):
         self.data["executions"][0]["sources"] = [{"path": "../outside.py", "sha256": "a" * 64}]
         with self.assertRaisesRegex(active.InventoryError, "traverse outside"):
@@ -125,6 +154,64 @@ class ActiveTestInventoryTests(unittest.TestCase):
         self.data["hard_limit"] = 1000
         with self.assertRaisesRegex(active.InventoryError, "closed inventory schema"):
             self.load()
+
+    def test_offline_exception_counts_are_reported_separately(self):
+        self.source.write_text(self.source.read_text() +
+                               "    def test_offline(self):\n        self.assertTrue(True)\n")
+        binding = {"path": "tests/fixture_active.py",
+                   "sha256": hashlib.sha256(self.source.read_bytes()).hexdigest()}
+        self.data["executions"][0]["sources"] = [binding]
+        self.data["executions"][0]["cases"] = [
+            {"id": f"core.case-{number}", "requirement": "Synthetic core admission row.",
+             "profiles": ["parent"]} for number in range(100)]
+        self.data.update(schema_version=2, offline_unit_exceptions=[{
+            "id": "offline.fixture", "groups": ["offline-unit"], "sources": [binding],
+            "selector": {"kind": "python", "target": "tests.fixture_active.ControlTests.test_offline"},
+            "expected_subtests": 0,
+            "cases": [{"id": "offline.fixture.case", "requirement": "One explicitly admitted offline unit.",
+                       "profiles": ["parent"]}],
+        }])
+        inventory = self.load()
+        summary = active.selection_summary(inventory, inventory.executions)
+        self.assertEqual(summary["active_case_count"], 101)
+        self.assertEqual(summary["core_case_count"], 100)
+        self.assertEqual(summary["offline_exception_case_count"], 1)
+        self.assertEqual(summary["selected_offline_exception_case_ids"], ["offline.fixture.case"])
+
+    def test_offline_exception_rejects_native_selector_before_child(self):
+        script = self.root / "ci/checks/security/check-workflow-fixture.sh"
+        script.parent.mkdir(parents=True)
+        script.write_text("#!/bin/sh\nexit 0\n")
+        self.data.update(schema_version=2, offline_unit_exceptions=[{
+            "id": "offline.native", "groups": ["offline-unit"],
+            "sources": [{"path": script.relative_to(self.root).as_posix(),
+                         "sha256": hashlib.sha256(script.read_bytes()).hexdigest()}],
+            "selector": {"kind": "native", "script": script.relative_to(self.root).as_posix(),
+                         "args": ["safe"]},
+            "expected_subtests": 0,
+            "cases": [{"id": "offline.native.case", "requirement": "Native selectors cannot use the offline exception.",
+                       "profiles": ["parent"]}],
+        }])
+        with patch.object(active.subprocess, "Popen") as child:
+            with self.assertRaises(active.InventoryError):
+                self.load()
+        child.assert_not_called()
+
+    @unittest.skipUnless(os.environ.get("ACTIVE_TEST_OFFLINE_I12") == "1", "requires the isolated offline child")
+    def test_offline_guard_rejects_process_before_launch(self):
+        active._guard_offline_test_effects()
+        sentinel = self.output / "unexpected-child"
+        with self.assertRaisesRegex(active.InventoryError, "offline I12 unit cases prohibit"):
+            subprocess.Popen([sys.executable, "-c", "from pathlib import Path; Path(__import__('sys').argv[1]).touch()",
+                              str(sentinel)])
+        self.assertFalse(sentinel.exists())
+
+    @unittest.skipUnless(os.environ.get("ACTIVE_TEST_OFFLINE_I12") == "1", "requires the isolated offline child")
+    def test_offline_guard_rejects_network_before_connect(self):
+        active._guard_offline_test_effects()
+        with socket.socket() as connection:
+            with self.assertRaisesRegex(active.InventoryError, "offline I12 unit cases prohibit"):
+                connection.connect(("127.0.0.1", 0))
 
     def test_unittest_discovery_uses_authoritative_inventory(self):
         import tests

@@ -415,7 +415,11 @@ __attribute__((constructor)) static void admission(void) {
                   MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     if (budget == MAP_FAILED) { budget = NULL; goto rejected; }
     atomic_init(&budget->bytes, 0U); atomic_init(&budget->invalid, 0);
+#if ATOMIC_INT_LOCK_FREE != 2
+    /* C guarantees equal lock-free properties for corresponding signed and
+     * unsigned atomic types. Retain runtime admission when not guaranteed. */
     if (!atomic_is_lock_free(&budget->bytes) || !atomic_is_lock_free(&budget->invalid)) goto rejected;
+#endif
     output_fd = (int)candidate;
     admitted_device = status.st_dev; admitted_inode = status.st_ino;
     if (quoted(run, sizeof(run), getenv("MSCONNECTOR_LIFECYCLE_RUN"), 64U) != 0 ||
@@ -726,7 +730,7 @@ int msconnector_lifecycle_companion_registered(const void *entry,
     int saved = errno;
     uint64_t call = enter("companion_registered", entry, 4, 0);
     (void)pthread_mutex_lock(&lock);
-    struct mapping *runtime = verified_runtime(transaction, common, native, 1);
+    const struct mapping *runtime = verified_runtime(transaction, common, native, 1);
     int result = runtime != NULL && entry != NULL && lookup(entry, 4) == NULL;
     if (result) result = associate_companion(entry, 4, runtime, transaction, entry);
     (void)pthread_mutex_unlock(&lock);
@@ -742,8 +746,8 @@ int msconnector_lifecycle_companion_claimed(
     int saved = errno;
     uint64_t call = enter("companion_claimed", session, 5, 0);
     (void)pthread_mutex_lock(&lock);
-    struct mapping *runtime = verified_runtime(transaction, common, native, 1);
-    struct mapping *registered = lookup(entry, 4);
+    const struct mapping *runtime = verified_runtime(transaction, common, native, 1);
+    const struct mapping *registered = lookup(entry, 4);
     int result = runtime != NULL && registered != NULL &&
         registered->allocation_join_verified && registered->joined_runtime == transaction &&
         registered->joined_common == common && registered->joined_native == native &&
@@ -761,7 +765,7 @@ int msconnector_lifecycle_companion_retired(
     int saved = errno;
     uint64_t call = enter("companion_retired", transaction, 2, 0);
     (void)pthread_mutex_lock(&lock);
-    struct mapping *runtime = verified_runtime(transaction, common, native, 0);
+    const struct mapping *runtime = verified_runtime(transaction, common, native, 0);
     int result = runtime != NULL && lookup(common, 0) == NULL && lookup(native, 1) == NULL;
     if (result) {
         for (size_t index = 0U; index < MAP_CAPACITY; ++index) {

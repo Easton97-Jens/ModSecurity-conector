@@ -81,11 +81,11 @@ self-test-lighttpd-stock-real-backend: build-lighttpd-stock-sidecar
 		python3 harness/run_stock_sidecar_real_backend.py
 
 check-lighttpd-config: build-lighttpd-connector
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.config.lighttpd; fi
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required))
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/check_lighttpd_config.sh
 
 start-smoke-lighttpd: build-lighttpd-connector
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.start.lighttpd; fi
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required))
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/start_lighttpd_smoke.sh
 
 runtime-smoke-lighttpd: build-lighttpd-connector

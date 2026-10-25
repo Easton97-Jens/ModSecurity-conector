@@ -4,6 +4,15 @@ set -eu
 connector=${1:?connector is required}
 target=${2:?target is required}
 
+case "$connector:$target" in
+    *:start-smoke|*:start-smoke-*|lighttpd:check-lighttpd-config)
+        [ "${ON_DEMAND_TESTS:-0}" = 1 ] || {
+            echo "FAIL: standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required" >&2
+            exit 2
+        }
+        ;;
+esac
+
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT=${CONNECTOR_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}
 FRAMEWORK_ROOT=${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}

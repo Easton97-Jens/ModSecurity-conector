@@ -227,19 +227,13 @@ jobs:
           set -euo pipefail
           make "build-$CONNECTOR"
 
-      - name: Validate configuration load
+      - name: Validate retained Envoy and Traefik configuration inputs
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
           set -euo pipefail
           make "check-config-$CONNECTOR"
-
-      - name: Run request-free start smoke
-        env:
-          CONNECTOR: ${{ matrix.connector }}
-        run: |
-          set -euo pipefail
-          make "start-smoke-$CONNECTOR"
 
       - name: Run canonical minimal No-CRS runtime smoke
         env:

@@ -77,7 +77,7 @@ requires updating both lists. Proposed-tree validation copies the complete
 registered contract inputs, including their offline test fixtures; those
 read-only inputs do not expand the publisher's permitted changes.
 
-Before publication, the private proposed tree runs all updater unit tests via
+Before publication, the private proposed tree runs the inventoried updater controls via
 `make check-ci-security-contract`, including release-selection and negative
 provenance controls; CodeQL fixtures use versions independent of the live lock,
 and the copied-tree integration test stays separate to prevent recursion.
@@ -86,6 +86,17 @@ proposed lock and checks the proposed workflows: safe fixtures must return `0`,
 both high-severity insecure
 fixtures `14`; checksum failures, tool errors, unexpected exits and timeouts
 reject the candidate before push or PR creation.
+
+
+## Derived maintenance metadata and remaining prerequisites
+
+Maintenance may derive exactly two companion files: `config/testing/active-cases.json` (existing SHA fields only) and `reports/testing/test-selection-archive.generated.json` (`inventory_sha256` only). Selectors, cases, profiles, source paths and subtest metadata cannot change through this mechanism. Trusted-base reconstruction must reproduce exact bytes and regular stage-0 mode `100644` before staging, publication or reuse. The primary Actions publisher allowlist is unchanged. Three focused regressions now pass: a future Go minor 1.28 is eligible, rollback preserves a foreign companion change, and rollback restores its own companion larger than 4 KiB.
+
+Four `go.mod` declarations and `requirements-ci.lock`, `requirements-ci-build.lock`, `requirements-dev.txt` are seven non-executable dependency declarations, not collector source bindings. Go module/sum files and the three requirements remain bound by actual build identity and pre/post source snapshots. This avoids dependency-metadata churn without removing controller or executable-code bindings.
+
+Sonar's job budget is now 120 minutes instead of 45 for the explicitly larger selection; individual 600-second limits and the one-second timing assertion remain unchanged. Observed profiles reduced 429 AST parses to 41 and 6841 source reads to a few hundred. The earlier 15.723 s measurement had nine concurrent workloads, whereas the later 1.788 s measurement was idle: these different conditions do not establish a controlled speedup.
+
+After the user marked configuration complete, observed Dependabot secret metadata lists exactly one name: `SONAR_TOKEN`. The earlier zero-name/pending-secret state is historical and resolved at the metadata layer. No token value was read, and neither live bot authentication nor a successful Dependabot PR is claimed. That execution proof still requires separately authorized default-branch maintenance checks; current PR authentication is a separate result. [GitHub's Dependabot-on-Actions rules](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions) describe that separate secret context. No secret or provider setting is changed by this documentation.
 
 ## Central ordinary revision and toolchain pins
 

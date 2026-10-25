@@ -14,16 +14,19 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from ci.lib.active_coverage import (CoverageError, compile_instrumented, digest,
+from ci.lib.active_coverage import (CoverageError, ParentOperationTrace, case_budget, compile_instrumented, digest,
                                     external_root, gcov_lines, go_lines,
                                     make_manifest, python_lines, regular_bytes,
-                                    source_path, trace_python, validate_manifest,
-                                    write_generic_report)
-from ci.lib.active_test_inventory import (execute_selected, load_inventory,
+                                    source_path, system_native_library, trace_python, validate_manifest,
+                                    write_collector_trace, write_generic_report)
+from ci.lib.active_test_inventory import (GO_MODULES, execute_selected, load_inventory,
                                          select_executions)
 
 GENERIC_REPORT = "coverage.xml"
 MANIFEST_REPORT = "manifest.json"
+PYTHON_DEPENDENCY_INPUTS = ("requirements-ci-build.lock", "requirements-ci.lock", "requirements-dev.txt")
+DEPENDENCY_INPUTS = frozenset(PYTHON_DEPENDENCY_INPUTS) | {
+    f"{module}/{name}" for module in GO_MODULES for name in ("go.mod", "go.sum")}
 
 
 def git_output(*arguments: str) -> str:
@@ -35,12 +38,23 @@ def source_snapshot() -> dict[str, str]:
     paths = sorted(set(raw.decode("utf-8").rstrip("\0").split("\0")))
     result = {}
     for name in paths:
-        if (Path(name).suffix not in {".py", ".go", ".c", ".h", ".cc", ".cpp", ".sh"}
+        if (name not in DEPENDENCY_INPUTS and
+                Path(name).suffix not in {".py", ".go", ".c", ".h", ".cc", ".cpp", ".sh"}
                 and name not in {"config/testing/sonar-source-roles.json", ".sonarcloud.properties",
                                  "sonar-project.properties"}):
             continue
         result[name] = digest(regular_bytes(source_path(ROOT, name)))
     return result
+
+
+def stock_library_identity(selected: tuple[dict, ...]) -> dict:
+    if not any(item["id"] == "lighttpd.stock-allow" for item in selected):
+        return {}
+    libraries = {}
+    for flag in ("-lcrypto", "-lyajl"):
+        library = Path(system_native_library(flag))
+        libraries[flag] = {"path": str(library), "sha256": digest(regular_bytes(library))}
+    return libraries
 
 
 def build_identity(selected: tuple[dict, ...]) -> dict:
@@ -50,6 +64,8 @@ def build_identity(selected: tuple[dict, ...]) -> dict:
               "python_sha256": digest(regular_bytes(Path(sys.executable).resolve())),
               "go_version": subprocess.check_output(["go", "version"], text=True).strip(),
               "modules": {}, "native_compilers": {}, "modsecurity": {},
+              "dependency_inputs": {name: digest(regular_bytes(ROOT / name)) for name in
+                                    PYTHON_DEPENDENCY_INPUTS},
               "analysis_inputs": {name: digest(regular_bytes(ROOT / name)) for name in
                                  ("config/testing/sonar-source-roles.json", ".sonarcloud.properties",
                                   "sonar-project.properties")}}
@@ -77,6 +93,7 @@ def build_identity(selected: tuple[dict, ...]) -> dict:
         result["modsecurity"][name] = digest(regular_bytes(header))
     result["modsecurity"]["library"] = str(Path(library).resolve(strict=True))
     result["modsecurity"]["library_sha256"] = digest(regular_bytes(Path(library).resolve(strict=True)))
+    result["stock_native_libraries"] = stock_library_identity(selected)
     return result
 
 
@@ -151,12 +168,8 @@ def validate_measurements(selected: tuple[dict, ...], observations: dict,
             "cpp_evaluator": measured_cpp, "go_modules": sorted(expected_modules)}
 
 
-def collect(output: Path, strict_skips: bool) -> int:
-    inventory = load_inventory(ROOT)
-    selected = select_executions(inventory, ("coverage",))
-    external_root(output)
-    if any(output.iterdir()):
-        raise CoverageError("coverage collection requires a fresh empty output directory")
+def measure_selected(inventory, selected: tuple[dict, ...], output: Path, strict_skips: bool) -> tuple:
+    """Perform the real admitted operation; no additional selector is executed."""
     revision = git_output("rev-parse", "HEAD")
     before = source_snapshot()
     build = build_identity(selected)
@@ -166,6 +179,27 @@ def collect(output: Path, strict_skips: bool) -> int:
     validate_execution_identity(inventory, selected, summary, revision, before)
     observations, go_sources, raw_reports = collect_observations(
         selected, output, Path(summary["coverage_directory"]))
+    validate_measurements(selected, observations, go_sources)
+    return revision, before, build, dirty, summary, observations, go_sources, raw_reports
+
+
+def collect(output: Path, strict_skips: bool) -> int:
+    inventory = load_inventory(ROOT)
+    selected = select_executions(inventory, ("coverage",))
+    external_root(output)
+    if any(output.iterdir()):
+        raise CoverageError("coverage collection requires a fresh empty output directory")
+    if sys.gettrace() is not None:
+        raise CoverageError("collector cannot replace an existing Python trace hook")
+    tracer = ParentOperationTrace()
+    (revision, before, build, dirty, summary, observations,
+     go_sources, raw_reports) = tracer.runfunc(
+         measure_selected, inventory, selected, output, strict_skips)
+    # Stop before serializing observations: publication cannot measure itself.
+    collector_report = write_collector_trace(output, tracer)
+    python_lines(output / collector_report, ROOT, observations)
+    raw_reports.append(collector_report)
+    validate_execution_identity(inventory, selected, summary, revision, before)
     measurements = validate_measurements(selected, observations, go_sources)
     sources = write_generic_report(ROOT, observations, output / GENERIC_REPORT)
     # Go keeps its native statement-block format for Sonar's Go importer. It is
@@ -179,8 +213,10 @@ def collect(output: Path, strict_skips: bool) -> int:
         if relative not in observations:
             generic_sources.pop(relative, None)
     selected_cases = summary["selected_case_ids"]
+    budget = case_budget(inventory.core_case_ids, inventory.offline_case_ids, selected_cases)
     manifest = make_manifest(ROOT, output, revision, inventory.digest, selected_cases,
-                             generic_sources, [GENERIC_REPORT, *raw_reports], dirty=dirty, build_identity=build)
+                             generic_sources, [GENERIC_REPORT, *raw_reports], dirty=dirty, build_identity=build,
+                             budget=budget)
     manifest["go_sources"] = {relative: before[relative] for relative in sorted(go_sources)}
     (output / MANIFEST_REPORT).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     _github_outputs(output, manifest)
@@ -188,6 +224,10 @@ def collect(output: Path, strict_skips: bool) -> int:
           "inventory_sha256": inventory.digest, "case_count": len(selected_cases),
           "generic_sources": len(generic_sources), "go_sources": len(go_sources),
           "raw_report_count": len(raw_reports), **measurements,
+          "active_case_count": budget["total_case_count"], "core_case_count": budget["core_case_count"],
+          "offline_exception_case_count": budget["offline_exception_case_count"],
+          "selected_core_case_count": len(budget["selected_core_case_ids"]),
+          "selected_offline_exception_case_count": len(budget["selected_offline_exception_case_ids"]),
           "dirty_worktree": dirty}, sort_keys=True))
     return 0
 
@@ -208,6 +248,8 @@ def verify(output: Path) -> int:
     expected_cases = [case["id"] for item in selected for case in item["cases"]]
     if value["case_ids"] != expected_cases:
         raise CoverageError("coverage manifest does not bind the complete admitted coverage group")
+    if value["case_budget"] != case_budget(inventory.core_case_ids, inventory.offline_case_ids, expected_cases):
+        raise CoverageError("coverage manifest does not bind the exact admitted core and offline exception budgets")
     if value["build_identity"] != build_identity(selected):
         raise CoverageError("coverage toolchain, SDK or module dependency identity changed before scanner import")
     _github_outputs(output, value)

@@ -13,7 +13,7 @@ jobs:
   selected-coverage:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     permissions:
       contents: read
       pull-requests: read
@@ -79,6 +79,10 @@ jobs:
         run: |
           python3 ci/tools/run-active-tests.py --check --group coverage
           python3 ci/tools/sync-sonar-test-scope.py --check
+      - name: Check admitted offline timing bounds without coverage overhead
+        run: |
+          python3 ci/tools/run-active-tests.py --group offline-timing \
+            --strict-skips --output-root "$RUNNER_TEMP"
       - name: Install the reviewed hash-bound CI dependency
         run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Install the actual native coverage and ModSecurity development prerequisites
@@ -145,6 +149,7 @@ jobs:
           if-no-files-found: error
           path: |
             ${{ runner.temp }}/parent-coverage/coverage.xml
+            ${{ runner.temp }}/parent-coverage/collector-python.json
             ${{ runner.temp }}/parent-coverage/manifest.json
             ${{ runner.temp }}/parent-coverage/**/go.out
             ${{ runner.temp }}/parent-coverage/**/python.json

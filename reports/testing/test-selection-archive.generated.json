@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source; no automatic execution and no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "0db3df313f70c476c7216ef5bd4be645f14d8e6ec31d4f638bd925a2a6d92b4c",
-  "on_demand_definition_count": 5931,
+  "inventory_sha256": "3887c1bd1272825950b985daea19175d5e42f56752a43fd4875e05c6ab8fbcf9",
+  "on_demand_definition_count": 5541,
   "purpose": "Non-executable archive disposition; only config/testing/active-cases.json selects active cases.",
   "schema_version": 1,
   "sources": [
@@ -169,8 +169,7 @@
       "source_sha256": "61926929f330898c0852c4855991b515e62b19e13e3ca3c7a58597a9878b51fd"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PredicateMutations.test_complete_control",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PredicateMutations.test_missing_remote_status_never_success",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PredicateMutations.test_success_receipt_cannot_replace_actual_failed_client_process",
@@ -188,27 +187,17 @@
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_source_expected_body_disagreement",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_unreviewed_packet_rejected",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_approval_not_ready_rejected",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_all_35_shared_roles_are_checked",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_each_measurement_value_must_match_fresh_capture",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_original_mapping_and_approval_metadata_cannot_be_forged",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_fixture_probe_rule_requires_exact_source_semantics",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_declared_binder_identity_mutations_preserve_stimulus",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_resealed_weaker_rules_do_not_change_reviewed_source_oracle",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_resealed_body_metadata_cannot_replace_reviewed_stimulus",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_git_revision_cannot_supply_options_or_expressions",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_gitlink_output_cannot_inject_second_revision",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_output_nested_creation_is_private_and_exclusive",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_output_rejects_traversal_before_open",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_output_rejects_symlink_parent_and_leaf",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_output_rejects_public_writable_directory",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_rejects_outside_domain_before_any_open",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_rejects_parent_and_leaf_symlinks",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_rejects_group_writable_evidence",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_does_not_reveal_missing_or_inaccessible_leaf",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_retains_valid_physical_identity",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_missing_storage_configuration_fails_before_write_or_stage",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_import_without_storage_configuration_stays_read_only",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_configured_storage_keeps_exact_run_domains",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_response_bytes_uses_both_raw_http_and_entity_file",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_response_cannot_substitute_receipt_for_raw_http",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_response_source_hash_cannot_be_replaced",
@@ -216,23 +205,35 @@
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_receipt_cannot_hide_failed_or_unknown_command",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_command_cannot_hide_failed_receipt",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_oracle_exit_and_signal_are_not_generic_allow",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_checks_do_not_expand_other_original_contracts",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_response_bytes_uses_independent_raw_checker",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_fragments_are_host_receives_and_single_native_sample",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_client_writes_alone_and_one_fragment_are_insufficient",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_wrong_nonce_sizes_order_and_decoder_fail",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_fragment_physical_hash_and_wrong_stream_fail",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_wrong_connection_and_ambiguous_nonce_fail",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_multiple_native_callbacks_are_rejected",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_fragments_after_eos_and_missing_hash_fail",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_check_dispatch_is_once_and_after_buffering"
+      ],
+      "on_demand_definitions": [
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_all_35_shared_roles_are_checked",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_each_measurement_value_must_match_fresh_capture",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_original_mapping_and_approval_metadata_cannot_be_forged",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_git_revision_cannot_supply_options_or_expressions",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_rejects_outside_domain_before_any_open",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_rejects_parent_and_leaf_symlinks",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_rejects_group_writable_evidence",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_read_does_not_reveal_missing_or_inaccessible_leaf",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_import_without_storage_configuration_stays_read_only",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_configured_storage_keeps_exact_run_domains",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_selected_client_checks_do_not_expand_other_original_contracts",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_fragment_physical_hash_and_wrong_stream_fail",
+        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_wrong_connection_and_ambiguous_nonce_fail",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_prebody_chain_is_required_exactly_once_and_in_order",
-        "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_check_dispatch_is_once_and_after_buffering",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_worker_is_numeric_present_and_consistent_at_every_bound_line",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_event_logger_source_and_source_line_are_message_specific",
         "ci.runtime.lifecycle.i12.envoy.test_qualify_originals.PacketMutations.test_authz_new_ids_cannot_cross_route_or_original"
       ],
       "source": "ci/runtime/lifecycle/i12/envoy/test_qualify_originals.py",
-      "source_sha256": "9ce57f5f67e3c78dd1fa2c7bf3a67e347bcae8716de5cf094b7ba1915649cd50"
+      "source_sha256": "64d4aca71cc45c2f346c5d20c236ba4192380261b121d98c9439d1ab1c8acee6"
     },
     {
       "contains_selected_definitions": [],
@@ -1528,17 +1529,13 @@
       "source_sha256": "bf398e931a090779f5dc5b366c25b56c7e643f145c321b9033b10ba751865b7d"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_metadata_authentication_is_optional_and_official_origin_only",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_metadata_redirects_are_rejected_before_following",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_metadata_http_errors_do_not_repeat_token_or_server_reason",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_metadata_rejects_malformed_tokens_before_transport",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_metadata_rejects_nonofficial_origin_before_transport",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_resolver_uses_only_release_and_tag_identity",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_major_only_action_tag_is_supported_without_relaxing_tool_tags",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_accepts_a_concrete_comment_for_a_major_only_action_lock",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_existing_draft_refresh_rebuilds_from_the_default_lock_candidate",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_codeql_resolver_selects_only_the_latest_same_major_action_release",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_codeql_resolver_rejects_unrelated_bundle_or_major_releases",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_codeql_resolver_accepts_releases_after_the_locked_version_advances",
@@ -1550,14 +1547,20 @@
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_codeql_candidate_rejects_a_major_upgrade",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_resolver_rejects_preview_release_flags_and_tags",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_candidate_rejects_unapproved_fields_and_stale_lock_digest",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_candidate_identity_digest_and_required_update_gate_are_fail_closed",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_candidate_payload_keeps_the_fixed_canonical_json_and_sha",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_validate_and_apply_keep_the_shared_candidate_cli_contract",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_resolve_github_output_binds_payload_digest_and_update_state",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_changes_only_lock_pins_and_paired_documentation",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_preserves_reviewed_codeql_subaction_suffixes",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_restores_all_approved_files_after_a_later_failure",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_all_locked_action_references_are_in_the_publisher_allowlist",
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_scope_verification_rejects_the_unallowlisted_source_of_a_rename"
+      ],
+      "on_demand_definitions": [
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_major_only_action_tag_is_supported_without_relaxing_tool_tags",
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_accepts_a_concrete_comment_for_a_major_only_action_lock",
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_existing_draft_refresh_rebuilds_from_the_default_lock_candidate",
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_candidate_identity_digest_and_required_update_gate_are_fail_closed",
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_changes_only_lock_pins_and_paired_documentation",
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_preserves_reviewed_codeql_subaction_suffixes",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_native_baseline_uses_nonrecursive_updater_inventory_regression",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_connector_lock_adapter_preserves_the_on_disk_schema",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_unallowlisted_locked_action_use_and_forbidden_yaml_fail_closed",
@@ -1573,7 +1576,6 @@
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_proposed_lints_reject_new_findings_and_broken_negative_controls",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_proposed_lints_never_execute_an_unverified_download",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_proposed_lints_fail_closed_on_timeout_and_launch_failure",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_scope_verification_rejects_the_unallowlisted_source_of_a_rename",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_scope_verification_rejects_a_stale_reusable_branch",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_existing_branch_cannot_change_a_tool_source_identity",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_existing_branch_verifies_changed_tool_asset_against_base_identity",
@@ -1583,7 +1585,7 @@
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterIntegrationTests.test_proposed_tree_validation_runs_the_real_ci_security_contract"
       ],
       "source": "tests/ci_security/test_update_workflow_tools.py",
-      "source_sha256": "ebcc3d6f68c42b7fa116bd5324dfe471ad6d741c847b9ea02fb172726128d60a"
+      "source_sha256": "cf6529f1c37accc7ea4d0ad56d384233ba4939dc5086834c1fc6ac793de10c09"
     },
     {
       "contains_selected_definitions": [],
@@ -1615,11 +1617,38 @@
     },
     {
       "contains_selected_definitions": [
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_updates_only_hashes_in_both_budget_arrays",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_noop_preserves_original_bytes",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_unapproved_primary_path_is_rejected",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_stale_source_binding_is_rejected",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_stale_archive_binding_is_rejected",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_control_fields_cannot_be_smuggled_into_companions",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_extra_companion_output_is_rejected",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_archive_source_cycle_is_rejected",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_finished_update_is_readmitted_with_unchanged_selection",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_unapproved_source_drift_prevents_companion_writes",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_next_stable_go_minor_remains_eligible",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_go_version_regression_is_rejected",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_large_companions_roll_back_after_late_transaction_failure",
+        "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_actions_rollback_preserves_foreign_companion_replacement"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_active_inventory_updates.py",
+      "source_sha256": "b43ff03ad463bed43e515245fdcb313dcc534544e8f45badb32195ffdfe163c2"
+    },
+    {
+      "contains_selected_definitions": [
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_overflow_rejected_before_any_child_starts",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_unknown_selector_is_rejected",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_source_digest_mismatch_prevents_execution",
+        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_duplicate_python_definitions_are_rejected",
+        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_conflicting_shared_source_digests_are_rejected",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_case_selection_closes_over_execution_variants",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_inventory_cannot_raise_hard_limit",
+        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_offline_exception_counts_are_reported_separately",
+        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_offline_exception_rejects_native_selector_before_child",
+        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_offline_guard_rejects_process_before_launch",
+        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_offline_guard_rejects_network_before_connect",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_unittest_discovery_uses_authoritative_inventory",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_start_directory_discovery_uses_authoritative_inventory",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_timeout_reaps_owned_process_group"
@@ -1634,7 +1663,7 @@
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_empty_requested_group_is_rejected"
       ],
       "source": "tests/test_active_test_inventory.py",
-      "source_sha256": "9296ab9a3713c06129c52dcc61f3fc037b5f75d611efb667993579242bb16146"
+      "source_sha256": "f3ad2cd63c1ec7ce05fab3170bd00c52809c9aadb20c22ae0ca882a705094863"
     },
     {
       "contains_selected_definitions": [],
@@ -2174,9 +2203,7 @@
       "source_sha256": "619cce18855ff0fff1716fa797162a006084bd26804f132e58cab0400cf681ed"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
-        "tests.test_apache_i12_ledger.ApacheLedgerTest.test_no_fresh_execution_from_configuration_or_history",
+      "contains_selected_definitions": [
         "tests.test_apache_i12_ledger.ApacheLedgerTest.test_complete_physical_packet_uses_shared_qualification",
         "tests.test_apache_i12_ledger.ApacheLedgerTest.test_configuration_dispatch_uses_original_contract_and_separate_scope",
         "tests.test_apache_i12_ledger.ApacheLedgerTest.test_pre_native_dispatch_preserves_control_observations",
@@ -2195,6 +2222,9 @@
         "tests.test_apache_i12_ledger.ApacheLedgerTest.test_oracle_digest_and_missing_identity_rejected",
         "tests.test_apache_i12_ledger.ApacheLedgerTest.test_catalog_contract_mutation_rejected",
         "tests.test_apache_i12_ledger.ApacheLedgerTest.test_review_records_cannot_transfer_from_foreign_id"
+      ],
+      "on_demand_definitions": [
+        "tests.test_apache_i12_ledger.ApacheLedgerTest.test_no_fresh_execution_from_configuration_or_history"
       ],
       "source": "tests/test_apache_i12_ledger.py",
       "source_sha256": "58a5d455da2cbd79784f313f7215d8d644ee17addabed9c6137e19f3e7280706"
@@ -2278,6 +2308,18 @@
       ],
       "source": "tests/test_apache_i12_observed_module_builder.py",
       "source_sha256": "96e57b37f895261083022b96333c7e5bf7772112557feab5994d6101487aa1a6"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_apache_i12_offline_build.OfflineBuildTests.test_complete_build_preserves_flags_bindings_and_unqualified_runtime",
+        "tests.test_apache_i12_offline_build.OfflineBuildTests.test_failed_first_recompile_retains_failure_without_final_module_receipt",
+        "tests.test_apache_i12_offline_build.OfflineBuildTests.test_wrong_sdk_resolution_rejects_final_receipt",
+        "tests.test_apache_i12_offline_build.OfflineBuildTests.test_missing_relro_rejects_final_receipt",
+        "tests.test_apache_i12_offline_build.OfflineBuildTests.test_link_time_source_change_rejected_by_full_snapshot_recheck"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_apache_i12_offline_build.py",
+      "source_sha256": "89c6e537c5256ab71ab412641e692fddc84fcbfeb08c9f599e5e52445b07008d"
     },
     {
       "contains_selected_definitions": [],
@@ -2728,14 +2770,14 @@
       "source_sha256": "427d44315cc23dcd2ff1765f66d30cb1bb09e2c11e3abcc7ca34fb1c480db142"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_c_source_contract.CSourceContractTests.test_matching_delimiter_supports_nested_pairs",
         "tests.test_c_source_contract.CSourceContractTests.test_matching_delimiter_reports_unterminated_pair",
         "tests.test_c_source_contract.CSourceContractTests.test_function_definition_ignores_prototype_and_call",
         "tests.test_c_source_contract.CSourceContractTests.test_function_definition_does_not_match_related_names",
         "tests.test_c_source_contract.CSourceContractTests.test_function_definition_reports_missing_definition"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_c_source_contract.py",
       "source_sha256": "398b9a944cdbafd1033d3c156257c63aa957c517ea5cf156fb90dbc377419ae2"
     },
@@ -2780,7 +2822,9 @@
       "source_sha256": "69c73a65de8679e1035c93631a316566b72ca35c41176054089c18033658fd7a"
     },
     {
-      "contains_selected_definitions": [],
+      "contains_selected_definitions": [
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_python_patch_updater_separates_trusted_stages_and_writer_scope"
+      ],
       "on_demand_definitions": [
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_workflow_and_lock_yaml_reject_forbidden_indirection",
@@ -2811,14 +2855,13 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_framework_gitlink_raw_diff_contract_is_functional",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_workflow_tool_updater_is_the_sole_parent_only_action_maintainer",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_parent_updaters_use_ephemeral_askpass_for_publisher_app_tokens",
-        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_python_patch_updater_separates_trusted_stages_and_writer_scope",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_go_release_updater_separates_trusted_stages_and_writer_scope",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_go_candidate_pr_validation_is_read_only_and_tests_all_modules",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sarif_upload_permissions_are_scoped",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "b171c7fceeee4940892646aa97840fa834e2fee63a2cd5678ddbf2683e1106c6"
+      "source_sha256": "64229d96060e5780e4538a883fdcfe7f21727e4e2fcc020a99961ad12cb5a642"
     },
     {
       "contains_selected_definitions": [],
@@ -3145,6 +3188,19 @@
       ],
       "source": "tests/test_envoy_composite_verifier_projection.py",
       "source_sha256": "3fc62b0ee70aba526896af17bf2366e88715acd9a282d98cbc12a09ee16725bf"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_envoy_i12_offline_orchestration.EnvoyOfflineOrchestrationTests.test_complete_packet_verifies_real_joins_without_host_qualification",
+        "tests.test_envoy_i12_offline_orchestration.EnvoyOfflineOrchestrationTests.test_altered_ledger_hash_invalidates_sealed_scope",
+        "tests.test_envoy_i12_offline_orchestration.EnvoyOfflineOrchestrationTests.test_resealed_shape_rejects_a_different_parent_identity",
+        "tests.test_envoy_i12_offline_orchestration.EnvoyOfflineOrchestrationTests.test_resealed_extra_source_is_not_a_complete_archived_inventory",
+        "tests.test_envoy_i12_offline_orchestration.EnvoyOfflineOrchestrationTests.test_command_receipt_cannot_substitute_stdout_identity",
+        "tests.test_envoy_i12_offline_orchestration.EnvoyOfflineOrchestrationTests.test_response_replaced_after_hashing_loses_raw_status_evidence"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_envoy_i12_offline_orchestration.py",
+      "source_sha256": "7ac50f3852822ddf566e11475bdd719e02f91f48ad403fc98fe324f6230a5951"
     },
     {
       "contains_selected_definitions": [],
@@ -3996,14 +4052,12 @@
       "source_sha256": "5b16d7b25a87d632e102c3a07295b9c6b7c79795e3a00b45e4b1b2d0a20a5690"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_haproxy_i12_route_observe.BackendDecodingTests.test_physical_count_requires_complete_log_and_positive_zero_control",
         "tests.test_haproxy_i12_route_observe.BackendDecodingTests.test_stored_pilot_allow_and_deny_do_not_become_zero_backend_counts",
         "tests.test_haproxy_i12_route_observe.BackendDecodingTests.test_unknown_or_corrupt_rows_never_report_an_empty_backend",
         "tests.test_haproxy_i12_route_observe.BackendDecodingTests.test_request_boundary_length_and_header_corruption_are_rejected",
         "tests.test_haproxy_i12_route_observe.BackendDecodingTests.test_complete_body_and_original_companion_rows_remain_supported",
-        "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_stored_schema_partial_facts_preserve_all_35_fields_and_pending_outcomes",
         "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_original_and_forwarded_capture_do_not_double_join_or_double_free",
         "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_missing_native_file_cannot_borrow_other_clients",
         "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_corrupt_frames_and_native_rows_stay_unknown",
@@ -4024,8 +4078,11 @@
         "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_failed_connect_report_cannot_inherit_stale_host_execution",
         "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_request_authorization_finish_keeps_mask_three_and_no_response_phases"
       ],
+      "on_demand_definitions": [
+        "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_stored_schema_partial_facts_preserve_all_35_fields_and_pending_outcomes"
+      ],
       "source": "tests/test_haproxy_i12_route_observe.py",
-      "source_sha256": "fd885d550ec8f3ca90a3f6ee3e9318dc9539bc356e13d81b5e3b2af6c4f6870a"
+      "source_sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
     },
     {
       "contains_selected_definitions": [],
@@ -4560,8 +4617,7 @@
       "source_sha256": "347f7230ffb15263e4d68c187be41871c9f2e5e938755c324bf401a22a834b4e"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_complete_validator_control_and_measured_failure_are_distinct",
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_missing_native_eos_never_uses_client_eof_as_replacement",
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_transport_receipt_cannot_prove_native_free",
@@ -4573,13 +4629,17 @@
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_unresolved_oracle_and_missing_root_review_rejected",
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_nonapplicability_needs_capability_and_never_hides_backend_count",
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_altered_physical_evidence_or_symlink_rejected",
+        "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_missing_rules_file_binds_absence_without_inventing_file_hash",
+        "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_build_ledger_dispatches_parser_and_preserves_historical_contract",
+        "tests.test_i12_lifecycle_ledger.LighttpdPreNativeRejectionTests.test_exact_three_diagnostic_contracts_preserve_false_lifecycle_credit"
+      ],
+      "on_demand_definitions": [
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_parser_scope_never_becomes_a_host_lifecycle_or_covers_an_http_id",
         "tests.test_i12_lifecycle_ledger.LifecycleLedgerTests.test_parser_scope_requires_actual_process_image_and_independent_oracle",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_exact_three_original_observations_without_lifecycle_fabrication",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_exact_rejection_exit_and_truthful_failure",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_exact_source_reviewed_rejection_exit_255_is_not_normalized",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_parser_expected_exit_must_be_an_exact_posix_code",
-        "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_missing_rules_file_binds_absence_without_inventing_file_hash",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_wrong_profile_id_review_kind_and_oracle_rejected",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_projected_process_fields_rejected",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_signal_and_false_pass_fail_without_lifecycle_credit",
@@ -4588,7 +4648,6 @@
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_independent_expectation_cannot_be_implementation_or_unversioned",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_configuration_and_source_identity_changes_rejected",
         "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_physical_stdout_stderr_and_executable_cannot_be_substituted",
-        "tests.test_i12_lifecycle_ledger.ConfigurationLedgerTests.test_build_ledger_dispatches_parser_and_preserves_historical_contract",
         "tests.test_i12_lifecycle_ledger.PreNativeRejectionTests.test_separate_pre_native_scope_preserves_native_alternative_and_no_fake_lifecycle",
         "tests.test_i12_lifecycle_ledger.PreNativeRejectionTests.test_untrusted_long_process_status_cannot_supply_pid_or_uid",
         "tests.test_i12_lifecycle_ledger.PreNativeRejectionTests.test_unterminated_long_pid_diagnostic_cannot_qualify_another_process",
@@ -4599,7 +4658,6 @@
         "tests.test_i12_lifecycle_ledger.PreNativeRejectionTests.test_cleanup_and_healthy_controls_cannot_be_projected",
         "tests.test_i12_lifecycle_ledger.PreNativeRejectionTests.test_missing_stale_sibling_source_and_image_producers_are_rejected",
         "tests.test_i12_lifecycle_ledger.PreNativeRejectionTests.test_build_ledger_counts_full_case_without_host_lifecycle_or_configuration_credit",
-        "tests.test_i12_lifecycle_ledger.LighttpdPreNativeRejectionTests.test_exact_three_diagnostic_contracts_preserve_false_lifecycle_credit",
         "tests.test_i12_lifecycle_ledger.LighttpdPreNativeRejectionTests.test_no_duplicate_te_sibling_or_changed_original_mapping",
         "tests.test_i12_lifecycle_ledger.LighttpdPreNativeRejectionTests.test_pidless_core_requires_actual_host_fd_and_private_complete_window",
         "tests.test_i12_lifecycle_ledger.LighttpdPreNativeRejectionTests.test_apache_log_schema_stale_clock_and_other_request_cannot_substitute",
@@ -4664,8 +4722,7 @@
       "source_sha256": "12796653307fad4b934473984457201bf8a26d1755fdb5577f2f38479aecdc3d"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_i12_nginx_ledger.NginxLedgerTests.test_preserves_all_original_rows_and_does_not_promote_configuration",
         "tests.test_i12_nginx_ledger.NginxLedgerTests.test_valid_packet_qualifies_one_original_id",
         "tests.test_i12_nginx_ledger.NginxLedgerTests.test_duplicate_native_transaction_rejected",
@@ -4687,6 +4744,7 @@
         "tests.test_i12_nginx_ledger.NginxLedgerTests.test_cli_confines_inputs_and_fresh_output_to_protected_run_root",
         "tests.test_i12_nginx_ledger.NginxLedgerTests.test_cli_rejects_escape_links_writable_ancestry_and_existing_output"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_i12_nginx_ledger.py",
       "source_sha256": "0028a6d9b7b460ddeff95ea8a1431d8c9a37d0ec56d2a59dead0013974632d62"
     },
@@ -4986,20 +5044,21 @@
       "source_sha256": "652372291b626fab2489e1f43b94fd0e18ae72077c006ee4e1e92a4b193145d8"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
-        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_numeric_backend_real_get_post_delay_and_short_response",
-        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_numeric_backend_rejects_remote_identity_and_invalid_bind_port",
+      "contains_selected_definitions": [
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_numeric_backend_service_loop_is_bounded_and_signal_stoppable",
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_rule_oracle_uses_exact_main_transaction_event_or_audit_token",
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_parser_first_cause_preserves_first_physical_diagnostic_without_case_inference",
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_case_sources_reject_directory_escape_duplicates_and_parent_alias",
-        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_waited_parser_receipt_preserves_exact_exit_and_real_rules_absence",
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_cli_artifacts_reject_relative_wrong_name_and_symlink_paths",
-        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_real_peer_response_over_bound_is_rejected_and_socket_closes",
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_negative_parser_acceptance_and_signals_cannot_succeed",
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_output_parent_alias_existing_and_private_directory",
         "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_numeric_loopback_client_keeps_origin_form_contract"
+      ],
+      "on_demand_definitions": [
+        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_numeric_backend_real_get_post_delay_and_short_response",
+        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_numeric_backend_rejects_remote_identity_and_invalid_bind_port",
+        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_waited_parser_receipt_preserves_exact_exit_and_real_rules_absence",
+        "tests.test_lighttpd_i12_diagnostic.DiagnosticTests.test_real_peer_response_over_bound_is_rejected_and_socket_closes"
       ],
       "source": "tests/test_lighttpd_i12_diagnostic.py",
       "source_sha256": "98bd2188631bc08e5022509a1d7f0e96988614eb837bf5e0eb5860d674dd76a4"
@@ -5042,23 +5101,34 @@
       "source_sha256": "0a84fe47df48c2211a7a2ee7ddd8a402e7890a49483b84d2c2ae4f6746cb8979"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
+        "tests.test_lighttpd_i12_offline_preparation.OfflinePreparationTests.test_real_overlays_strip_to_current_product_and_bind_outputs",
+        "tests.test_lighttpd_i12_offline_preparation.OfflinePreparationTests.test_exported_module_hash_mismatch_emits_no_preparation_receipt",
+        "tests.test_lighttpd_i12_offline_preparation.OfflinePreparationTests.test_missing_request_anchor_emits_no_preparation_receipt",
+        "tests.test_lighttpd_i12_offline_preparation.OfflinePreparationTests.test_ambiguous_request_anchor_emits_no_preparation_receipt",
+        "tests.test_lighttpd_i12_offline_preparation.OfflinePreparationTests.test_compiler_boundary_failure_emits_no_preparation_receipt"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_lighttpd_i12_offline_preparation.py",
+      "source_sha256": "90153be05e2aab7148cff141dc3a4b50576808ba3164f9dc1b52e1c9d9f780ac"
+    },
+    {
+      "contains_selected_definitions": [
         "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_json_output_replaces_bytes_and_restores_private_mode",
         "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_json_output_refuses_links_without_changing_target",
         "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_json_output_closes_descriptor_when_preparation_fails",
         "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_artifacts_refuse_symlink_and_hardlink",
-        "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_empty_is_actual_content_length_zero",
-        "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_chunked_has_two_entity_chunks_and_single_terminal_chunk",
         "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_review_does_not_attribute_neighbor_append_to_empty_main"
+      ],
+      "on_demand_definitions": [
+        "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_empty_is_actual_content_length_zero",
+        "tests.test_lighttpd_i12_patched_capture.PatchedCaptureTests.test_chunked_has_two_entity_chunks_and_single_terminal_chunk"
       ],
       "source": "tests/test_lighttpd_i12_patched_capture.py",
       "source_sha256": "f2760cd3b4af897353b0f466d18a70f4e5992e0e6c6ac74254e7d6e18fefcc56"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
-        "tests.test_lighttpd_i12_patched_qualification.PatchedQualificationTests.test_original_ids_unique_and_chunks_cover_declared_bodies",
+      "contains_selected_definitions": [
         "tests.test_lighttpd_i12_patched_qualification.PatchedQualificationTests.test_short_content_length_preserves_received_body_and_marks_incomplete",
         "tests.test_lighttpd_i12_patched_qualification.PatchedQualificationTests.test_real_chunked_response_requires_terminal_chunk",
         "tests.test_lighttpd_i12_patched_qualification.PatchedQualificationTests.test_no_fabricated_allow_or_eos_in_preallocation_failure_spec",
@@ -5067,12 +5137,14 @@
         "tests.test_lighttpd_i12_patched_qualification.PatchedQualificationTests.test_neighbor_fixture_is_below_limit_and_has_no_disruptive_marker",
         "tests.test_lighttpd_i12_patched_qualification.PatchedQualificationTests.test_observation_rebase_preserves_new_product_lines"
       ],
+      "on_demand_definitions": [
+        "tests.test_lighttpd_i12_patched_qualification.PatchedQualificationTests.test_original_ids_unique_and_chunks_cover_declared_bodies"
+      ],
       "source": "tests/test_lighttpd_i12_patched_qualification.py",
       "source_sha256": "c4c155be8fd5cc75832bcd48f7fd4db95dec744a72cc1f7d957d4bd89b7511fa"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_lighttpd_i12_qualification.LighttpdQualificationTests.test_exact_original_id_and_all_unknowns_remain_unqualified",
         "tests.test_lighttpd_i12_qualification.LighttpdQualificationTests.test_changed_proposal_cannot_reuse_root_approval",
         "tests.test_lighttpd_i12_qualification.LighttpdQualificationTests.test_validator_snapshot_is_retained_and_midrun_source_change_is_rejected",
@@ -5085,39 +5157,36 @@
         "tests.test_lighttpd_i12_qualification.LighttpdQualificationTests.test_non_lighttpd_and_unselected_ids_are_rejected",
         "tests.test_lighttpd_i12_qualification.LighttpdQualificationTests.test_pre_native_source_review_cannot_be_inferred_or_changed"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_lighttpd_i12_qualification.py",
       "source_sha256": "33e867b8e235cfb1e4efab887dc59cf857a0080754a4a323ec10ebabbe536bea"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_failed_process_launch_closes_both_log_descriptors",
-        "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_failed_host_config_releases_backend_socket_and_thread",
         "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_hardlinked_source_rejected",
         "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_source_tree_symlink_rejected",
         "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_alias_root_rejected_without_following",
         "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_existing_root_rejected",
-        "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_outside_external_root_rejected",
+        "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_outside_external_root_rejected"
+      ],
+      "on_demand_definitions": [
+        "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_failed_host_config_releases_backend_socket_and_thread",
         "tests.test_lighttpd_i12_stock_capture.StockCaptureTests.test_client_records_real_peer_eof_and_exact_body"
       ],
       "source": "tests/test_lighttpd_i12_stock_capture.py",
       "source_sha256": "e106b223510d6f07ab197752e16f53749e84d46135d9438e15a988997bb2a919"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_generated_response_module_decodes_real_chunked_framing",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_unreviewed_case_cannot_receive_generic_allow_fixture",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_measurement_hash_rejects_outside_source_and_capture_roots",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_fixture_hash_rejects_outside_source_and_capture_roots",
-        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_raw_client_rejects_output_outside_private_task_before_socket",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_report_output_rejects_source_checkout",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_native_jsonl_rule_metadata_remains_bound_to_actual_sdk_id",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_spool_exhaustion_is_separate_from_native_limit",
-        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_default_floor_enforcement_uses_actual_product_at_existing_syscall_seam",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_copy_rejects_directory_symlink_without_following",
-        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_response_status_survives_actual_tcp_reset_without_hiding_exit",
-        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_raw_client_records_headers_entity_and_actual_local_abort",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_original_streaming_has_large_delayed_body_and_default_resource_contract",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_missing_and_present_content_type_are_distinct_fixture_inputs",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_stale_retained_source_fails_closed",
@@ -5129,6 +5198,12 @@
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_incomplete_fixture_does_not_expect_native_eos",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_existing_boundary_faults_preserve_distinct_commit_expectations",
         "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_event_limit_relocation_remains_valid_launcher_python"
+      ],
+      "on_demand_definitions": [
+        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_raw_client_rejects_output_outside_private_task_before_socket",
+        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_default_floor_enforcement_uses_actual_product_at_existing_syscall_seam",
+        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_response_status_survives_actual_tcp_reset_without_hiding_exit",
+        "tests.test_lighttpd_i12_stock_qualification.StockOriginalQualificationTests.test_raw_client_records_headers_entity_and_actual_local_abort"
       ],
       "source": "tests/test_lighttpd_i12_stock_qualification.py",
       "source_sha256": "53d2659033312ec31caef678b66a13622bbb968d7e9bcea8334475fea650a1b3"
@@ -5790,8 +5865,7 @@
       "source_sha256": "bc87e61fcba51553354fb98c173948dc4abee838701db03199a70d21e02605d2"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_nginx_exact_head_diagnostics.NginxExactHeadDiagnosticsTest.test_in_root_failure_keeps_useful_bounded_metadata_and_tail",
         "tests.test_nginx_exact_head_diagnostics.NginxExactHeadDiagnosticsTest.test_public_bounded_log_tail_rejects_path_escape_and_sanitizes_payload",
         "tests.test_nginx_exact_head_diagnostics.NginxExactHeadDiagnosticsTest.test_public_bounded_log_tail_rejects_replaced_file",
@@ -5804,6 +5878,7 @@
         "tests.test_nginx_exact_head_diagnostics.NginxExactHeadDiagnosticsTest.test_oversized_report_keeps_fixed_log_diagnostics_bounded",
         "tests.test_nginx_exact_head_diagnostics.NginxExactHeadDiagnosticsTest.test_terminal_controls_and_overlong_lines_cannot_expand_or_control_output"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_nginx_exact_head_diagnostics.py",
       "source_sha256": "edb89504d9c3317ceb79180e4b8bd1411781ce13b9a6c6d22b3ca03d7f1c0d28"
     },
@@ -5820,9 +5895,10 @@
       "source_sha256": "4761b87e9c33d6f934cb200c3d704e8c9857ebdb95f28c0f5ffb2c09234aecb2"
     },
     {
-      "contains_selected_definitions": [],
+      "contains_selected_definitions": [
+        "tests.test_nginx_exact_head_result_collector.CollectorPinContractTests.test_pins_match_current_parent_and_exact_head_producer"
+      ],
       "on_demand_definitions": [
-        "tests.test_nginx_exact_head_result_collector.CollectorPinContractTests.test_pins_match_current_parent_and_exact_head_producer",
         "tests.test_nginx_exact_head_result_collector.CollectorTests.test_collects_exact_terminal_result_with_required_fields",
         "tests.test_nginx_exact_head_result_collector.CollectorTests.test_rejects_old_and_arbitrary_release_pins",
         "tests.test_nginx_exact_head_result_collector.CollectorTests.test_rejects_previous_release_and_crossed_runtime_pins",
@@ -5847,13 +5923,9 @@
       "source_sha256": "d7881d10c03e742d5d4c32712005e570f94d5f05c185b17b28cf0a02a78911f7"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_retained_proc_cell_fd_is_a_working_root_side_read_authority",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_retained_control_parent_rejects_a_symlink_component",
+      "contains_selected_definitions": [
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_cleanup_replacement_is_rejected_without_deleting_replacement",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_cleanup_parent_requires_a_private_root_container",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_cleanup_retains_scratch_when_parent_is_not_private",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_cleanup_uses_private_container_at_final_sink_and_preserves_runner_replacement",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_scratch_container_name_is_root_selected_and_fresh",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_identity_cleanup_requires_exact_captured_uid_gid_and_primary_group",
@@ -5869,13 +5941,26 @@
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_dispatcher_and_candidate_manifest_bind_the_same_exact_head",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_rejects_previous_release_and_crossed_candidate_pins",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_security_identifiers_accept_ascii_digits_only",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_launcher_does_not_catch_process_control_exceptions_broadly",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_admission_requires_only_manifested_single_link_artifacts",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_admitted_artifact_rejects_symlink_and_hardlink",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_replacement_and_metadata_race_of_each_native_artifact_are_detected",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_generated_configuration_has_no_include_boundary",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_trusted_cell_generation_uses_real_newlines_and_rejects_nginx_metacharacters",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_sandbox_config_uses_fixed_paths_not_host_candidate_or_cell",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_identity_parser_checks_roles_and_admitted_inode",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_mode_evidence_requires_fresh_jsonl_and_callback_separation",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_publish_evidence_contains_only_root_derived_allowlist",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_checked_commands_reject_shell_syntax_and_relative_executables",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_only_fixed_root_client_can_report_the_http_status",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_pidfd_bound_namespace_client_rejects_exit_and_never_resolves_a_pid",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_pidfd_namespace_preexec_and_cleanup_are_descriptor_bound",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_partial_subordinate_mapping_rolls_back_and_unbound_worker_is_not_signalled"
+      ],
+      "on_demand_definitions": [
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_retained_proc_cell_fd_is_a_working_root_side_read_authority",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_retained_control_parent_rejects_a_symlink_component",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_cleanup_retains_scratch_when_parent_is_not_private",
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_launcher_does_not_catch_process_control_exceptions_broadly",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_wait_mode_validates_before_root_release",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_wait_mode_requires_the_root_control_directory",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_wait_mode_rejects_a_writable_root_control_directory",
@@ -5884,21 +5969,13 @@
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_mark_request_complete_requires_the_root_control_directory",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_mark_request_complete_rejects_a_writable_root_control_directory",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_mark_request_complete_rejects_temporary_symlink_substitution",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_identity_parser_checks_roles_and_admitted_inode",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_mode_evidence_requires_fresh_jsonl_and_callback_separation",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_mode_evidence_rejects_boolean_integrity_fields",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_publish_evidence_contains_only_root_derived_allowlist",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_root_evidence_write_survives_runner_directory_replacement",
         "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_exit_77_is_a_fatal_runtime_failure",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_checked_commands_reject_shell_syntax_and_relative_executables",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_only_fixed_root_client_can_report_the_http_status",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_pidfd_bound_namespace_client_rejects_exit_and_never_resolves_a_pid",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_pidfd_namespace_preexec_and_cleanup_are_descriptor_bound",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_launcher_only_executes_the_base_driver_and_fd_bound_artifacts",
-        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_partial_subordinate_mapping_rolls_back_and_unbound_worker_is_not_signalled"
+        "tests.test_nginx_exact_head_root_launcher.RootLauncherContractTests.test_launcher_only_executes_the_base_driver_and_fd_bound_artifacts"
       ],
       "source": "tests/test_nginx_exact_head_root_launcher.py",
-      "source_sha256": "f303349ba4965ba99e405acf9f27def3bae6c8704360ca218ef67720c37d84b2"
+      "source_sha256": "02f2a5b31231e5a24b822f414fa31bc0706435f25bc7d1b5b4b6cb03fd44318e"
     },
     {
       "contains_selected_definitions": [],
@@ -6635,7 +6712,13 @@
       "source_sha256": "15345d0e0e696a3ee63b0a12276475594c8a2342e43bafe9ec7c3607dd4339a0"
     },
     {
-      "contains_selected_definitions": [],
+      "contains_selected_definitions": [
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_action_parser_has_no_general_command_surface",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_dynamic_section_parser_handles_long_malformed_output_without_backtracking",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_restricted_caller_yaml_parser_accepts_only_the_exact_empty_mapping_literal",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_top_level_permissions_remain_exactly_deny_default",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_restricted_caller_yaml_parser_rejects_indirection_duplicates_and_unsafe_encoding"
+      ],
       "on_demand_definitions": [
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_valid_declarative_manifest_copies_only_verified_build_artifacts",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_empty_or_unknown_caller_manifest_is_rejected",
@@ -6643,7 +6726,6 @@
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_rejects_mismatched_caller_head_and_framework_bindings",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_rejects_symlinked_artifacts_and_root_worker",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_strict_final_manifest_rejects_broker_digest_and_projection_tampering",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_action_parser_has_no_general_command_surface",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_runtime_snapshot_is_discovered_only_below_the_trusted_build_root",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_prepare_from_snapshot_uses_only_the_fixed_trusted_build_layout",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_protected_modsecurity_library_has_a_separate_finite_artifact_limit",
@@ -6653,7 +6735,6 @@
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_evidence_file_and_total_limits_remain_bounded",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_prepare_from_snapshot_rejects_dynamic_loader_redirection_before_candidate_creation",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_dynamic_inspection_is_output_bounded_and_times_out",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_dynamic_section_parser_handles_long_malformed_output_without_backtracking",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_runtime_snapshot_rejects_duplicate_empty_malformed_and_arbitrary_exports",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_prepare_from_snapshot_rejects_untrusted_provenance_and_snapshot_replacement",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_prepare_from_snapshot_rejects_each_artifact_before_candidate_creation",
@@ -6668,9 +6749,6 @@
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_any_weakened_reusable_job_gate",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_a_constant_true_reusable_job_gate",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_preserves_block_scalar_hash_data",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_restricted_caller_yaml_parser_accepts_only_the_exact_empty_mapping_literal",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_top_level_permissions_remain_exactly_deny_default",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_restricted_caller_yaml_parser_rejects_indirection_duplicates_and_unsafe_encoding",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_workflow_is_read_only_from_one_regular_git_blob",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_workflow_rejects_a_non_regular_git_tree_entry",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_workflow_rejects_argument_injection_before_git",
@@ -7380,8 +7458,7 @@
       "source_sha256": "4be8c56e629895205c154474b44155c073a77c83f1d4edb85dc8f2631676e78c"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_protected_nginx_exact_head_builder.CandidateBuilderTests.test_build_pin_passes_authoritative_parent_provenance",
         "tests.test_protected_nginx_exact_head_builder.CandidateBuilderTests.test_cache_is_inside_admitted_build_root",
         "tests.test_protected_nginx_exact_head_builder.CandidateBuilderTests.test_launcher_pins_match_authoritative_parent",
@@ -7407,12 +7484,12 @@
         "tests.test_protected_nginx_exact_head_builder.CandidateBuilderTests.test_unprivileged_identity_accepts_non_root_real_effective_and_saved_ids",
         "tests.test_protected_nginx_exact_head_builder.CandidateBuilderTests.test_unprivileged_identity_rejects_saved_root_uid_or_gid"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_protected_nginx_exact_head_builder.py",
       "source_sha256": "7d443d9368689abf0155b86a9b03a139614851f0cc98fdd601427d0df544c745"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_protected_nginx_exact_head_dispatcher.DispatcherTest.test_valid_control_uses_fixed_https_get",
         "tests.test_protected_nginx_exact_head_dispatcher.DispatcherTest.test_identity_manifest_and_private_atomic_output",
         "tests.test_protected_nginx_exact_head_dispatcher.DispatcherTest.test_verify_optional_arguments_and_hardlink_rejected",
@@ -7433,12 +7510,12 @@
         "tests.test_protected_nginx_exact_head_dispatcher.DispatcherTest.test_rejects_redirect_and_invalid_pr_states",
         "tests.test_protected_nginx_exact_head_dispatcher.DispatcherTest.test_rejects_short_sha_foreign_head_and_wrong_base"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_protected_nginx_exact_head_dispatcher.py",
       "source_sha256": "ca058924613cc60b1a33de0e2873da8c445e50a181919ce6b228c10f5865a98c"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_protected_nginx_exact_head_runner_preflight.RunnerPreflightTests.test_rejects_non_allowlisted_or_injected_environment",
         "tests.test_protected_nginx_exact_head_runner_preflight.RunnerPreflightTests.test_rejects_non_fixed_path_and_task_root_escape",
         "tests.test_protected_nginx_exact_head_runner_preflight.RunnerPreflightTests.test_rejects_symlinked_task_root_and_host_control_entry",
@@ -7450,6 +7527,7 @@
         "tests.test_protected_nginx_exact_head_runner_preflight.RunnerPreflightTests.test_uses_only_fixed_task_leaf_and_descriptor_bound_git_cwd",
         "tests.test_protected_nginx_exact_head_runner_preflight.RunnerPreflightTests.test_privileged_role_fails_closed_when_host_gate_is_missing_or_writable"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_protected_nginx_exact_head_runner_preflight.py",
       "source_sha256": "b29081d1ecea7f514683c953211ad6cb89e50b89b5a657655e666d16ae661fd0"
     },
@@ -8336,17 +8414,18 @@
       "source_sha256": "14aa96bf84883f158be343338882bb3700a83f2edd44797cc0a3e584cc6d22ca"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_traefik_i12_auth.AuthCaptureControls.test_eof_and_status_do_not_qualify_truncated_client_bytes",
         "tests.test_traefik_i12_auth.AuthCaptureControls.test_changed_capture_boundary_is_rejected",
         "tests.test_traefik_i12_auth.AuthCaptureControls.test_output_must_be_fresh_and_external",
         "tests.test_traefik_i12_auth.AuthCaptureControls.test_output_relocation_cannot_escape_through_symlink",
-        "tests.test_traefik_i12_auth.AuthCaptureControls.test_case_selection_is_finite_and_rejects_duplicate_probes",
+        "tests.test_traefik_i12_auth.AuthCaptureControls.test_case_selection_is_finite_and_rejects_duplicate_probes"
+      ],
+      "on_demand_definitions": [
         "tests.test_traefik_i12_auth.AuthCaptureControls.test_central_capture_is_bound_without_host_execution"
       ],
       "source": "tests/test_traefik_i12_auth.py",
-      "source_sha256": "7e7797f4dd2e87d1d448de81f9ef0ba8911459f531c52e362ae112e22d40dc83"
+      "source_sha256": "4dde03b2f206a4fca190329b156e985a73261d34d24e36481f46ce8c3d4cc49b"
     },
     {
       "contains_selected_definitions": [],
@@ -8543,15 +8622,13 @@
       "source_sha256": "5ab50ccd1f8329c287ba6e9d188faabd1c7c8ded2c7752ac22c3503207830728"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_exact_original_ids_contracts_and_124_members_are_preserved",
         "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_duplicate_or_sibling_membership_cannot_qualify",
         "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_baseline_pass_and_resolved_dispositions_cannot_be_injected",
         "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_tcp_eof_and_driver_pass_cannot_replace_native_measurements",
         "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_partial_host_attempt_preserves_unknowns_and_does_not_resolve_oracle",
         "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_empty_host_capture_cannot_claim_observed_absence",
-        "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_lossless_provenance_keeps_original_canonical_digest",
         "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_fingerprint_changes_duplicates_and_malformed_provenance_fail_closed",
         "tests.test_traefik_i12_ledger.TraefikOwnScopeConsumerTest.test_configuration_accepted_centrally_qualifies_only_its_original_scope",
         "tests.test_traefik_i12_ledger.TraefikOwnScopeConsumerTest.test_configuration_fail_stays_own_scope_without_a_pass_or_unknown_credit",
@@ -8560,30 +8637,25 @@
         "tests.test_traefik_i12_ledger.TraefikOwnScopeConsumerTest.test_preallocation_uses_real_original_contract_without_lifecycle_credit",
         "tests.test_traefik_i12_ledger.TraefikOwnScopeConsumerTest.test_preallocation_missing_observer_and_cross_id_are_rejected"
       ],
+      "on_demand_definitions": [
+        "tests.test_traefik_i12_ledger.TraefikI12LedgerTest.test_lossless_provenance_keeps_original_canonical_digest"
+      ],
       "source": "tests/test_traefik_i12_ledger.py",
       "source_sha256": "8246da17624f5ed5ce066fe80e0d2ec6f8192e51014d04dcd4f6bf34942b5ae1"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
+      "contains_selected_definitions": [
         "tests.test_traefik_i12_native_acceptance.NativeLoopbackAdmissionControls.test_case_execution_keeps_neighbor_rotation_state_and_callbacks",
         "tests.test_traefik_i12_native_acceptance.NativeLoopbackAdmissionControls.test_backend_manifest_rejects_other_paths_and_symlinks",
         "tests.test_traefik_i12_native_acceptance.NativeLoopbackAdmissionControls.test_backend_closes_nonloopback_peer_before_recording_or_body_reads",
         "tests.test_traefik_i12_native_acceptance.NativeLoopbackAdmissionControls.test_backend_port_admission_is_bounded",
         "tests.test_traefik_i12_native_acceptance.NativeLoopbackAdmissionControls.test_backend_bind_failure_closes_transport_and_rejects_external_binds",
-        "tests.test_traefik_i12_native_acceptance.NativeLoopbackAdmissionControls.test_backend_serves_concurrent_loopback_connections_and_closes_socket",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_exact_production_go_identity_and_regular_tree_copy",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_wrong_version_hash_and_missing_executable_are_rejected",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_source_symlinks_special_files_and_copy_mutation_are_rejected",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_copy_does_not_follow_a_new_symlink_after_source_validation",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_invalid_toolchain_is_rejected_before_output_is_created",
-        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_driver_exact_once_offline_contract_and_pre_host_guard",
-        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_driver_rejects_inherited_toolchain_and_changed_controller_path",
-        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_transformed_environment_preserves_controller_rtk_lookup",
-        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_runtime_receipt_requires_actual_version_root_and_hash",
-        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_all118_input_ids_remain_distinct_and_unqualified",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_canonical_runner_directives_do_not_replace_shared_baseline_rules",
-        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_canonical_yaml_wire_preserves_literal_chunks_limits_and_content_type_variants",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_backpressure_wait_releases_only_exact_measured_tuple_or_timeout",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_retained_packet_requires_header_pid_scope_time_and_sdk_rule_proof",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_generated_packet_join_requires_exact_admission_and_one_physical_allocation",
@@ -8598,7 +8670,16 @@
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_candidate_packet_preserves_missing_sources_and_never_promotes",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_candidate_packet_rejects_rebinding_a_retaken_fixture_to_old_measurements",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_mime_candidate_uses_central_roles_and_keeps_nested_header_rules_sources",
-        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_candidate_packet_does_not_silently_drop_corrupt_sink_bytes",
+        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_candidate_packet_does_not_silently_drop_corrupt_sink_bytes"
+      ],
+      "on_demand_definitions": [
+        "tests.test_traefik_i12_native_acceptance.NativeLoopbackAdmissionControls.test_backend_serves_concurrent_loopback_connections_and_closes_socket",
+        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_driver_exact_once_offline_contract_and_pre_host_guard",
+        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_driver_rejects_inherited_toolchain_and_changed_controller_path",
+        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_transformed_environment_preserves_controller_rtk_lookup",
+        "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_runtime_receipt_requires_actual_version_root_and_hash",
+        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_all118_input_ids_remain_distinct_and_unqualified",
+        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_canonical_yaml_wire_preserves_literal_chunks_limits_and_content_type_variants",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_generated_id_observer_admits_only_exact_case_child_environment",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_ack_fault_is_outcome10_not_commit7_and_positive_ack_is_unchanged",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_no_file_or_mrc1_http_relabelling",
@@ -8630,7 +8711,7 @@
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_sink_close_is_real_ebadf_and_once"
       ],
       "source": "tests/test_traefik_i12_native_acceptance.py",
-      "source_sha256": "d153c968020ccdefc0692e365faa79e9ca8426aa2977bde61d0656ca692a7577"
+      "source_sha256": "2f96dea71c882fc06babde6234489e618f820fdb68f2ea9dd45366bd84177ab2"
     },
     {
       "contains_selected_definitions": [],
@@ -8971,19 +9052,14 @@
     },
     {
       "contains_selected_definitions": [
-        "tests.test_update_go_components.UpdateGoComponentsTests.test_newer_dependency_bundle_is_current_without_rewriting_files"
-      ],
-      "on_demand_definitions": [
         "tests.test_update_go_components.UpdateGoComponentsTests.test_resolves_the_only_approved_component_floor",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_current_or_newer_complete_bundle_needs_no_component_update",
+        "tests.test_update_go_components.UpdateGoComponentsTests.test_newer_dependency_bundle_is_current_without_rewriting_files",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_mixed_floor_bundle_preserves_newer_requirements_and_trusted_checksums",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_candidate_rejects_downgrading_a_newer_dependency_to_its_floor",
-        "tests.test_update_go_components.UpdateGoComponentsTests.test_workflow_resolver_accepts_newer_and_mixed_floor_bundles",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_rejects_malformed_unregistered_or_missing_requirements",
-        "tests.test_update_go_components.UpdateGoComponentsTests.test_registered_security_updates_do_not_require_a_grpc_upgrade",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_requirement_writer_rejects_unregistered_versions_and_symlinks",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_previous_registered_bundle_updates_with_unchanged_safe_grpc",
-        "tests.test_update_go_components.UpdateGoComponentsTests.test_workflow_resolver_accepts_component_only_updates_and_rejects_corrupt_reports",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_component_requirements_rejects_nested_require_blocks",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_component_requirements_rejects_unterminated_require_blocks",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_component_requirements_rejects_duplicate_component_requirements",
@@ -8993,7 +9069,12 @@
         "tests.test_update_go_components.UpdateGoComponentsTests.test_preflight_accepts_real_component_files",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_preflight_rejects_hardlinked_component_inputs",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_candidate_cli_reads_only_static_component_files",
-        "tests.test_update_go_components.UpdateGoComponentsTests.test_candidate_cli_rejects_malformed_baseline_frames_and_symlinked_candidates",
+        "tests.test_update_go_components.UpdateGoComponentsTests.test_candidate_cli_rejects_malformed_baseline_frames_and_symlinked_candidates"
+      ],
+      "on_demand_definitions": [
+        "tests.test_update_go_components.UpdateGoComponentsTests.test_workflow_resolver_accepts_newer_and_mixed_floor_bundles",
+        "tests.test_update_go_components.UpdateGoComponentsTests.test_registered_security_updates_do_not_require_a_grpc_upgrade",
+        "tests.test_update_go_components.UpdateGoComponentsTests.test_workflow_resolver_accepts_component_only_updates_and_rejects_corrupt_reports",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_candidate_validation_accepts_only_the_fixed_bundle_and_checksums",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_candidate_validation_rejects_unapproved_manifest_or_checksum_changes",
         "tests.test_update_go_components.UpdateGoComponentsTests.test_candidate_validation_rejects_non_update_unapproved_or_missing_target_checksums"
@@ -9017,9 +9098,7 @@
       "source_sha256": "1c210b62a82b7145df669d4926de8227d0d7231c42ec59dd37a46ca233296246"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
-        "tests.test_update_python_version.UpdatePythonVersionTests.test_spec_loaded_adapter_uses_shared_core",
+      "contains_selected_definitions": [
         "tests.test_update_python_version.UpdatePythonVersionTests.test_selects_highest_stable_patch_while_ignoring_prerelease_and_wrong_minor",
         "tests.test_update_python_version.UpdatePythonVersionTests.test_zero_patch_is_a_valid_canonical_stable_version",
         "tests.test_update_python_version.UpdatePythonVersionTests.test_check_reports_update_available_in_stable_json",
@@ -9045,6 +9124,9 @@
         "tests.test_update_python_version.UpdatePythonVersionTests.test_schema_with_unpublished_or_malformed_records_is_rejected",
         "tests.test_update_python_version.UpdatePythonVersionTests.test_symlink_target_is_refused_without_touching_its_destination",
         "tests.test_update_python_version.UpdatePythonVersionTests.test_symlinked_root_path_is_refused"
+      ],
+      "on_demand_definitions": [
+        "tests.test_update_python_version.UpdatePythonVersionTests.test_spec_loaded_adapter_uses_shared_core"
       ],
       "source": "tests/test_update_python_version.py",
       "source_sha256": "fcf103a3b41e9f4b183dbddf22eccfcea745e0a08901221a7c2ed728e1bd7514"

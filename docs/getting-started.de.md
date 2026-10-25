@@ -29,8 +29,7 @@ make quick-check
 
 Dies validiert statische Repository-Verträge und zugelassene funktionale
 Teilmengen des einzigen [Aktivinventars](../config/testing/active-cases.json).
-Die globale Grenze beträgt 100 vollständig expandierte Verhaltensfälle,
-einschließlich Infrastruktur- und Runtime-Fällen. Mit
+Die Kerngrenze beträgt 100 vollständig expandierte Verhaltensfälle; der Nutzer autorisierte zusätzlich ausdrücklich 793 getrennt gezählte geschützte Offline-Python-Fälle. Insgesamt sind es 893 Fälle / 499 Ausführungen bei unveränderter Connector-E2E-Auswahl. Mit
 <code>make check-active-inventory</code> wird die vollständige Auswahl vor einem
 Teststart geprüft. <code>make test</code> führt die aktive Auswahl aus und
 benötigt ihre echten Compiler-, SDK- und Hostvoraussetzungen. Gruppen-/Fallfilter

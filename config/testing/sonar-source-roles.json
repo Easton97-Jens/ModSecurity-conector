@@ -286,6 +286,23 @@
       ]
     },
     {
+      "path": "ci/runtime/lifecycle/i12/lighttpd/patched_sdk_observation.cpp",
+      "role": "TEST",
+      "group": "lighttpd-i12",
+      "rationale": "Test-only SDK MIME accessor copied into a disposable qualification collector overlay; not a shipped product implementation.",
+      "source_evidence": {
+        "line": 1,
+        "text": "/* Test-only public SDK3.0.14 MIME accessor for the existing I12 collector."
+      },
+      "caller_evidence": [
+        {
+          "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+          "line": 705,
+          "text": "    destination = source / \"ci/runtime/lifecycle/native-lifecycle-sdk-mime.cpp\""
+        }
+      ]
+    },
+    {
       "path": "ci/runtime/lifecycle/i12/lighttpd/patched_transport_observation.c",
       "role": "TEST",
       "group": "lighttpd-i12",
@@ -435,6 +452,23 @@
           "path": "ci/runtime/lifecycle/i12/nginx/run_cases.py",
           "line": 319,
           "text": "    clientargv = [sys.executable, str(Path(__file__).with_name(\"wire_client.py\")),"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/native-lifecycle-observer.c",
+      "role": "TEST",
+      "group": "native-observer",
+      "rationale": "Test-only GNU link-wrap observer, linked solely into disposable observed host artifacts rather than release products.",
+      "source_evidence": {
+        "line": 1,
+        "text": "/* Test-only GNU ld --wrap observer. Never link into release artifacts."
+      },
+      "caller_evidence": [
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/build_observed_module.py",
+          "line": 24,
+          "text": "             \"native-lifecycle-observer.c\", \"native-lifecycle-sdk.cpp\")"
         }
       ]
     },

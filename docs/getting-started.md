@@ -26,9 +26,7 @@ make quick-check
 ```
 
 This validates static repository contracts and admitted functional subsets of
-the single [active inventory](../config/testing/active-cases.json). Its global
-limit is 100 fully expanded behavioral cases, including infrastructure and
-runtime cases. Use <code>make check-active-inventory</code> to admit the complete
+the single [active inventory](../config/testing/active-cases.json). Its core limit is 100 fully expanded behavioral cases; the user explicitly authorized 793 separately counted guarded offline Python cases outside it. The total is 893 cases / 499 executions, with connector E2E selection unchanged. Use <code>make check-active-inventory</code> to admit the complete
 selection before test execution. <code>make test</code> runs the active selection
 and needs its real compiler, SDK and host prerequisites. Group/case filters and
 standard aliases are subsets, not full profile qualification. See

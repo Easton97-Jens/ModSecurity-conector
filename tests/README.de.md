@@ -17,28 +17,14 @@ Verifikation, vollständige Matrix oder Strict-Verifikation für alle Connectore
 
 ## Ein automatisches Aktivinventar
 
-[config/testing/active-cases.json](../config/testing/active-cases.json) ist die
-einzige maßgebliche Quelle für normale lokale, CI- und zeitgesteuerte
-Verhaltensauswahl über Common, alle Connector-Profile, Python-/Go-/Native-/
-Runtime-Prüfungen und Infrastrukturtests. Die Grenze beträgt **100 vollständig
-expandierte aktive Verhaltensfälle für das gesamte Projekt**, nicht 100 Methoden
-je Suite, Job oder Sprache. Das ist eine Obergrenze, kein aufzufüllendes Ziel.
-Unabhängig ausgeführte Parameter und Fehlerbedingungen
-bleiben eigene Fälle. Wiederholungen derselben IDs lokal, mit Race-Detector oder
-in Hosted-CI erhöhen die Ausführungskosten, nicht die Zahl verschiedener aktiver
-Fälle.
+[config/testing/active-cases.json](../config/testing/active-cases.json) bleibt die einzige Selektorautorität für normale lokale, CI- und geplante Prüfungen.
 
-Der [Runner](../ci/tools/run-active-tests.py) prüft das vollständige Inventar,
-einschließlich Quellbindungen und aller expandierten Fälle, vor dem Start der
-ausgewählten Testprozesse. Überlauf scheitert sichtbar; es gibt keine Kürzung
-auf die ersten 100. Gruppen- oder Fallauswahl umgeht die Zulassung des gesamten
-Inventars nicht. Die Auswahl einer Variante schließt die anderen deklarierten
-Varianten ihrer Ausführung ein. Unbekannte oder leere Auswahlen scheitern.
-<code>make test</code> und <code>make test-active</code> verwenden diesen Runner;
-funktionale Prüfungen hinter Lint-/Build-Aggregaten verwenden dieselbe Quelle.
-Die normale Python-Discovery liefert ausschließlich die zugelassene Python-
-Projektion, keinen zweiten Katalog und keinen vollständigen Native-/Go-/Runtime-
-Abnahmelauf.
+Der Nutzer autorisierte zusätzliche Offline-Python-Unitfälle ausdrücklich außerhalb der Kerngrenze von 100 Fällen. Schema 2 desselben Inventars deklariert nun **893 expandierte Fälle in 499 Ausführungen**: 100 Kernfälle / 80 Ausführungen (einschließlich der ursprünglichen acht Offline-Fälle) plus 793 ausdrücklich quellgebundene `offline_unit_exceptions` / 419 Ausführungen. Jede unabhängige Variante wird gezählt. Der Runner validiert beide Abschnitte und erzwingt die Kerngrenze vor jedem Kindprozess; 101 Kernfälle scheitern weiterhin. Ausnahmeselektoren sind ausschließlich Python; ihr isoliertes Kind installiert vor dem Testimport einen Guard gegen Prozessstart und Netzwerkzugriff. Das paketweite `tests.load_tests` verschiebt Offline-Testimports in dieses Kind. Rohes `unittest discover -s tests` importiert jedes Modul zunächst im Elternprozess, um seinen Hook zu finden; diese Top-Level wurden auf fehlende sofortige Prozess-/Hostaktivität geprüft, die Testausführung erfolgt anschließend ausschließlich im geschützten Kind. Die Zahlen beschreiben die aktuelle Auswahl, keine finale Abnahme. Die Ausnahme autorisiert keine Native-/Go-/Host-Szenarien außerhalb des Kernbudgets.
+
+Coverage wählt aktuell 857 Fälle / 477 Ausführungen aus. Ein aktiver Offline-Timingfall läuft in Sonar-CI separat ohne Instrumentierung: Seine unveränderte Ein-Sekunden-Assertion scheiterte unter Tracing (2,551 s) und bestand ohne Tracing (0,034 s). Er bleibt ausgewählt und geprüft; nur die Messung ändert sich, ohne Fallentfernung, Quellausschluss oder Gate-Lockerung. Kind-Tracing filtert Fixture-Zeilencallbacks und behält ausschließlich tatsächlich positive Treffer für Parent-MAIN-Quellen.
+
+
+`make check-active-inventory` prüft das gesamte Inventar ohne Teststart; `make test` und `make test-active` führen seine zugelassene Auswahl aus. Gruppen-/Fall-/Modulfilter greifen erst nach vollständiger Zulassung. Unbekannte/leere Auswahl und geänderte Quellbindungen scheitern; die Auswahl wird nie gekürzt. Funktionale Build-/Lint-Aufrufer verwenden dieselbe Autorität. Statische Kompilierung, CodeQL, actionlint, zizmor, OSV und Secret-Scanning behalten inhaltliche unabhängige Gates.
 
 Erhaltene Spezialdefinitionen stehen in der generierten
 [Archivdisposition](../reports/testing/test-selection-archive.generated.json).
@@ -80,8 +66,10 @@ Kennung wie \`runtime_path_policy\` ersetzen; daraus wird die literale Datei
 \`tests/test_runtime_path_policy.py\`. Niemals eine Datei namens
 \`test_<area>.py\` anlegen.
 
+Kern-Ergänzungen benötigen an der Grenze weiterhin einen benannten Ersatz. Explizite Offline-Ausnahmen benötigen eigene geprüfte quellgebundene Python-Selektoren und vollständig gezählte Varianten; die Nutzerausnahme ist kein ungezählter zweiter Katalog.
+
 Ein neues automatisch ausgewähltes Verhalten benötigt eine stabile Fall-ID,
-Anforderung, Profil und ausführbaren Selektor im Aktivinventar. An der Grenze
+Anforderung, Profil und ausführbaren Selektor im Aktivinventar. An der Kerngrenze
 müssen das ersetzte oder tatsächlich konsolidierte Verhalten und verlorene
 Abdeckung benannt werden; eine neue Methode oder versteckte unabhängige
 Szenarien in einer Schleife umgehen die Zählung nicht.

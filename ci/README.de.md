@@ -6,25 +6,14 @@ Dieser Baum enthält Connector-Repository-Orchestrierung, Verträge und Evidence
 
 ## Automatische Verhaltensauswahl
 
-Der einzige automatische Aktivkatalog ist
-[config/testing/active-cases.json](../config/testing/active-cases.json), zugelassen
-durch <code>ci/tools/run-active-tests.py</code>. Seine projektweite Obergrenze
-beträgt 100 vollständig expandierte Verhaltensfälle, einschließlich Common,
-jedes logischen Connector-Profils, Infrastrukturtests und durch Parent
-gewählter Framework-/MRTS-Fälle. Funktionale Befehle hinter Builds, Lint,
-Zeitplänen oder Updater-Validierung teilen dieses Budget. Statische Kompilierung,
-Formatierung, CodeQL, actionlint, zizmor, OSV und Secret-Scanning bleiben
-substantielle getrennte Gates; ihre funktionalen Szenarien benötigen weiterhin
-eine aktive Auswahl.
+[config/testing/active-cases.json](../config/testing/active-cases.json) bleibt die einzige Selektorautorität für normale lokale, CI- und geplante Prüfungen.
 
-<code>make check-active-inventory</code> prüft das gesamte Inventar ohne
-Teststart. <code>make test</code> und <code>make test-active</code> führen es aus;
-zuständige <code>--group</code>-, exakte <code>--case</code>- und feste Go-
-<code>--module</code>-Filter begrenzen die Ausführung erst nach vollständiger
-Zulassung. Mehr als 100 Fälle, geänderte Quellbindungen sowie unbekannte oder
-leere Auswahl scheitern vor den ausgewählten Testprozessen. Es gibt keine stille
-Kürzung. Go-Race-Läufe wiederholen die gewählten IDs, keinen zweiten vollständigen
-Paketkatalog.
+Der Nutzer autorisierte zusätzliche Offline-Python-Unitfälle ausdrücklich außerhalb der Kerngrenze von 100 Fällen. Schema 2 desselben Inventars deklariert nun **893 expandierte Fälle in 499 Ausführungen**: 100 Kernfälle / 80 Ausführungen (einschließlich der ursprünglichen acht Offline-Fälle) plus 793 ausdrücklich quellgebundene `offline_unit_exceptions` / 419 Ausführungen. Jede unabhängige Variante wird gezählt. Der Runner validiert beide Abschnitte und erzwingt die Kerngrenze vor jedem Kindprozess; 101 Kernfälle scheitern weiterhin. Ausnahmeselektoren sind ausschließlich Python; ihr isoliertes Kind installiert vor dem Testimport einen Guard gegen Prozessstart und Netzwerkzugriff. Das paketweite `tests.load_tests` verschiebt Offline-Testimports in dieses Kind. Rohes `unittest discover -s tests` importiert jedes Modul zunächst im Elternprozess, um seinen Hook zu finden; diese Top-Level wurden auf fehlende sofortige Prozess-/Hostaktivität geprüft, die Testausführung erfolgt anschließend ausschließlich im geschützten Kind. Die Zahlen beschreiben die aktuelle Auswahl, keine finale Abnahme. Die Ausnahme autorisiert keine Native-/Go-/Host-Szenarien außerhalb des Kernbudgets.
+
+Coverage wählt aktuell 857 Fälle / 477 Ausführungen aus. Ein aktiver Offline-Timingfall läuft in Sonar-CI separat ohne Instrumentierung: Seine unveränderte Ein-Sekunden-Assertion scheiterte unter Tracing (2,551 s) und bestand ohne Tracing (0,034 s). Er bleibt ausgewählt und geprüft; nur die Messung ändert sich, ohne Fallentfernung, Quellausschluss oder Gate-Lockerung. Kind-Tracing filtert Fixture-Zeilencallbacks und behält ausschließlich tatsächlich positive Treffer für Parent-MAIN-Quellen.
+
+
+`make check-active-inventory` prüft das gesamte Inventar ohne Teststart; `make test` und `make test-active` führen seine zugelassene Auswahl aus. Gruppen-/Fall-/Modulfilter greifen erst nach vollständiger Zulassung. Unbekannte/leere Auswahl und geänderte Quellbindungen scheitern; die Auswahl wird nie gekürzt. Funktionale Build-/Lint-Aufrufer verwenden dieselbe Autorität. Statische Kompilierung, CodeQL, actionlint, zizmor, OSV und Secret-Scanning behalten inhaltliche unabhängige Gates.
 
 Root-/Komponenten-Defaults, normale CI, geplante Vertragsprüfungen und Wartungs-
 Kandidatenvalidierung nutzen dieselbe Auswahl. No-CRS-Pläne müssen vor der

@@ -22,17 +22,10 @@ Hostergebnis.
 
 ## Aktive Fälle, Zulassung und archivierte Spezialprüfungen
 
-Projektweit gelten höchstens **100 vollständig expandierte aktive
-Verhaltensfälle**: Common, jeder Connector/jedes logische Profil, Unit-/
-Integrations-/Native-/Runtime-Fälle, Infrastrukturtests und durch Parent gewählte
-Framework-/MRTS-Fälle teilen ein Budget. Der [Runner](../ci/tools/run-active-tests.py)
-prüft das vollständige Inventar vor dem Start ausgewählter Testprozesse. Er
-prüft stabile IDs, Anforderungen, Profile, ausführbare Selektoren und
-Quellbindungen. Mehr als 100 scheitert; die Auswahl wird nie still gekürzt.
-Die Obergrenze ist kein aufzufüllendes Ziel. Eine Methode, Schleife oder ein
-Collector mit unabhängigen Parameter-/Fehlerszenarien macht diese nicht zu einem
-einzelnen Fall. Funktionale Zulassungs-, Überlauf-, Discovery- und Coverage-
-Integritätskontrollen verbrauchen dasselbe Budget.
+Dasselbe Schema-2-Inventar deklariert nun transparent 893 expandierte Fälle / 499 Ausführungen: 100 Kernfälle / 80 Ausführungen (einschließlich der ursprünglichen acht Offline-Fälle) und 793 vom Nutzer autorisierte quellgebundene Python-Offline-Ausnahmen / 419 Ausführungen. Die Kerngrenze bleibt 100 und wird vor allen Kindprozessen erzwungen; Ausnahmevarianten werden ausdrücklich gezählt. Offline-Kinder sperren Prozessstart und Netzwerkzugriff vor Imports; paketweite Discovery verschiebt Offline-Imports in dieses Kind. Rohes `unittest discover -s tests` importiert Module zunächst im Elternprozess, um ihre Hooks zu finden; geprüfte Top-Level führen keine sofortigen Prozess-/Hostaktionen aus, tatsächliche Tests laufen anschließend nur in geschützten Kindern. Dies sind Zahlen der aktuellen Auswahl, keine finale Abnahme. Native-/Go-/Connector-Szenarien fallen nicht unter diese Ausnahme.
+
+Coverage wählt aktuell 857 Fälle / 477 Ausführungen aus. Ein aktiver Offline-Timingfall läuft in Sonar-CI separat ohne Instrumentierung: Seine unveränderte Ein-Sekunden-Assertion scheiterte unter Tracing (2,551 s) und bestand ohne Tracing (0,034 s). Er bleibt ausgewählt und geprüft; nur die Messung ändert sich, ohne Fallentfernung, Quellausschluss oder Gate-Lockerung. Kind-Tracing filtert Fixture-Zeilencallbacks und behält ausschließlich tatsächlich positive Treffer für Parent-MAIN-Quellen.
+
 
 <code>make check-active-inventory</code> meldet die tatsächliche expandierte
 Fallzahl ohne Fallausführung. <code>make test</code> / <code>make test-active</code>
@@ -74,7 +67,7 @@ Kein Archiveintrag ist ein ausführbarer Selektor oder ein neuer PASS.
 Das Entfernen eines Verhaltens aus der automatischen Auswahl dokumentiert
 verlorene automatische Abdeckung; es löst keinen bekannten Defekt und erfindet
 keinen historischen Erfolg. Archivierte Quellen und ihre ursprünglichen
-Ergebnisse/Revisionen bleiben erhalten. Neue aktive Fälle an der Obergrenze
+Ergebnisse/Revisionen bleiben erhalten. Neue aktive Kernfälle an der Obergrenze
 benötigen einen benannten Ersatz oder echte Konsolidierung mit dokumentierter
 betroffener Anforderung und Risiko.
 
@@ -223,7 +216,7 @@ absoluten Pfad, rohen Log oder freien Runtime-Fehlertext.
 Receipt-Bytes passieren eine feste unprivilegierte Stream-Grenze
 `head --bytes=16385` und danach den Evidence-Projektor nur über Standard-
 Eingabe nach der Privilegabgabe. Der Projektor akzeptiert höchstens 16 KiB und
-weist das 16.385. Byte zurück; der Workflow puffert daher keine untrusted
+weist das 16.419. Byte zurück; der Workflow puffert daher keine untrusted
 Receipt-Ausgabe in einer Shell-Variablen. Receipt-Bytes sind niemals
 Kommandozeilen-Argumente für `sudo`, `unshare` oder `setpriv`.
 

@@ -96,7 +96,7 @@ check-config: build-connector
 check-traefik-config: check-config
 
 start-smoke: build-connector
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.start.traefik; fi
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required))
 	scripts/start-smoke.sh
 
 start-smoke-traefik: start-smoke

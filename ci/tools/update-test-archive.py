@@ -56,10 +56,11 @@ def source_definitions(path: Path, name: str, python_targets: set[str],
 def archive() -> dict:
     inventory_bytes = (ROOT / "config/testing/active-cases.json").read_bytes()
     inventory = json.loads(inventory_bytes)
-    python_targets = {item["selector"]["target"] for item in inventory["executions"]
+    executions = inventory["executions"] + inventory.get("offline_unit_exceptions", [])
+    python_targets = {item["selector"]["target"] for item in executions
                       if item["selector"]["kind"] == "python"}
     go_targets = {(item["selector"]["module"], item["selector"]["package"], item["selector"]["test"].split("/")[0])
-                  for item in inventory["executions"] if item["selector"]["kind"] == "go"}
+                  for item in executions if item["selector"]["kind"] == "go"}
     raw = subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT)
     files = sorted(set(raw.decode("utf-8").rstrip("\0").split("\0")))
     retained = []

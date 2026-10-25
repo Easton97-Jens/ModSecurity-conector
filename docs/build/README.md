@@ -492,6 +492,17 @@ remain a separate connector check. The privileged updater continues to check
 out only the trusted default branch and cannot publish after validation fails.
 A successful default-branch dispatch requires separately observed evidence.
 
+
+## Derived maintenance metadata and remaining prerequisites
+
+Maintenance may derive exactly two companion files: `config/testing/active-cases.json` (existing SHA fields only) and `reports/testing/test-selection-archive.generated.json` (`inventory_sha256` only). Selectors, cases, profiles, source paths and subtest metadata cannot change through this mechanism. Trusted-base reconstruction must reproduce exact bytes and regular stage-0 mode `100644` before staging, publication or reuse. The primary Actions publisher allowlist is unchanged. Three focused regressions now pass: a future Go minor 1.28 is eligible, rollback preserves a foreign companion change, and rollback restores its own companion larger than 4 KiB.
+
+Four `go.mod` declarations and `requirements-ci.lock`, `requirements-ci-build.lock`, `requirements-dev.txt` are seven non-executable dependency declarations, not collector source bindings. Go module/sum files and the three requirements remain bound by actual build identity and pre/post source snapshots. This avoids dependency-metadata churn without removing controller or executable-code bindings.
+
+Sonar's job budget is now 120 minutes instead of 45 for the explicitly larger selection; individual 600-second limits and the one-second timing assertion remain unchanged. Observed profiles reduced 429 AST parses to 41 and 6841 source reads to a few hundred. The earlier 15.723 s measurement had nine concurrent workloads, whereas the later 1.788 s measurement was idle: these different conditions do not establish a controlled speedup.
+
+After the user marked configuration complete, observed Dependabot secret metadata lists exactly one name: `SONAR_TOKEN`. The earlier zero-name/pending-secret state is historical and resolved at the metadata layer. No token value was read, and neither live bot authentication nor a successful Dependabot PR is claimed. That execution proof still requires separately authorized default-branch maintenance checks; current PR authentication is a separate result. [GitHub's Dependabot-on-Actions rules](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions) describe that separate secret context. No secret or provider setting is changed by this documentation.
+
 ## Compiler and linker variables
 
 Use standard compiler environment variables only when the local toolchain

@@ -17,9 +17,15 @@ REVIEW_SPEC=importlib.util.spec_from_file_location('traefik_i12_auth_review', RO
 REVIEW=importlib.util.module_from_spec(REVIEW_SPEC);REVIEW_SPEC.loader.exec_module(REVIEW)
 
 
+def fixture_storage():
+    from ci.lib.active_test_inventory import validate_output_root
+
+    selected = os.environ.get('I12_TEST_ROOT') or os.environ['RUNNER_TEMP']
+    return validate_output_root(ROOT, Path(selected))
+
+
 def setUpModule():
-    storage = Path('/var/tmp/codex/ModSecurity-conector')
-    storage.mkdir(parents=True, exist_ok=True)
+    storage = fixture_storage()
     configured = mock.patch.dict(os.environ, {'CODEX_TEMP_ROOT': str(storage)})
     configured.start()
     unittest.addModuleCleanup(configured.stop)
@@ -47,7 +53,7 @@ class AuthCaptureControls(unittest.TestCase):
             PREPARE.prepare(ROOT, Path('/root/never-create-i12-auth-test'))
 
     def test_output_relocation_cannot_escape_through_symlink(self):
-        parent=Path('/var/tmp/codex/ModSecurity-conector')
+        parent=fixture_storage()
         with tempfile.TemporaryDirectory(prefix='i12-auth-path-controls-',dir=parent) as temporary:
             base=Path(temporary);(base/'real').mkdir();(base/'alias').symlink_to(base/'real',target_is_directory=True)
             with self.assertRaisesRegex(ValueError,'physical output'):
@@ -60,7 +66,7 @@ class AuthCaptureControls(unittest.TestCase):
                 PREPARE.prepare(ROOT,ROOT/'never-create-invalid-case',cases=cases)
 
     def test_central_capture_is_bound_without_host_execution(self):
-        parent=Path('/var/tmp/codex/ModSecurity-conector')
+        parent=fixture_storage()
         with tempfile.TemporaryDirectory(prefix='i12-auth-controls-', dir=parent) as temporary:
             target=Path(temporary)/'inputs'
             receipt=PREPARE.prepare(ROOT,target)

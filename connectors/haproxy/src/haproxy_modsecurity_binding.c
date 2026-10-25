@@ -44,17 +44,16 @@
 #define HAPROXY_PATH_LIMIT 4096U
 
 static int bounded_cstring_length(const char *value, size_t max_len, size_t *out_len) {
-    const char *end = 0;
-
     if (value == 0 || out_len == 0 || max_len == 0) {
         return -1;
     }
-    end = (const char *)memchr(value, '\0', max_len);
-    if (end == 0) {
-        return -1;
+    for (size_t length = 0U; length < max_len; ++length) {
+        if (value[length] == '\0') {
+            *out_len = length;
+            return 0;
+        }
     }
-    *out_len = (size_t)(end - value);
-    return 0;
+    return -1;
 }
 
 static void copy_message(char *dst, size_t dst_len, const char *src) {
@@ -460,19 +459,24 @@ static int capture_intervention_action(
         const ModSecurityIntervention *intervention,
         int body_limit,
         haproxy_modsecurity_decision *decision) {
+    const char *redirect_url;
     size_t redirect_length = 0U;
 
-    if (body_limit || intervention->url == 0 || intervention->url[0] == '\0') {
+    if (intervention == 0 || decision == 0) {
+        return 1;
+    }
+    redirect_url = intervention->url;
+    if (body_limit || redirect_url == 0 || redirect_url[0] == '\0') {
         copy_message(decision->action, sizeof(decision->action), "deny");
         return 0;
     }
-    if (!haproxy_modsecurity_redirect_url_length(intervention->url,
+    if (!haproxy_modsecurity_redirect_url_length(redirect_url,
             sizeof(decision->redirect_url), &redirect_length)) {
         native_error_decision(decision, "invalid native redirect URL");
         return 1;
     }
     copy_message(decision->action, sizeof(decision->action), "redirect");
-    memcpy(decision->redirect_url, intervention->url, redirect_length + 1U);
+    memcpy(decision->redirect_url, redirect_url, redirect_length + 1U);
     return 0;
 }
 
@@ -871,10 +875,9 @@ static int load_rules_dir(
         const char *rules_dir,
         haproxy_modsecurity_decision *decision) {
     DIR *dir;
-    struct dirent *entry;
+    const struct dirent *entry;
     char **paths = 0;
     size_t count = 0;
-    size_t i;
 
     if (!dir_exists(rules_dir)) {
         return 0;
@@ -912,8 +915,10 @@ static int load_rules_dir(
         paths[count++] = path;
     }
     closedir(dir);
-    qsort(paths, count, sizeof(*paths), compare_strings);
-    for (i = 0; i < count; ++i) {
+    if (paths != 0) {
+        qsort(paths, count, sizeof(*paths), compare_strings);
+    }
+    for (size_t i = 0; i < count; ++i) {
         if (load_rules_file(rules, paths[i], decision) != 0) {
             free_string_list(paths, count);
             return -1;
@@ -1067,9 +1072,7 @@ static int process_request_headers(
         Transaction *transaction,
         const haproxy_modsecurity_request *request,
         haproxy_modsecurity_decision *decision) {
-    unsigned int i;
-
-    for (i = 0; i < request->header_count; ++i) {
+    for (unsigned int i = 0; i < request->header_count; ++i) {
         const char *name = request->headers[i].name;
         const char *value = request->headers[i].value;
 

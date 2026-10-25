@@ -14,7 +14,7 @@ inventory remains the authority for automatic test execution.
 The contract preserves four standard test patterns, the three existing exact
 native C test files and the existing
 <code>fuzz/common_http_headers_fuzz.c</code> fixture. It additionally identifies
-43 individually reviewed fixture files. Every additional file has its exact
+45 individually reviewed fixture files. Every additional file has its exact
 path, TEST role, purpose, source evidence and an actual caller or test
 consumer recorded in the contract. Evidence includes exact checked-in line
 anchors; a changed anchor fails the scope check and requires source review.
@@ -27,8 +27,8 @@ anchors; a changed anchor fails the scope check and requires source review.
 | <code>traefik-native-i12</code> | 6 | Acceptance backend/client/driver, selected-operation fault relays and own-child syscall observer. |
 | <code>traefik-forwardauth-i12</code> | 7 | Synthetic physical acceptance endpoints, client/driver, explicit fault peer, authorization relay and private fixture CA. |
 | <code>haproxy-i12</code> | 4 | Frozen SPOP fixtures, private SPOP/companion captures and immutable native-HTX fixture materialization. |
-| <code>lighttpd-i12</code> | 6 | Bounded private wire clients and explicit spool-floor/socket-observation fixtures. |
-| <code>native-observer</code> | 1 | <code>ci/runtime/lifecycle/native-lifecycle-sdk.cpp</code>, the optional test-artifact-only SDK accessor. |
+| <code>lighttpd-i12</code> | 7 | Bounded private wire clients and explicit spool-floor/socket-observation fixtures, plus the test-only SDK MIME accessor. |
+| <code>native-observer</code> | 2 | The optional SDK accessor and explicit GNU link-wrap observer, both restricted to test artifacts. |
 
 This is an exact-file correction. There is no blanket classification of
 <code>ci/**</code> or connector harness directories. Mixed operational tooling,

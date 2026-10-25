@@ -200,7 +200,7 @@ check-envoy-config: build-envoy-connector check-envoy-ext-proc-config prepare-en
 	sh config/check_envoy_config.sh
 
 start-smoke-envoy: build-envoy-connector
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.start.envoy; fi
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required))
 	SERVICE_BIN="$(SERVICE_BIN)" CONFIG_FILE="$(CONFIG_FILE)" RULES_FILE="$(RULES_FILE)" \
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
 	ENVOY_BIN="$(ENVOY_BIN)" PYTHON="$(PYTHON)" sh harness/start_envoy_connector.sh

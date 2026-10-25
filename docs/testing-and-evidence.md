@@ -20,16 +20,10 @@ aggregate nor a successful sibling profile supplies an unobserved host result.
 
 ## Active cases, admission and archived specialists
 
-There are at most **100 fully expanded active behavioral cases project-wide**:
-Common, every connector/logical profile, unit/integration/native/runtime cases,
-infrastructure tests and Parent-selected Framework/MRTS cases share one budget.
-The [runner](../ci/tools/run-active-tests.py) admits the complete inventory
-before starting selected test processes. It checks stable IDs, requirements,
-profiles, executable selectors and source bindings. More than 100 fails;
-selection is never silently truncated. The ceiling is not a target to fill. A method, loop or collector containing
-independent parameter/error scenarios does not turn them into one case.
-Functional admission, overflow, discovery and coverage-integrity controls also
-consume this same budget.
+The same schema-2 inventory now transparently declares 893 expanded cases / 499 executions: 100 core cases / 80 executions (including the original eight offline cases) and 793 user-authorized source-bound Python offline exceptions / 419 executions. The core ceiling remains 100 and is enforced before all children; exception variants are explicitly counted. Offline children deny process creation and network access before imports, and package-level discovery defers offline imports to that child. Raw `unittest discover -s tests` initially imports modules in the parent to find their hooks; reviewed top levels have no eager process/host activity, and actual tests then run only in guarded children. These are current-selection counts, not final acceptance. Native/Go/connector scenarios do not qualify for this exception.
+
+Coverage currently selects 857 cases / 477 executions. One active offline timing case runs separately in Sonar CI without instrumentation: its unchanged one-second assertion failed under tracing (2.551 s) and passed without tracing (0.034 s). It remains selected and asserted; this changes measurement only, with no case removal, source exclusion or gate relaxation. Child tracing filters fixture line callbacks and retains only real positive hits for Parent MAIN sources.
+
 
 <code>make check-active-inventory</code> reports the actual expanded count
 without executing cases. <code>make test</code> / <code>make test-active</code>
@@ -70,7 +64,7 @@ No archive entry is an executable selector or a new PASS.
 Removing a behavior from automatic selection records lost automatic coverage;
 it does not resolve a known defect or fabricate a historical success. Archived
 sources and their original results/revisions remain retained. New active cases
-at the ceiling require a named replacement or genuine consolidation with the
+at the core ceiling require a named replacement or genuine consolidation with the
 affected requirement and risk recorded.
 
 Profile proof is separate: HAProxy HTX does not qualify SPOE/SPOP with a response

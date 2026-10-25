@@ -77,7 +77,7 @@ make quick-check
 
 This validates static repository checks and admitted functional subsets from
 [config/testing/active-cases.json](config/testing/active-cases.json). This single
-inventory limits the whole project to at most 100 expanded behavioral cases.
+inventory enforces a 100-case core ceiling and separately counts the user-authorized offline Python exception: currently 893 cases / 499 executions in total (100 core + 793 guarded offline cases). The exception adds no connector E2E cases.
 <code>make check-active-inventory</code> admits the complete selection without
 starting tests; <code>make test</code> runs it with its actual prerequisites.
 Standard aliases do not prove complete profiles or sibling routes. NGINX host

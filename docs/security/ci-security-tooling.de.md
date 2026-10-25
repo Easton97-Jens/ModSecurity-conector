@@ -80,7 +80,7 @@ kopiert die vollständigen registrierten Vertragseingaben einschließlich ihrer
 Offline-Test-Fixtures; diese read-only-Eingaben erweitern die erlaubten
 Änderungen des Publishers nicht.
 
-Vor Veröffentlichung führt der private Proposed Tree alle Updater-Unit-Tests
+Vor Veröffentlichung führt der private Proposed Tree die inventarisierten Updater-Kontrollen
 über `make check-ci-security-contract` aus, einschließlich Release-Auswahl und
 negativer Provenance-Kontrollen; CodeQL-Fixtures nutzen Versionen unabhängig
 vom aktuellen Lock, und der Integrationstest des kopierten Baums bleibt zur
@@ -89,6 +89,17 @@ und `zizmor` aus dem vorgeschlagenen Lock und prüft die vorgeschlagenen Workflo
 Sichere Fixtures müssen `0` liefern,
 beide unsicheren Fixtures hoher Severity `14`; Prüfsummenfehler, Tool-Fehler,
 unerwartete Exits und Timeouts weisen Kandidaten vor Push oder PR-Erstellung ab.
+
+
+## Abgeleitete Wartungsmetadaten und offene Voraussetzungen
+
+Wartung darf genau zwei Begleitdateien ableiten: `config/testing/active-cases.json` (nur vorhandene SHA-Felder) und `reports/testing/test-selection-archive.generated.json` (nur `inventory_sha256`). Selektoren, Fälle, Profile, Quellpfade und Subtestmetadaten dürfen sich dadurch nicht ändern. Rekonstruktion aus vertrauenswürdiger Basis muss vor Staging, Veröffentlichung oder Wiederverwendung exakte Bytes und regulären Stage-0-Modus `100644` reproduzieren. Die primäre Allowlist des Actions-Publishers bleibt unverändert. Drei fokussierte Regressionen bestehen jetzt: Ein zukünftiges Go-Minor 1.28 ist zulässig, Rollback erhält fremde Änderungen einer Begleitdatei und stellt eigene Begleitdateien größer als 4 KiB wieder her.
+
+Vier `go.mod`-Deklarationen sowie `requirements-ci.lock`, `requirements-ci-build.lock`, `requirements-dev.txt` sind sieben nicht ausführbare Abhängigkeitsdeklarationen, keine Collector-Quellbindungen. Go-Modul-/Sum-Dateien und die drei Requirements bleiben durch tatsächliche Build-Identität und Quell-Snapshots vor/nach dem Lauf gebunden. Dies vermeidet Metadaten-Churn durch Dependency-Updates, ohne Controller- oder ausführbare Codebindungen zu entfernen.
+
+Das Sonar-Jobbudget beträgt für die ausdrücklich größere Auswahl nun 120 statt 45 Minuten; einzelne 600-Sekunden-Grenzen und die Ein-Sekunden-Timingassertion bleiben unverändert. Beobachtete Profile verringerten 429 AST-Parses auf 41 und 6841 Quell-Lesezugriffe auf wenige Hundert. Die frühere Messung von 15,723 s hatte neun gleichzeitige Workloads, die spätere mit 1,788 s erfolgte im Leerlauf: Diese unterschiedlichen Bedingungen belegen keinen kontrollierten Geschwindigkeitsgewinn.
+
+Nach der Fertigmeldung des Nutzers listen beobachtete Dependabot-Secret-Metadaten genau einen Namen: `SONAR_TOKEN`. Der frühere Zustand ohne Namen/mit offener Secret-Einrichtung ist historisch und auf Metadatenebene erledigt. Kein Tokenwert wurde gelesen; weder Live-Bot-Authentifizierung noch ein erfolgreicher Dependabot-PR werden behauptet. Dieser Ausführungsnachweis benötigt weiterhin separat autorisierte Wartungsprüfungen am Default-Branch; die aktuelle PR-Authentifizierung ist ein getrenntes Ergebnis. [GitHubs Regeln für Dependabot auf Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions) beschreiben diesen getrennten Secret-Kontext. Diese Dokumentation ändert weder Secrets noch Provider-Einstellungen.
 
 ## Zentrale gewöhnliche Revisions- und Toolchain-Pins
 

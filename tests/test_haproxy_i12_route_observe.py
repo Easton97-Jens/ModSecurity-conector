@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -136,8 +137,14 @@ class BackendDecodingTests(unittest.TestCase):
 
 class RouteObservationTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(dir=OBSERVE.CAPTURE.STORAGE)
+        from ci.lib.active_test_inventory import validate_output_root
+
+        storage = validate_output_root(ROOT, Path(os.environ["RUNNER_TEMP"]))
+        self.temp = tempfile.TemporaryDirectory(dir=storage)
         self.addCleanup(self.temp.cleanup)
+        selected_storage = patch.object(OBSERVE.CAPTURE, "STORAGE", storage)
+        selected_storage.start()
+        self.addCleanup(selected_storage.stop)
         self.root = Path(self.temp.name)
         self.attempt = self.root / "attempt-control"
         self.data = self.attempt / "data/host"

@@ -307,8 +307,25 @@ PROPOSED_TREE_ACTIVE_RUNTIME_PATHS = frozenset(
         "ci/checks/common/check-sonar-zero.py",
         "scripts/update-go-components.py",
         "tests/__init__.py",
+        "ci/lib/active_inventory_updates.py",
+        "reports/testing/test-selection-archive.generated.json",
     }
 )
+
+# These two files are derived outputs, not caller-editable publisher inputs.
+# Scope admission recomputes their complete bytes from trusted base objects.
+DERIVED_COMPANION_PATHS = frozenset({
+    "config/testing/active-cases.json",
+    "reports/testing/test-selection-archive.generated.json",
+})
+
+
+def inventory_updates_module():
+    path = Path(__file__).resolve().parents[1] / "lib/active_inventory_updates.py"
+    spec = importlib.util.spec_from_file_location("workflow_inventory_updates", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @dataclass(frozen=True)
@@ -2074,17 +2091,26 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
     lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
     validate_candidate_shape(candidate, lock, lock_digest)
-    before = {
+    companions = inventory_updates_module()
+    snapshot = companions.capture_update(root, ALLOWED_UPDATE_PATHS)
+    primary_before = {
         path: resolve_regular_file(root, Path(path)).read_bytes()
         for path in ALLOWED_UPDATE_PATHS
     }
+    before = dict(primary_before)
+    if snapshot is not None:
+        before.update({companions.INVENTORY: snapshot["inventory"],
+                       companions.ARCHIVE: snapshot["archive"]})
     try:
         apply_lock_changes(lock_path, lock, candidate)
         update_workflow_references(root, lock, candidate)
         update_documentation_references(root, lock, candidate)
+        companions.finish_update(root, snapshot)
     except Exception:
         try:
-            restore_update_snapshot(root, before)
+            # The helper owns conditional rollback of its exact companion
+            # writes. A foreign concurrent companion replacement must survive.
+            restore_update_snapshot(root, primary_before)
         except Exception as rollback_error:
             raise UpdateError(
                 "candidate application failed and rollback did not complete"
@@ -2095,7 +2121,7 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
         for path, contents in before.items()
         if resolve_regular_file(root, Path(path)).read_bytes() != contents
     ]
-    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS))
+    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS | DERIVED_COMPANION_PATHS))
     if unexpected:
         raise UpdateError(
             f"updater changed an unallowlisted path: {', '.join(unexpected)}"
@@ -2185,12 +2211,66 @@ def verify_git_scope(
             f"{git_output_text(result.stderr).strip()}"
         )
     changed = sorted(set(name_status_paths(result.stdout)))
-    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS))
+    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS | DERIVED_COMPANION_PATHS))
     if unexpected:
         raise UpdateError(
             f"publisher diff includes unallowlisted paths: {', '.join(unexpected)}"
         )
+    if changed:
+        verify_derived_companion_blobs(root, base or "HEAD", head, staged=staged)
     return changed
+
+
+def verify_derived_companion_blobs(root: Path, base: str, head: str | None,
+                                   *, staged: bool = False) -> None:
+    """Rebuild primary edits and SHA-only companions from trusted base bytes.
+
+    Neither an untrusted candidate artifact nor a reusable branch may supply
+    different inventory selection/control fields. The original primary update
+    surface remains independently checked against the updater algorithm.
+    """
+    companions = inventory_updates_module()
+    before = {name: git_blob(root, base, Path(name)) for name in ALLOWED_UPDATE_PATHS}
+
+    def actual(name: str) -> bytes:
+        if head:
+            return (git_blob(root, head, Path(name)) if name in ALLOWED_UPDATE_PATHS
+                    else companions.trusted_blob(root, head, name))
+        if staged:
+            if name in DERIVED_COMPANION_PATHS:
+                return companions.index_blob(root, name)
+            result = subprocess.run(
+                ["git", "--no-replace-objects", "-C", str(root), "show", "--no-textconv", ":" + name],
+                check=True, capture_output=True, shell=False, timeout=30)
+            return result.stdout
+        return companions.read_regular(root, name)
+
+    after = {name: actual(name) for name in ALLOWED_UPDATE_PATHS}
+    base_lock = normalize_connector_lock(yaml.safe_load(before[LOCK_RELATIVE_PATH.as_posix()]))
+    head_lock = normalize_connector_lock(yaml.safe_load(after[LOCK_RELATIVE_PATH.as_posix()]))
+    candidate = existing_branch_candidate(base_lock, head_lock,
+                                          hashlib.sha256(before[LOCK_RELATIVE_PATH.as_posix()]).hexdigest())
+    expected_root = proposed_validation_root()
+    try:
+        for name, body in before.items():
+            destination = expected_root / name
+            destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            destination.write_bytes(body)
+        # This private algorithm fixture deliberately contains primary inputs
+        # only; no inventory can be supplied or rewritten by the candidate.
+        apply_candidate(expected_root, candidate)
+        for name in ALLOWED_UPDATE_PATHS:
+            if companions.read_regular(expected_root, name) != after[name]:
+                raise UpdateError("publisher primary blob differs from constrained updater output: " + name)
+        outputs = companions.derive_companions(
+            companions.trusted_blob(root, base, companions.INVENTORY),
+            companions.trusted_blob(root, base, companions.ARCHIVE),
+            before, after, ALLOWED_UPDATE_PATHS)
+        for name in DERIVED_COMPANION_PATHS:
+            if actual(name) != outputs[name]:
+                raise UpdateError("publisher companion differs from trusted-base derivation: " + name)
+    finally:
+        shutil.rmtree(expected_root, ignore_errors=True)
 
 
 def git_blob(root: Path, revision: str, relative: Path) -> bytes:
@@ -2622,7 +2702,7 @@ def run_command(args: argparse.Namespace) -> int:
 def main() -> int:
     try:
         return run_command(parse_args())
-    except UpdateError as exc:
+    except (UpdateError, ValueError) as exc:
         print(f"workflow-tool updater error: {exc}", file=sys.stderr)
         return 2
 

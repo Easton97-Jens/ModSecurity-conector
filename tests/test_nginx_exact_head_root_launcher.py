@@ -352,7 +352,9 @@ class RootLauncherContractTests(unittest.TestCase):
                 json.dumps({"mode": "on"}), encoding="ascii"
             )
             try:
-                with mock.patch.object(LAUNCHER, "validate_generated_config"), mock.patch.object(
+                with mock.patch.object(LAUNCHER, "_require_root_control_directory"), mock.patch.object(
+                    LAUNCHER, "validate_generated_config"
+                ), mock.patch.object(
                     LAUNCHER, "validate_identity", return_value={"master_pidfd": 9}
                 ), mock.patch.object(LAUNCHER, "atomic_json") as publish:
                     result = LAUNCHER.wait_mode(

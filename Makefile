@@ -928,12 +928,16 @@ connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-starter-checks.sh"
 
 # Canonical connector stages. These targets deliberately keep build,
-# configuration loading, request-free startup, runtime traffic, and the
-# capability-driven no-CRS baseline as separate invocations.
+# retained Envoy/Traefik configuration checks and minimal runtime traffic.
+# Separate configuration/start diagnostics remain available only on demand.
 build-apache build-nginx build-haproxy build-envoy build-traefik build-lighttpd: build-%: check-framework
 	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" build
 
-check-config-apache check-config-nginx check-config-haproxy check-config-envoy check-config-traefik check-config-lighttpd: check-config-%: check-framework
+check-config-apache check-config-nginx check-config-haproxy check-config-lighttpd: check-config-%: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone configuration diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required))
+	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" config_load
+
+check-config-envoy check-config-traefik: check-config-%: check-framework
 ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" config_load
 else
@@ -944,7 +948,7 @@ start-smoke-apache start-smoke-nginx start-smoke-haproxy: start-smoke-%: check-f
 ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" start_smoke
 else
-	$(ACTIVE_TEST_RUNNER) --group runtime-start-$*
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
 endif
 
 runtime-smoke-apache runtime-smoke-nginx runtime-smoke-haproxy: runtime-smoke-%: check-framework
@@ -1043,7 +1047,7 @@ ifeq ($(ON_DEMAND_TESTS),1)
 	[ "$$status" -eq 0 ] || exit 1; \
 	[ "$$blocked" -eq 0 ] || exit 77
 else
-	$(ACTIVE_TEST_RUNNER) --group runtime-config
+	$(error all-connector standalone configuration diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
 endif
 
 start-smoke-all-connectors: check-framework
@@ -1055,7 +1059,7 @@ ifeq ($(ON_DEMAND_TESTS),1)
 	[ "$$status" -eq 0 ] || exit 1; \
 	[ "$$blocked" -eq 0 ] || exit 77
 else
-	$(ACTIVE_TEST_RUNNER) --group runtime-start
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
 endif
 
 runtime-smoke-all-connectors: check-framework
@@ -1248,7 +1252,7 @@ start-smoke-envoy: check-framework
 ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh envoy start_smoke
 else
-	$(ACTIVE_TEST_RUNNER) --group runtime-start-envoy
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
 endif
 
 runtime-smoke-envoy: check-framework
@@ -1272,7 +1276,7 @@ start-smoke-traefik: check-framework
 ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh traefik start_smoke
 else
-	$(ACTIVE_TEST_RUNNER) --group runtime-start-traefik
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
 endif
 
 runtime-smoke-traefik: check-framework
@@ -1296,14 +1300,14 @@ check-lighttpd-config: build-lighttpd-connector
 ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh lighttpd check-lighttpd-config
 else
-	$(ACTIVE_TEST_RUNNER) --group runtime-config-lighttpd
+	$(error standalone configuration diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
 endif
 
 start-smoke-lighttpd: check-framework
 ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh lighttpd start_smoke
 else
-	$(ACTIVE_TEST_RUNNER) --group runtime-start-lighttpd
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
 endif
 
 runtime-smoke-lighttpd: check-framework

@@ -33,6 +33,17 @@ case "$stage" in
     *) echo "usage: $0 apache|nginx|haproxy|envoy|traefik|lighttpd build|config_load|start_smoke|minimal_runtime_smoke|no_crs_baseline" >&2; exit 2 ;;
 esac
 
+# The minimal runtime stage retains its real configuration/start/shutdown.
+# Separate request-free invocations are archived and do not earn active PASS.
+case "$connector:$stage" in
+    apache:config_load|nginx:config_load|haproxy:config_load|lighttpd:config_load|*:start_smoke)
+        [ "${ON_DEMAND_TESTS:-0}" = 1 ] || {
+            echo "FAIL: standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required" >&2
+            exit 2
+        }
+        ;;
+esac
+
 # Keep sockets short while artifacts retain their revision-bound identities.
 case "$connector:$stage:$NO_CRS_ARTIFACT_PROFILE" in
     envoy:start_smoke:*|envoy:minimal_runtime_smoke:*|envoy:no_crs_baseline:generic|traefik:start_smoke:*|traefik:minimal_runtime_smoke:*|traefik:no_crs_baseline:generic)

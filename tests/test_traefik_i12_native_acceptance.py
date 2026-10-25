@@ -371,8 +371,18 @@ class NativeAcceptanceControls(unittest.TestCase):
         cls.root = Path(cls.temporary.name)
         cls.plan = load('acceptance_plan')
         cls.client = load('acceptance_client')
-        compiler = shutil.which('gcc')
         cls.binary = None
+        cls._native_probe_checked = False
+        cls._native_probe_error = None
+
+    @classmethod
+    def ensure_native_probe(cls):
+        if cls._native_probe_error is not None:
+            raise AssertionError(cls._native_probe_error)
+        if cls._native_probe_checked:
+            return
+        cls._native_probe_checked = True
+        compiler = shutil.which('gcc')
         if compiler:
             source = cls.root / 'probe.c'
             source.write_text(PROBE)
@@ -383,6 +393,7 @@ class NativeAcceptanceControls(unittest.TestCase):
                        *('-Wl,--wrap=' + symbol for symbol in symbols), '-o', str(cls.binary)]
             result = subprocess.run(command, capture_output=True, text=True, check=False)
             if result.returncode:
+                cls._native_probe_error = result.stderr
                 raise AssertionError(result.stderr)
 
     @classmethod
@@ -1463,6 +1474,7 @@ int main(void) {
         self.assertNotIn('i12_acceptance_retained_body(transaction, "process_logging"', observer)
 
     def native_probe(self, fault, mode='request', uri='/selected', with_receipts=False):
+        self.ensure_native_probe()
         if self.binary is None:
             self.skipTest('strict C compiler unavailable')
         env = os.environ | {'I12_ACCEPTANCE_FAULT': fault, 'I12_ACCEPTANCE_FAULT_URI': '/selected'}
@@ -1509,6 +1521,7 @@ int main(void) {
         self.assertEqual(neighbor, {'first': 0, 'second': 0, 'wrong': 0, 'released': 0})
 
     def run_sink(self, name, recover=False):
+        self.ensure_native_probe()
         if self.binary is None:
             self.skipTest('strict C compiler unavailable')
         root = self.root / (name + ('-recover' if recover else ''))

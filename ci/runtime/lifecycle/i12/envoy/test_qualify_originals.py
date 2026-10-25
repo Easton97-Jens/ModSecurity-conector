@@ -8,7 +8,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import qualify_originals as Q
+if __package__:
+    from . import qualify_originals as Q
+else:
+    import qualify_originals as Q
 
 
 ORIGINAL = 'I12::envoy-ext-proc::NEED-request-streaming'

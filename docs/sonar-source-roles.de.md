@@ -14,7 +14,7 @@ bleibt für die automatische Testausführung maßgeblich.
 Der Vertrag erhält vier Standard-Testmuster, die drei bestehenden exakten
 nativen C-Testdateien und die bestehende Fixture
 <code>fuzz/common_http_headers_fuzz.c</code>. Zusätzlich bezeichnet er
-43 einzeln geprüfte Fixture-Dateien. Für jede zusätzliche Datei enthält der
+45 einzeln geprüfte Fixture-Dateien. Für jede zusätzliche Datei enthält der
 Vertrag den exakten Pfad, die Rolle TEST, den Zweck, die Quelle als
 Nachweis und einen tatsächlichen Aufrufer oder Testverbraucher. Die Nachweise
 enthalten exakte versionierte Zeilenanker; ein geänderter Anker lässt die
@@ -28,8 +28,8 @@ Umfangsprüfung scheitern und erfordert eine Quellprüfung.
 | <code>traefik-native-i12</code> | 6 | Acceptance-Backend/Client/Driver, Fehlerrelays für ausgewählte Operationen und Syscall-Beobachter des eigenen Kindes. |
 | <code>traefik-forwardauth-i12</code> | 7 | Synthetische physische Acceptance-Endpunkte, Client/Driver, expliziter Fehlerpeer, Autorisierungsrelay und private Fixture-CA. |
 | <code>haproxy-i12</code> | 4 | Eingefrorene SPOP-Fixtures, private SPOP-/Companion-Captures und Materialisierung unveränderlicher nativer HTX-Fixtures. |
-| <code>lighttpd-i12</code> | 6 | Begrenzte private Wire-Clients und explizite Spool-Floor-/Socket-Beobachtungsfixtures. |
-| <code>native-observer</code> | 1 | <code>ci/runtime/lifecycle/native-lifecycle-sdk.cpp</code>, der optionale SDK-Accessor ausschließlich für Testartefakte. |
+| <code>lighttpd-i12</code> | 7 | Begrenzte private Wire-Clients und explizite Spool-Floor-/Socket-Beobachtungsfixtures sowie der reine SDK-MIME-Testaccessor. |
+| <code>native-observer</code> | 2 | Der optionale SDK-Accessor und der explizite GNU-Link-Wrap-Beobachter ausschließlich für Testartefakte. |
 
 Dies ist eine Korrektur exakter Dateien. Es gibt keine pauschale Klassifikation
 von <code>ci/**</code> oder Connector-Harness-Verzeichnissen. Gemischte operative

@@ -917,7 +917,12 @@ class WorkflowToolUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
             for line in staging.splitlines()
             if line.strip()
         }
-        self.assertEqual(set(UPDATER.ALLOWED_UPDATE_PATHS), staged_paths)
+        self.assertEqual(UPDATER.DERIVED_COMPANION_PATHS, frozenset({
+            "config/testing/active-cases.json",
+            "reports/testing/test-selection-archive.generated.json",
+        }))
+        self.assertFalse(UPDATER.ALLOWED_UPDATE_PATHS & UPDATER.DERIVED_COMPANION_PATHS)
+        self.assertEqual(UPDATER.ALLOWED_UPDATE_PATHS | UPDATER.DERIVED_COMPANION_PATHS, staged_paths)
 
     def test_native_baseline_uses_nonrecursive_updater_inventory_regression(self) -> None:
         """Candidate validation must not invoke the test that validates candidates."""

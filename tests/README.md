@@ -16,25 +16,14 @@ complete matrix, or strict verification for all connectors.
 
 ## One automatic active inventory
 
-[config/testing/active-cases.json](../config/testing/active-cases.json) is the
-single authority for normal local, CI and scheduled behavioral selection across
-Common, all connector profiles, Python/Go/native/runtime checks and tests of
-infrastructure. The limit is **100 fully expanded active behavioral cases for
-the whole project**, not 100 methods per suite, job or language. This is a
-ceiling, not a target to fill. Independently
-executed parameters and failure conditions remain separate cases. Repeating
-the same IDs locally, with a race detector or in Hosted CI repeats execution
-cost; it does not add another distinct active case.
+[config/testing/active-cases.json](../config/testing/active-cases.json) remains the only selector authority for normal local, CI and scheduled checks.
 
-The [runner](../ci/tools/run-active-tests.py) validates the complete inventory,
-including source bindings and every expanded case, before starting selected
-test processes. Overflow fails visibly; no first-100 truncation occurs. Group
-or case selection cannot bypass admission of the full inventory. Selecting one
-variant includes its execution's other declared variants. Unknown or empty
-selections fail. <code>make test</code> and <code>make test-active</code> use this
-runner; functional checks beneath lint/build aggregates use the same authority.
-Default Python discovery exposes only its admitted Python projection, not a
-second catalog and not the complete native/Go/runtime acceptance run.
+The user explicitly authorized additional offline Python units outside the 100-case core ceiling. Schema 2 of the same inventory now declares **893 expanded cases across 499 executions**: 100 core cases / 80 executions (including the original eight offline cases) plus 793 explicitly source-bound `offline_unit_exceptions` / 419 executions. Every independent variant is counted. The runner validates both sections and enforces the core ceiling before every child; 101 core cases still fail. Exception selectors are Python-only, and their isolated child installs a guard against process creation and network access before importing tests. Package-level `tests.load_tests` defers offline test imports to that child. Raw `unittest discover -s tests` first imports each module in the parent to find its hook; those top levels were reviewed for absence of eager process/host activity, and test execution then occurs only in the guarded child. These counts describe the current selection, not final acceptance. This exception does not authorize native/Go/host scenarios outside the core budget.
+
+Coverage currently selects 857 cases / 477 executions. One active offline timing case runs separately in Sonar CI without instrumentation: its unchanged one-second assertion failed under tracing (2.551 s) and passed without tracing (0.034 s). It remains selected and asserted; this changes measurement only, with no case removal, source exclusion or gate relaxation. Child tracing filters fixture line callbacks and retains only real positive hits for Parent MAIN sources.
+
+
+`make check-active-inventory` checks the complete inventory without starting tests; `make test` and `make test-active` execute its admitted selection. Group/case/module filters apply only after full admission. Unknown or empty selections and changed source bindings fail; selection is never truncated. Functional build/lint callers use this same authority. Static compilation, CodeQL, actionlint, zizmor, OSV and secret scanning retain substantive independent gates.
 
 Retained specialist definitions are listed in the generated
 [archive disposition](../reports/testing/test-selection-archive.generated.json).
@@ -74,8 +63,10 @@ such as \`runtime_path_policy\`, producing the literal file
 \`tests/test_runtime_path_policy.py\`. Do not create a file literally named
 \`test_<area>.py\`.
 
+Core additions still need a named replacement at capacity. Explicit offline exception additions need their own reviewed source-bound Python selector and fully enumerated variants; the user exception is not an uncounted second catalog.
+
 A new automatically selected behavior needs a stable case ID, requirement,
-profile and executable selector in the active inventory. At capacity, name the
+profile and executable selector in the active inventory. At core capacity, name the
 replaced or genuinely consolidated behavior and document lost coverage; adding
 a method or hiding independent scenarios in a loop does not avoid counting.
 

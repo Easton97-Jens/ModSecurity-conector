@@ -409,7 +409,9 @@ jobs:
             .github/workflows/validate-go-candidate.yml \
             .github/workflows/verified-report-governance.yml \
             docs/security/ci-security-tooling.md \
-            docs/security/ci-security-tooling.de.md
+            docs/security/ci-security-tooling.de.md \
+            config/testing/active-cases.json \
+            reports/testing/test-selection-archive.generated.json
           python3 ci/tools/update-workflow-tools.py verify-scope --root . --staged
           git diff --cached --check
           git commit -m "chore(ci): update pinned workflow tools"

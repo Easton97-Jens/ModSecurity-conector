@@ -21,6 +21,7 @@ import sys
 import tempfile
 import time
 from typing import Any
+import unittest
 
 
 HARD_CASE_LIMIT = 100
@@ -69,6 +70,12 @@ class Inventory:
     executions: tuple[dict[str, Any], ...]
     case_ids: tuple[str, ...]
     path: Path | None = None
+    offline_case_ids: tuple[str, ...] = ()
+
+    @property
+    def core_case_ids(self) -> tuple[str, ...]:
+        exceptions = frozenset(self.offline_case_ids)
+        return tuple(identifier for identifier in self.case_ids if identifier not in exceptions)
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -197,7 +204,10 @@ def _validate_selector(selector: Any, sources: dict[str, str]) -> None:
 
 
 def _validate_execution(execution: Any) -> None:
-    _keys(execution, {"id", "groups", "sources", "selector", "cases"}, "execution")
+    required = {"id", "groups", "sources", "selector", "cases"}
+    if isinstance(execution, dict) and "expected_subtests" in execution:
+        required.add("expected_subtests")
+    _keys(execution, required, "execution")
     _identifier(execution["id"], "execution ID")
     _identifiers(execution["groups"], "execution groups")
     sources = execution["sources"]
@@ -225,6 +235,11 @@ def _validate_execution(execution: Any) -> None:
         if not isinstance(case["requirement"], str) or not case["requirement"].strip():
             raise InventoryError("expanded case requires an observable requirement")
         _identifiers(case["profiles"], "case profiles")
+    if "expected_subtests" in execution:
+        expected = execution["expected_subtests"]
+        if (execution["selector"]["kind"] != "python" or type(expected) is not int
+                or not 0 <= expected <= len(execution["cases"])):
+            raise InventoryError("expected subtests must match a bounded Python expansion")
 
 
 def _read_inventory(path: Path) -> tuple[dict[str, Any], str]:
@@ -243,17 +258,25 @@ def _read_inventory(path: Path) -> tuple[dict[str, Any], str]:
     return value, hashlib.sha256(data).hexdigest()
 
 
-def _python_test_definition(selector: dict[str, Any], source_bytes: dict[str, bytes]) -> None:
+def _python_test_definition(selector: dict[str, Any], source_bytes: dict[str, bytes],
+                            definitions_cache: dict[str, dict[tuple[str, str], int]]) -> None:
     parts = selector["target"].split(".")
     relative = "/".join(parts[:-2]) + ".py"
-    try:
-        module = ast.parse(source_bytes[relative], filename=relative)
-    except (SyntaxError, UnicodeError) as exc:
-        raise InventoryError("selected Python test source cannot be parsed") from exc
-    owners = [owner for owner in module.body if isinstance(owner, ast.ClassDef) and owner.name == parts[-2]]
-    definitions = [method for owner in owners for method in owner.body
-                   if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)) and method.name == parts[-1]]
-    if len(definitions) != 1:
+    if relative not in definitions_cache:
+        try:
+            module = ast.parse(source_bytes[relative], filename=relative)
+        except (SyntaxError, UnicodeError) as exc:
+            raise InventoryError("selected Python test source cannot be parsed") from exc
+        definitions: dict[tuple[str, str], int] = {}
+        for owner in module.body:
+            if not isinstance(owner, ast.ClassDef):
+                continue
+            for method in owner.body:
+                if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    key = (owner.name, method.name)
+                    definitions[key] = definitions.get(key, 0) + 1
+        definitions_cache[relative] = definitions
+    if definitions_cache[relative].get((parts[-2], parts[-1]), 0) != 1:
         raise InventoryError("Python selector must resolve to one source-defined test method")
 
 
@@ -277,23 +300,31 @@ def _go_test_definition(root: Path, selector: dict[str, Any], source_bytes: dict
             raise InventoryError("Go selector package differs from its bound test definition")
 
 
-def _validate_test_definition(root: Path, execution: dict[str, Any], source_bytes: dict[str, bytes]) -> None:
+def _validate_test_definition(root: Path, execution: dict[str, Any], source_bytes: dict[str, bytes],
+                              definitions_cache: dict[str, dict[tuple[str, str], int]]) -> None:
     selector = execution["selector"]
     if selector["kind"] == "python":
-        _python_test_definition(selector, source_bytes)
+        _python_test_definition(selector, source_bytes, definitions_cache)
     if selector["kind"] == "go":
         _go_test_definition(root, selector, source_bytes)
 
 
 def _validate_source_definitions(root: Path, executions: list[dict[str, Any]]) -> None:
+    # These caches live for this admission only. Every declared expected hash
+    # is compared, even when another selector already used the same file.
+    sources: dict[str, tuple[str, bytes]] = {}
+    definitions_cache: dict[str, dict[tuple[str, str], int]] = {}
     for execution in executions:
         source_bytes = {}
         for relative, expected in execution["sources"].items():
-            data = read_source(root, relative)
-            if hashlib.sha256(data).hexdigest() != expected:
+            if relative not in sources:
+                data = read_source(root, relative)
+                sources[relative] = (hashlib.sha256(data).hexdigest(), data)
+            actual, data = sources[relative]
+            if actual != expected:
                 raise InventoryError(f"reviewed source digest mismatch: {relative}")
             source_bytes[relative] = data
-        _validate_test_definition(root, execution, source_bytes)
+        _validate_test_definition(root, execution, source_bytes, definitions_cache)
 
 
 def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
@@ -301,17 +332,30 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
     root = root.resolve(strict=True)
     path = inventory_path or root / INVENTORY_PATH
     value, digest = _read_inventory(path)
-    _keys(value, {"schema_version", "executions"}, "inventory")
-    if type(value["schema_version"]) is not int or value["schema_version"] != 1:
+    version = value.get("schema_version") if isinstance(value, dict) else None
+    if type(version) is not int or version not in {1, 2}:
         raise InventoryError("unsupported active-inventory schema version")
-    executions = value["executions"]
-    if not isinstance(executions, list) or not executions:
+    keys = {"schema_version", "executions"}
+    if version == 2:
+        keys.add("offline_unit_exceptions")
+    _keys(value, keys, "inventory")
+    core = value["executions"]
+    exceptions = value.get("offline_unit_exceptions", [])
+    if not isinstance(core, list) or not core or not isinstance(exceptions, list):
         raise InventoryError("inventory must contain active executions")
+    executions = core + exceptions
     for execution in executions:
         _validate_execution(execution)
+    core_count = sum(len(item["cases"]) for item in core)
+    if core_count > HARD_CASE_LIMIT:
+        raise InventoryError(f"expanded core active inventory has {core_count} cases; hard limit is 100")
+    for execution in exceptions:
+        if (execution["selector"]["kind"] != "python" or
+                "offline-unit" not in execution["groups"] or
+                not execution["id"].startswith("offline.") or
+                "expected_subtests" not in execution):
+            raise InventoryError("offline exceptions require explicit source-bound Python unit selectors")
     case_ids = tuple(case["id"] for item in executions for case in item["cases"])
-    if len(case_ids) > HARD_CASE_LIMIT:
-        raise InventoryError(f"expanded active inventory has {len(case_ids)} cases; hard limit is 100")
     if len(case_ids) != len(set(case_ids)):
         raise InventoryError("duplicate expanded case ID")
     execution_ids = [item["id"] for item in executions]
@@ -319,20 +363,31 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
     if len(execution_ids) != len(set(execution_ids)) or len(selectors) != len(set(selectors)):
         raise InventoryError("duplicate execution ID or selector; enumerate variants together")
     _validate_source_definitions(root, executions)
-    return Inventory(root, digest, tuple(executions), case_ids, path)
+    offline_ids = tuple(case["id"] for item in exceptions for case in item["cases"])
+    return Inventory(root, digest, tuple(executions), case_ids, path, offline_ids)
 
 
 def _recheck_bindings(inventory: Inventory) -> None:
     if inventory.path is None or _read_inventory(inventory.path)[1] != inventory.digest:
         raise InventoryError("active inventory changed after admission")
+    checked: dict[tuple[str, str], bytes] = {}
     for execution in inventory.executions:
-        source_bytes = {}
         for relative, expected in execution["sources"].items():
+            binding = (relative, expected)
+            if binding in checked:
+                continue
             data = read_source(inventory.root, relative)
             if hashlib.sha256(data).hexdigest() != expected:
                 raise InventoryError(f"reviewed source digest mismatch before execution: {relative}")
-            source_bytes[relative] = data
-        _validate_test_definition(inventory.root, execution, source_bytes)
+            checked[binding] = data
+        if execution["selector"]["kind"] == "go":
+            # Go's uniqueness proof also includes current package membership:
+            # a newly added, unbound *_test.go can introduce another definition.
+            source_bytes = {relative: checked[(relative, expected)]
+                            for relative, expected in execution["sources"].items()}
+            _go_test_definition(inventory.root, execution["selector"], source_bytes)
+    # Initial admission already resolved every definition. Exact unchanged
+    # source bytes preserve that proof; repeated AST parsing adds no evidence.
 
 
 def select_executions(inventory: Inventory, groups: tuple[str, ...] = (),
@@ -361,15 +416,25 @@ def select_executions(inventory: Inventory, groups: tuple[str, ...] = (),
 
 
 def selection_summary(inventory: Inventory, selected: tuple[dict[str, Any], ...]) -> dict[str, Any]:
+    exceptions = frozenset(inventory.offline_case_ids)
+    selected_ids = [case["id"] for item in selected for case in item["cases"]]
     return {"schema_version": 1, "inventory_sha256": inventory.digest,
             "active_case_count": len(inventory.case_ids), "hard_limit": HARD_CASE_LIMIT,
-            "selected_case_ids": [case["id"] for item in selected for case in item["cases"]],
+            "budget_scope": "core cases; additional reviewed offline units are separately counted",
+            "core_case_count": len(inventory.core_case_ids),
+            "offline_exception_case_count": len(exceptions),
+            "selected_core_case_ids": [case for case in selected_ids if case not in exceptions],
+            "selected_offline_exception_case_ids": [case for case in selected_ids if case in exceptions],
+            "selected_case_ids": selected_ids,
             "selected_execution_ids": [item["id"] for item in selected]}
 
 
 def python_child(target: str) -> int:
     """Run one exact Python selector; optional coverage wraps this callable."""
     import unittest
+
+    if os.environ.get("ACTIVE_TEST_OFFLINE_I12") == "1":
+        _guard_offline_test_effects()
 
     class Result(unittest.TextTestResult):
         subcases = 0
@@ -384,6 +449,22 @@ def python_child(target: str) -> int:
                "skips": len(result.skipped), "expected_failures": len(result.expectedFailures)}
     print("ACTIVE_TEST_RESULT=" + json.dumps(summary, sort_keys=True))
     return 0 if result.wasSuccessful() and result.testsRun == 1 and not result.expectedFailures else 1
+
+
+def _guard_offline_test_effects() -> None:
+    """Reject process and host-network effects in the reviewed offline child."""
+    denied = frozenset({
+        "subprocess.Popen", "os.system", "os.exec", "os.posix_spawn",
+        "os.fork", "os.forkpty", "os.kill", "os.killpg",
+        "socket.connect", "socket.bind", "socket.getaddrinfo",
+        "socket.gethostbyname", "socket.gethostbyaddr", "socket.sendto",
+    })
+
+    def check(event: str, _arguments: tuple) -> None:
+        if event in denied:
+            raise InventoryError("offline I12 unit cases prohibit this external effect: " + event)
+
+    sys.addaudithook(check)
 
 
 PYTHON_CHILD = ("import sys; from ci.lib.active_test_inventory import python_child; "
@@ -418,7 +499,9 @@ def _python_result(execution: dict[str, Any], text: str, strict_skips: bool) -> 
     if len(records) != 1:
         raise InventoryError("Python child must emit exactly one result record")
     result = json.loads(records[0])
-    if result["subcases"] and result["subcases"] != len(execution["cases"]):
+    expected = execution.get("expected_subtests", len(execution["cases"]))
+    if (("expected_subtests" in execution or result["subcases"]) and
+            result["subcases"] != expected):
         raise InventoryError("observed Python subcases differ from the expanded inventory")
     if strict_skips and result["skips"]:
         raise InventoryError("selected Python execution skipped a required case")
@@ -549,7 +632,16 @@ def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
     environment = dict(os.environ, GOTOOLCHAIN="local", PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1")
     environment["ACTIVE_TEST_EXECUTION"] = execution["id"]
     environment["ACTIVE_TEST_INVENTORY_SHA256"] = inventory.digest
-    if coverage_root is not None:
+    environment.pop("ACTIVE_TEST_OFFLINE_I12", None)
+    if {"offline-i12", "offline-unit"}.intersection(execution["groups"]):
+        fixture = _output_directory(inventory.root, output)
+        environment.update(I12_TEST_ROOT=str(fixture), CODEX_PROJECT_STATE=str(fixture),
+                           I12_NGINX_LEDGER_TEST_ROOT=str(fixture),
+                           CODEX_TEST_TMP_ROOT=str(fixture), CODEX_TEMP_ROOT=str(fixture),
+                           TMPDIR=str(fixture), RUNNER_TEMP=str(fixture),
+                           ACTIVE_TEST_OFFLINE_I12="1")
+    measured = coverage_root is not None and "coverage" in execution["groups"]
+    if measured:
         from ci.lib.active_coverage import (coverage_environment, go_coverage_arguments, python_command)
 
         kind = execution["selector"]["kind"]
@@ -572,6 +664,7 @@ def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
     status = "blocked" if observed.get("skips") else "passed"
     return {"execution_id": execution["id"], "case_ids": [case["id"] for case in execution["cases"]],
             "status": status, "observed": observed, "log": log.name,
+            "coverage_measured": measured,
             "go_race": race and execution["selector"]["kind"] == "go"}
 
 
@@ -604,6 +697,8 @@ def _default_output_root() -> Path:
 
 def canonical_test_id(test: Any, root: Path) -> str | None:
     """Bind a unittest instance to its actual source, including bare discovery imports."""
+    if isinstance(test, OfflineInventoryCase):
+        return test.id()
     owner = type(test)
     module = sys.modules.get(owner.__module__)
     filename = getattr(module, "__file__", None)
@@ -621,6 +716,38 @@ def canonical_test_id(test: Any, root: Path) -> str | None:
         return None
     module_name = ".".join(source.with_suffix("").parts)
     return module_name + "." + identifier.removeprefix(prefix)
+
+
+class OfflineInventoryCase(unittest.TestCase):
+    """Keep offline discovery in the same guarded child as direct/CI selection."""
+
+    def __init__(self, inventory: Inventory, execution: dict[str, Any]):
+        super().__init__("runTest")
+        self.inventory = inventory
+        self.execution = execution
+
+    def id(self) -> str:
+        return self.execution["selector"]["target"]
+
+    def runTest(self) -> None:
+        execute_selected(self.inventory, (self.execution,), _default_output_root(), strict_skips=True)
+
+
+def _offline_execution(execution: dict[str, Any]) -> bool:
+    return bool({"offline-i12", "offline-unit"}.intersection(execution["groups"]))
+
+
+def python_discovery_suite(inventory: Inventory, loader: Any):
+    """Load core cases normally and defer offline imports to their guarded child."""
+    suite = unittest.TestSuite()
+    for execution in inventory.executions:
+        if execution["selector"]["kind"] != "python":
+            continue
+        if _offline_execution(execution):
+            suite.addTest(OfflineInventoryCase(inventory, execution))
+        else:
+            suite.addTests(loader.loadTestsFromName(execution["selector"]["target"]))
+    return suite
 
 
 def _suite_cases(suite: Any):
@@ -641,7 +768,7 @@ def module_load_tests(_loader: Any, standard_tests: Any, pattern: Any):
         return standard_tests
     root = Path(__file__).resolve().parents[2]
     inventory = load_inventory(root)
-    allowed = {execution["selector"]["target"] for execution in inventory.executions
+    allowed = {execution["selector"]["target"]: execution for execution in inventory.executions
                if execution["selector"]["kind"] == "python"}
     selected = {}
     for test in _suite_cases(standard_tests):
@@ -649,7 +776,9 @@ def module_load_tests(_loader: Any, standard_tests: Any, pattern: Any):
             raise InventoryError("default discovery encountered a test import failure")
         identifier = canonical_test_id(test, root)
         if identifier in allowed:
-            selected.setdefault(identifier, test)
+            execution = allowed[identifier]
+            selected.setdefault(identifier, OfflineInventoryCase(inventory, execution)
+                                if _offline_execution(execution) else test)
     if pattern is None and not selected:
         raise InventoryError("this test module is archived; explicit ON_DEMAND_TESTS=1 is required")
     return unittest.TestSuite(selected.values())

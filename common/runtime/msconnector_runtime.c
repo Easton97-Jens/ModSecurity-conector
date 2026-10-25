@@ -1229,7 +1229,7 @@ static int native_process_connection(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    msconnector_runtime *runtime = userdata;
+    const msconnector_runtime *runtime = userdata;
     if (msc_process_connection(native->transaction,
             request->client.address, request->client.port,
             request->server.address, request->server.port) != 1 ||
@@ -1238,12 +1238,11 @@ static int native_process_connection(
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "connection or URI processing failed", "libmodsecurity");
     }
-    if (!string_is_empty(request->hostname)) {
-        if (msc_set_request_hostname(native->transaction,
-                (const unsigned char *)request->hostname) != 1) {
-            return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
-                "request hostname mapping failed", "libmodsecurity");
-        }
+    if (!string_is_empty(request->hostname) &&
+        msc_set_request_hostname(native->transaction,
+            (const unsigned char *)request->hostname) != 1) {
+        return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+            "request hostname mapping failed", "libmodsecurity");
     }
     return native_decision(runtime, native, MSCONNECTOR_PHASE_URI, decision, error);
 }
@@ -1255,9 +1254,8 @@ static int native_process_request_headers(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    size_t index;
-    msconnector_runtime *runtime = userdata;
-    for (index = 0U; index < request->header_count; ++index) {
+    const msconnector_runtime *runtime = userdata;
+    for (size_t index = 0U; index < request->header_count; ++index) {
         const msconnector_header *header = &request->headers[index];
         if (msc_add_n_request_header(native->transaction,
                 (const unsigned char *)header->name, header->name_size,
@@ -1280,7 +1278,7 @@ static int native_append_request_body(
     size_t size,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    msconnector_runtime *runtime = userdata;
+    const msconnector_runtime *runtime = userdata;
     int appended = 1;
     if (size > 0U) {
         appended = msc_append_request_body(native->transaction, data, size);
@@ -1304,7 +1302,7 @@ static int native_finish_request_body(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    msconnector_runtime *runtime = userdata;
+    const msconnector_runtime *runtime = userdata;
     if (!msconnector_native_phase_succeeded(
             msc_process_request_body(native->transaction))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
@@ -1336,9 +1334,8 @@ static int native_process_response_headers(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    size_t index;
-    msconnector_runtime *runtime = userdata;
-    for (index = 0U; index < response->header_count; ++index) {
+    const msconnector_runtime *runtime = userdata;
+    for (size_t index = 0U; index < response->header_count; ++index) {
         const msconnector_header *header = &response->headers[index];
         if (msc_add_n_response_header(native->transaction,
                 (const unsigned char *)header->name, header->name_size,
@@ -1362,7 +1359,7 @@ static int native_append_response_body(
     size_t size,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    msconnector_runtime *runtime = userdata;
+    const msconnector_runtime *runtime = userdata;
     if (size > 0U &&
         !msconnector_native_body_append_can_continue(
             msc_append_response_body(native->transaction, data, size))) {
@@ -1388,7 +1385,7 @@ static int native_finish_response_body(
     msconnector_decision *decision,
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
-    msconnector_runtime *runtime = userdata;
+    const msconnector_runtime *runtime = userdata;
     if (!msconnector_native_phase_succeeded(
             msc_process_response_body(native->transaction))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,

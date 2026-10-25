@@ -241,7 +241,7 @@ def assert_hash_locked_ci_test_dependency_installation(
     install_command = (
         "python3 ci/tools/install-ci-dependencies.py --ci-toolcache"
     )
-    workflow_test = "tests.test_ci_security_workflows"
+    workflow_test = "python3 ci/tools/run-active-tests.py --group supply-chain"
 
     testcase.assertIn(install_step, validator)
     testcase.assertIn(install_command, normalized)
@@ -3813,7 +3813,9 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('git reset --hard "origin/$DEFAULT_BRANCH"', publisher)
         self.assertIn('branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"', publisher)
         expected_paths = "$(printf '%s\\n' .python-version ci/tooling/project-versions.lock.json)"
-        self.assertIn(f'if [ "$branch_paths" != "{expected_paths}" ]; then', publisher)
+        companion_paths = "$(printf '%s\\n' .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json)"
+        self.assertIn(f'if [ "$branch_paths" != "{expected_paths}" ] &&', publisher)
+        self.assertIn(f'[ "$branch_paths" != "{companion_paths}" ]; then', publisher)
         self.assertIn('"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"', publisher)
         self.assertNotRegex(publisher, r"git push\s+--force(?:\s|$)")
         self.assertNotRegex(publisher, r"git push\s+--force-with-lease(?:\s|$)")
@@ -3829,14 +3831,20 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("Recheck the matching Draft pull request after publication", publisher)
         self.assertIn("pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA", publisher)
         self.assertIn('changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"', publisher)
-        self.assertIn(f'if [ "$changed_paths" != "{expected_paths}" ]; then', publisher)
+        self.assertIn(f'if [ "$changed_paths" != "{expected_paths}" ] &&', publisher)
+        self.assertIn(f'[ "$changed_paths" != "{companion_paths}" ]; then', publisher)
         field_check = "python3 ci/tools/sync-project-versions.py --verify-update python"
         self.assertIn(field_check, publisher)
-        staging = 'git add -- .python-version ci/tooling/project-versions.lock.json'
+        staging = 'git add -- .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json'
         self.assertLess(publisher.index(field_check), publisher.index(staging))
         self.assertIn(staging, publisher)
         self.assertIn('staged_paths="$(git diff --cached --name-only)"', publisher)
-        self.assertIn(f'if [ "$staged_paths" != "{expected_paths}" ]; then', publisher)
+        self.assertIn(f'if [ "$staged_paths" != "{expected_paths}" ] &&', publisher)
+        self.assertIn(f'[ "$staged_paths" != "{companion_paths}" ]; then', publisher)
+        companion_check = "python3 ci/lib/active_inventory_updates.py verify --kind python --base HEAD"
+        self.assertLess(publisher.index(companion_check), publisher.index(staging))
+        self.assertIn(companion_check + " --staged", publisher)
+        self.assertIn("(records == 2 || records == 4) && !invalid", publisher)
         self.assertIn("git diff --cached --check", publisher)
         self.assertNotIn("git add -A", publisher)
         self.assertNotIn("git add .", publisher)

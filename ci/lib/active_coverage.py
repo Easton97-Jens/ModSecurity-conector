@@ -33,6 +33,7 @@ IDENTIFIER = re.compile(r"[a-z][a-z0-9_.-]{0,127}", re.ASCII)
 COMPILER_NAMES = ("cc", "c++", "gcc", "g++", "clang", "clang++")
 SDK_LIB_DIR = "MODSECURITY_LIB_DIR"
 RPATH_FLAG = "-Wl,-rpath,"
+BUDGET_SCOPE = "core_100_plus_explicit_offline_unit_exceptions"
 
 
 class CoverageError(ValueError):
@@ -247,12 +248,19 @@ def _trusted_system_directory(path: Path, include: bool, library: bool) -> bool:
     return True
 
 
-def _native_path(value: str, *, directory: bool = False, output: bool = False,
-                 system_include: bool = False, system_library: bool = False) -> str:
-    # Reconstruct canonical paths only after assigning their permitted role.
+def _compiler_input_path(value: str, relative_include: bool) -> Path:
     path = Path(value)
+    if relative_include and not path.is_absolute():
+        path = Path.cwd() / path
     if not path.is_absolute() or ".." in path.parts:
         raise CoverageError("compiler paths must be absolute without parent traversal")
+    return path
+
+
+def _native_path(value: str, *, directory: bool = False, output: bool = False,
+                 system_include: bool = False, system_library: bool = False) -> str:
+    # Relative -I operands use the compiler's actual cwd, then the same bounds.
+    path = _compiler_input_path(value, system_include)
     builds = _native_build_roots()
     if output:
         external_root(path.parent)
@@ -339,12 +347,19 @@ def _compiler_argument(argument: str) -> list[str]:
     return [_native_binary_argument(argument)]
 
 
+def system_native_library(argument: str) -> str:
+    stems = {"-lapr-1": "libapr-1", "-lcrypto": "libcrypto", "-lyajl": "libyajl"}
+    if argument not in stems:
+        raise CoverageError("system library is outside the finite selected native library set")
+    directory = Path("/usr/lib/x86_64-linux-gnu")
+    if not _trusted_system_directory(directory, False, True):
+        raise CoverageError("native system library directory must be trusted")
+    return _selected_library(directory, stems[argument])[0]
+
+
 def _compiler_library_argument(argument: str) -> list[str] | None:
-    if argument == "-lapr-1":
-        directory = Path("/usr/lib/x86_64-linux-gnu")
-        if not _trusted_system_directory(directory, False, True):
-            raise CoverageError("APR library directory must be trusted")
-        return _selected_library(directory, "libapr-1")
+    if argument in {"-lapr-1", "-lcrypto", "-lyajl"}:
+        return [system_native_library(argument)]
     if argument == "-lmodsecurity":
         directory = _sdk_directory(SDK_LIB_DIR)
         if directory is None:
@@ -472,8 +487,14 @@ def trace_python(target: str, output: Path) -> int:
 
 
 def _write_python_trace(target: str, stream, python_child) -> int:
-    tracer = trace.Trace(count=True, trace=False, ignoredirs=[sys.base_prefix])
+    tracer = ParentOperationTrace()
     result = tracer.runfunc(python_child, target)
+    stream.write(json.dumps(python_trace_payload(tracer, target), sort_keys=True) + "\n")
+    return result
+
+
+def python_trace_payload(tracer: trace.Trace, target: str) -> dict:
+    """Serialize only actual positive observations of current Parent Python source."""
     observed: dict[str, dict[str, int]] = {}
     for (filename, line), count in tracer.results().counts.items():
         path = Path(filename)
@@ -483,9 +504,43 @@ def _write_python_trace(target: str, stream, python_child) -> int:
         if _is_python_product(relative) and count > 0:
             source_path(ROOT, relative)
             observed.setdefault(relative, {})[str(line)] = count
-    payload = {"schema_version": 1, "target": target, "files": observed}
-    stream.write(json.dumps(payload, sort_keys=True) + "\n")
-    return result
+    return {"schema_version": 1, "target": target, "files": observed}
+
+
+class ParentOperationTrace(trace.Trace):
+    """Reject non-product frames before installing any per-line callback."""
+
+    def __init__(self):
+        super().__init__(count=True, trace=False)
+        self.source_cache: dict[str, bool] = {}
+        self.source_prefix = str(ROOT) + os.sep
+
+    def _project_source(self, filename: str) -> bool:
+        if filename not in self.source_cache:
+            admitted = False
+            if filename.startswith(self.source_prefix) and filename.endswith(".py"):
+                relative = filename[len(self.source_prefix):]
+                admitted = _is_python_product(relative)
+                if admitted:
+                    source_path(ROOT, relative)
+            self.source_cache[filename] = admitted
+        return self.source_cache[filename]
+
+    def globaltrace_lt(self, frame, event, _argument):
+        if event == "call" and self._project_source(frame.f_code.co_filename):
+            return self.localtrace
+        return None
+
+
+def write_collector_trace(output: Path, tracer: trace.Trace) -> str:
+    """Retain the completed operational trace before report/manifest publication."""
+    directory = external_root(output)
+    name = "collector-python.json"
+    descriptor = os.open(directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        document = python_trace_payload(tracer, "collector:admitted-coverage-operation")
+        stream.write(json.dumps(document, sort_keys=True) + "\n")
+    return name
 
 
 def add_lines(lines: dict[str, dict[int, int]], path: str, observations: dict[int, int]) -> None:
@@ -618,9 +673,23 @@ def write_generic_report(root: Path, lines: dict[str, dict[int, int]], destinati
     return sources
 
 
+def case_budget(core_case_ids: tuple[str, ...], offline_case_ids: tuple[str, ...],
+                selected_case_ids: list[str]) -> dict:
+    """Describe the admitted core ceiling and separately authorized offline units."""
+    core, offline = set(core_case_ids), set(offline_case_ids)
+    if core & offline or not set(selected_case_ids) <= core | offline:
+        raise CoverageError("selected coverage IDs must belong to exactly one inventory budget")
+    return {"scope": BUDGET_SCOPE, "core_limit": 100,
+            "core_case_count": len(core_case_ids), "offline_exception_case_count": len(offline_case_ids),
+            "total_case_count": len(core_case_ids) + len(offline_case_ids),
+            "selected_core_case_ids": [name for name in selected_case_ids if name in core],
+            "selected_offline_exception_case_ids": [name for name in selected_case_ids if name in offline]}
+
+
 def make_manifest(root: Path, output: Path, revision: str, inventory_digest: str,
                   case_ids: list[str], sources: dict[str, str], reports: list[str],
-                  dirty: bool = False, build_identity: dict | None = None) -> dict:
+                  dirty: bool = False, build_identity: dict | None = None,
+                  budget: dict | None = None) -> dict:
     if REVISION.fullmatch(revision) is None or SHA256.fullmatch(inventory_digest) is None:
         raise CoverageError("coverage identity requires full source revision and inventory digest")
     if not case_ids or len(case_ids) != len(set(case_ids)):
@@ -628,6 +697,7 @@ def make_manifest(root: Path, output: Path, revision: str, inventory_digest: str
     artifacts = {name: digest(regular_bytes(output / safe_relative(name))) for name in reports}
     manifest = {"schema_version": 1, "revision": revision,
                 "inventory_sha256": inventory_digest, "case_ids": case_ids,
+                "case_budget": budget if budget is not None else case_budget(tuple(case_ids), (), case_ids),
                 "dirty_worktree": dirty, "sources": sources, "go_sources": {}, "reports": artifacts, "build_identity": build_identity or {},
                 "measurement": {"python": "actual admitted line traces; eligible same-prefix/UID children; isolated, clean-environment and killed children may be unmeasured",
                                 "go": "actual selected go test statement-block profiles imported by the native Go importer",
@@ -641,7 +711,7 @@ def make_manifest(root: Path, output: Path, revision: str, inventory_digest: str
 def _validate_manifest_identity(value: dict, revision: str, inventory_digest: str,
                                 require_clean: bool) -> None:
     expected = {"schema_version", "revision", "inventory_sha256", "case_ids",
-                "dirty_worktree", "sources", "go_sources", "reports", "build_identity", "measurement"}
+                "dirty_worktree", "sources", "go_sources", "reports", "build_identity", "measurement", "case_budget"}
     if not isinstance(value, dict) or set(value) != expected or value["schema_version"] != 1:
         raise CoverageError("coverage manifest uses an invalid closed schema")
     if value["revision"] != revision:
@@ -650,6 +720,36 @@ def _validate_manifest_identity(value: dict, revision: str, inventory_digest: st
         raise CoverageError("coverage report belongs to another active inventory")
     if type(value["dirty_worktree"]) is not bool or require_clean and value["dirty_worktree"]:
         raise CoverageError("scanner import requires the exact clean published source revision")
+    _validate_case_budget(value["case_budget"], value["case_ids"])
+
+
+def _validate_case_budget(budget: dict, selected_ids: list[str]) -> None:
+    fields = {"scope", "core_limit", "core_case_count", "offline_exception_case_count", "total_case_count",
+              "selected_core_case_ids", "selected_offline_exception_case_ids"}
+    if not isinstance(budget, dict) or set(budget) != fields or budget["scope"] != BUDGET_SCOPE:
+        raise CoverageError("coverage case budget must use its exact closed scope schema")
+    counts = ("core_limit", "core_case_count", "offline_exception_case_count", "total_case_count")
+    if any(type(budget[name]) is not int or budget[name] < 0 for name in counts):
+        raise CoverageError("coverage case counts must be nonnegative integers")
+    if budget["core_limit"] != 100 or budget["core_case_count"] > 100:
+        raise CoverageError("coverage core inventory exceeds its unchanged 100-case ceiling")
+    if budget["total_case_count"] != budget["core_case_count"] + budget["offline_exception_case_count"]:
+        raise CoverageError("coverage total must include all core and offline exception cases")
+    _validate_selected_budget(budget, selected_ids)
+
+
+def _validate_selected_budget(budget: dict, selected_ids: list[str]) -> None:
+    core = budget["selected_core_case_ids"]
+    offline = budget["selected_offline_exception_case_ids"]
+    for names in (selected_ids, core, offline):
+        if not isinstance(names, list) or any(not isinstance(name, str) for name in names):
+            raise CoverageError("coverage selected case identities must be explicit string lists")
+        if len(names) != len(set(names)):
+            raise CoverageError("coverage selected case identities must not contain duplicates")
+    if set(core) & set(offline) or set(core) | set(offline) != set(selected_ids):
+        raise CoverageError("coverage selected budget partitions must match actual case identities")
+    if len(core) > budget["core_case_count"] or len(offline) > budget["offline_exception_case_count"]:
+        raise CoverageError("coverage selected partitions exceed their admitted inventory counts")
 
 
 def _validate_file_observations(element: ET.Element, root: Path) -> None:
