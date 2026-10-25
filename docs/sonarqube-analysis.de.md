@@ -106,12 +106,36 @@ Codes prüfen.
 Header werden nur über einbindende Quelldateien analysiert. Mehrere unabhängige
 Connector-Binaries werden als ein Projekt dargestellt: CFamily nimmt für
 projektweite Analyse ein gelinktes Ziel an. Full-project-Regeln, Taint-Analyse
-und Cross-Translation-Unit-Analyse können dadurch Präzision verlieren. Keine
+und Cross-Translation-Unit-Analyse können dadurch Präzision verlieren. Die
+beobachtete AutoConfig-Implementierung deaktiviert C/C++-Taint-Analyse und nennt
+eine Liste nicht verfügbarer Regeln; dieser Scan liefert keine C/C++-Taint-Abdeckung. Keine
 Connector-Teilscans überschreiben das vermeintliche Gesamtergebnis desselben
 Projekts. Ein künftiger Datenbankwechsel muss die echten Befehle erfassen, alle
 beabsichtigten Translation Units mit den Einträgen vergleichen, erforderliche
 Includes/generierte Dateien erhalten und unterstützte Varianten sowie fehlende
 Units vor dem Moduswechsel dokumentieren.
+
+## Unverbindliche höhere C++-Standards
+
+`.github/workflows/cpp-compatibility-advisory.yml` kompiliert separat die echte
+`common/scripts/modsecurity_targeted_eval.cc` unter C++20 und C++23 mit
+`-Wall -Wextra -Werror`. C++17 bleibt der maßgebliche Build-/Berichtsvertrag;
+die Ergebnisse höherer Standards entscheiden weder Sonar-Gate noch PR-Reife.
+Die Matrix verwendet `continue-on-error: true` auf Jobebene und
+`fail-fast: false`. Compiler-/Provisionierungsfehler bleiben mit ihrem echten
+Ergebnis in Logs und bilingualer Jobzusammenfassung sichtbar; kein Modus bricht
+den anderen ab.
+
+`make fetch-modsecurity-v3` verwendet den gepinnten Framework-Source-
+Provisionierungsweg zur Verifikation des freigegebenen Upstream-Commits und
+rekursiven Graphen. Der Advisory-Checker verwendet dessen echtes `headers/`-
+Verzeichnis und schreibt Objektdateien unter
+`$RUNNER_TEMP/cpp-compatibility-<standard>/objects`. Er akzeptiert ausschließlich
+`CPP_STANDARD=c++20|c++23`, fordert absolute Header-/Ausgabeverzeichnisse und
+lehnt Ausgaben im Source-Checkout ab. Vollständiger Bibliotheksbuild, neue
+Systempakete, alternative Sonar-Scans oder Änderungen am C++17-Checker sind
+nicht erforderlich. Dies ist ausschließlich Kompilierungskompatibilität;
+Linken, Ausführung oder gehostete Laufzeitkompatibilität werden nicht belegt.
 
 ## CI, Tests und Coverage
 
@@ -128,10 +152,22 @@ Coverageimport sind getrennte Vorgänge. Ein Wert für `sonar.tests` führt kein
 Tests aus. Nur für die ausgecheckte Revision erzeugte Berichte dürfen importiert
 werden. Coverageberichte müssen existieren, ein unterstütztes Format verwenden
 und Dateien unter dieser Projektbasis referenzieren; niemals leere Ersatzberichte
-erzeugen. Python- und C/C++-Coverage wird nicht behauptet: Diese Konfiguration
-führt keine neue Python-Coverage-Abhängigkeit und keine vollständige native
-Host-Coverage-Pipeline ein. Bestehende Laufzeittests bleiben getrennte Evidence
+erzeugen. Native C/C++-Coverage wird nicht bereitgestellt. Python-Coverage wird für den
+Konfigurationschecker durch Ausführung seiner echten CLI und acht gezielter
+Unit-Testmethoden gemessen; das beansprucht keine Ausführung aller Parent-Python-Tests. Bestehende Laufzeittests bleiben getrennte Evidence
 und werden durch ein statisches Analyseergebnis nicht impliziert.
+
+Python-Coverage verwendet `coverage==7.17.0` (Apache-2.0, Python >=3.11, keine
+Laufzeitabhängigkeiten), in `ci/requirements/sonar-coverage.txt` auf den offiziellen
+PyPI-Universal-Wheel-SHA-256 gepinnt. CI erzeugt eine getrennte Umgebung unter
+`$RUNNER_TEMP/sonar-python`, installiert ausschließlich Binärpakete mit
+verpflichtenden Hashes und verwendet `ci/sonar-coverage.ini` für Branch-Coverage
+und relative Pfade. CLI-Check und Unit-Tests erzeugen echte parallele Datendateien,
+die zu `$RUNNER_TEMP/sonar-coverage/python.xml` kombiniert und über
+`sonar.python.coverage.reportPaths` importiert werden. Das gezielte
+Source-Verzeichnis ist `ci/checks/analysis`; seine beiden nicht ausgeführten
+vorhandenen Skripte bleiben bei gemessener Null. Keine Coverage-Ausschlüsse oder
+leeren Ersatzreports werden verwendet.
 
 CI führt vier vorhandene Einzelszenario-Go-Tests aus, einen je Modul, nachdem
 sie die Existenz jedes exakten Testnamens geprüft hat. Native
@@ -195,6 +231,38 @@ ein bestandenes Gate einer anderen Revision ist diese Bestätigung nicht.
 Verbleibende Findings und ein unzugängliches/ausstehendes/fehlgeschlagenes Gate
 sichtbar lassen; niemals Regeln oder Schwellen für ein Bestehen abschwächen.
 
+## Beobachtete Cloud-Grenzen und externe Folgeaktion
+
+Der erste CI-Scan von `b3c7785fd7033fc57394c1e4562d627e2b294c4f` wurde serverseitig
+als Task `AaF0Nx8EdkEpBguA0kbW`, Analyse
+`8436e500-b997-4b7a-b428-b577aca20a43`, verarbeitet. Die Server-Warnungsliste war
+leer, beide ursprünglichen Python-Konfigurationsmeldungen fehlten. Der Scanner
+bestätigte alle 136 CFamily-Compilation-Units als vollständig analysiert, einen
+C/C++-Qualitätsscore von 77.52/100, das Laden aller vier Go-Reports sowie die
+Ausführung der Python-, Shell-, Actions-, YAML- und JSON-Sensoren. Sein Quality
+Gate scheiterte ausschließlich an 0% New-Code-Coverage; dies führte zum echten
+Python-Coverage-Erzeuger. Diese Ergebnisse beschreiben die erste Revision; die
+PR-Beschreibung enthält Verarbeitungs-/Gate-Evidence des aktuellen Heads.
+
+Scanner-Logs enthalten weiterhin sechs Shell-Parsewarnungen in vorhandenen
+Skripten: `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh`,
+`connectors/envoy/harness/run_envoy_composite_matrix.sh`,
+`ci/runtime/lifecycle/run-full-matrix-parallel.sh`,
+`connectors/lighttpd/harness/run_patched_full_lifecycle.sh`,
+`connectors/haproxy/htx-overlay/resolve-modsecurity.sh` und
+`connectors/haproxy/harness/run_haproxy_smoke.sh`. Sie bleiben im Scope; eine
+selektierte Datei mit Parsewarnung beweist keine vollständige semantische
+Analyse. Go-Testdateien erzeugen nach korrekter Testklassifikation außerdem
+informative Warnungen zu ignorierten Duplikationsmeldungen.
+
+Die gespeicherte serverseitige Python-Architekturperspektive `py Intended Model`
+enthält 44 ungültige Gruppenlabels einschließlich ausgeschlossener Framework-/
+MRTS-Pfade und früherer Test-/Infrastrukturgruppen. Ein Projektadministrator muss
+dieses Intended Model prüfen und mit dem Parent-only-Source-/Test-Scope abgleichen.
+Dieser Task entfernt das Modell nicht und deaktiviert keine Architekturprüfungen,
+um Warnungen zu verbergen. Server-`warningCount=0` bedeutet keine Warnungsfreiheit
+des Scanner-Logs.
+
 ## Offizielle Referenzen
 
 - [SonarScanner CLI und automatische Konfiguration](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/scanners/sonarscanner-cli)
@@ -205,3 +273,6 @@ sichtbar lassen; niemals Regeln oder Schwellen für ein Bestehen abschwächen.
 - [GitHub Actions](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/github-actions), [JSON](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/json) und [YAML](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/yaml)
 - [Coverage](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/overview) und [Coverage-Importparameter](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/test-coverage-parameters)
 - [Gepinnte Scan-Action](https://github.com/SonarSource/sonarqube-scan-action/tree/d209202bc7d53ff1cc128f7f907dac145c9d6ae9)
+
+- [Gepinnte Python-Coverage-Version und Universal-Wheel](https://pypi.org/project/coverage/7.17.0/)
+- [Python-Coverage-Import](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/python-test-coverage)

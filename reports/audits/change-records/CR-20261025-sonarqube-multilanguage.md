@@ -2,9 +2,6 @@
 
 **Language:** English | [Deutsch](CR-20261025-sonarqube-multilanguage.de.md)
 
-This record separates implemented configuration, observed local checks, and
-Cloud confirmation. It does not claim a verified PR or a successful Cloud scan.
-
 ## Identity
 
 | Field | Value |
@@ -15,155 +12,154 @@ Cloud confirmation. It does not claim a verified PR or a successful Cloud scan.
 
 ## Motivation and problem statement
 
-The previous automatic Parent analysis reported both an unspecified Python
-target version and detected tests without `sonar.tests`. The Parent contains
-distributed Python and Go tests alongside C/C++ tests, maintained build scripts,
-and configuration. A language-blind test pattern or incomplete compilation
-database would silently remove part of the intended analysis. This change
-provides one maintainable Parent-wide CI analysis without crossing Framework or
-MRTS ownership boundaries.
+The automatic Parent analysis reported no explicit Python target version and
+recognized tests without `sonar.tests`. Distributed tests, independent native
+binaries and maintained build/CI scripts need one consistent Parent scan.
+The user additionally requested advisory checks for newer C++ standards.
 
 ## Acceptance criteria
 
-- Use a single project, explicit source/test scope, and Python major/minor `3.14`
-  derived from the checked-in `3.14.7` pin.
-- Preserve all Parent components, four Go module descriptors, and CFamily test
-  translation units; document precise exclusions and unsupported formats.
-- Use pinned scanner interfaces, least-privilege CI permissions, and coverage
-  reports actually generated for the analyzed revision.
-- Provide scope-drift checks, equivalent EN/DE guidance, and truthful local
-  validation results.
-- Before claiming Cloud verification, observe the exact PR-head server task,
-  warnings, and Quality Gate. This final criterion is not yet demonstrated by
-  the local evidence recorded here.
+Use Python `3.14` from pin `3.14.7`, preserve all intended Parent components and
+four Go modules, keep CFamily tests in source scope, document exclusions and
+limits, generate real supported reports, and verify the actual PR revision.
+C++20/C++23 compatibility checks must be visible but non-decisive; C++17 remains
+authoritative. Do not change submodule contents, rules, or Quality Gates.
 
 ## Implementation decision and rationale
 
-One CI-based SonarScanner CLI `8.1.0.6389` scan uses
-`sonar-project.properties` and immutable scan action `v8.3.0` at
-`d209202bc7d53ff1cc128f7f907dac145c9d6ae9`. The organization key
-`easton97-jens` was confirmed through the authenticated project API. Cloud
-Automatic Analysis was already disabled when inspected; no external setting
-was changed. `sonar.scanner.autoconfig.enabled=false` keeps the explicit manual
-classification active. CFamily AutoConfig is independent of that setting and
-retains all source translation units; existing compilation-database producers
-cover only subsets. The C++17 reporting override controls applicable rules, not
-compiler flags or proof of a native build.
+One manual SonarScanner CLI `8.1.0.6389` scan uses the immutable Action `v8.3.0`
+(`d209202bc7d53ff1cc128f7f907dac145c9d6ae9`). Organization `easton97-jens` and
+already-disabled Cloud Automatic Analysis were verified through the canonical
+wrapper. Explicit scanner autoconfiguration is disabled. CFamily AutoConfig
+retains all 136 translation units because existing real compilation-database
+producers cover subsets. C++17 reporting rules remain authoritative.
 
-Python files under `tests/`, distributed connector Python tests, and Go
-`*_test.go` files are tests. C/C++ tests and fixtures remain sources because
-CFamily does not support `sonar.tests`. Maintained connector `build/` scripts
-are retained. Exclusions cover the independent `modules/**` boundary,
-SCM-ignored root outputs, generated `reports/testing/generated/**` evidence,
-and only YAML files in the three workflow-fixture directories. Their maintained
-generators and Python/C fixtures remain included. Generic JSON/YAML analysis
-uses the documented opt-in; its real execution still requires scanner evidence.
+Narrow Python/Go test patterns preserve CFamily tests and maintained connector
+`build/` scripts. Exclusions cover independent `modules/**`, root outputs,
+`reports/testing/generated/**`, and exact YAML workflow-fixture patterns.
+JSON/YAML use the documented opt-in. The validator rejects version/scope drift.
 
-CI generates four focused native Go coverage profiles inside the corresponding
-module, verifies each profile with `go tool cover`, and passes their actual
-external paths to the scanner. No placeholder report, Python coverage
-dependency, or native C/C++ coverage pipeline is added. Exact test-name guards
-prevent a renamed selector from producing a false zero-test success.
+Four pre-existing Go scenarios generate native profiles in their modules.
+Coverage `7.17.0` uses an official, hash-pinned universal wheel, Apache-2.0,
+Python >=3.11, and no dependencies. A separate external virtual environment
+executes the real checker CLI and eight focused unit-test methods, combines
+branch data and emits relative-path Cobertura XML. Two unexecuted analysis
+scripts remain at genuine zero; no coverage exclusions or fake reports are used.
+
+The PR security contract admits only the exact same-repository predicate and
+step-local token on the immutable scanner Action. Generic PR secret bans remain;
+negative controls reject guard bypasses, global/shell secrets, other Actions,
+and bracket/bare secret-context access. The first scan's three maintainability
+findings were addressed by splitting validation responsibilities, removing a
+redundant exception class and separating test assertions.
+
+A separate nonblocking C++20/C++23 matrix compiles the real evaluator to object
+files with `-Wall -Wextra -Werror`, using the native pinned ModSecurity source
+fetch for real headers. `continue-on-error: true` is limited to these explicitly
+requested advisory jobs; `fail-fast: false` preserves both outcomes. C++17 and
+Sonar gates remain binding. This adds no alternate per-standard Sonar scans.
 
 ## Changed files
 
 - `sonar-project.properties`; `.github/workflows/sonarqube.yml`.
 - `ci/checks/analysis/check-sonar-scope.py`; `tests/test_sonar_scope.py`.
-- `ci/checks/common/check-python-version-contract.py`;
-  `tests/test_python_version_contract.py` (37 normal Python jobs).
+- `ci/requirements/sonar-coverage.txt`; `ci/sonar-coverage.ini`.
+- `.github/workflows/cpp-compatibility-advisory.yml`;
+  `ci/checks/analysis/check-targeted-evaluator-cpp-advisory.sh`.
+- `tests/test_ci_security_workflows.py`;
+  `ci/checks/common/check-python-version-contract.py`; `tests/test_python_version_contract.py`.
 - `ci/tooling/security-tools.lock.yml`; `ci/tools/update-workflow-tools.py`;
-  `.github/workflows/update-workflow-tools.yml` (central Action lock,
-  updater allowlist, and explicit publisher staging).
-- `docs/sonarqube-analysis.md`; `docs/sonarqube-analysis.de.md`.
-- `docs/README.md`; `docs/README.de.md`.
-- `docs/security/ci-security-tooling.md`;
-  `docs/security/ci-security-tooling.de.md`.
-- This Change Record and its German companion.
+  `.github/workflows/update-workflow-tools.yml`.
+- `docs/sonarqube-analysis.md`; `docs/sonarqube-analysis.de.md`;
+  `docs/README.md`; `docs/README.de.md`;
+  `docs/security/ci-security-tooling.md`; `docs/security/ci-security-tooling.de.md`.
+- `reports/audits/change-records/CR-20261025-sonarqube-multilanguage.md`;
+  `reports/audits/change-records/CR-20261025-sonarqube-multilanguage.de.md`.
 
-No submodule content or Gitlink is changed.
+No Framework/MRTS content or Gitlink changed.
 
 ## Commands executed
 
-All local project commands use RTK. `.venv/bin/python` below is the portable
-name of the existing Parent interpreter actually selected through its absolute
-path. The following are observed results, not inferences from the configuration:
+All shell procedures used RTK and the existing Parent interpreter selected by
+absolute path (Python `3.14.4`), or task-owned external coverage environments.
 
-| Command or bounded procedure | Observed result |
+| Actual command or bounded procedure | Observed result |
 | --- | --- |
-| `rtk bypass .venv/bin/python ci/checks/analysis/check-sonar-scope.py --json` | Passed on the staged inventory: 1337 source files, 239 tests (216 Python, 23 Go), 136 CFamily translation units, four Go modules. Full scope manifest: `/var/tmp/codex/ModSecurity-conector/analysis/sonar-config-pr/scope-manifest.json`. |
-| `rtk bypass .venv/bin/python -m unittest -v tests.test_sonar_scope` | Four scope regression tests passed. |
-| `rtk bypass .venv/bin/python -m unittest -v tests.test_sonar_scope tests.test_python_version_contract.PythonVersionContractTest.test_expected_inventory_has_37_normal_jobs_and_one_special_job tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_remote_actions_are_immutable_sha_pins tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_all_workflows_default_deny_and_declare_job_permissions tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_workflow_and_lock_yaml_reject_forbidden_indirection tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_all_locked_action_references_are_in_the_publisher_allowlist` | Nine focused tests passed with the existing Parent environment, Python `3.14.4`. This is not evidence of execution with the exact CI pin `3.14.7`. |
-| `rtk bypass actionlint .github/workflows/sonarqube.yml .github/workflows/update-workflow-tools.yml` | Passed, exit 0. |
-| `rtk bypass zizmor --offline .github/workflows/sonarqube.yml .github/workflows/update-workflow-tools.yml` | Passed, exit 0; no findings, eight diagnostics suppressed by existing configuration. |
-| Execute the Go coverage shell block extracted from workflow YAML with local Go `1.27.3` | Four existing one-case tests passed; all four profiles parsed. Package statement coverage was 17.2%, 23.6%, 5.4%, and 6.8%, respectively. These are sparse selected-package measurements, not whole-repository coverage. The complete workflow block was subsequently re-executed with the `-list` guards and per-module profile parsing; exit 0. |
-| Full Python-version contract checker, task versus clean base | Both exited 1 with the same 19 diagnostics, byte-identical. No additional Sonar-job diagnostic was introduced. Evidence: `/var/tmp/codex/ModSecurity-conector/analysis/sonar-config-pr/python-contract-task.txt` and `python-contract-baseline.txt`. |
-| `rtk bypass git diff --check` | Passed, exit 0 on the integrated task state. |
-| `rtk bypass make check-doc-links PYTHON=<Parent interpreter>` | Passed, exit 0, including the post-staging check of new documents. |
-| `rtk bypass make check-bilingual-docs PYTHON=<Parent interpreter>` | Passed, exit 0 after correcting the German guide language switch. |
+| `rtk bypass .venv/bin/python ci/checks/analysis/check-sonar-scope.py --json` (Parent interpreter selector) | Passed: 1341 sources, 239 tests (216 Python / 23 Go), 136 CFamily units, four modules. Manifest: `/var/tmp/codex/ModSecurity-conector/analysis/sonar-config-pr/scope-manifest-final.json`. |
+| Scoped combined `unittest -v` selection for scope, Python inventory, immutable pins, permissions, YAML, updater allowlist and Sonar secret controls | 19 test methods passed, including all parameterized negative variants; no full default suite was selected locally. |
+| Execute the actual Python coverage workflow block extracted from YAML | Passed: isolated binary/hash-required install, real CLI, eight test methods, combine and XML. Checker 91.94% lines, 88.33% branches, 90.76% combined. |
+| Execute the guarded Go coverage workflow block extracted from YAML | Passed: four existing one-scenario tests; four valid native profiles. Selected-package statements 17.2%, 23.6%, 5.4%, 6.8%. |
+| `rtk bypass actionlint .github/workflows/sonarqube.yml .github/workflows/cpp-compatibility-advisory.yml .github/workflows/update-workflow-tools.yml` | Passed. |
+| `rtk bypass zizmor --offline .github/workflows/sonarqube.yml .github/workflows/cpp-compatibility-advisory.yml .github/workflows/update-workflow-tools.yml` | Passed; no findings, nine existing suppressions. |
+| `rtk bypass make check-bilingual-docs check-doc-links PYTHON=<Parent interpreter>` | Passed, including new staged documents. |
+| `rtk bypass git diff --check` | Passed. |
+| Full Python-version checker compared against unchanged base | Exit 1 in both trees, identical 19 baseline diagnostics; neither new workflow adds a diagnostic. |
+| C++20/C++23 advisory checker with GCC 15.2.0 and genuine installed ModSecurity 3.0.14 headers through an external include-root alias | Both real evaluator object compilations passed. Shell syntax/ShellCheck and invalid-standard, in-checkout-output, missing-header negative checks passed. |
 
-Authenticated Sonar discovery used `/usr/local/bin/sonar-with-env` through RTK;
-query CLI `1.10.1` connected successfully. Project identity and disabled
-Automatic Analysis were read back. GitHub secret-name discovery confirmed
-`SONAR_TOKEN` exists without reading its value or proving its scanner permission.
+The same real evaluator also compiled successfully in both modes against the
+pinned upstream checkout headers at commit `1925753989ccce977cdaae417b55c9726c7cf02c`.
+
+The portable `.venv/bin/python` label above denotes the existing Parent
+interpreter, not a new environment in the task worktree. Exact current-head
+hosted results are recorded in PR #420 rather than inferred from local checks.
 
 ## Security impact
 
-The scan job has only `contents: read`; default workflow permissions are empty.
-Checkout does not persist credentials or initialize submodules. The existing
-`SONAR_TOKEN` secret is supplied only to the immutable scanner step. Fork PRs
-cannot run the privileged job, and no `pull_request_target` path is introduced.
-Scanner signature verification remains enabled. Rules, Quality Gates, secret
-values, application authorization, and runtime defaults are unchanged. Workflow
-and tooling changes extend the existing central lock and publisher boundaries
-instead of bypassing them.
+The scanner job has only `contents: read`; workflow defaults deny permissions.
+Checkout credentials are not persisted. Only the fixed scanner step receives
+`SONAR_TOKEN`; fork PRs do not run that job. Signature verification, rules and
+Quality Gates remain enabled. Coverage tooling is isolated and hash-pinned.
+Advisory C++ jobs have read-only permissions and no secrets. No production
+runtime, authorization or logging behavior changes.
 
 ## Runtime evidence
 
-No runtime evidence was collected or claimed. Local configuration checks,
-focused unit tests, coverage generation, and workflow static analysis do not
-qualify hosted connector behavior.
+No runtime evidence was collected or claimed. Object compilation, tests,
+coverage and static scanning do not qualify hosted connector behavior.
 
 ## Known limitations
 
-CFamily AutoConfig infers host options; it does not reproduce every independent
-connector build, generated header, define, or optional profile. Headers require
-an including translation unit. Cross-translation-unit and whole-project rules
-may lose precision when independent executables share one project. The shell
-template `connectors/apache/build/apxs-wrapper.in` has no confirmed Shell-analyzer
-recognition. Other host configuration and build formats do not all have
-dedicated semantic analyzers.
+First scan revision `b3c7785fd7033fc57394c1e4562d627e2b294c4f`, run
+`40218724634`, completed server task `AaF0Nx8EdkEpBguA0kbW` successfully as
+analysis `8436e500-b997-4b7a-b428-b577aca20a43`. Effective Python `3.14`, explicit
+tests and CLI `8.1.0.6389` were read back against that SHA. Both original Python
+warnings disappeared; the CE warning list was empty. Its gate failed only on
+new-code coverage `0.0 < 80`, leading to genuine Python coverage integration.
+This is historical first-head evidence, not final-head gate confirmation.
 
-Python and C/C++ coverage and test-execution-report imports are not provided.
-The four Go profiles cover selected existing tests only. Local Python `3.14.4`
-and Go `1.27.3` differ from CI pins `3.14.7` and `1.27.1`; exact-pin execution
-requires hosted CI. Existing baseline Python-contract inconsistencies remain.
+The scanner fully analyzed all 136 CFamily units with quality score 77.52/100,
+loaded four Go reports and executed Python, Go, Shell, Actions, YAML and JSON
+sensors. AutoConfig does not reproduce all host builds and disables C/C++ taint
+analysis. Header and independent-binary limitations remain. Six existing Shell
+parse warnings, ignored Go-test duplication messages and 44 invalid labels in
+the saved Python architecture perspective remain documented in the guide.
+`warningCount=0` does not imply warning-free scanner logs.
+
+Coverage is focused, not full-repository test execution. C/C++ coverage and
+test-execution reports are absent. Advisory objects prove neither linking nor
+runtime behavior. Local Python `3.14.4`/Go `1.27.3` differ from CI pins.
 
 ## Remaining risks
 
-The existing `SONAR_TOKEN` may still lack valid analysis permission. External
-Automatic Analysis must stay disabled to avoid competing scan modes. New
-analyzer/configuration warnings, baseline code findings, or a failed Quality
-Gate may appear in the real scan; none is suppressed or accepted by this change.
-Scope-check success alone does not prove that each analyzer processed every
-scoped file or that the two original Cloud warnings have disappeared.
+A project administrator must reconcile the saved `py Intended Model` with the
+Parent-only source/test scope; no model or architecture check was removed to
+hide warnings. Shell parsing and CFamily fidelity remain analyzer limitations.
+Automatic Analysis must stay disabled. The final follow-up head still needs
+hosted scan/import/gate and advisory outcome readback.
 
 ## Checks not run and rationale
 
-The bilingual and post-staging link checks passed. Independent static review found no actionable correctness or security issue in the configuration, workflow, scope checker, or updater integration.
-The staged scope enumeration and guarded Go coverage block have passed. A real hosted scan, exact-head
-server completion, warning readback, and Quality Gate are not yet available
-before PR delivery. A local scanner was not launched: the mandatory
-`/usr/local/bin/sonar-with-env` launches the query CLI, not an arbitrary scanner.
-No host-native build or runtime qualification was required for this configuration
-change. No empty reports or substitute passing results were generated.
+No full native host build, linking or runtime qualification was required for
+this configuration task. No unrelated baseline Python-workflow migration or
+historical I12 campaign was run. The first hosted pin/scope/Go steps succeeded;
+follow-up Python coverage and newer-standard hosted outcomes must be evaluated
+at the actual new PR head. Existing gates were not weakened to obtain a pass.
 
 ## Final diff and review status
 
-Configuration and CI integration are implemented. Scope enumeration, the nine
-focused tests, guarded Go coverage, workflow lint, bilingual documentation,
-links, and diff checks passed. Independent static review found no actionable
-correctness/security issue. The full Python workflow checker still has exactly
-the same 19 baseline diagnostics. No unrelated change, secret, submodule content,
-or Gitlink is included. No commit, PR number, merge, Cloud analysis ID, or gate
-success is invented here. The PR description and task evidence must record
-exact-head hosted outcomes before claiming `verified_pr`.
+Implementation, focused local tests and bilingual documentation are reviewed.
+Independent review validated coverage mapping and secret boundaries; its
+alternate-secret-access concern was fixed and negatively tested. Initial
+commit `b3c7785fd7033fc57394c1e4562d627e2b294c4f` is published in Draft PR #420;
+follow-up changes preserve normal history. No merge or master change occurred.
+Final delivery state belongs to exact-head PR evidence, not this pre-push record.

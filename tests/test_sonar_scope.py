@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("sonar_scope", ROOT / "ci/checks/analysis/check-sonar-scope.py")
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 SCOPE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SCOPE)
 
@@ -48,6 +50,41 @@ class SonarScopeTests(unittest.TestCase):
     def test_rejects_nested_build_script_exclusion(self) -> None:
         self.config["sonar.exclusions"] += ",**/build/**"
         with self.assertRaisesRegex(ValueError, "maintained source excluded"):
+            SCOPE.validate(self.config, "3.14.7", self.files)
+
+    def test_rejects_ambiguous_property_files(self) -> None:
+        cases = (
+            ("sonar.sources\n", "unsupported property syntax"),
+            ("sonar.sources=.\nsonar.sources=ci\n", "duplicate property"),
+            ("sonar.sources=.\\\n", "unsupported property syntax"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sonar-project.properties"
+            for contents, message in cases:
+                with self.subTest(contents=contents):
+                    path.write_text(contents, encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, message):
+                        SCOPE.properties(path)
+
+    def test_scope_patterns_reject_foreign_glob_syntax(self) -> None:
+        for pattern in ("", "tests/[ab].py", "tests\\*.py"):
+            with self.subTest(pattern=pattern):
+                with self.assertRaisesRegex(ValueError, "unsupported scope pattern"):
+                    SCOPE.matches("tests/a.py", pattern)
+        self.assertTrue(SCOPE.matches("tests/a.py", "tests/?.py"))
+        self.assertFalse(SCOPE.matches("tests/ab.py", "tests/?.py"))
+
+    def test_requires_independent_submodule_boundary(self) -> None:
+        self.config["sonar.exclusions"] = ",".join(
+            pattern for pattern in self.config["sonar.exclusions"].split(",")
+            if "modules" not in pattern
+        )
+        with self.assertRaisesRegex(ValueError, "independent submodule"):
+            SCOPE.validate(self.config, "3.14.7", self.files)
+
+    def test_requires_review_when_go_module_inventory_changes(self) -> None:
+        self.files.append("connectors/new_connector/go.mod")
+        with self.assertRaisesRegex(ValueError, "review Go module inventory"):
             SCOPE.validate(self.config, "3.14.7", self.files)
 
 

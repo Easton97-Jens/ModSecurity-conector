@@ -97,11 +97,33 @@ host macros. Review AutoConfig quality warnings and the understood-code score.
 Headers are analyzed only through source files that include them. Multiple
 independent connector executables are presented as one project: CFamily assumes
 one linked target for whole-project reasoning. Full-project rules, taint analysis,
-and cross-translation-unit reasoning can consequently lose precision. No
+and cross-translation-unit reasoning can consequently lose precision. The
+observed AutoConfig implementation disables C/C++ taint analysis and reports
+a list of unavailable rules; this scan does not provide C/C++ taint coverage. No
 per-connector scans overwrite the same project's apparent overall result.
 A future database migration must capture the real commands, compare all intended
 translation units against its entries, retain required includes/generated files,
 and document supported variants and any omitted units before switching modes.
+
+## Advisory newer C++ standards
+
+`.github/workflows/cpp-compatibility-advisory.yml` separately compiles the real
+`common/scripts/modsecurity_targeted_eval.cc` under C++20 and C++23 with
+`-Wall -Wextra -Werror`. C++17 remains the authoritative build/reporting contract;
+these higher-standard results do not decide the Sonar gate or PR readiness.
+The matrix uses job-level `continue-on-error: true` and `fail-fast: false`.
+Compiler/provisioning failures remain visible in the logs and bilingual job
+summary as actual outcomes; neither variant cancels the other.
+
+`make fetch-modsecurity-v3` uses the pinned Framework source-provisioning path to
+verify the approved upstream commit and recursive graph. The advisory checker
+uses its real `headers/` directory and writes object files below
+`$RUNNER_TEMP/cpp-compatibility-<standard>/objects`. It accepts only
+`CPP_STANDARD=c++20|c++23`, requires absolute header/output directories, and
+rejects output inside the source checkout. No full library build, new system
+package, alternative Sonar scan, or change to the C++17 checker is required.
+This is compile-only compatibility evidence; it does not establish linking,
+execution, or hosted runtime compatibility.
 
 ## CI, tests, and coverage
 
@@ -116,10 +138,21 @@ Test classification, test execution, test-execution-report import, and coverage
 import are separate operations. A `sonar.tests` value does not run tests. Only
 reports produced for the checked-out revision may be imported. Coverage reports
 must exist, use a supported format, and reference files under this project base;
-never generate empty replacement reports. Python and C/C++ coverage are not
-claimed: no new Python coverage dependency or full native host coverage pipeline
-is introduced by this configuration. Existing runtime tests remain separate
+never generate empty replacement reports. Native C/C++ coverage is not provided. Python coverage is measured for the
+configuration checker by executing its real CLI and eight focused unit-test
+methods; this does not claim execution of all Parent Python tests. Existing runtime tests remain separate
 evidence and are not implied by a static-analysis result.
+
+Python coverage uses `coverage==7.17.0` (Apache-2.0, Python >=3.11, no runtime
+dependencies), pinned to the official PyPI universal-wheel SHA-256 in
+`ci/requirements/sonar-coverage.txt`. CI creates a separate environment below
+`$RUNNER_TEMP/sonar-python`, installs binary-only with required hashes, and uses
+`ci/sonar-coverage.ini` for branch coverage and relative paths. The CLI check and
+unit tests generate real parallel data files, which are combined into
+`$RUNNER_TEMP/sonar-coverage/python.xml` and imported through
+`sonar.python.coverage.reportPaths`. The focused source directory is
+`ci/checks/analysis`; its two unexecuted existing scripts remain at measured zero.
+No coverage exclusions or empty replacement reports are used.
 
 CI runs four existing single-scenario Go tests, one per module, after verifying
 that each exact test name still exists. It writes native `go test -coverprofile`
@@ -177,6 +210,36 @@ analysis, or passing gate at another revision is not this confirmation. Keep
 remaining findings and an inaccessible/pending/failed gate visible; never weaken
 rules or thresholds to obtain a pass.
 
+## Observed Cloud limits and external follow-up
+
+The first CI scan of `b3c7785fd7033fc57394c1e4562d627e2b294c4f` completed server
+processing as task `AaF0Nx8EdkEpBguA0kbW`, analysis
+`8436e500-b997-4b7a-b428-b577aca20a43`. The server warning list was empty and the
+two original Python configuration messages were absent. The scanner confirmed
+all 136 CFamily compilation units fully analyzed, a C/C++ quality score of
+77.52/100, all four Go reports loaded, and Python, Shell, Actions, YAML and JSON
+sensors executed. Its Quality Gate failed only on new-code coverage at 0%; this
+prompted the real Python coverage producer. These results describe that first
+revision; consult the PR for current-head processing and gate evidence.
+
+Scanner logs still contain six Shell parse warnings in existing scripts:
+`ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh`,
+`connectors/envoy/harness/run_envoy_composite_matrix.sh`,
+`ci/runtime/lifecycle/run-full-matrix-parallel.sh`,
+`connectors/lighttpd/harness/run_patched_full_lifecycle.sh`,
+`connectors/haproxy/htx-overlay/resolve-modsecurity.sh`, and
+`connectors/haproxy/harness/run_haproxy_smoke.sh`. They remain in scope; a selected
+file with a parse warning is not proof of complete semantic analysis. Go test
+files also produce informational ignored-duplication warnings after correct
+test classification.
+
+The saved server-side Python architecture perspective `py Intended Model`
+contains 44 invalid group labels, including excluded Framework/MRTS paths and
+previous test/infrastructure groups. A project administrator must review and
+reconcile that intended model with the Parent-only source/test scope. This task
+does not remove the model or disable architecture checks to hide these warnings.
+Server `warningCount=0` does not mean the scanner log contains no warnings.
+
 ## Official references
 
 - [SonarScanner CLI and automatic configuration](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/scanners/sonarscanner-cli)
@@ -187,3 +250,6 @@ rules or thresholds to obtain a pass.
 - [GitHub Actions](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/github-actions), [JSON](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/json), and [YAML](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/yaml)
 - [Coverage](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/overview) and [coverage import parameters](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/test-coverage-parameters)
 - [Pinned scan action](https://github.com/SonarSource/sonarqube-scan-action/tree/d209202bc7d53ff1cc128f7f907dac145c9d6ae9)
+
+- [Pinned Python coverage release and universal wheel](https://pypi.org/project/coverage/7.17.0/)
+- [Python coverage import](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/python-test-coverage)

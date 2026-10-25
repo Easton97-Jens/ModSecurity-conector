@@ -85,8 +85,8 @@ def expected_test(path: str) -> bool:
     )
 
 
-def validate(config: dict[str, str], python_pin: str, tracked: list[str]) -> dict[str, object]:
-    """Return observed classification or fail on loss of maintained code/tests."""
+def validate_settings(config: dict[str, str], python_pin: str) -> None:
+    """Keep manual scanner scope, project identity, and language versions aligned."""
     required = {
         "sonar.projectKey": "Easton97-Jens_ModSecurity-conector",
         "sonar.organization": "easton97-jens",
@@ -103,6 +103,24 @@ def validate(config: dict[str, str], python_pin: str, tracked: list[str]) -> dic
         raise ValueError("sonar.python.version must match .python-version major.minor")
     if "sonar.cfamily.compile-commands" in config:
         raise ValueError("a compilation database requires a separately verified full-Parent build contract")
+
+
+def verify_classification(path: str, test: bool, production: bool) -> None:
+    """Reject maintained code loss and classification that hides CFamily tests."""
+    file = Path(path)
+    if test and production:
+        raise ValueError(f"source/test overlap: {path}")
+    if file.suffix in CODE_SUFFIXES or file.name == "go.mod":
+        if expected_test(path) != test:
+            raise ValueError(f"incorrect test classification: {path}")
+        if not expected_test(path) and not production:
+            raise ValueError(f"maintained source excluded: {path}")
+    if file.suffix in CFAMILY_SUFFIXES and not production:
+        raise ValueError(f"CFamily file must remain in source scope: {path}")
+
+
+def classify_paths(config: dict[str, str], tracked: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Partition tracked paths using Sonar's automatic test-source exclusion rule."""
     test_inclusions = patterns(config.get("sonar.test.inclusions", ""))
     test_exclusions = patterns(config.get("sonar.test.exclusions", ""))
     source_exclusions = patterns(config.get("sonar.exclusions", ""))
@@ -119,24 +137,22 @@ def validate(config: dict[str, str], python_pin: str, tracked: list[str]) -> dic
         production = (
             not selected(path, source_exclusions)
             and (not source_inclusions or selected(path, source_inclusions))
-            # Sonar automatically adds test inclusions to source exclusions.
             and not selected(path, test_inclusions)
         )
-        if test and production:
-            raise ValueError(f"source/test overlap: {path}")
+        verify_classification(path, test, production)
         if test:
             tests.append(path)
         elif production:
             source.append(path)
         else:
             excluded.append(path)
-        if Path(path).suffix in CODE_SUFFIXES or Path(path).name == "go.mod":
-            if expected_test(path) != test:
-                raise ValueError(f"incorrect test classification: {path}")
-            if not expected_test(path) and not production:
-                raise ValueError(f"maintained source excluded: {path}")
-        if Path(path).suffix in CFAMILY_SUFFIXES and not production:
-            raise ValueError(f"CFamily file must remain in source scope: {path}")
+    return source, tests, excluded
+
+
+def validate(config: dict[str, str], python_pin: str, tracked: list[str]) -> dict[str, object]:
+    """Return observed classification or fail on loss of maintained code/tests."""
+    validate_settings(config, python_pin)
+    source, tests, excluded = classify_paths(config, tracked)
     for component in COMPONENTS:
         if not any(path.startswith(component + "/") for path in source + tests):
             raise ValueError(f"component missing from scope: {component}")
@@ -170,7 +186,7 @@ def main() -> int:
             (ROOT / ".python-version").read_text(encoding="utf-8").strip(),
             tracked,
         )
-    except (OSError, UnicodeError, ValueError, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"Sonar scope check failed: {exc}", file=sys.stderr)
         return 1
     if args.json:

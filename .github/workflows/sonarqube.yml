@@ -51,10 +51,24 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
-      - name: Validate Parent analysis scope
+      - name: Validate Parent analysis scope with Python coverage
         run: |
-          python3 ci/checks/analysis/check-sonar-scope.py
-          python3 -m unittest -v tests.test_sonar_scope
+          set -eu
+          python3 -m venv "$RUNNER_TEMP/sonar-python"
+          export PATH="$RUNNER_TEMP/sonar-python/bin:$PATH"
+          export PIP_REQUIRE_VIRTUALENV=true
+          python3 -m pip install --disable-pip-version-check --no-input \
+            --only-binary=:all: --require-hashes -r ci/requirements/sonar-coverage.txt
+          mkdir -p "$RUNNER_TEMP/sonar-coverage"
+          export COVERAGE_FILE="$RUNNER_TEMP/sonar-coverage/python.data"
+          python3 -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
+            ci/checks/analysis/check-sonar-scope.py
+          python3 -m coverage run --rcfile=ci/sonar-coverage.ini --parallel-mode \
+            -m unittest -v tests.test_sonar_scope
+          python3 -m coverage combine --rcfile=ci/sonar-coverage.ini
+          python3 -m coverage xml --rcfile=ci/sonar-coverage.ini \
+            -o "$RUNNER_TEMP/sonar-coverage/python.xml"
+          test -s "$RUNNER_TEMP/sonar-coverage/python.xml"
       - name: Set up canonical Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -111,6 +125,7 @@ jobs:
           args: >-
             -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
             -Dsonar.working.directory=${{ runner.temp }}/sonar-work
+            -Dsonar.python.coverage.reportPaths=${{ runner.temp }}/sonar-coverage/python.xml
             -Dsonar.go.coverage.reportPaths=${{ runner.temp }}/sonar-coverage/envoy.out,${{ runner.temp }}/sonar-coverage/traefik-native.out,${{ runner.temp }}/sonar-coverage/traefik-composite.out,${{ runner.temp }}/sonar-coverage/traefik-observer.out
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600

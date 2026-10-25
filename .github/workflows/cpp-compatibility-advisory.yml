@@ -1,0 +1,62 @@
+name: Advisory newer C++ standards
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions: {}
+
+jobs:
+  compile:
+    name: Advisory ${{ matrix.standard }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        standard: [c++20, c++23]
+    env:
+      CPP_STANDARD: ${{ matrix.standard }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: true
+          persist-credentials: false
+      - name: Fetch pinned real ModSecurity headers
+        id: headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          export VERIFIED_RUN_ROOT="$RUNNER_TEMP/cpp-compatibility-$CPP_STANDARD"
+          export SOURCE_ROOT="$VERIFIED_RUN_ROOT/src"
+          export MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
+          export CONNECTOR_ROOT="$GITHUB_WORKSPACE"
+          make fetch-modsecurity-v3
+      - name: Compile evaluator with the advisory standard
+        id: compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CPP_BUILD_ROOT="$RUNNER_TEMP/cpp-compatibility-$CPP_STANDARD/objects"
+          export MODSECURITY_INCLUDE_DIR="$RUNNER_TEMP/cpp-compatibility-$CPP_STANDARD/src/ModSecurity_V3/headers"
+          c++ --version
+          sh ci/checks/analysis/check-targeted-evaluator-cpp-advisory.sh
+      - name: Report the actual advisory outcome
+        if: always()
+        env:
+          HEADERS_OUTCOME: ${{ steps.headers.outcome }}
+          COMPILE_OUTCOME: ${{ steps.compile.outcome }}
+        shell: bash
+        run: |
+          {
+            echo "### Advisory $CPP_STANDARD / Unverbindlich $CPP_STANDARD"
+            echo "Headers / Header: $HEADERS_OUTCOME"
+            echo "Object compilation / Objektkompilierung: $COMPILE_OUTCOME"
+            echo 'C++17 remains authoritative. No linking or runtime qualification.'
+            echo 'C++17 bleibt maßgeblich. Kein Linken oder Runtime-Nachweis.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -172,6 +172,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/ci-security-scorecard.yml",
         ".github/workflows/ci-security-secrets.yml",
         ".github/workflows/ci-security-workflow-lint.yml",
+        ".github/workflows/cpp-compatibility-advisory.yml",
         ".github/workflows/lint.yml",
         ".github/workflows/nginx-root-broker.yml",
         ".github/workflows/open-connectors-smoke.yml",
