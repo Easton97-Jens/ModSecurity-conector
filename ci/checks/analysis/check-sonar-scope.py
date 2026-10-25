@@ -17,8 +17,6 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT))
-from ci.lib.sonar_source_roles import SourceRoles, load_roles
 CFAMILY_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"}
 CODE_SUFFIXES = CFAMILY_SUFFIXES | {".py", ".go", ".sh", ".bash"}
 COMPONENTS = ("common", "connectors", "ci", "scripts", "tests", ".github", "examples", "config", "fuzz")
@@ -73,19 +71,16 @@ def selected(path: str, scope_patterns: list[str]) -> bool:
     return any(matches(path, pattern) for pattern in scope_patterns)
 
 
-def expected_test(path: str, roles: SourceRoles | None = None) -> bool:
-    """Check ownership independently of properties, validating reviewed evidence.
-
-    Synthetic unit-test paths need not exist. Only exact reviewed fixture paths
-    come from the independently source/caller-validated role contract.
-    """
+def expected_test(path: str) -> bool:
+    """Express the repository's test ownership independently of scope patterns."""
     file = Path(path)
-    contract = roles if roles is not None else load_roles(ROOT)
     return (
         file.suffix == ".go" and file.name.endswith("_test.go")
         or file.suffix == ".py" and (
-            path.startswith("tests/") or file.name.startswith("test_")
-            or file.name.endswith("_test.py") or path in contract.exact_tests
+            path.startswith("tests/")
+            or path.startswith("connectors/") and (
+                file.name.startswith("test_") or file.name.endswith("_test.py")
+            )
         )
     )
 
@@ -110,16 +105,15 @@ def validate_settings(config: dict[str, str], python_pin: str) -> None:
         raise ValueError("a compilation database requires a separately verified full-Parent build contract")
 
 
-def verify_classification(path: str, test: bool, production: bool,
-                          roles: SourceRoles | None = None) -> None:
+def verify_classification(path: str, test: bool, production: bool) -> None:
     """Reject maintained code loss and classification that hides CFamily tests."""
     file = Path(path)
     if test and production:
         raise ValueError(f"source/test overlap: {path}")
     if file.suffix in CODE_SUFFIXES or file.name == "go.mod":
-        if expected_test(path, roles) != test:
+        if expected_test(path) != test:
             raise ValueError(f"incorrect test classification: {path}")
-        if not expected_test(path, roles) and not production:
+        if not expected_test(path) and not production:
             raise ValueError(f"maintained source excluded: {path}")
     if file.suffix in CFAMILY_SUFFIXES and not production:
         raise ValueError(f"CFamily file must remain in source scope: {path}")
@@ -127,7 +121,6 @@ def verify_classification(path: str, test: bool, production: bool,
 
 def classify_paths(config: dict[str, str], tracked: list[str]) -> tuple[list[str], list[str], list[str]]:
     """Partition tracked paths using Sonar's automatic test-source exclusion rule."""
-    roles = load_roles(ROOT)
     test_inclusions = patterns(config.get("sonar.test.inclusions", ""))
     test_exclusions = patterns(config.get("sonar.test.exclusions", ""))
     source_exclusions = patterns(config.get("sonar.exclusions", ""))
@@ -146,7 +139,7 @@ def classify_paths(config: dict[str, str], tracked: list[str]) -> tuple[list[str
             and (not source_inclusions or selected(path, source_inclusions))
             and not selected(path, test_inclusions)
         )
-        verify_classification(path, test, production, roles)
+        verify_classification(path, test, production)
         if test:
             tests.append(path)
         elif production:

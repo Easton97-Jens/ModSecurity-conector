@@ -87,7 +87,6 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "traefik-go"),
         JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "bounded-c-cpp"),
         JobIdentity("validate-go-candidate.yml", "go-candidate"),
-        JobIdentity("sonar-coverage.yml", "selected-coverage"),
         JobIdentity("test-connectors-with-crs-no-mrts.yml", "connector-mode"),
         JobIdentity("test-connectors-with-crs-no-mrts.yml", "aggregate-with-crs-no-mrts"),
         JobIdentity("test-nginx-exact-head.yml", "nginx-exact-head"),
@@ -97,7 +96,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("protocol-contract.yml", "nginx-profile-and-client-preflight"),
         JobIdentity("protocol-contract.yml", "protocol-contract"),
         JobIdentity("quick-framework-check.yml", "quick-check"),
-        JobIdentity("sonarqube.yml", "advisory"),
+        JobIdentity("sonarqube.yml", "analysis"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "prepare-manifests"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "verify-evidence"),
         JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),
@@ -138,10 +137,7 @@ EXPECTED_IMMUTABLE_REUSABLE_PYTHON_JOBS: Mapping[JobIdentity, str] = {
 # conservatively classified as Python-bearing. Keep approved caller identities in
 # a separate closed mapping so its callee jobs retain the normal strict setup
 # and verifier contract above.
-SONAR_REUSABLE_CALLER = JobIdentity("sonarqube.yml", "required")
-SONAR_REUSABLE_REFERENCE = "$/.github/workflows/sonar-coverage.yml"
 EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS: Mapping[JobIdentity, str] = {
-    SONAR_REUSABLE_CALLER: SONAR_REUSABLE_REFERENCE,
     JobIdentity("all-connectors-no-crs.yml", "no-crs"): (
         "./.github/workflows/reusable-five-connectors-profile.yml"
     ),
@@ -1892,43 +1888,6 @@ def immutable_reusable_job_violations(
     return violations
 
 
-def sonar_reusable_caller_violations(job: Job) -> list[str]:
-    """Admit only the fixed local Sonar producer with its existing trust boundary."""
-    entries = []
-    values = {}
-    nested = {}
-    for position, (_, line) in enumerate(job.lines[1:], 1):
-        if indentation(line) != job.indent + 2:
-            continue
-        entry = mapping_entry(line.strip())
-        if entry is None:
-            continue
-        key, value = entry
-        entries.append(key)
-        values[key] = step_run_value(value, job.lines[position + 1:], job.indent + 2)
-        nested[key] = direct_child_mapping(job.lines[position + 1:], job.indent + 2)
-    guard = (
-        "github.repository == 'Easton97-Jens/ModSecurity-conector' && "
-        "(github.event_name != 'pull_request' || "
-        "github.event.pull_request.head.repo.full_name == github.repository)"
-    )
-    checks = {
-        "must retain only fixed local reusable caller fields": (
-            len(entries) == len(set(entries))
-            and set(entries) <= {"name", "if", "permissions", "uses", "secrets"}
-        ),
-        "must retain the same-repository source guard": " ".join(values.get("if", "").split()) == guard,
-        "must call exactly the reviewed local producer": values.get("uses") == SONAR_REUSABLE_REFERENCE,
-        "must retain read-only caller permissions": nested.get("permissions") == {
-            "contents": "read", "pull-requests": "read",
-        },
-        "must pass only the declared Sonar token": nested.get("secrets") == {
-            "SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}",
-        },
-    }
-    return [f"{job.identity.display()} {message}" for message, valid in checks.items() if not valid]
-
-
 def local_reusable_caller_violations(
     jobs: dict[JobIdentity, Job],
     expected: Mapping[JobIdentity, str],
@@ -1947,8 +1906,6 @@ def local_reusable_caller_violations(
                 f"{identity.display()}"
             )
             continue
-        if identity == SONAR_REUSABLE_CALLER:
-            violations.extend(sonar_reusable_caller_violations(job))
         if python_job_reason(job) != JOB_LEVEL_REUSABLE_WORKFLOW_INVOCATION:
             violations.append(
                 f"local reusable Python caller has an unexpected execution shape: "

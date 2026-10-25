@@ -2,9 +2,6 @@
 
 **Sprache:** [English](CR-20261025-sonarqube-multilanguage.md) | Deutsch
 
-> **Historische Momentaufnahme von master #420**
-> Dieser Bericht erhält die ursprünglichen #420-Revisionen und Ergebnisse. Die PR-382-Integration verwendet Python3.15.1/Go1.27.3, das gemeinsame Aktivinventar und tatsächliche generische Python-/Native- sowie native Go-Reports; siehe [aktuelle Integration](../../../docs/pr-382-merge-readiness.de.md#integration-von-master-420). Die folgenden getrennten coverage.py-/Go-Auswahlen sind historisch und kein zusätzlicher automatischer Katalog.
-
 ## Identität
 
 | Field | Value |

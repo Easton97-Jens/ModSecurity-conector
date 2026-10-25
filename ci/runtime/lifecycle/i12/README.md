@@ -73,8 +73,8 @@ and original-case packets record the maintained parser hashes separately from
 the historical helper hashes. Historical reports and approvals retain their
 original identities; they are not reclassified as results of the new parsers.
 
-Automatic Sonar analysis classifies Python test files through
-`.sonarcloud.properties` and uses Python `3.15`. Maintained sources, validators,
+The master-owned CI Sonar analysis classifies Python test files through
+`sonar-project.properties` and uses Python `3.15`. Maintained sources, validators,
 parsers and tests remain analyzable. No issue, source or duplication exclusion
 is used for this storage transition.
 

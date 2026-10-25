@@ -2,9 +2,6 @@
 
 **Language:** English | [Deutsch](CR-20261025-sonarqube-multilanguage.de.md)
 
-> **Historical master #420 snapshot**
-> This record retains the original #420 revisions and results. The PR #382 integration uses Python3.15.1/Go1.27.3, the unified active inventory and genuine generic Python/native plus native Go reports; see [current integration](../../../docs/pr-382-merge-readiness.md#integration-of-master-420). Its standalone coverage.py/Go selections below are historical, not an additional automatic catalog.
-
 ## Identity
 
 | Field | Value |

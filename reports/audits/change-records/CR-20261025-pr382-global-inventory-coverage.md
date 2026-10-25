@@ -1,5 +1,7 @@
 # Change Record: CR-20261025-pr382-global-inventory-coverage
 
+**Superseded historical snapshot:** The custom Sonar pipeline was removed at the user’s request; see [current status](../../../docs/pr-382-merge-readiness.md). Earlier counts and results remain bound to their original revisions.
+
 **Language:** English | [Deutsch](CR-20261025-pr382-global-inventory-coverage.de.md)
 
 Parent inventory/coverage migration. Exact published-head delivery evidence: [PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382).

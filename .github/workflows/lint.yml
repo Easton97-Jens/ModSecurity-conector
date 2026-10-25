@@ -81,20 +81,6 @@ jobs:
       - name: Verify configuration reference semantics
         if: ${{ !cancelled() }}
         run: python ci/checks/documentation/check-connector-config-reference.py
-      - name: Require zero new Sonar findings for the PR head
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: python ci/checks/common/check-sonar-zero.py
-      - name: Require zero Sonar duplication for the PR head
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          SONAR_CHECK_GITHUB_TOKEN: ${{ github.token }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: python ci/checks/common/check-sonar-duplication.py
       - name: Run lightweight lint
         run: |
           make setup-dev

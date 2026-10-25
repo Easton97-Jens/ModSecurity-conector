@@ -110,7 +110,7 @@ and document supported variants and any omitted units before switching modes.
 The workflow runs the complete Parent source/test scope three times. It does
 not narrow newer-standard runs to the evaluator, a connector, or C++ files.
 Python, Go, C, Shell, Actions, JSON and YAML retain the same configuration and
-once-produced coverage bundle in every variant. CFamily AutoConfig's documented
+coverage producers in every variant. CFamily AutoConfig's documented
 `sonar.cfamily.reportingCppStandardOverride` selects C++17, C++20 or C++23 rule
 applicability and standard-dependent suggestions. Other languages retain their
 own language contracts; this is static analysis, not a native compiler build.
@@ -151,31 +151,39 @@ Test classification, test execution, test-execution-report import, and coverage
 import are separate operations. A `sonar.tests` value does not run tests. Only
 reports produced for the checked-out revision may be imported. Coverage reports
 must exist, use a supported format, and reference files under this project base;
-never generate empty replacement reports. The workflow collection executes admitted active-inventory cases once with
-real Python/Go/C/C++ coverage. All three subsequent Parent scans import the
-same revision-bound report bundle. Existing runtime results retain their
-separate evidence boundaries; static analysis does not qualify another host runtime.
+never generate empty replacement reports. Native C/C++ coverage is not provided. Python coverage is measured for the
+configuration checker by executing its real CLI and eight focused unit-test
+methods; this does not claim execution of all Parent Python tests. Existing runtime tests remain separate
+evidence and are not implied by a static-analysis result.
 
-Collection uses the existing Parent inventory runner and its coverage producers.
-Python traces the admitted exact selectors; Go produces native module reports;
-C/C++ coverage comes from genuinely instrumented compilations and executions.
-Only validated existing reports with matching revision and inventory identity
-may be imported. <code>sonar.coverageReportPaths</code> imports the generic
-Python/native report and <code>sonar.go.coverage.reportPaths</code> imports
-the Go reports from this bundle. The required reusable workflow publishes an
-immutable same-run artifact only after full producer verification. Advisory
-scans download that exact artifact ID and recheck report, source, revision,
-inventory and selection identity; they do not repeat collection. CFamily fixtures
-stay MAIN and eligible for genuine coverage; Python/Go test files are omitted
-using the [source-role contract](sonar-source-roles.md). The eight scope-test
-methods expand to 14 independent inputs and are recorded as additional offline
-unit selectors; the core inventory remains at 100 cases. No hidden tests are
-started by the scanner.
+Python coverage uses `coverage==7.17.0` (Apache-2.0, Python >=3.11, no runtime
+dependencies), pinned to the official PyPI universal-wheel SHA-256 in
+`ci/requirements/sonar-coverage.txt`. CI creates a separate environment below
+`$RUNNER_TEMP/sonar-python`, installs binary-only with required hashes, and uses
+`ci/sonar-coverage.ini` for branch coverage and relative paths. The CLI check and
+unit tests generate real parallel data files, which are combined into
+`$RUNNER_TEMP/sonar-coverage/python.xml` and imported through
+`sonar.python.coverage.reportPaths`. The focused source directory is
+`ci/checks/analysis`; its two unexecuted existing scripts remain at measured zero.
+No coverage exclusions or empty replacement reports are used.
 
-A report proves only its measured files and scenarios. Unexecuted paths,
-uninstrumented native components, and low or zero coverage remain visible.
-No test-execution reports are imported and no coverage exclusions or
-Quality-Gate thresholds are relaxed.
+CI runs four existing single-scenario Go tests, one per module, after verifying
+that each exact test name still exists. It writes native `go test -coverprofile`
+reports below `$RUNNER_TEMP/sonar-coverage`, validates them with `go tool cover`
+inside their modules, then imports the four real paths through
+`sonar.go.coverage.reportPaths`. This is intentionally sparse package coverage:
+
+| Module | Package / selected test | Report |
+| --- | --- | --- |
+| `connectors/envoy/ext_proc` | `./internal/responseobserver` / `TestClientFramesBoundedOrderedOperations` | `envoy.out` |
+| `connectors/traefik/native_middleware` | `.` / `TestMiddlewareForwardsRequestAuthorityAsHostHeader` | `traefik-native.out` |
+| `connectors/traefik/composite_middleware` | `.` / `TestStripInternalHeadersRemovesTrailerForms` | `traefik-composite.out` |
+| `connectors/traefik/response_observer` | `.` / `TestResponseHeaderEncodingUsesLengthThenBytesOrder` | `traefik-observer.out` |
+
+These four cases do not exercise all module packages, Envoy's `libmodsecurity`
+build-tagged CGo integration, alternate platforms, or every connector runtime.
+No test-execution reports are imported. A measured zero or low coverage remains
+visible; no coverage exclusion or Quality-Gate threshold is relaxed.
 
 ## Validation and maintenance
 

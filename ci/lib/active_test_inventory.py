@@ -430,7 +430,7 @@ def selection_summary(inventory: Inventory, selected: tuple[dict[str, Any], ...]
 
 
 def python_child(target: str) -> int:
-    """Run one exact Python selector; optional coverage wraps this callable."""
+    """Run one exact Python selector and report its observed result."""
     import unittest
 
     if os.environ.get("ACTIVE_TEST_OFFLINE_I12") == "1":
@@ -471,10 +471,9 @@ PYTHON_CHILD = ("import sys; from ci.lib.active_test_inventory import python_chi
                 "raise SystemExit(python_child(sys.argv[1]))")
 
 
-def execution_command(root: Path, execution: dict[str, Any], race: bool = False,
-                      coverage: bool = False, coverage_path: Path | None = None
+def execution_command(root: Path, execution: dict[str, Any], race: bool = False
                       ) -> tuple[list[str], Path]:
-    """Produce argv without a shell; coverage callers may wrap the Python child."""
+    """Produce the exact admitted argv without a shell."""
     selector = execution["selector"]
     kind = selector["kind"]
     if kind == "python":
@@ -485,10 +484,6 @@ def execution_command(root: Path, execution: dict[str, Any], race: bool = False,
     command = ["go", "test", "-json", "-mod=readonly", "-count=1", "-run", pattern]
     if race:
         command.append("-race")
-    if coverage:
-        if coverage_path is None:
-            raise InventoryError("Go coverage requires an explicit external report path")
-        command.extend(["-covermode=atomic", "-coverprofile=" + str(coverage_path)])
     command.append(selector["package"])
     return command, root / selector["module"]
 
@@ -622,13 +617,11 @@ def execution_timeout(execution: dict[str, Any]) -> int:
 
 
 def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
-                  race: bool, strict_skips: bool, coverage: bool,
-                  coverage_root: Path | None = None) -> dict[str, Any]:
+                  race: bool, strict_skips: bool) -> dict[str, Any]:
     """Run one admitted selector and retain its actual terminal result."""
     _recheck_bindings(inventory)
     log = output / (execution["id"] + ".log")
-    coverage_path = output / (execution["id"] + ".cover")
-    command, working_directory = execution_command(inventory.root, execution, race, coverage, coverage_path)
+    command, working_directory = execution_command(inventory.root, execution, race)
     environment = dict(os.environ, GOTOOLCHAIN="local", PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1")
     environment["ACTIVE_TEST_EXECUTION"] = execution["id"]
     environment["ACTIVE_TEST_INVENTORY_SHA256"] = inventory.digest
@@ -640,18 +633,6 @@ def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
                            CODEX_TEST_TMP_ROOT=str(fixture), CODEX_TEMP_ROOT=str(fixture),
                            TMPDIR=str(fixture), RUNNER_TEMP=str(fixture),
                            ACTIVE_TEST_OFFLINE_I12="1")
-    measured = coverage_root is not None and "coverage" in execution["groups"]
-    if measured:
-        from ci.lib.active_coverage import (coverage_environment, go_coverage_arguments, python_command)
-
-        kind = execution["selector"]["kind"]
-        if kind == "python":
-            command = python_command(execution["selector"]["target"], coverage_root,
-                                     execution["id"], strict_skips=strict_skips)
-        if kind == "go":
-            command[-1:-1] = go_coverage_arguments(coverage_root, execution["id"])
-        else:
-            environment.update(coverage_environment(coverage_root, execution["id"]))
     with log.open("x", encoding="utf-8") as stream:
         returncode = _run_child(command, working_directory, environment, stream,
                                 timeout=execution_timeout(execution))
@@ -664,25 +645,19 @@ def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
     status = "blocked" if observed.get("skips") else "passed"
     return {"execution_id": execution["id"], "case_ids": [case["id"] for case in execution["cases"]],
             "status": status, "observed": observed, "log": log.name,
-            "coverage_measured": measured,
             "go_race": race and execution["selector"]["kind"] == "go"}
 
 
 def execute_selected(inventory: Inventory, selected: tuple[dict[str, Any], ...], output_root: Path,
-                     race: bool = False, strict_skips: bool = False,
-                     coverage: bool = False, coverage_root: Path | None = None) -> dict[str, Any]:
+                     race: bool = False, strict_skips: bool = False) -> dict[str, Any]:
     output = _output_directory(inventory.root, output_root)
     summary = selection_summary(inventory, selected)
     summary["output_directory"] = str(output)
     summary["results"] = []
-    measurement_root = _output_directory(inventory.root, coverage_root) if coverage_root else None
-    if measurement_root is not None:
-        summary["coverage_directory"] = str(measurement_root)
     destination = output / "summary.json"
     try:
         for execution in selected:
-            summary["results"].append(run_execution(inventory, execution, output, race, strict_skips,
-                                                     coverage, measurement_root))
+            summary["results"].append(run_execution(inventory, execution, output, race, strict_skips))
     finally:
         destination.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return summary
@@ -794,8 +769,6 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--race", action="store_true")
     parser.add_argument("--strict-skips", action="store_true")
-    parser.add_argument("--coverage", action="store_true")
-    parser.add_argument("--coverage-root", type=Path)
     parser.add_argument("--output-root", type=Path)
     arguments = parser.parse_args(argv)
     try:
@@ -810,8 +783,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         else:
             output_root = arguments.output_root if arguments.output_root is not None else _default_output_root()
             summary = execute_selected(inventory, selected, output_root,
-                                       arguments.race, arguments.strict_skips, arguments.coverage,
-                                       arguments.coverage_root)
+                                       arguments.race, arguments.strict_skips)
         print(json.dumps(summary, indent=2))
         return 0
     except (InventoryError, OSError, subprocess.TimeoutExpired) as exc:

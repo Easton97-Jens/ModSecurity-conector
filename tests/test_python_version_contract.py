@@ -130,20 +130,6 @@ class PythonVersionContractTest(unittest.TestCase):
 '''
 
     def local_reusable_caller_block(self, job_name: str, reference: str) -> str:
-        if reference == CHECKER.SONAR_REUSABLE_REFERENCE:
-            return f'''  {job_name}:
-    name: Sonar C++17 (required)
-    if: >-
-      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
-      (github.event_name != 'pull_request' ||
-       github.event.pull_request.head.repo.full_name == github.repository)
-    permissions:
-      contents: read
-      pull-requests: read
-    uses: {reference}
-    secrets:
-      SONAR_TOKEN: ${{{{ secrets.SONAR_TOKEN }}}}
-'''
         return f'''  {job_name}:
     uses: {reference}
 '''
@@ -181,7 +167,7 @@ class PythonVersionContractTest(unittest.TestCase):
         (root / ".python-version").write_text("3.15.6\n", encoding="utf-8")
 
     def test_expected_inventory_tracks_normal_and_candidate_jobs(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 42)
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 45)
         self.assertIn(
             CHECKER.JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
@@ -198,7 +184,7 @@ class PythonVersionContractTest(unittest.TestCase):
             CHECKER.JobIdentity("update-workflow-tools.yml", "resolver"),
             CHECKER.JobIdentity("update-workflow-tools.yml", "validator"),
             CHECKER.JobIdentity("verified-report-governance.yml", "report-governance"),
-            CHECKER.JobIdentity("sonarqube.yml", "advisory"),
+            CHECKER.JobIdentity("sonarqube.yml", "analysis"),
         ):
             with self.subTest(identity=identity):
                 self.assertIn(identity, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS)
@@ -237,7 +223,6 @@ class PythonVersionContractTest(unittest.TestCase):
         self.assertEqual(
             CHECKER.EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS,
             {
-                CHECKER.SONAR_REUSABLE_CALLER: CHECKER.SONAR_REUSABLE_REFERENCE,
                 CHECKER.JobIdentity("all-connectors-no-crs.yml", "no-crs"): (
                     "./.github/workflows/reusable-five-connectors-profile.yml"
                 )
@@ -483,40 +468,6 @@ printf '%s\\n' 'make quick-check'
         self.assertTrue(
             any("must use exactly" in violation for violation in violations), violations
         )
-
-    def sonar_caller_errors(self, original: str, replacement: str) -> list[str]:
-        with self.temporary_root() as directory:
-            path = Path(directory) / "sonarqube.yml"
-            text = self.local_reusable_caller_block("required", CHECKER.SONAR_REUSABLE_REFERENCE)
-            if original:
-                self.assertEqual(text.count(original), 1)
-                text = text.replace(original, replacement, 1)
-            path.write_text("jobs:\n" + text)
-            jobs, errors = CHECKER.parse_jobs(path)
-            self.assertEqual(errors, [])
-            identity = CHECKER.SONAR_REUSABLE_CALLER
-            return CHECKER.local_reusable_caller_violations(
-                jobs, {identity: CHECKER.SONAR_REUSABLE_REFERENCE}, {identity})
-
-    def test_sonar_local_reusable_caller_preserves_strict_producer_boundary(self):
-        self.assertEqual(self.sonar_caller_errors("", ""), [])
-
-    def test_sonar_local_reusable_caller_rejects_foreign_producer(self):
-        self.assertTrue(self.sonar_caller_errors(CHECKER.SONAR_REUSABLE_REFERENCE,
-            "./.github/workflows/other.yml"))
-
-    def test_sonar_local_reusable_caller_rejects_fork_guard_bypass(self):
-        self.assertTrue(self.sonar_caller_errors("github.repository ==", "true || github.repository =="))
-
-    def test_sonar_local_reusable_caller_rejects_write_permission(self):
-        self.assertTrue(self.sonar_caller_errors("contents: read", "contents: write"))
-
-    def test_sonar_local_reusable_caller_rejects_inherited_secrets(self):
-        self.assertTrue(self.sonar_caller_errors("secrets:\n      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}", "secrets: inherit"))
-
-    def test_sonar_local_reusable_caller_rejects_inline_execution(self):
-        self.assertTrue(self.sonar_caller_errors("    name: Sonar C++17 (required)",
-            "    runs-on: ubuntu-latest\n    name: Sonar C++17 (required)"))
 
     def test_malformed_canonical_version_is_an_input_error(self) -> None:
         with self.temporary_root() as directory:

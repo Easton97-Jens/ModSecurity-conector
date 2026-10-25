@@ -10,8 +10,8 @@ PYTHON_BIN=${PYTHON:-python3}
 from pathlib import Path
 import sys
 sys.path.insert(0, sys.argv[1])
-from ci.lib.active_coverage import external_root
-external_root(Path(sys.argv[2]))
+from ci.lib.active_test_inventory import validate_output_root
+validate_output_root(Path(sys.argv[1]), Path(sys.argv[2]))
 ADMITROOT
 case_root=$(mktemp -d "$RUNNER_TEMP/active-targeted-evaluator.XXXXXX")
 trap 'rm -rf -- "$case_root"' EXIT HUP INT TERM

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib.util
-import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -25,7 +24,6 @@ class SonarScopeTests(unittest.TestCase):
             "scripts/tool.py", "tests/helper.py", "tests/regression.c",
             ".github/workflows/lint.yml", "examples/host.conf", "config/runtime.json",
             "fuzz/http.c", "connectors/envoy/test_peer.py",
-            "ci/runtime/lifecycle/i12/nginx/wire_client.py",
             "connectors/envoy/ext_proc/main_test.go",
             "connectors/envoy/ext_proc/go.mod",
             "connectors/traefik/native_middleware/go.mod",
@@ -36,7 +34,7 @@ class SonarScopeTests(unittest.TestCase):
 
     def test_preserves_cfamily_tests_and_connector_build_scripts(self) -> None:
         result = SCOPE.validate(self.config, "3.15.1", self.files)
-        self.assertEqual(result["test_files"], 4)
+        self.assertEqual(result["test_files"], 3)
         self.assertEqual(result["cfamily_translation_units"], 3)
         self.assertEqual(result["excluded_tracked_files"], [])
 
@@ -60,7 +58,7 @@ class SonarScopeTests(unittest.TestCase):
             ("sonar.sources=.\nsonar.sources=ci\n", "duplicate property"),
             ("sonar.sources=.\\\n", "unsupported property syntax"),
         )
-        with tempfile.TemporaryDirectory(dir=os.environ["RUNNER_TEMP"]) as directory:
+        with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sonar-project.properties"
             for contents, message in cases:
                 with self.subTest(contents=contents):
@@ -73,9 +71,8 @@ class SonarScopeTests(unittest.TestCase):
             with self.subTest(pattern=pattern):
                 with self.assertRaisesRegex(ValueError, "unsupported scope pattern"):
                     SCOPE.matches("tests/a.py", pattern)
-        for path, expected in (("tests/a.py", True), ("tests/ab.py", False)):
-            with self.subTest(path=path):
-                self.assertEqual(SCOPE.matches(path, "tests/?.py"), expected)
+        self.assertTrue(SCOPE.matches("tests/a.py", "tests/?.py"))
+        self.assertFalse(SCOPE.matches("tests/ab.py", "tests/?.py"))
 
     def test_requires_independent_submodule_boundary(self) -> None:
         self.config["sonar.exclusions"] = ",".join(
@@ -89,13 +86,6 @@ class SonarScopeTests(unittest.TestCase):
         self.files.append("connectors/new_connector/go.mod")
         with self.assertRaisesRegex(ValueError, "review Go module inventory"):
             SCOPE.validate(self.config, "3.15.1", self.files)
-
-
-# Default discovery delegates selection to the fully admitted inventory.
-if os.environ.get("ON_DEMAND_TESTS") != "1":
-    def load_tests(loader, standard_tests, pattern):
-        from ci.lib.active_test_inventory import module_load_tests
-        return module_load_tests(loader, standard_tests, pattern)
 
 
 if __name__ == "__main__":

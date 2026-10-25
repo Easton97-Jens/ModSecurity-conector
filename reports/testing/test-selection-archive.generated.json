@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source; no automatic execution and no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "95bdcb8593c35596b1415aceb23b270192d5770929bc272d771b77989dfb7586",
-  "on_demand_definition_count": 5541,
+  "inventory_sha256": "b24bd89ad0bd5174a9e9d4c2eddfd8a984561d1d01af492c64b125aa055ee9f2",
+  "on_demand_definition_count": 5511,
   "purpose": "Non-executable archive disposition; only config/testing/active-cases.json selects active cases.",
   "schema_version": 1,
   "sources": [
@@ -1601,22 +1601,6 @@
     },
     {
       "contains_selected_definitions": [
-        "tests.test_active_coverage.ActiveCoverageTests.test_generic_report_uses_real_line_counts",
-        "tests.test_active_coverage.ActiveCoverageTests.test_report_rejects_source_path_escape",
-        "tests.test_active_coverage.ActiveCoverageTests.test_manifest_rejects_changed_source",
-        "tests.test_active_coverage.ActiveCoverageTests.test_manifest_rejects_changed_report",
-        "tests.test_active_coverage.ActiveCoverageTests.test_manifest_rejects_foreign_revision",
-        "tests.test_active_coverage.ActiveCoverageTests.test_manifest_rejects_foreign_inventory",
-        "tests.test_active_coverage.ActiveCoverageTests.test_go_blocks_map_to_current_module_source",
-        "tests.test_active_coverage.ActiveCoverageTests.test_compiler_notes_preserve_real_source_identity",
-        "tests.test_active_coverage.ActiveCoverageTests.test_unsafe_compiler_argument_rejected_before_process"
-      ],
-      "on_demand_definitions": [],
-      "source": "tests/test_active_coverage.py",
-      "source_sha256": "2c78fb59dcd22dc91c45325e712679f763506f44b48f6d3d8eaa3a4eb1498ffb"
-    },
-    {
-      "contains_selected_definitions": [
         "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_updates_only_hashes_in_both_budget_arrays",
         "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_noop_preserves_original_bytes",
         "tests.test_active_inventory_updates.InventoryMaintenanceTests.test_unapproved_primary_path_is_rejected",
@@ -2902,7 +2886,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "0c8ae8d08071b7e66c24319b5342b9b9277d84cb92c1f570de1c1aedc26a714a"
+      "source_sha256": "0ae712a3d73e24ae958a093d214c5b3cbb03ac21a062a1db8139691d5c9e90c0"
     },
     {
       "contains_selected_definitions": [],
@@ -3124,39 +3108,6 @@
       ],
       "source": "tests/test_connector_guides.py",
       "source_sha256": "886b6628ccdc1780be68c919699da1e9e0c5de99b17e3b40d2f8ae6dcc6dceea"
-    },
-    {
-      "contains_selected_definitions": [
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_valid_artifact_uses_real_manifest_checks_without_sdk_build",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_wrong_checkout_revision",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_wrong_manifest_revision",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_generic_report_hash",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_go_report_hash",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_generic_source_hash",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_go_source_hash",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_inventory_identity",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_selected_cases",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_exact_case_budget",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_dependency_input",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_analysis_input",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_changed_module_dependency",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_artifact_rejects_dirty_checkout",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_required_verify_calls_full_sdk_build_identity",
-        "tests.test_coverage_artifact.CoverageArtifactTests.test_required_verify_rejects_changed_sdk_build_identity"
-      ],
-      "on_demand_definitions": [],
-      "source": "tests/test_coverage_artifact.py",
-      "source_sha256": "adead05195c8341e44095fc1531ae741a647edc2ef759cb5d70d124adf1417e5"
-    },
-    {
-      "contains_selected_definitions": [
-        "tests.test_coverage_cfamily_scope.CoverageCFamilyScopeTests.test_gcov_codec_retains_all_cfamily_suffixes",
-        "tests.test_coverage_cfamily_scope.CoverageCFamilyScopeTests.test_snapshot_binds_all_cfamily_suffixes",
-        "tests.test_coverage_cfamily_scope.CoverageCFamilyScopeTests.test_actual_native_fixture_paths_remain_main"
-      ],
-      "on_demand_definitions": [],
-      "source": "tests/test_coverage_cfamily_scope.py",
-      "source_sha256": "2700c0a41c34c763b09aebf18851ed9055c68330f2b75232e54d2180a6a4f9ba"
     },
     {
       "contains_selected_definitions": [],
@@ -7682,14 +7633,7 @@
       "source_sha256": "8b9fdde844e074a6e467a999b1d3e073ccd5d5ee05b706462738bd745444a45e"
     },
     {
-      "contains_selected_definitions": [
-        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_preserves_strict_producer_boundary",
-        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_foreign_producer",
-        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_fork_guard_bypass",
-        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_write_permission",
-        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_inherited_secrets",
-        "tests.test_python_version_contract.PythonVersionContractTest.test_sonar_local_reusable_caller_rejects_inline_execution"
-      ],
+      "contains_selected_definitions": [],
       "on_demand_definitions": [
         "tests.test_python_version_contract.PythonVersionContractTest.test_expected_inventory_tracks_normal_and_candidate_jobs",
         "tests.test_python_version_contract.PythonVersionContractTest.test_valid_yaml_control_is_accepted",
@@ -7724,7 +7668,7 @@
         "tests.test_python_version_contract.WorkflowActionPinsTest.test_missing_action_is_rejected"
       ],
       "source": "tests/test_python_version_contract.py",
-      "source_sha256": "f5403d029de345f853a58966cece90e6c331b2d1782be1f4cd7b4477c4944731"
+      "source_sha256": "e0db06518bcf5cf3107f9116e1685ff127b86bb4dae86c0deffda7f87bdb014e"
     },
     {
       "contains_selected_definitions": [],
@@ -8384,21 +8328,6 @@
     {
       "contains_selected_definitions": [],
       "on_demand_definitions": [
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_absent_summary_density_requires_all_structured_metrics",
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_each_nonzero_duplication_metric_fails_despite_rounded_summary",
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_all_three_exact_measures_are_required",
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_nonfinite_negative_and_nonstring_metrics_are_rejected",
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_positive_line_count_survives_rounded_zero_density",
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_invalid_endpoint_is_rejected_before_network",
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_single_legacy_period_preserves_exact_count",
-        "tests.test_sonar_duplication_gate.SonarDuplicationGateTests.test_ambiguous_period_shapes_and_missing_values_fail"
-      ],
-      "source": "tests/test_sonar_duplication_gate.py",
-      "source_sha256": "f1e5668489c72b27aedf5d624bb64d13d4d93ebf8abbdacf0f413c06a04118e1"
-    },
-    {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
         "tests.test_sonar_reliability_contract.SonarReliabilityContractTests.test_traefik_result_payload_uses_fail_closed_bounded_copies",
         "tests.test_sonar_reliability_contract.SonarReliabilityContractTests.test_traefik_result_payload_wire_contract_for_optional_text",
         "tests.test_sonar_reliability_contract.SonarReliabilityContractTests.test_authorization_listener_initializes_peer_and_local_socket_state",
@@ -8419,7 +8348,8 @@
       "source_sha256": "f49e9c3cc067dbcb6524e2ed5fcee04a3b7c44a0ac9422bc842c9b55e9638f55"
     },
     {
-      "contains_selected_definitions": [
+      "contains_selected_definitions": [],
+      "on_demand_definitions": [
         "tests.test_sonar_scope.SonarScopeTests.test_preserves_cfamily_tests_and_connector_build_scripts",
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_python_minor_drift",
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_language_blind_test_scope",
@@ -8429,49 +8359,8 @@
         "tests.test_sonar_scope.SonarScopeTests.test_requires_independent_submodule_boundary",
         "tests.test_sonar_scope.SonarScopeTests.test_requires_review_when_go_module_inventory_changes"
       ],
-      "on_demand_definitions": [],
       "source": "tests/test_sonar_scope.py",
-      "source_sha256": "711893c7f1f18e0b08c9ee5a806a1637d36a2141ee5d2104abaedc48c71373ff"
-    },
-    {
-      "contains_selected_definitions": [
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_analysis_replacement_during_readback_fails",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_provider_conclusion_change_during_readback_fails"
-      ],
-      "on_demand_definitions": [
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_hash_locked_yaml_dependency_is_installed_before_gate_unit_tests",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_missing_late_or_unprotected_yaml_install_is_rejected",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_both_workflow_gates_bind_explicit_PR_and_head",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_missing_presentation_counts_pass_only_with_complete_structured_zero",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_all_missing_metrics_fail_instead_of_defaulting_to_zero",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_duplicate_and_null_metric_values_fail",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_every_nonzero_finding_class_fails",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_measures_cannot_hide_finding_inventory",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_security_rating_must_be_explicit_A",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_provider_must_be_terminal_success_for_current_head",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_latest_pending_run_supersedes_old_success",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_current_PR_head_checked_before_and_after",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_stale_missing_ambiguous_or_changed_analysis_is_rejected",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_quality_gate_failure_ignored_or_missing_conditions_fail",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_foreign_or_missing_component_identity_fails",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_github_inventory_is_fully_paginated",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_sonar_inventory_is_fully_paginated_before_nonzero_rejection",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_partial_duplicate_or_ambiguous_pages_fail",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_annotations_cannot_be_hidden_or_left_partial",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_annotation_inventory_is_fully_paginated_before_rejection",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_missing_partial_duplicate_or_boolean_github_counts_fail",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_analysis_timestamp_must_be_explicit_and_timezone_aware",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_missing_checks_and_counts_fail",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_provider_replacement_during_readback_fails",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_invalid_identity_stops_before_network",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_diagnostic_text_is_bounded_and_command_inert",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_duplicate_JSON_fields_and_redirects_fail",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_official_client_enforces_timeout_byte_bound_and_object_shape",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_only_supported_new_code_filter_is_sent_and_hotspots_remain_PR_measure",
-        "tests.test_sonar_zero_gate.SonarZeroGateTests.test_duplicate_file_and_blocks_remain_bounded_diagnostics_before_failure"
-      ],
-      "source": "tests/test_sonar_zero_gate.py",
-      "source_sha256": "cba96e19354ea22cb0aec602a427d6a9f3aab73911606eeee8ac3bea439255a4"
+      "source_sha256": "7e7faaf34fb989229744a6e6f6e5c181c6a6401ee4bdfa6d1c9011521f847e29"
     },
     {
       "contains_selected_definitions": [],

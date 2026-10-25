@@ -1420,174 +1420,55 @@ def locked_action_reference_with_version(name: str) -> str:
     return f"{locked_action_pin(name)} # {record['version']}"
 
 
-def sonar_scanner_checks(scanner: dict, *, advisory: bool) -> dict[str, bool]:
-    """Keep scanner identity, complete scope and the actual gate mandatory."""
-    settings = scanner.get("with", {})
-    args = settings.get("args", "")
-    project = "${{ matrix.project }}" if advisory else "Easton97-Jens_ModSecurity-conector"
-    standard = "${{ matrix.cpp }}" if advisory else "17"
-    return {
-        "scanner must be the immutable official action": (
-            scanner.get("uses") == locked_action_pin("SonarSource/sonarqube-scan-action")
+def sonar_pr_secret_errors(text: str) -> list[str]:
+    """Admit only the fixed same-repository scanner's step-local secret."""
+    try:
+        workflow = yaml.load(text, Loader=yaml.BaseLoader)
+        jobs = workflow["jobs"]
+        job = jobs["analysis"]
+        steps = job["steps"]
+        scanner_steps = [step for step in steps if "SONAR_TOKEN" in step.get("env", {})]
+        scanner = scanner_steps[0]
+        strategy = job["strategy"]
+    except (KeyError, IndexError, TypeError, yaml.YAMLError):
+        return ["missing fixed Sonar scanner structure"]
+    expected_guard = (
+        "github.repository == 'Easton97-Jens/ModSecurity-conector' && "
+        "(github.event_name == 'push' || "
+        "github.event.pull_request.head.repo.full_name == github.repository)"
+    )
+    expected_variants = [
+        {"cpp": "17", "project": "Easton97-Jens_ModSecurity-conector", "advisory": "false", "branch_args": ""},
+        {"cpp": "20", "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory", "advisory": "true", "branch_args": "-Dsonar.branch.name=master"},
+        {"cpp": "23", "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory", "advisory": "true", "branch_args": "-Dsonar.branch.name=master"},
+    ]
+    checks = {
+        "only the fixed analysis job is permitted": set(jobs) == {"analysis"},
+        "same-repository guard must match exactly": " ".join(job.get("if", "").split()) == expected_guard,
+        "workflow permissions must default deny": workflow.get("permissions") == {},
+        "scanner job must be read only": job.get("permissions") == {"contents": "read"},
+        "standard/project/gating matrix must match exactly": strategy.get("matrix", {}).get("include") == expected_variants,
+        "only higher standards may be advisory": job.get("continue-on-error") == "${{ matrix.advisory }}",
+        "all standard analyses must finish independently": strategy.get("fail-fast") == "false",
+        "only push/master and ordinary pull requests are permitted": workflow.get("on") == {
+            "push": {"branches": ["master"]}, "pull_request": "",
+        },
+        "secret must be on one immutable scanner action": (
+            len(scanner_steps) == 1
+            and scanner.get("uses") == locked_action_pin("SonarSource/sonarqube-scan-action")
             and "run" not in scanner
         ),
         "scanner secret mapping must be exact": scanner.get("env") == {
             "SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}",
-            "SONAR_USER_HOME": "${{ runner.temp }}/sonar-cache",
         },
-        "scanner version and signature verification must remain pinned": (
-            settings.get("scannerVersion") == "8.1.0.6389"
-            and settings.get("skipSignatureVerification") == "false"
+        "no other secret expression is permitted": (
+            text.count("${{ secrets.SONAR_TOKEN }}") == 1
+            and re.search(r"\bsecrets\b", text.replace("${{ secrets.SONAR_TOKEN }}", "", 1), re.IGNORECASE) is None
         ),
-        "scanner must retain the full Parent scope": (
-            "projectBaseDir" not in settings
-            and re.search(r"-D(?:sonar\.(?:sources|tests|inclusions|exclusions|test\.(?:inclusions|exclusions)|coverage\.exclusions|python\.version)|project\.settings)=", args) is None
-        ),
-        "scanner must preserve project and reporting standard": (
-            "-Dsonar.projectKey=" + project in args
-            and "-Dsonar.cfamily.reportingCppStandardOverride=c++" + standard in args
-            and args.count("-Dsonar.projectKey=") == 1
-            and args.count("-Dsonar.cfamily.reportingCppStandardOverride=") == 1
-        ),
-        "scanner must analyze the exact head": (
-            "-Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}" in args
-        ),
-        "scanner must import verified native/Python and Go reports": all(
-            value in args for value in (
-                "-Dsonar.coverageReportPaths=${{ steps.coverage.outputs.generic_report }}",
-                "-Dsonar.go.coverage.reportPaths=${{ steps.coverage.outputs.go_reports }}",
-                "-Dsonar.qualitygate.wait=true", "-Dsonar.qualitygate.timeout=600",
-            )
+        "workflow and job environments must not receive the token": all(
+            "SONAR_TOKEN" not in item.get("env", {}) for item in (workflow, job)
         ),
     }
-
-
-def sonar_producer_checks() -> dict[str, bool]:
-    """Require producer verification/publication before the required scan."""
-    producer = yaml.load((WORKFLOWS / "sonar-coverage.yml").read_text(), Loader=yaml.BaseLoader)
-    job = producer["jobs"]["selected-coverage"]
-    steps = job["steps"]
-    scan = next(step for step in steps if step.get("id") == "scan")
-    verify = next(step for step in steps if "collect-active-coverage.py verify --output-root" in step.get("run", ""))
-    artifact = next(step for step in steps if step.get("id") == "artifact")
-    attest = next(step for step in steps if step.get("id") == "attest")
-    python = next(step for step in steps if step.get("id") == "setup-python")
-    checks = sonar_scanner_checks(scan, advisory=False)
-    checks.update({
-        "producer must be reusable only": set(producer["on"]) == {"workflow_call"},
-        "required gate must not be advisory": job.get("continue-on-error", "false") == "false",
-        "producer must use pinned canonical Python": (
-            python.get("uses") == locked_action_pin("actions/setup-python")
-            and python.get("with") == {"python-version-file": ".python-version", "check-latest": "false"}
-        ),
-        "full verification and immutable publication must precede attestation/scan": (
-            steps.index(verify) < steps.index(artifact) < steps.index(attest) < steps.index(scan)
-            and all(step.get("if", "success()") == "success()" for step in (verify, artifact, attest, scan))
-        ),
-        "verified artifact must be immutable and nonempty": (
-            artifact.get("uses") == locked_action_pin("actions/upload-artifact")
-            and artifact.get("with", {}).get("if-no-files-found") == "error"
-            and "overwrite" not in artifact.get("with", {})
-        ),
-        "attestation must bind verification to the analyzed head": (
-            attest.get("env", {}).get("ANALYZED_SHA") == "${{ github.event.pull_request.head.sha || github.sha }}"
-            and 'echo "verified=true" >> "$GITHUB_OUTPUT"' in attest.get("run", "")
-            and 'echo "head=$ANALYZED_SHA" >> "$GITHUB_OUTPUT"' in attest.get("run", "")
-        ),
-        "producer outputs must identify verified immutable artifact": job.get("outputs", {}) == {
-            "verified": "${{ steps.attest.outputs.verified }}",
-            "head": "${{ steps.attest.outputs.head }}",
-            "artifact_id": "${{ steps.artifact.outputs.artifact-id }}",
-            "artifact_name": "parent-selected-coverage-${{ github.run_id }}-${{ github.run_attempt }}",
-        },
-    })
-    return checks
-
-
-def sonar_pr_secret_errors(text: str) -> list[str]:
-    """Admit one required producer and source-bound advisory reuse only."""
-    try:
-        workflow = yaml.load(text, Loader=yaml.BaseLoader)
-        jobs = workflow["jobs"]
-        required, job = jobs["required"], jobs["advisory"]
-        steps = job["steps"]
-        scanner_steps = [step for step in steps if "SONAR_TOKEN" in step.get("env", {})]
-        scanner = scanner_steps[0]
-        download = next(step for step in steps if step.get("uses") == locked_action_pin("actions/download-artifact"))
-        verify = next(step for step in steps if step.get("id") == "coverage")
-        checkout = next(step for step in steps if step.get("uses") == locked_action_pin("actions/checkout"))
-        python = next(step for step in steps if step.get("id") == "setup-python")
-        checks = sonar_producer_checks()
-    except (KeyError, IndexError, StopIteration, TypeError, yaml.YAMLError):
-        return ["missing fixed Sonar producer/advisory structure"]
-    expected_guard = (
-        "github.repository == 'Easton97-Jens/ModSecurity-conector' && "
-        "(github.event_name != 'pull_request' || "
-        "github.event.pull_request.head.repo.full_name == github.repository)"
-    )
-    expected_advisory_guard = (
-        "always() && !cancelled() && needs.required.outputs.verified == 'true' && "
-        "needs.required.outputs.head == (github.event.pull_request.head.sha || github.sha)"
-    )
-    sanitized = text.replace("${{ secrets.SONAR_TOKEN }}", "")
-    sanitized = re.sub(r"(?m)^    secrets:\s*$", "", sanitized)
-    checks.update(sonar_scanner_checks(scanner, advisory=True))
-    checks.update({
-        "only required producer and advisory jobs are permitted": set(jobs) == {"required", "advisory"},
-        "same-repository producer guard must match exactly": " ".join(required.get("if", "").split()) == expected_guard,
-        "required producer must be fixed and decisive": (
-            required.get("uses") == "$/.github/workflows/sonar-coverage.yml"
-            and required.get("continue-on-error", "false") == "false"
-            and required.get("secrets") == {"SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}"}
-            and "steps" not in required
-        ),
-        "workflow permissions must default deny": workflow.get("permissions") == {},
-        "both jobs must be read only": (
-            required.get("permissions") == {"contents": "read", "pull-requests": "read"}
-            and job.get("permissions") == {"contents": "read"}
-        ),
-        "standard/project matrix must match exactly": job.get("strategy", {}).get("matrix", {}).get("include") == [
-            {"cpp": "20", "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory"},
-            {"cpp": "23", "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory"},
-        ],
-        "only higher standards may be advisory": job.get("continue-on-error") == "true",
-        "all advisory analyses must finish independently": job.get("strategy", {}).get("fail-fast") == "false",
-        "advisory must require verified same-head producer output even after gate failure": (
-            job.get("needs") == "required" and " ".join(job.get("if", "").split()) == expected_advisory_guard
-        ),
-        "only push/master, ordinary pull requests and explicit dispatch are permitted": workflow.get("on") == {
-            "push": {"branches": ["master"]}, "pull_request": "", "workflow_dispatch": "",
-        },
-        "only declared secret locations are permitted": (
-            len(scanner_steps) == 1 and text.count("${{ secrets.SONAR_TOKEN }}") == 2
-            and re.search(r"\bsecrets\b", sanitized, re.IGNORECASE) is None
-            and all("SONAR_TOKEN" not in item.get("env", {}) for item in (workflow, required, job))
-        ),
-        "advisory must use pinned canonical Python": (
-            python.get("uses") == locked_action_pin("actions/setup-python")
-            and python.get("with") == {"python-version-file": ".python-version", "check-latest": "false"}
-        ),
-        "advisory checkout must bind exact source without credentials": checkout.get("with", {}) == {
-            "ref": "${{ github.event.pull_request.head.sha || github.sha }}", "fetch-depth": "0",
-            "submodules": "true", "persist-credentials": "false",
-        },
-        "advisory must download only same-run immutable verified artifact": download.get("with", {}) == {
-            "artifact-ids": "${{ needs.required.outputs.artifact_id }}", "merge-multiple": "true",
-            "path": "${{ runner.temp }}/parent-coverage",
-        },
-        "artifact must pass source/report/inventory verification before scanner": (
-            steps.index(download) < steps.index(verify) < steps.index(scanner)
-            and all(step.get("if", "success()") == "success()" for step in (download, verify, scanner))
-            and verify.get("env", {}).get("ANALYZED_SHA") == "${{ github.event.pull_request.head.sha || github.sha }}"
-            and 'collect-active-coverage.py verify-artifact' in verify.get("run", "")
-            and '--output-root "$RUNNER_TEMP/parent-coverage"' in verify.get("run", "")
-            and '--expected-revision "$ANALYZED_SHA"' in verify.get("run", "")
-        ),
-        "advisory jobs may not rerun tests or SDK builds": all(
-            re.search(r"(?:go test| -m unittest|collect-active-coverage\.py run|prepare-runtime-components)", step.get("run", "")) is None
-            for step in steps
-        ),
-    })
     return [message for message, valid in checks.items() if not valid]
 
 
@@ -2772,7 +2653,7 @@ jobs:
 
     def test_sonar_secret_contract_rejects_secret_in_shell(self) -> None:
         text = self.workflow("sonarqube.yml")
-        unsafe = text.replace("          {", "          {\n          echo '${{ secrets.SONAR_TOKEN }}'", 1)
+        unsafe = text.replace("          set -euo pipefail", "          set -euo pipefail\n          echo '${{ secrets.SONAR_TOKEN }}'", 1)
         self.assertNotEqual(sonar_pr_secret_errors(unsafe), [])
 
     def test_sonar_secret_contract_rejects_other_action(self) -> None:
@@ -2784,24 +2665,24 @@ jobs:
         text = self.workflow("sonarqube.yml")
         self.assertEqual(sonar_pr_secret_errors(text), [])
         workflow = yaml.load(text, Loader=yaml.BaseLoader)
-        scanner = next(step for step in workflow["jobs"]["advisory"]["steps"] if step.get("id") == "scan")
+        scanner = next(step for step in workflow["jobs"]["analysis"]["steps"] if step.get("id") == "scan")
         args = scanner["with"]["args"]
         self.assertIn("-Dsonar.projectKey=${{ matrix.project }}", args)
         self.assertIn("-Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}", args)
-        self.assertNotRegex(args, r"-D(?:sonar\.(?:sources|tests|inclusions|exclusions|test\.(?:inclusions|exclusions)|coverage\.exclusions|python\.version)|project\.settings)=")
+        self.assertNotRegex(args, r"-D(?:sonar\.(?:sources|tests|inclusions|exclusions)|project\.settings)=")
         self.assertNotIn("projectBaseDir", scanner["with"])
 
     def test_sonar_standard_matrix_rejects_decisive_higher_standards(self) -> None:
         text = self.workflow("sonarqube.yml")
-        self.assertNotEqual(sonar_pr_secret_errors(text.replace("continue-on-error: true", "continue-on-error: false", 1)), [])
+        self.assertNotEqual(sonar_pr_secret_errors(text.replace("advisory: true", "advisory: false", 1)), [])
 
     def test_sonar_secret_contract_rejects_alternate_secret_access(self) -> None:
         text = self.workflow("sonarqube.yml")
         for expression in ("secrets['OTHER']", "secrets [ 'OTHER' ]", "toJSON(secrets)"):
             with self.subTest(expression=expression):
                 unsafe = text.replace(
-                    "          {",
-                    "          {\n          echo '${{ " + expression + " }}'",
+                    "          set -euo pipefail",
+                    "          set -euo pipefail\n          echo '${{ " + expression + " }}'",
                     1,
                 )
                 self.assertNotEqual(sonar_pr_secret_errors(unsafe), [])

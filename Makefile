@@ -1,4 +1,5 @@
-# All automatic behavioral selection derives from this one Parent inventory.
+# Parent behavioral defaults use this inventory. The mandatory master-owned
+# Sonar workflow retains its own explicit scope and Go selections.
 # Specialist commands require an explicit on-demand invocation; they are not a
 # second automatic catalogue. Static compilation/analysis gates stay independent.
 ACTIVE_TEST_RUNNER = $(PYTHON) ci/tools/run-active-tests.py
@@ -1670,7 +1671,6 @@ build-codeql-common-scope:
 check-active-inventory:
 	$(ACTIVE_TEST_RUNNER) --check
 	$(PYTHON) ci/tools/update-test-archive.py --check
-	$(PYTHON) ci/tools/sync-sonar-test-scope.py --check
 
 test-active:
 	$(ACTIVE_TEST_RUNNER)

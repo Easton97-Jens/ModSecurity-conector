@@ -1,5 +1,7 @@
 # Change Record: CR-20261025-pr382-global-inventory-coverage
 
+**Historischer Zwischenstand, abgelöst:** Eigene Sonar-Pipeline auf Nutzerwunsch entfernt; [aktueller Status](../../../docs/pr-382-merge-readiness.de.md). Alte Zahlen und Prüfergebnisse bleiben an ihre damaligen Revisionen gebunden.
+
 **Sprache:** [English](CR-20261025-pr382-global-inventory-coverage.md) | Deutsch
 
 Parent-Inventar-/Coverage-Migration. Auslieferungsevidence am exakten veröffentlichten Head: [PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382).
