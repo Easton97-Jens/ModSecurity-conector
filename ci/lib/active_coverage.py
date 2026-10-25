@@ -323,7 +323,7 @@ def _compiler_argument(argument: str) -> list[str]:
     for flag in fixed:
         if argument == flag:
             return [flag]
-    if re.fullmatch(r"-D[A-Za-z_][A-Za-z_0-9]*(?:=[A-Za-z_0-9.+-]+)?", argument):
+    if re.fullmatch(r"-D[A-Za-z_]\w*(?:=[\w.+-]+)?", argument, re.ASCII):
         return [argument]
     for prefix in ("-I", "-L"):
         if argument.startswith(prefix) and len(argument) > len(prefix):

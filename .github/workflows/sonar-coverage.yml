@@ -43,7 +43,7 @@ jobs:
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the configured analysis credential at the fixed Sonar origin
         env:
-          SONAR_TOKEN: ${{ secrets.MODSECURITYCONECTOR }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           python3 - <<'PY'
           import json
@@ -137,7 +137,7 @@ jobs:
       - name: Verify report, source, inventory and build identity before import
         run: python3 ci/tools/collect-active-coverage.py verify --output-root "$RUNNER_TEMP/parent-coverage"
       - name: Retain actual line observations and revision-bound report manifest
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && (steps.coverage.outcome == 'success' || steps.coverage.outcome == 'failure') }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: parent-selected-coverage-${{ github.run_id }}-${{ github.run_attempt }}
@@ -153,7 +153,7 @@ jobs:
       - name: Analyze the current source and import its actual coverage
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
-          SONAR_TOKEN: ${{ secrets.MODSECURITYCONECTOR }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_USER_HOME: ${{ runner.temp }}/sonar-cache
         with:
           scannerVersion: 8.1.0.6389

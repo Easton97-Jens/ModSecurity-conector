@@ -1898,7 +1898,7 @@
         },
         {
           "path": "ci/lib/active_coverage.py",
-          "sha256": "9b1d3b379c68f8cd4c4c446900b53ed388fe7a8fa5564b71a12bb7c259a7bbaf"
+          "sha256": "f6137bbcc57a5e6e5505283fdfd697f5a8b0bc2fab093a99c3f268f314584ef0"
         },
         {
           "path": "common/runtime/http_authorization_service.c",
@@ -2180,7 +2180,7 @@
         },
         {
           "path": "ci/lib/active_coverage.py",
-          "sha256": "9b1d3b379c68f8cd4c4c446900b53ed388fe7a8fa5564b71a12bb7c259a7bbaf"
+          "sha256": "f6137bbcc57a5e6e5505283fdfd697f5a8b0bc2fab093a99c3f268f314584ef0"
         },
         {
           "path": "common/runtime/http_authorization_service.c",
