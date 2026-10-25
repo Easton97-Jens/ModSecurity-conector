@@ -70,6 +70,8 @@ update failed HTTP 415; readback proved the server model unchanged.
 
 ## Changed files
 
+- `connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main_test.go`.
+
 - `.github/workflows/sonarqube.yml`, `ci/sonar-coverage.ini`, `ci/checks/analysis/run-sonar-coverage.py`.
 - `ci/checks/analysis/check-sonar-scope.py`, `tests/test_sonar_scope.py`, `tests/test_sonar_coverage.py`.
 - `ci/lib/evidence_inputs.py`, the affected evidence report generators, lifecycle consumers and trusted component postprocess invocation in `ci/provisioning/components/prepare-runtime-components.py`, `tests/test_evidence_input_security.py`, `tests/test_sonar_evidence_boundaries.py`.
@@ -119,6 +121,8 @@ suppressed or marked false positive to change a rating. No credentials or raw
 sensitive payloads are stored in this record.
 
 ## Runtime evidence
+
+Second CI attempt at `161bfd7118b7480d0d997ff1bd4a5157f97ca1d8`, [run 40230777535](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230777535), passed canonical Python/Go setup but exposed a pre-existing filesystem-dependent Go fixture: deleting and recreating a closed regular file allowed immediate inode reuse in the replacement-during-close test. The fixture now renames the original before creating the replacement, guaranteeing a distinct live inode; the replacement-preservation assertion and production listener are unchanged. Independent source review supported the diagnosis; the targeted replacement and real-socket cleanup tests passed 20 repetitions locally. This is a test determinism correction, not a claim of absolute same-UID race immunity.
 
 First PR-head CI at `d094e1dacd1f540b1ffcf35b7da5bd4b3c255665`, [run 40230520936](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230520936), passed canonical Python setup and all 61 selected Python tests. Go setup selected `1.27.1`, then the coverage step failed before scanning because setup-go restored a global Python ahead of the venv on PATH (`No module named coverage`). The workflow now names the dedicated venv interpreter for every coverage producer/merge/finalizer. No scanner upload or gate result is claimed for that failed attempt.
 

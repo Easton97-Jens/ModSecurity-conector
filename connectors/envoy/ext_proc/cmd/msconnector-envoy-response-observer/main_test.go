@@ -39,7 +39,9 @@ func (listener replacingResponseObserverListener) Accept() (net.Conn, error) {
 	return nil, errors.New("not implemented")
 }
 func (listener replacingResponseObserverListener) Close() error {
-	if err := os.Remove(listener.path); err != nil {
+	// Retain the old inode while creating a distinct replacement. Unlinking
+	// first allows immediate inode reuse on some filesystems.
+	if err := os.Rename(listener.path, listener.path+".original"); err != nil {
 		return err
 	}
 	return os.WriteFile(listener.path, []byte("replacement"), 0600)

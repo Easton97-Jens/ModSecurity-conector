@@ -78,6 +78,8 @@ unverändertes Servermodell.
 
 ## Geänderte Dateien
 
+- `connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main_test.go`.
+
 - `.github/workflows/sonarqube.yml`, `ci/sonar-coverage.ini`, `ci/checks/analysis/run-sonar-coverage.py`.
 - `ci/checks/analysis/check-sonar-scope.py`, `tests/test_sonar_scope.py`, `tests/test_sonar_coverage.py`.
 - `ci/lib/evidence_inputs.py`, die betroffenen Evidence-Report-Generatoren, Lifecycle-Consumer und den vertrauenswürdig konfigurierten Komponenten-Postprocess-Aufruf in `ci/provisioning/components/prepare-runtime-components.py`, `tests/test_evidence_input_security.py`, `tests/test_sonar_evidence_boundaries.py`.
@@ -130,6 +132,8 @@ für ein anderes Rating akzeptiert, unterdrückt oder als False Positive markier
 Dieser Record enthält keine Credentials oder sensiblen Rohpayloads.
 
 ## Runtime-Evidence
+
+Der zweite CI-Versuch bei `161bfd7118b7480d0d997ff1bd4a5157f97ca1d8`, [Lauf 40230777535](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230777535), bestand kanonisches Python-/Go-Setup, deckte aber eine bestehende dateisystemabhängige Go-Fixture auf: Löschen und Neuerzeugen einer geschlossenen regulären Datei erlaubte sofortige Inode-Wiederverwendung im Replacement-during-Close-Test. Die Fixture benennt nun das Original vor Erzeugung des Ersatzes um und garantiert damit einen anderen lebenden Inode; Ersatz-Erhaltungsassertion und produktiver Listener bleiben unverändert. Unabhängiges Source-Review stützte die Diagnose; gezielte Ersatz- und reale Socket-Cleanup-Tests bestanden lokal 20 Wiederholungen. Dies korrigiert Testdeterminismus und behauptet keine absolute Immunität gegen Same-UID-Races.
 
 Die erste PR-Head-CI bei `d094e1dacd1f540b1ffcf35b7da5bd4b3c255665`, [Lauf 40230520936](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230520936), bestand kanonisches Python-Setup und alle 61 ausgewählten Python-Tests. Go-Setup wählte `1.27.1`; danach scheiterte der Coverage-Schritt vor dem Scan, weil setup-go globales Python im PATH vor die venv setzte (`No module named coverage`). Der Workflow nennt nun für jeden Coverage-Producer, Merge und Finalizer explizit den venv-Interpreter. Für diesen fehlgeschlagenen Versuch wird weder Scanner-Upload noch Gate-Ergebnis behauptet.
 
