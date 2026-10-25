@@ -131,7 +131,120 @@ Dateiinhalt-Gruppen benötigen frische Scanner-Verifikation. Kein Finding wurde
 für ein anderes Rating akzeptiert, unterdrückt oder als False Positive markiert.
 Dieser Record enthält keine Credentials oder sensiblen Rohpayloads.
 
+## Exakte Einordnung der Basis-Findings
+
+Diese 46 Keys gehören zur Basisanalyse `52df415d-2c24-43a3-a63a-de6e79c37d60`
+bei `9f44647593bac7947113558c6ad183ab118e80af`. Bestehende Kontrollen oder
+bestimmungsgemäße Operatorberechtigung sind technische Gegennachweise, keine
+False-Positive-Transitions in Sonar. Eine frische PR-Analyse schließt alte
+Mainbranch-Finding-Keys nicht automatisch. Die erste Tabelle erfasst 14 Findings
+mit bestehenden Kontrollen/Operatorberechtigung; die zweite erfasst 32 Findings
+mit Korrekturen an Consumer-Grenzen.
+
+| Exakte Basis-Finding-Keys | Source-Grenze | Technische Einordnung |
+| --- | --- | --- |
+| `AaF0eroXXd_g6jxuNaF2` | `ci/lib/framework_revision_pins.py` (`_sha`, `_git`) | Validierung als kleingeschriebener ASCII-SHA-1 vor Git-Argumentaufbau; keine Shell. |
+| `AaF0erogXd_g6jxuNaF3` | `ci/tools/prepare-reviewed-framework-handoff.py` | Operator wählt eine neue Ausgabepatchdatei; `open("x")` verhindert Überschreiben. Keine engere Berechtigungsgrenze nachgewiesen. |
+| `AaF0errHXd_g6jxuNaGG` | `ci/runtime/common/hostruntime_preflight.py` (`_approved_lock_path`) | Runtime-/Source-Zugehörigkeit wird vor dem Lesen des Locks geprüft. |
+| `AaF0erquXd_g6jxuNaGE` | `ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py` | Konfigurationseingaben für Hashes durchlaufen Runtime-/Source- oder kanonische Framework-Source-Prüfung. |
+| `AaF0erqkXd_g6jxuNaGD` | `ci/runtime/lifecycle/resolve-full-lifecycle-profile.py` | Manifest-Eingabe durchläuft vor dem Laden `runtime_or_source_artifact_path`. |
+| `AaF0erq1Xd_g6jxuNaGF` | `ci/runtime/lifecycle/run-full-matrix-job.py` | Kanonische Repositories, geprüfte Runtime-Pfade und validierte Run-ID gehen als Argumentliste ohne Shell an den Subprozess. |
+| `AaF0erqcXd_g6jxuNaGC`, `AaF0erqcXd_g6jxuNaGB` | `ci/runtime/lifecycle/run-full-matrix-resume.py` | Kanonische Wurzeln, erlaubte Connector-/CRS-/MRTS-Werte, begrenztes numerisches Timeout und `shell=False`. |
+| `AaF0erpfXd_g6jxuNaF6`, `AaF0erpfXd_g6jxuNaF7` | `ci/runtime/lifecycle/run-verified-case.py` (`write_json`) | `runtime_artifact_path` prüft das Ziel unmittelbar vor dem Schreiben. |
+| `AaF0erp1Xd_g6jxuNaGA` | `ci/runtime/lifecycle/run-verified-report-run.py` (`prepare_verified_run_context`) | Das Ziel `current-run-id` wird aus validierten Runtime-Pfaden gebildet. |
+| `AaF0erp1Xd_g6jxuNaF8` | `ci/runtime/lifecycle/run-verified-report-run.py` | Manifest-Ausgabe verwendet kanonisches `report_path`; JSON liefert Nutzdaten, keine Zielberechtigung. |
+| `AaF0erpTXd_g6jxuNaF5` | `ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py` | Rules-/Source-Pfade werden geprüft; Hashing verwendet `O_NOFOLLOW` und prüft einen regulären Dateideskriptor. |
+| `AaF0erukXd_g6jxuNaGe` | `connectors/lighttpd/harness/patched_event_validation.py` | Explizit vom Operator gewählte Events-Eingabe; keine zusätzliche HTTP- oder privilegierte Berechtigungsgrenze nachgewiesen. |
+
+| Exakte Basis-Finding-Keys | Source-Grenze | Technische Einordnung |
+| --- | --- | --- |
+| `AaF0ersUXd_g6jxuNaGb`, `AaF0ersUXd_g6jxuNaGc`, `AaF0ersUXd_g6jxuNaGa` | `generate-nginx-mrts-http500-cluster-analysis.py` | JSON-/JSONL- und Auszugs-/Body-Lesezugriffe verwenden aufrufereigene `EvidenceInputs`; Metadaten dürfen abgelehnte Pfade nicht erneut öffnen. |
+| `AaF0errtXd_g6jxuNaGR`, `AaF0errtXd_g6jxuNaGO`, `AaF0errtXd_g6jxuNaGP`, `AaF0errtXd_g6jxuNaGN`, `AaF0errtXd_g6jxuNaGU`, `AaF0errtXd_g6jxuNaGM`, `AaF0errtXd_g6jxuNaGV`, `AaF0errtXd_g6jxuNaGQ`, `AaF0errtXd_g6jxuNaGL`, `AaF0errtXd_g6jxuNaGS`, `AaF0errtXd_g6jxuNaGK`, `AaF0errtXd_g6jxuNaGT` | `generate-verified-runtime-mismatch-analysis.py` | Aufrufereigene Wurzeln begrenzen gespeicherte Evidence-Pfade, verschachtelte Includes, Stat-/Fingerprint- und Lesezugriffe. |
+| `AaF0erkjXd_g6jxuNaFz`, `AaF0erkjXd_g6jxuNaFv`, `AaF0erkjXd_g6jxuNaFt`, `AaF0erkjXd_g6jxuNaFw`, `AaF0erkjXd_g6jxuNaFx`, `AaF0erkjXd_g6jxuNaFy`, `AaF0erkjXd_g6jxuNaFu`, `AaF0erkjXd_g6jxuNaFs`, `AaF0erkjXd_g6jxuNaFr` | `generated_report_utils.py` sinks via `run-native-case-comparison.py` | Tatsächlich geladenes Run-Verzeichnis erhalten, kanonische Fixture-Identität ableiten und begrenzte Byte-Nachweise an Metadaten geben. Allgemeine Helper-Policy bleibt unverändert. |
+| `AaF0erp1Xd_g6jxuNaF-`, `AaF0erp1Xd_g6jxuNaF9`, `AaF0erp1Xd_g6jxuNaF_` | `run-verified-report-run.py` | Private Summary-Lesezugriffe begrenzen und gespeicherte Refresh-Logs auf aufrufseitiges `VERIFIED_RUN_LOG_ROOT` beschränken; unsichere Eingaben dürfen `consumer_stale` nicht vortäuschen. |
+| `AaF0eroJXd_g6jxuNaF1`, `AaF0eroJXd_g6jxuNaF0` | `best_effort_evidence_readers.py` sinks via report consumers | Betroffene Aufrufer verwenden `EvidenceInputs.json/jsonl`; allgemeines Verhalten der Best-effort-Reader bleibt unverändert. |
+| `AaF0errYXd_g6jxuNaGH`, `AaF0errYXd_g6jxuNaGI`, `AaF0errYXd_g6jxuNaGJ` | `update-runtime-reports.py` (`file_proof`) | Nur Cache-Wurzeln oder explizit aufrufseitig freigegebene Komponenten-Dateien erlauben Hashes; finale SONAME-Ziele müssen eigenständig zugelassen sein. |
+
+Angriffs-/Kontrolltests stehen in `tests/test_evidence_input_security.py` und
+`tests/test_sonar_evidence_boundaries.py`; für SHA-/Lock-Kontrollen bestehen auch
+Tests in `tests/test_framework_revision_pins.py` und `tests/test_hostruntime_preflight.py`.
+Weder entfernte Ausnutzbarkeit noch absoluter Schutz gegen gleichzeitige
+Änderungen durch dieselbe UID wird behauptet. Einordnungen von Operatoreingaben
+erlauben künftigen privilegierten Service-Aufrufern keine beliebigen Pfade.
+
 ## Runtime-Evidence
+
+Beobachteter PR-Zwischenstand: `13b17cbedaa8b7d7fe382ae500052f1cac4ded16`,
+[Lauf 40231379831](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40231379831),
+[Draft-PR #421](https://github.com/Easton97-Jens/ModSecurity-conector/pull/421).
+Diese saubere kanonische CI bestand alle 61 ausgewählten Python-Tests, 37
+Go-Szenarien und die nativen Common-Tests und importierte die echte Python-XML,
+vier Go-Reports und native gcov-Reports. Scanner CLI `8.2.0.6438` und CFamily
+`6.85.0.102562` wurden ausgeführt. Hauptprojekt-Compute-Engine-Task
+`AaF0ymveZaGJAnPJkdcR` endete mit `SUCCESS`; Analyse-ID:
+`d812ee4b-6300-430f-89e9-11f7eb7b7745`.
+
+Das [Haupt-PR-Gate](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-conector&pullRequest=421)
+war allein wegen Security Rating E auf neuem Code `ERROR`. Coverage auf neuem
+Code **80,5 %** bestand den unveränderten Grenzwert 80 %; auch Reliability,
+Maintainability, Duplikation und Hotspot-Review bestanden. Drei offene Findings
+`pythonsecurity:S2083` verweisen auf die drei `os.open`-Operationen in
+`EvidenceInputs._descriptor`. Unabhängige Source-Untersuchung und gezielte
+Negativ-/Kontrollproben bestätigten bereits wirksame Grenzen: lexikalische
+Freigabe vor dem Öffnen, No-follow-Verzeichnisdeskriptoren für jede Komponente
+und ein regulärer finaler Deskriptor. Externe/Geschwisterpfade, Parent-Traversal,
+relative Pfade und NUL-Eingaben werden vor dem Öffnen abgelehnt. Native Comparison
+ersetzt gespeichertes `run_dir` durch das tatsächlich geladene Verzeichnis.
+Die drei Hauptprojekt-Keys sind `AaF0ynIMY4cSrRUGTduD`,
+`AaF0ynIMY4cSrRUGTduC` und `AaF0ynIMY4cSrRUGTduB`. Sie bleiben auf dem Server
+offen; es gab keine False-Positive-Transition oder Unterdrückung. Die technische
+Einordnung ist `no_change`, potenzielle Analyzer-Fehlalarme, kein nachgewiesener
+Bypass der Grenze.
+
+Die C++20- und C++23-Advisory-Scannerjobs scheiterten beide an ihren tatsächlichen
+Gates, jeweils `ERROR`; C++20-Coverage auf neuem Code war 82,7 %. Ihre
+eigenständigen vollständigen Branchergebnisse ersetzen nicht das Haupt-PR-Ergebnis.
+Die frische Advisory-Analyse zeigte außerdem vier Findings `c:S5782` am
+`memchr` mit Maximallänge in HAProxys `bounded_cstring_length`. Die unabhängige
+Untersuchung bestätigte NUL-terminierte kurze Stringliterale und
+Verzeichniseintragsnamen in den gemeldeten Fällen. Der [C-Komiteeentwurf N1570,
+Abschnitt 7.24.5.1 Absatz 2](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf)
+definiert sequenzielles `memchr`-Verhalten bis zum ersten Treffer; ein größerer
+Grenzwert als die terminierte Zeichenfolge belegt allein kein Überlesen. Auch
+der [GNU-C-Library-Vertrag für Suchfunktionen](https://snapshots.sourceware.org/glibc/trunk/latest/manual/html_node/Search-Functions.html)
+beschreibt die Suche bis zum ersten Treffer. Diese vier Findings sind potenzielle
+Analyzer-Fehlalarme mit `no_change`, keine bestätigten Pufferüberläufe oder
+Server-Transitions. C++20-Keys: `AaF0yz5SaVChWkKVlx_W`, `AaF0yz5SaVChWkKVlx_X`,
+`AaF0yz5SaVChWkKVlx_Z`, `AaF0yz5SaVChWkKVlx_Y`.
+
+Ein eigenständiger Probeaufbau mit dem exakten Helper-Quelltext bestand unter
+C17, Compilerwarnungen als Fehler, AddressSanitizer und UndefinedBehaviorSanitizer:
+die drei gemeldeten Literale, einen terminierten 256-Byte-Puffer mit Grenze 4096,
+NUL am letzten erlaubten Byte, begrenzte Ablehnung ohne Terminator und unveränderte
+Ausgabe bei ungültigen Argumenten. Es gab keinen Sanitizer-Befund. Der produktive
+Helper bleibt unverändert.
+
+Eine ergänzende Cache-Regression trennt Berechtigung und Existenz: Ein externes
+SONAME-Ziel muss bei Existenz und Abwesenheit denselben abgelehnten Nachweis ohne
+Digest liefern. Nicht strikte Auflösung vermeidet den früheren vorzeitigen
+Missing-Status; die 19 Evidence-Input-Tests bestanden. Die Auflösung kann weiterhin
+Linkmetadaten abfragen; dies behauptet keine vollständig beobachtungsfreien
+Zugriffe außerhalb zugelassener Wurzeln.
+
+Alle 136 nativen Units blieben im Scope. Der Qualitätswert stieg von 77,52 auf
+**91,28/100**; Funktionen mit Parsingfehlern sanken von 414 auf **193/2.260**.
+Unaufgelöste Projekt-Includes sanken von 115 auf **46/1.132**; externe Includes,
+Modulimporte und Header-Units blieben in diesem Scan nicht unaufgelöst.
+Fehlende Host-/Generated-Header betreffen weiterhin NGINX, HAProxy und lighttpd;
+C/C++-Taint bleibt in AutoConfig deaktiviert. Vier ursprüngliche Shell-Warnungen
+blieben aus (Apache-Cleanup, Envoy-Harness, lighttpd-Harness und HAProxy-Harness).
+Die gültige FIFO-Umleitung `8<>` des Schedulers und die Case-Muster des
+HAProxy-Resolvers erzeugten bei diesem SHA weiterhin Warnungen. Eine weitere
+gleichwertige Resolver-Schreibweise bestand lokale Syntaxprüfungen, ShellCheck,
+fünf Resolver-Tests und neun Vorher-/Nachher-Architekturfälle. Die 44 ungültigen
+Architekturlabels führten weiterhin zum Ignorieren der Intended-Perspektive.
+Diese Beobachtungen sind an diesen Zwischen-SHA gebunden; nachfolgende
+Source-Änderungen verlangen einen neuen sauberen Scan und Readback des exakten Heads.
 
 Der zweite CI-Versuch bei `161bfd7118b7480d0d997ff1bd4a5157f97ca1d8`, [Lauf 40230777535](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230777535), bestand kanonisches Python-/Go-Setup, deckte aber eine bestehende dateisystemabhängige Go-Fixture auf: Löschen und Neuerzeugen einer geschlossenen regulären Datei erlaubte sofortige Inode-Wiederverwendung im Replacement-during-Close-Test. Die Fixture benennt nun das Original vor Erzeugung des Ersatzes um und garantiert damit einen anderen lebenden Inode; Ersatz-Erhaltungsassertion und produktiver Listener bleiben unverändert. Unabhängiges Source-Review stützte die Diagnose; gezielte Ersatz- und reale Socket-Cleanup-Tests bestanden lokal 20 Wiederholungen. Dies korrigiert Testdeterminismus und behauptet keine absolute Immunität gegen Same-UID-Races.
 
@@ -150,12 +263,12 @@ in diesem Record noch nicht vor.
 
 | Ausgangsbefund | Einordnung bei Erstellung |
 | --- | --- |
-| Security Rating E | `weiterhin offen`: Source-Fixes und technische Triage belegen keinen frischen Rating-/Finding-Abschluss. |
-| Coverage auf neuem Code 0,6 % | `weiterhin offen`: echte Messung erweitert; kumulierte Hauptbranch-Coverage von 80 % nicht nachgewiesen. |
-| Fehlende native Includes / Parsingfehler | `weiterhin offen`: realer Headerkontext verbessert; finale Scanner-Deltas unbestätigt. |
+| Security Rating E | `weiterhin offen`: Zwischen-PR-Gate bleibt E wegen drei fachlich begrenzten Deskriptor-Findings; keine Server-Transitions. |
+| Coverage auf neuem Code 0,6 % | `behoben und nachgewiesen` für Zwischen-PR-Coverage 80,5 %; kumulierte Mainbranch-Coverage von 80 % bleibt `weiterhin offen`. |
+| Fehlende native Includes / Parsingfehler | `weiterhin offen`: Zwischenqualität 91,28 und 193/2.260 Funktionsfehler belegen Verbesserung; NGINX-/HAProxy-/lighttpd-Kontextlücken bleiben. |
 | Vollständige Parent-C/C++-Taintanalyse in AutoConfig | `begründete Analyzergrenze`: nicht unterstützter Modus und unabhängige ausführbare Targets bestehen fort. |
 | Ignoriertes Python-Modell | `extern blockiert`: Medientyp-Fähigkeit der autorisierten CLI fehlt; exakter Vorschlag liegt vor. |
-| Sechs Shell-Parserwarnungen | `weiterhin offen`: lokal gleichwertige Umschreibungen und Syntaxprüfungen benötigen frische dateibezogene Sonar-Bestätigung. |
+| Sechs Shell-Parserwarnungen | Vier beim Zwischen-SHA `behoben und nachgewiesen`; gültige FIFO-Syntax ist eine `begründete Analyzergrenze`; Resolver-Warnung bis zum Scan der neuen Schreibweise `weiterhin offen`. |
 | Fehlender JSON-/YAML-/Workflow-Scope-Guard | `behoben und nachgewiesen`: gezielte lokale Guard-Regressionen bestanden. |
 
 Die Hauptprojekt-UUID ist `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`; die Modell-ID

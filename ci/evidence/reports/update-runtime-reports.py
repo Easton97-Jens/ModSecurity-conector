@@ -165,7 +165,8 @@ def file_proof(name: str, path_value: Any, *, inputs: EvidenceInputs | None = No
         # Installed libraries use final SONAME aliases. The alias cannot grant
         # authority: its physical target must independently be approved, and
         # the actual read still uses no-follow descriptors for every component.
-        target = candidate.resolve(strict=True) if candidate.is_symlink() else candidate
+        # Reject an unauthorized target before asking whether it exists.
+        target = candidate.resolve(strict=False) if candidate.is_symlink() else candidate
         digest, size = approved.file_proof(approved.path(target))
     except ValueError:
         return missing | {"status": "rejected"}

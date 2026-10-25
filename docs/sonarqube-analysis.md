@@ -309,32 +309,50 @@ AutoConfig. Python, Go, CFamily, Shell, GitHub Actions, YAML and JSON sensors
 executed; the original missing Python-version/test-scope warnings were absent.
 These are baseline observations, not results for a later SHA.
 
+The first completed PR scan at `13b17cbedaa8b7d7fe382ae500052f1cac4ded16`
+used Scanner `8.2.0.6438` and CFamily `6.85.0.102562`.
+[Run 40231379831](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40231379831)
+imported genuine Python, four-module Go and Common gcov reports. Server task
+`AaF0ymveZaGJAnPJkdcR` completed `SUCCESS`, analysis
+`d812ee4b-6300-430f-89e9-11f7eb7b7745`. The PR gate remained `ERROR` solely
+on Security Rating E: three `S2083` findings at the descriptor reader's opens.
+Independent attack/control review confirmed the configured-root, no-follow and
+regular-descriptor controls; no server issue transition was made. New-code
+coverage was 80.5%, passing 80%. Both advisory scans had failed gates.
+All 136 native units remained analyzed; quality improved to 91.28/100, with
+193/2,260 functions still having parsing errors and 46/1,132 project includes
+still unresolved (previously 115). Missing NGINX, HAProxy and
+lighttpd host/generated headers and the AutoConfig taint limit remain.
+The Change Record contains complete baseline-finding dispositions and measured
+results; follow-up head results must be verified separately in the PR.
+
 | Original finding | Current disposition before final-head server verification |
 | --- | --- |
-| Main Security Rating E | `weiterhin offen`: confirmed input-boundary causes are being repaired; issue/rating closure needs fresh readback. |
-| Main new-code coverage 0.6% | `weiterhin offen`: genuine broader producers exist; 80% on the accumulated baseline is not established. |
-| Missing native includes / parsing errors | `weiterhin offen`: installed Apache/APR/ModSecurity headers and real build checks improve available context; fresh analyzer deltas remain unverified. |
+| Main Security Rating E | `weiterhin offen`: source fixes have regressions; PR gate remains E on three guarded descriptor opens. Counterevidence is documented without server transitions. |
+| Main new-code coverage 0.6% | PR import `behoben und nachgewiesen` at 80.5%; accumulated master coverage remains `weiterhin offen` until a corresponding main analysis. |
+| Missing native includes / parsing errors | Measured improvement to 91.28 quality and 193/2,260 functions with errors; remaining host contexts `weiterhin offen`. |
 | Full-Parent C/C++ taint under AutoConfig | `begründete Analyzergrenze`: unsupported mode and independent-target assumptions remain explicit. |
 | Python intended model ignored | `extern blockiert`: exact model correction is prepared; required PATCH media type is unsupported by the authorized CLI. |
 | JSON/YAML/workflow scope loss | `behoben und nachgewiesen`: targeted local regressions prove the guard; analyzer execution remains a separate check. |
-| Six Shell parse warnings | `weiterhin offen`: five files have equivalent rewrites; all six parse locally, but fresh Sonar acceptance is required. |
+| Six Shell parse warnings | Four `behoben und nachgewiesen` at `13b17c`; scheduler `begründete Analyzergrenze`; resolver retry needs fresh proof. |
 
 Every reported Shell file uses `#!/bin/sh` and passed `sh -n`, `bash -n` and
 ShellCheck's error-level check. Dynamic octal expressions in Apache cleanup
 were rewritten through explicit octal variables. Background heredoc producers
 in Envoy, lighttpd and HAProxy now use a subshell with `exec`, preserving `$!`
-process identity. HAProxy architecture case patterns have explicit no-op arms.
+process identity. HAProxy architecture case patterns use separate arms, escaped
+spaces and explicit no-op bodies.
 The scheduler's `exec 8<>"$candidate"` retains its necessary read/write FIFO
 semantics.
 
 | File | Local classification and change |
 | --- | --- |
-| `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh` | Valid POSIX octal arithmetic; explicit octal variable preserves permission masks. Sonar result unverified. |
-| `connectors/envoy/harness/run_envoy_composite_matrix.sh` | Valid background heredoc; subshell plus `exec` preserves arguments, redirections and PID. Sonar result unverified. |
-| `ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Valid read/write FIFO redirection; unchanged because separate opens alter blocking/EOF behavior. Sonar result unverified. |
-| `connectors/lighttpd/harness/run_patched_full_lifecycle.sh` | Valid background heredoc; equivalent subshell/`exec` form. Sonar result unverified. |
-| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Valid quoted case patterns; equivalent combined patterns and explicit `:` bodies. Sonar result unverified. |
-| `connectors/haproxy/harness/run_haproxy_smoke.sh` | Valid background heredoc; subshell/`exec` preserves optional `setsid` and PID. Sonar result unverified. |
+| `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh` | Valid POSIX octal arithmetic; explicit octal variable preserves permission masks. Warning absent at `13b17c`. |
+| `connectors/envoy/harness/run_envoy_composite_matrix.sh` | Valid background heredoc; subshell plus `exec` preserves arguments, redirections and PID. Warning absent at `13b17c`. |
+| `ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Valid read/write FIFO redirection; unchanged because separate opens alter blocking/EOF behavior. Warning persists at `13b17c`. |
+| `connectors/lighttpd/harness/run_patched_full_lifecycle.sh` | Valid background heredoc; equivalent subshell/`exec` form. Warning absent at `13b17c`. |
+| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Valid quoted case patterns still warned at `13b17c`; separate escaped-space patterns pass local behavior checks, next scan pending. |
+| `connectors/haproxy/harness/run_haproxy_smoke.sh` | Valid background heredoc; subshell/`exec` preserves optional `setsid` and PID. Warning absent at `13b17c`. |
 
 The scheduler's minimal parser reproducer is:
 

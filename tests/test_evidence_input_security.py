@@ -281,6 +281,11 @@ class EvidenceInputSecurityTests(unittest.TestCase):
             self.assertEqual(proof["status"], "rejected")
             self.assertEqual(proof["sha256"], "-")
 
+            outside.unlink()
+            payload = CACHE.runtime_cache_index_payload(cache, manifest, {})
+            absent_proof = next(item for item in payload["important_files"] if item["name"] == "libmodsecurity")
+            self.assertEqual(absent_proof, proof)
+
     def test_full_nginx_generator_metadata_cannot_reopen_intermediate_symlink(self) -> None:
         self.enterContext(mock.patch("report_path_safety.SAFE_ROOTS", set()))
         with tempfile.TemporaryDirectory() as temporary:

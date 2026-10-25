@@ -252,9 +252,12 @@ reject_whitespace "$library_target" MODSECURITY_LIBRARY_TARGET
 command -v file >/dev/null 2>&1 || blocked file_missing "file is required for libModSecurity architecture validation"
 file_description=$(file -b "$library_target")
 case "$(uname -m):$file_description" in
-    x86_64:*'x86-64'*|amd64:*'x86-64'*) : ;;
-    aarch64:*'ARM aarch64'*|arm64:*'ARM aarch64'*) : ;;
-    *'statically linked'*|*'current ar archive'*) : ;;
+    x86_64:*x86-64*) : ;;
+    amd64:*x86-64*) : ;;
+    aarch64:*ARM\ aarch64*) : ;;
+    arm64:*ARM\ aarch64*) : ;;
+    *statically\ linked*) : ;;
+    *current\ ar\ archive*) : ;;
     *) blocked architecture_mismatch "libModSecurity architecture does not match host: $(uname -m), $file_description" ;;
 esac
 

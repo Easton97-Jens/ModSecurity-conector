@@ -339,33 +339,52 @@ YAML- und JSON-Sensoren liefen; die ursprünglichen Warnungen zu fehlender
 Python-Version und Testzuordnung fehlten. Das sind Basisbeobachtungen, keine
 Ergebnisse eines späteren SHA.
 
+Der erste abgeschlossene PR-Scan von `13b17cbedaa8b7d7fe382ae500052f1cac4ded16`
+verwendete Scanner `8.2.0.6438` und CFamily `6.85.0.102562`.
+[Lauf 40231379831](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40231379831)
+importierte echte Python-, Vier-Modul-Go- und Common-gcov-Reports. Servertask
+`AaF0ymveZaGJAnPJkdcR` endete mit `SUCCESS`, Analyse
+`d812ee4b-6300-430f-89e9-11f7eb7b7745`. Das PR-Gate blieb allein wegen
+Security Rating E auf `ERROR`: drei `S2083`-Findings an den Opens des
+Deskriptor-Readers. Die unabhängige Angriffs-/Kontrollprüfung bestätigte Wurzel-,
+No-follow- und Deskriptorkontrollen; es gab keine Finding-Transition. Die
+Coverage auf neuem Code betrug 80,5 % und bestand die 80-%-Schwelle. Beide
+Advisory-Scans hatten fehlgeschlagene Gates. Alle 136 nativen Units blieben
+analysiert; die Qualität stieg auf 91,28/100, mit Parsingfehlern in 193/2.260
+Funktionen und 46/1.132 unaufgelösten Projekt-Includes (zuvor 115).
+Fehlende Host-/Buildheader für NGINX, HAProxy und lighttpd sowie
+die AutoConfig-Taintgrenze bleiben bestehen. Der Change Record enthält die
+vollständige Basis-Finding-Einordnung und Messergebnisse; Folge-Heads müssen
+separat im PR geprüft werden.
+
 | Ausgangsbefund | Aktuelle Einordnung vor finalem Head-Servernachweis |
 | --- | --- |
-| Haupt-Security-Rating E | `weiterhin offen`: bestätigte Eingabegrenzen werden repariert; Finding-/Rating-Abschluss braucht frisches Readback. |
-| Haupt-Coverage auf neuem Code 0,6 % | `weiterhin offen`: echte breitere Producer liegen vor; 80 % auf der kumulierten Basis sind nicht nachgewiesen. |
-| Fehlende native Includes / Parsingfehler | `weiterhin offen`: installierte Apache-/APR-/ModSecurity-Header und echte Buildprüfungen verbessern den verfügbaren Kontext; frische Analyzer-Deltas sind unbestätigt. |
+| Haupt-Security-Rating E | `weiterhin offen`: Sourcekorrekturen haben Regressionstests; das PR-Gate bleibt wegen drei geschützter Deskriptor-Opens auf E. Gegennachweise sind ohne Server-Transitions dokumentiert. |
+| Haupt-Coverage auf neuem Code 0,6 % | PR-Import bei 80,5 % `behoben und nachgewiesen`; kumulierte Master-Coverage bis zu einer entsprechenden Hauptanalyse `weiterhin offen`. |
+| Fehlende native Includes / Parsingfehler | Gemessene Verbesserung auf Qualität 91,28 und Fehler in 193/2.260 Funktionen; verbleibende Hostkontexte `weiterhin offen`. |
 | Vollständige Parent-C/C++-Taintanalyse unter AutoConfig | `begründete Analyzergrenze`: nicht unterstützter Modus und Annahmen zu unabhängigen Targets bleiben ausdrücklich bestehen. |
 | Ignoriertes beabsichtigtes Python-Modell | `extern blockiert`: genaue Modellkorrektur liegt vor; der nötige PATCH-Medientyp wird von der autorisierten CLI nicht unterstützt. |
 | Verlust von JSON-/YAML-/Workflow-Scope | `behoben und nachgewiesen`: gezielte lokale Regressionen beweisen den Guard; Analyzer-Ausführung bleibt eine eigene Prüfung. |
-| Sechs Shell-Parserwarnungen | `weiterhin offen`: fünf Dateien haben gleichwertige Umschreibungen; alle sechs parsen lokal, frische Sonar-Akzeptanz bleibt erforderlich. |
+| Sechs Shell-Parserwarnungen | Vier bei `13b17c` `behoben und nachgewiesen`; Scheduler `begründete Analyzergrenze`; Resolver-Folgeänderung braucht frischen Nachweis. |
 
 Jede gemeldete Shell-Datei verwendet `#!/bin/sh` und bestand `sh -n`, `bash -n`
 sowie ShellChecks Prüfung auf Fehlerniveau. Dynamische Oktalausdrücke im
 Apache-Cleanup wurden auf explizite Oktalvariablen umgestellt. Heredoc-Producer
 im Hintergrund in Envoy, lighttpd und HAProxy verwenden nun eine Subshell mit
 `exec`, wodurch die Prozessidentität von `$!` erhalten bleibt. HAProxys
-Architektur-Case-Muster enthalten explizite No-op-Arme. Das
+Architektur-Case-Muster verwenden einzelne Arme, maskierte Leerzeichen und
+explizite No-op-Rümpfe. Das
 `exec 8<>"$candidate"` des Schedulers erhält die erforderliche
 Lese-/Schreib-FIFO-Semantik.
 
 | Datei | Lokale Klassifikation und Änderung |
 | --- | --- |
-| `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh` | Gültige POSIX-Oktalarithmetik; explizite Oktalvariable erhält Berechtigungsmasken. Sonar-Ergebnis unbestätigt. |
-| `connectors/envoy/harness/run_envoy_composite_matrix.sh` | Gültiger Hintergrund-Heredoc; Subshell plus `exec` erhält Argumente, Umleitungen und PID. Sonar-Ergebnis unbestätigt. |
-| `ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Gültige Lese-/Schreib-FIFO-Umleitung; unverändert, weil getrennte Opens das Blockier-/EOF-Verhalten ändern. Sonar-Ergebnis unbestätigt. |
-| `connectors/lighttpd/harness/run_patched_full_lifecycle.sh` | Gültiger Hintergrund-Heredoc; gleichwertige Subshell-/`exec`-Form. Sonar-Ergebnis unbestätigt. |
-| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Gültige quotierte Case-Muster; gleichwertige kombinierte Muster und explizite `:`-Rümpfe. Sonar-Ergebnis unbestätigt. |
-| `connectors/haproxy/harness/run_haproxy_smoke.sh` | Gültiger Hintergrund-Heredoc; Subshell/`exec` erhält optionales `setsid` und PID. Sonar-Ergebnis unbestätigt. |
+| `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh` | Gültige POSIX-Oktalarithmetik; explizite Oktalvariable erhält Berechtigungsmasken. Warnung bei `13b17c` verschwunden. |
+| `connectors/envoy/harness/run_envoy_composite_matrix.sh` | Gültiger Hintergrund-Heredoc; Subshell plus `exec` erhält Argumente, Umleitungen und PID. Warnung bei `13b17c` verschwunden. |
+| `ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Gültige Lese-/Schreib-FIFO-Umleitung; unverändert, weil getrennte Opens das Blockier-/EOF-Verhalten ändern. Warnung bei `13b17c` besteht. |
+| `connectors/lighttpd/harness/run_patched_full_lifecycle.sh` | Gültiger Hintergrund-Heredoc; gleichwertige Subshell-/`exec`-Form. Warnung bei `13b17c` verschwunden. |
+| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Gültige quotierte Case-Muster bei `13b17c` weiter gemeldet; einzelne Muster mit maskierten Leerzeichen bestehen lokale Verhaltenstests, nächster Scan ausstehend. |
+| `connectors/haproxy/harness/run_haproxy_smoke.sh` | Gültiger Hintergrund-Heredoc; Subshell/`exec` erhält optionales `setsid` und PID. Warnung bei `13b17c` verschwunden. |
 
 Der minimale Parser-Reproduktionsfall des Schedulers lautet:
 

@@ -120,7 +120,113 @@ file-content groups require fresh scanner verification. No finding was accepted,
 suppressed or marked false positive to change a rating. No credentials or raw
 sensitive payloads are stored in this record.
 
+## Exact baseline finding dispositions
+
+These 46 keys belong to baseline analysis `52df415d-2c24-43a3-a63a-de6e79c37d60`
+at `9f44647593bac7947113558c6ad183ab118e80af`. Existing controls or intended
+operator authority are technical counterevidence, not Sonar false-positive
+transitions. A fresh PR analysis does not automatically close old main-branch
+issue keys. The first table accounts for 14 existing-control/operator-authority
+findings; the second accounts for 32 caller-boundary remediation findings.
+
+| Exact baseline key(s) | Source boundary | Technical disposition |
+| --- | --- | --- |
+| `AaF0eroXXd_g6jxuNaF2` | `ci/lib/framework_revision_pins.py` (`_sha`, `_git`) | Lowercase ASCII SHA-1 validation precedes Git argv construction; no shell. |
+| `AaF0erogXd_g6jxuNaF3` | `ci/tools/prepare-reviewed-framework-handoff.py` | Operator selects a new output patch; `open("x")` prevents overwrite. No narrower privilege boundary identified. |
+| `AaF0errHXd_g6jxuNaGG` | `ci/runtime/common/hostruntime_preflight.py` (`_approved_lock_path`) | Runtime/source ownership is checked before reading the lock. |
+| `AaF0erquXd_g6jxuNaGE` | `ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py` | Configuration hash inputs pass runtime/source or canonical Framework source validation. |
+| `AaF0erqkXd_g6jxuNaGD` | `ci/runtime/lifecycle/resolve-full-lifecycle-profile.py` | Manifest input passes `runtime_or_source_artifact_path` before loading. |
+| `AaF0erq1Xd_g6jxuNaGF` | `ci/runtime/lifecycle/run-full-matrix-job.py` | Canonical repositories, approved runtime paths and validated run ID feed an argv subprocess without a shell. |
+| `AaF0erqcXd_g6jxuNaGC`, `AaF0erqcXd_g6jxuNaGB` | `ci/runtime/lifecycle/run-full-matrix-resume.py` | Canonical roots, allowlisted connector/CRS/MRTS tokens, bounded numeric timeout and `shell=False`. |
+| `AaF0erpfXd_g6jxuNaF6`, `AaF0erpfXd_g6jxuNaF7` | `ci/runtime/lifecycle/run-verified-case.py` (`write_json`) | `runtime_artifact_path` checks the destination immediately before writing. |
+| `AaF0erp1Xd_g6jxuNaGA` | `ci/runtime/lifecycle/run-verified-report-run.py` (`prepare_verified_run_context`) | The `current-run-id` destination is constructed from validated runtime paths. |
+| `AaF0erp1Xd_g6jxuNaF8` | `ci/runtime/lifecycle/run-verified-report-run.py` | Manifest output uses canonical `report_path`; JSON supplies payload rather than destination authority. |
+| `AaF0erpTXd_g6jxuNaF5` | `ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py` | Rules/source paths are validated; hashing uses `O_NOFOLLOW` and a regular-file descriptor check. |
+| `AaF0erukXd_g6jxuNaGe` | `connectors/lighttpd/harness/patched_event_validation.py` | Explicit operator-selected events input; no additional HTTP or privileged authority boundary established. |
+
+| Exact baseline key(s) | Source boundary | Technical disposition |
+| --- | --- | --- |
+| `AaF0ersUXd_g6jxuNaGb`, `AaF0ersUXd_g6jxuNaGc`, `AaF0ersUXd_g6jxuNaGa` | `generate-nginx-mrts-http500-cluster-analysis.py` | JSON/JSONL and excerpt/body reads use invocation-owned `EvidenceInputs`; metadata cannot reopen rejected paths. |
+| `AaF0errtXd_g6jxuNaGR`, `AaF0errtXd_g6jxuNaGO`, `AaF0errtXd_g6jxuNaGP`, `AaF0errtXd_g6jxuNaGN`, `AaF0errtXd_g6jxuNaGU`, `AaF0errtXd_g6jxuNaGM`, `AaF0errtXd_g6jxuNaGV`, `AaF0errtXd_g6jxuNaGQ`, `AaF0errtXd_g6jxuNaGL`, `AaF0errtXd_g6jxuNaGS`, `AaF0errtXd_g6jxuNaGK`, `AaF0errtXd_g6jxuNaGT` | `generate-verified-runtime-mismatch-analysis.py` | Invocation-owned roots constrain recorded evidence, nested includes, stats, fingerprints and reads. |
+| `AaF0erkjXd_g6jxuNaFz`, `AaF0erkjXd_g6jxuNaFv`, `AaF0erkjXd_g6jxuNaFt`, `AaF0erkjXd_g6jxuNaFw`, `AaF0erkjXd_g6jxuNaFx`, `AaF0erkjXd_g6jxuNaFy`, `AaF0erkjXd_g6jxuNaFu`, `AaF0erkjXd_g6jxuNaFs`, `AaF0erkjXd_g6jxuNaFr` | `generated_report_utils.py` sinks via `run-native-case-comparison.py` | Retain the actual loaded run directory, derive canonical fixture identity and pass confined byte receipts to metadata. Generic helper policy remains unchanged. |
+| `AaF0erp1Xd_g6jxuNaF-`, `AaF0erp1Xd_g6jxuNaF9`, `AaF0erp1Xd_g6jxuNaF_` | `run-verified-report-run.py` | Confine private summary reads and retained refresh logs to invocation `VERIFIED_RUN_LOG_ROOT`; unsafe input cannot forge `consumer_stale`. |
+| `AaF0eroJXd_g6jxuNaF1`, `AaF0eroJXd_g6jxuNaF0` | `best_effort_evidence_readers.py` sinks via report consumers | Affected callers use `EvidenceInputs.json/jsonl`; generic best-effort reader behavior remains unchanged. |
+| `AaF0errYXd_g6jxuNaGH`, `AaF0errYXd_g6jxuNaGI`, `AaF0errYXd_g6jxuNaGJ` | `update-runtime-reports.py` (`file_proof`) | Only cache roots or explicit invocation-approved component leaves authorize hashes; final SONAME targets must independently qualify. |
+
+Attack/control regressions are in `tests/test_evidence_input_security.py` and
+`tests/test_sonar_evidence_boundaries.py`; the SHA/lock controls also have tests
+in `tests/test_framework_revision_pins.py` and `tests/test_hostruntime_preflight.py`.
+No remote exploitation or absolute same-UID concurrent-mutation protection is
+claimed. Operator-input dispositions do not authorize future privileged-service
+callers to accept arbitrary paths.
+
 ## Runtime evidence
+
+Observed intermediate PR head: `13b17cbedaa8b7d7fe382ae500052f1cac4ded16`,
+[run 40231379831](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40231379831),
+[Draft PR #421](https://github.com/Easton97-Jens/ModSecurity-conector/pull/421).
+This clean canonical CI passed all 61 selected Python tests, 37 Go scenarios and
+the native Common tests, and imported the genuine Python XML, four Go reports
+and native gcov reports. Scanner CLI `8.2.0.6438` and CFamily `6.85.0.102562`
+executed. Main Compute Engine task `AaF0ymveZaGJAnPJkdcR` finished `SUCCESS`;
+analysis ID: `d812ee4b-6300-430f-89e9-11f7eb7b7745`.
+
+The [main PR gate](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-conector&pullRequest=421)
+was `ERROR` solely on new Security Rating E. New-code coverage **80.5%** passed
+the unchanged 80% threshold; reliability, maintainability, duplication and
+hotspot-review conditions also passed. Three open `pythonsecurity:S2083` findings
+point to the three `os.open` operations in `EvidenceInputs._descriptor`.
+Independent source investigation and focused negative/control probes found the
+reported paths already constrained: lexical approval precedes opening; every
+component uses no-follow directory descriptors, and the final descriptor must be
+regular. Outside/sibling paths, parent traversal, relative paths and NUL input
+are rejected before opening. Native comparison overwrites stored `run_dir` with
+the directory actually loaded. The three main keys are
+`AaF0ynIMY4cSrRUGTduD`, `AaF0ynIMY4cSrRUGTduC` and `AaF0ynIMY4cSrRUGTduB`.
+They remain open on the server; no false-positive transition or suppression was
+applied. Their technical disposition is `no_change`, candidate analyzer false
+positives, rather than a demonstrated boundary bypass.
+
+Both C++20 and C++23 advisory scanner jobs failed their actual gates, each
+`ERROR`; C++20 new-code coverage was 82.7%. Their independent full-branch results
+do not replace the main PR result. Fresh advisory analysis also exposed four
+`c:S5782` findings at HAProxy's `bounded_cstring_length`/maximum-length `memchr`
+call. Independent investigation found the reported short string literals and
+directory-entry names are NUL terminated. The [C committee draft N1570,
+section 7.24.5.1 paragraph 2](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf)
+specifies sequential `memchr` behavior ending at the first match; a bound larger
+than the terminated string does not itself prove an overread. The
+[GNU C Library search-function contract](https://snapshots.sourceware.org/glibc/trunk/latest/manual/html_node/Search-Functions.html)
+also describes first-match search. These four findings are candidate analyzer
+false positives with `no_change`, not confirmed buffer overflows or server
+transitions. C++20 keys: `AaF0yz5SaVChWkKVlx_W`, `AaF0yz5SaVChWkKVlx_X`,
+`AaF0yz5SaVChWkKVlx_Z`, `AaF0yz5SaVChWkKVlx_Y`.
+
+An exact-source standalone helper probe compiled with C17, warnings as errors,
+AddressSanitizer and UndefinedBehaviorSanitizer passed the three reported
+literals, a terminated 256-byte buffer with bound 4096, NUL at the last allowed
+byte, bounded unterminated rejection and unchanged output on invalid arguments.
+No sanitizer finding occurred. The production helper remains unchanged.
+
+A follow-up cache regression distinguishes authority from existence: an outside
+SONAME target must yield the same rejected/no-digest proof whether present or
+absent. Non-strict resolution avoids the former early missing-target status;
+the 19 evidence-input tests passed. Resolution can still consult link metadata;
+this is not a claim of zero observation outside approved roots.
+
+All 136 native units remained in scope. Quality improved from 77.52 to
+**91.28/100**, and functions with parsing errors fell from 414 to **193/2,260**.
+Unresolved project includes fell from 115 to **46/1,132**; no external includes,
+module imports or header units remained unresolved in that scan.
+Missing host/generated headers still include NGINX, HAProxy and lighttpd;
+C/C++ taint remains disabled in AutoConfig. Four original Shell warnings were
+absent (Apache cleanup, Envoy harness, lighttpd harness and HAProxy harness).
+The scheduler's valid `8<>` FIFO redirection and HAProxy resolver's case patterns
+still produced warnings at this SHA. A further equivalent resolver spelling is
+locally validated: shell syntax, ShellCheck, five resolver tests and nine
+before/after architecture cases passed. The 44 invalid architecture labels still caused the intended
+perspective to be ignored. These observations are bound to this intermediate
+SHA; subsequent source changes require a new clean scan and exact-head readback.
 
 Second CI attempt at `161bfd7118b7480d0d997ff1bd4a5157f97ca1d8`, [run 40230777535](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230777535), passed canonical Python/Go setup but exposed a pre-existing filesystem-dependent Go fixture: deleting and recreating a closed regular file allowed immediate inode reuse in the replacement-during-close test. The fixture now renames the original before creating the replacement, guaranteeing a distinct live inode; the replacement-preservation assertion and production listener are unchanged. Independent source review supported the diagnosis; the targeted replacement and real-socket cleanup tests passed 20 repetitions locally. This is a test determinism correction, not a claim of absolute same-UID race immunity.
 
@@ -139,12 +245,12 @@ available in this record.
 
 | Original finding | Disposition at preparation |
 | --- | --- |
-| Security Rating E | `weiterhin offen`: source fixes and technical triage do not establish fresh rating/issue closure. |
-| New-code coverage 0.6% | `weiterhin offen`: real measurement broadened; accumulated main-branch 80% is not demonstrated. |
-| Native missing includes/parsing errors | `weiterhin offen`: real header context improved; final scanner deltas are unverified. |
+| Security Rating E | `weiterhin offen`: intermediate PR gate remains E on three technically constrained descriptor findings; no server transitions. |
+| New-code coverage 0.6% | `behoben und nachgewiesen` for intermediate PR coverage 80.5%; accumulated main-branch 80% remains `weiterhin offen`. |
+| Native missing includes/parsing errors | `weiterhin offen`: intermediate quality 91.28 and 193/2,260 function errors show improvement; NGINX/HAProxy/lighttpd context gaps remain. |
 | Full-Parent C/C++ taint in AutoConfig | `begründete Analyzergrenze`: unsupported mode and independent executable targets remain. |
 | Ignored Python model | `extern blockiert`: media-type capability missing in authorized CLI; exact proposal supplied. |
-| Six Shell parser warnings | `weiterhin offen`: local equivalent rewrites and syntax checks need fresh per-file Sonar confirmation. |
+| Six Shell parser warnings | Four `behoben und nachgewiesen` at the intermediate SHA; valid FIFO syntax is a `begründete Analyzergrenze`; resolver warning remains `weiterhin offen` pending the new spelling's scan. |
 | Missing JSON/YAML/workflow scope guard | `behoben und nachgewiesen`: focused local guard regressions passed. |
 
 The model's main project UUID is `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`; model ID
