@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source; no automatic execution and no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "3887c1bd1272825950b985daea19175d5e42f56752a43fd4875e05c6ab8fbcf9",
+  "inventory_sha256": "929b8a25254eb261bbe3b9a4426e42674b4e1a995176f566dbf78c1e6f74e1d4",
   "on_demand_definition_count": 5541,
   "purpose": "Non-executable archive disposition; only config/testing/active-cases.json selects active cases.",
   "schema_version": 1,
@@ -2083,6 +2083,21 @@
       "source_sha256": "10a4bf83d289594829c9cf2688e71401f234eaec968d778c694ce1ef52a25634"
     },
     {
+      "contains_selected_definitions": [
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_synthetic_complete_batch_produces_bound_pending_decision_only",
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_absent_explicit_approval_removes_qualification",
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_unresolved_original_oracle_remains_unknown",
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_reextracted_packet_mismatch_prevents_pending_decision",
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_foreign_sdk_identity_prevents_pending_decision",
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_descriptor_leak_prevents_pending_decision",
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_deleted_physical_response_cannot_be_replaced_by_packet_values",
+        "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_existing_publication_is_preserved_and_validation_temporary_removed"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_apache_i12_final_review_flows.py",
+      "source_sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+    },
+    {
       "contains_selected_definitions": [],
       "on_demand_definitions": [
         "tests.test_apache_i12_final_root_review.FinalReviewTest.test_registered_complete_semantics_can_pass_and_shared_validator_is_real",
@@ -2374,6 +2389,25 @@
       ],
       "source": "tests/test_apache_i12_review.py",
       "source_sha256": "12e289d3b1890a74b70d8ec241b024d618b7f5b13016f11ac7de1717a9c7dcec"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_apache_i12_review_flows.CandidateFlowTests.test_synthetic_capture_joins_native_events_cleanup_and_retains_unknowns",
+        "tests.test_apache_i12_review_flows.CandidateFlowTests.test_changed_admission_spec_is_rejected_before_capture_join",
+        "tests.test_apache_i12_review_flows.CandidateFlowTests.test_changed_sealed_fixture_ledger_is_rejected",
+        "tests.test_apache_i12_review_flows.CandidateFlowTests.test_launch_case_mismatch_is_rejected",
+        "tests.test_apache_i12_review_flows.CandidateFlowTests.test_missing_backend_remains_unknown_instead_of_zero",
+        "tests.test_apache_i12_review_flows.CandidateFlowTests.test_final_inside_principal_window_fails_cleanup_without_approval",
+        "tests.test_apache_i12_review_flows.BatchFlowTests.test_physical_wire_backend_and_native_joins_produce_unsigned_packet",
+        "tests.test_apache_i12_review_flows.BatchFlowTests.test_foreign_observation_identity_rejected",
+        "tests.test_apache_i12_review_flows.BatchFlowTests.test_missing_typed_client_rejected_without_synthetic_fallback",
+        "tests.test_apache_i12_review_flows.BatchFlowTests.test_unidentified_backend_row_is_rejected",
+        "tests.test_apache_i12_review_flows.BatchFlowTests.test_empty_response_records_absence_without_status_invention",
+        "tests.test_apache_i12_review_flows.BatchFlowTests.test_missing_process_receipt_preserves_unknown_exit"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_apache_i12_review_flows.py",
+      "source_sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
     },
     {
       "contains_selected_definitions": [],
@@ -3201,6 +3235,22 @@
       "on_demand_definitions": [],
       "source": "tests/test_envoy_i12_offline_orchestration.py",
       "source_sha256": "7ac50f3852822ddf566e11475bdd719e02f91f48ad403fc98fe324f6230a5951"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_complete_reviews_preserve_the_supplied_baseline_without_new_host_oracle_credit",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_supplement_verifies_origin_and_complete_private_fixture_without_promoting_it",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_duplicate_baseline_identity_is_rejected",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_changed_physical_source_reference_is_rejected",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_new_fixture_binding_cannot_name_a_sibling_original",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_source_review_cannot_turn_a_row_into_host_qualification",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_source_review_cannot_omit_remaining_host_requirements",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_supplement_admission_cannot_substitute_the_fixture_ledger",
+        "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_supplement_cannot_rewrite_the_normalized_source_semantics"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_envoy_i12_source_review_offline.py",
+      "source_sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
     },
     {
       "contains_selected_definitions": [],
@@ -4082,7 +4132,7 @@
         "tests.test_haproxy_i12_route_observe.RouteObservationTests.test_stored_schema_partial_facts_preserve_all_35_fields_and_pending_outcomes"
       ],
       "source": "tests/test_haproxy_i12_route_observe.py",
-      "source_sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+      "source_sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
     },
     {
       "contains_selected_definitions": [],
@@ -5099,6 +5149,18 @@
       ],
       "source": "tests/test_lighttpd_i12_ledger.py",
       "source_sha256": "0a84fe47df48c2211a7a2ee7ddd8a402e7890a49483b84d2c2ae4f6746cb8979"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_exact_mime_and_constructor_overlays_bind_actual_source_bytes",
+        "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_wrong_disposable_marker_rejects_before_collector_write",
+        "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_nonregistered_collector_hash_rejects_before_overlay",
+        "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_symlinked_collector_rejects_without_changing_target",
+        "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_existing_accessor_destination_rejects_without_replacing_bytes"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_lighttpd_i12_mime_preparation_offline.py",
+      "source_sha256": "64ea60d335330e5b714da4ef0a1859510c4ac3bb9bf04c5f8cb16cd829ffe7b0"
     },
     {
       "contains_selected_definitions": [
@@ -6134,6 +6196,20 @@
       ],
       "source": "tests/test_nginx_http11_wire_client.py",
       "source_sha256": "5e9aef846bb6dfcf3c7b7a16aa6ed3ac42a9032835c79e6504d0bceae9f46ebf"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_exact_export_seals_real_sha_lineage_and_private_snapshot",
+        "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_archive_blob_mismatch_cannot_publish_identity",
+        "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_archive_mode_mismatch_cannot_publish_identity",
+        "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_archive_traversal_cannot_escape_or_publish_identity",
+        "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_duplicate_inventory_cannot_publish_identity",
+        "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_inventory_parent_collision_cannot_publish_identity",
+        "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_missing_archive_member_cannot_publish_identity"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_nginx_i12_export_offline.py",
+      "source_sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
     },
     {
       "contains_selected_definitions": [],

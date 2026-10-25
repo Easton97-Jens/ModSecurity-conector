@@ -4802,7 +4802,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         },
         {
           "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
@@ -4880,7 +4880,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         },
         {
           "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
@@ -9169,7 +9169,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9276,7 +9276,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9362,7 +9362,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9490,7 +9490,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9618,7 +9618,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9704,7 +9704,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9783,7 +9783,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9869,7 +9869,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -9955,7 +9955,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10034,7 +10034,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10120,7 +10120,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10213,7 +10213,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10306,7 +10306,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10392,7 +10392,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10478,7 +10478,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10564,7 +10564,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10650,7 +10650,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10736,7 +10736,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10822,7 +10822,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10908,7 +10908,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -10987,7 +10987,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -11066,7 +11066,7 @@
         },
         {
           "path": "tests/test_haproxy_i12_route_observe.py",
-          "sha256": "ee6ae42787e5f59ef0202f841f1237a779b7bb7cd6d2bd47016e2d60465d556e"
+          "sha256": "167b28a616977ecc4026258fc50d9456e45bfe3309704c4c0ecbfe04df91084c"
         }
       ],
       "selector": {
@@ -42807,6 +42807,2809 @@
         {
           "id": "offline.maintenance-integrity.python-staging.case",
           "requirement": "Publisher keeps its primary allowlist and separately verifies the two fixed hash companions: python-staging",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.complete-reviews-preserve-the-supplied-baseline-without-new-host-oracle-credit",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_complete_reviews_preserve_the_supplied_baseline_without_new_host_oracle_credit"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.complete-reviews-preserve-the-supplied-baseline-without-new-host-oracle-credit.single-input",
+          "requirement": "Offline synthetic source-review contract: complete reviews preserve the supplied baseline without new host oracle credit",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.supplement-verifies-origin-and-complete-private-fixture-without-promoting-it",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_supplement_verifies_origin_and_complete_private_fixture_without_promoting_it"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.supplement-verifies-origin-and-complete-private-fixture-without-promoting-it.single-input",
+          "requirement": "Offline synthetic source-review contract: supplement verifies origin and complete private fixture without promoting it",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.duplicate-baseline-identity-is-rejected",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_duplicate_baseline_identity_is_rejected"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.duplicate-baseline-identity-is-rejected.single-input",
+          "requirement": "Offline synthetic source-review contract: duplicate baseline identity is rejected",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.changed-physical-source-reference-is-rejected",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_changed_physical_source_reference_is_rejected"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.changed-physical-source-reference-is-rejected.single-input",
+          "requirement": "Offline synthetic source-review contract: changed physical source reference is rejected",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.new-fixture-binding-cannot-name-a-sibling-original",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_new_fixture_binding_cannot_name_a_sibling_original"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.new-fixture-binding-cannot-name-a-sibling-original.single-input",
+          "requirement": "Offline synthetic source-review contract: new fixture binding cannot name a sibling original",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.source-review-cannot-turn-a-row-into-host-qualification",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_source_review_cannot_turn_a_row_into_host_qualification"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.source-review-cannot-turn-a-row-into-host-qualification.single-input",
+          "requirement": "Offline synthetic source-review contract: source review cannot turn a row into host qualification",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.source-review-cannot-omit-remaining-host-requirements",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_source_review_cannot_omit_remaining_host_requirements"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.source-review-cannot-omit-remaining-host-requirements.single-input",
+          "requirement": "Offline synthetic source-review contract: source review cannot omit remaining host requirements",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.supplement-admission-cannot-substitute-the-fixture-ledger",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_supplement_admission_cannot_substitute_the_fixture_ledger"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.supplement-admission-cannot-substitute-the-fixture-ledger.single-input",
+          "requirement": "Offline synthetic source-review contract: supplement admission cannot substitute the fixture ledger",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.envoy-source-review.supplement-cannot-rewrite-the-normalized-source-semantics",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/evidence_io.py",
+          "sha256": "4430059cf57f9cdf2f65da35820908cb53173713275f5b4da1051f0ed97c474d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/envoy/validate_oracles.py",
+          "sha256": "d69ba325a485ee82b40a5390f7e63fb0fa7428bc2dc08077b1e24db0d5091e93"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_envoy_i12_source_review_offline.py",
+          "sha256": "f5e076e3227f8bacac64f8b8659358bec2c967cecb1b2105de4923805d8cd9a0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_envoy_i12_source_review_offline.EnvoySourceReviewOfflineTests.test_supplement_cannot_rewrite_the_normalized_source_semantics"
+      },
+      "cases": [
+        {
+          "id": "offline.envoy-source-review.supplement-cannot-rewrite-the-normalized-source-semantics.single-input",
+          "requirement": "Offline synthetic source-review contract: supplement cannot rewrite the normalized source semantics",
+          "profiles": [
+            "envoy-source-review"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.1",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.CandidateFlowTests.test_synthetic_capture_joins_native_events_cleanup_and_retains_unknowns"
+      },
+      "cases": [
+        {
+          "id": "apache-review-1",
+          "requirement": "synthetic capture joins native events cleanup and retains unknowns",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.2",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.CandidateFlowTests.test_changed_admission_spec_is_rejected_before_capture_join"
+      },
+      "cases": [
+        {
+          "id": "apache-review-2",
+          "requirement": "changed admission spec is rejected before capture join",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.3",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.CandidateFlowTests.test_changed_sealed_fixture_ledger_is_rejected"
+      },
+      "cases": [
+        {
+          "id": "apache-review-3",
+          "requirement": "changed sealed fixture ledger is rejected",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.4",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.CandidateFlowTests.test_launch_case_mismatch_is_rejected"
+      },
+      "cases": [
+        {
+          "id": "apache-review-4",
+          "requirement": "launch case mismatch is rejected",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.5",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.CandidateFlowTests.test_missing_backend_remains_unknown_instead_of_zero"
+      },
+      "cases": [
+        {
+          "id": "apache-review-5",
+          "requirement": "missing backend remains unknown instead of zero",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.6",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.CandidateFlowTests.test_final_inside_principal_window_fails_cleanup_without_approval"
+      },
+      "cases": [
+        {
+          "id": "apache-review-6",
+          "requirement": "final inside principal window fails cleanup without approval",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.7",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.BatchFlowTests.test_physical_wire_backend_and_native_joins_produce_unsigned_packet"
+      },
+      "cases": [
+        {
+          "id": "apache-review-7",
+          "requirement": "physical wire backend and native joins produce unsigned packet",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.8",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.BatchFlowTests.test_foreign_observation_identity_rejected"
+      },
+      "cases": [
+        {
+          "id": "apache-review-8",
+          "requirement": "foreign observation identity rejected",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.9",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.BatchFlowTests.test_missing_typed_client_rejected_without_synthetic_fallback"
+      },
+      "cases": [
+        {
+          "id": "apache-review-9",
+          "requirement": "missing typed client rejected without synthetic fallback",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.10",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.BatchFlowTests.test_unidentified_backend_row_is_rejected"
+      },
+      "cases": [
+        {
+          "id": "apache-review-10",
+          "requirement": "unidentified backend row is rejected",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.11",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.BatchFlowTests.test_empty_response_records_absence_without_status_invention"
+      },
+      "cases": [
+        {
+          "id": "apache-review-11",
+          "requirement": "empty response records absence without status invention",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.12",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_review_flows.py",
+          "sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_review_flows.BatchFlowTests.test_missing_process_receipt_preserves_unknown_exit"
+      },
+      "cases": [
+        {
+          "id": "apache-review-12",
+          "requirement": "missing process receipt preserves unknown exit",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.13",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_synthetic_complete_batch_produces_bound_pending_decision_only"
+      },
+      "cases": [
+        {
+          "id": "apache-review-13",
+          "requirement": "synthetic complete batch produces bound pending decision only",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.14",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_absent_explicit_approval_removes_qualification"
+      },
+      "cases": [
+        {
+          "id": "apache-review-14",
+          "requirement": "absent explicit approval removes qualification",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.15",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_unresolved_original_oracle_remains_unknown"
+      },
+      "cases": [
+        {
+          "id": "apache-review-15",
+          "requirement": "unresolved original oracle remains unknown",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.16",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_reextracted_packet_mismatch_prevents_pending_decision"
+      },
+      "cases": [
+        {
+          "id": "apache-review-16",
+          "requirement": "reextracted packet mismatch prevents pending decision",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.17",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_foreign_sdk_identity_prevents_pending_decision"
+      },
+      "cases": [
+        {
+          "id": "apache-review-17",
+          "requirement": "foreign sdk identity prevents pending decision",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.18",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_descriptor_leak_prevents_pending_decision"
+      },
+      "cases": [
+        {
+          "id": "apache-review-18",
+          "requirement": "descriptor leak prevents pending decision",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.19",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_deleted_physical_response_cannot_be_replaced_by_packet_values"
+      },
+      "cases": [
+        {
+          "id": "apache-review-19",
+          "requirement": "deleted physical response cannot be replaced by packet values",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.next.apache.20",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-lifecycle-ledger.py",
+          "sha256": "8611a859c19b7ef58d33163639822a99e8991bf06a6dc699418c81738d02b935"
+        },
+        {
+          "path": "ci/evidence/reports/generate-pr382-i12-oracle-reconciliation.py",
+          "sha256": "34269935315f9e20cf8f8ace683d86a7566c590e1bd474bd0810810b9782071d"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py",
+          "sha256": "0cac59e6336ded83c2f9d8b00e6595ca9494ac35227f63b2cd52df7f3e59f56e"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py",
+          "sha256": "174bc38a33d69068e8ed7f1ffcbc392733029c27587e6dc387f5adeb653c6ee9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/ledger.py",
+          "sha256": "2273ed631696a396e9a95a0d1dc1464709c1620d86d146955574faac4732dd40"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+          "sha256": "e20a57b066c998f601a55f0564de5527bcc55f80df4c2b87b4ff2104cc946c4d"
+        },
+        {
+          "path": "ci/runtime/lifecycle/apache-i12/review.py",
+          "sha256": "db1bdcb66b4f3ae061aa4c3690565ac715541e6c1bc990bc7978321a9ad6ca66"
+        },
+        {
+          "path": "reports/audits/apache-i12-20261020/final_review.py",
+          "sha256": "e4259734eea96a27c412e6e6260aee70c64522d3d9aee22b3e53502a0398c0f3"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_apache_i12_final_review_flows.py",
+          "sha256": "0d2c4cbcdefd70e38dc226329d9f12666f22ade43a11f316d024aa2fbccfdca8"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_apache_i12_final_review_flows.FinalFlowTests.test_existing_publication_is_preserved_and_validation_temporary_removed"
+      },
+      "cases": [
+        {
+          "id": "apache-review-20",
+          "requirement": "existing publication is preserved and validation temporary removed",
+          "profiles": [
+            "apache-current"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.nginx-export.exact-export-seals-real-sha-lineage-and-private-snapshot",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/nginx/build_capture.py",
+          "sha256": "1965c0135708d256346a7bf95708aa2b10dd2d6b9b6ad4ed47634a4eed118e68"
+        },
+        {
+          "path": "ci/tools/new-change-record.py",
+          "sha256": "e8bb2ed5eac5195dc85ac9c84d22f67d7977cd196d3469125d9753bf89b170ed"
+        },
+        {
+          "path": "common/src/status.c",
+          "sha256": "8cae41d98f3ee4f8978e01100c59b2882a078e683fae38c42839d3bf3566ccca"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_nginx_i12_export_offline.py",
+          "sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_exact_export_seals_real_sha_lineage_and_private_snapshot"
+      },
+      "cases": [
+        {
+          "id": "offline.nginx-export.exact-export-seals-real-sha-lineage-and-private-snapshot.single-input",
+          "requirement": "Offline real nginx-export: exact export seals real sha lineage and private snapshot",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.nginx-export.archive-blob-mismatch-cannot-publish-identity",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/nginx/build_capture.py",
+          "sha256": "1965c0135708d256346a7bf95708aa2b10dd2d6b9b6ad4ed47634a4eed118e68"
+        },
+        {
+          "path": "ci/tools/new-change-record.py",
+          "sha256": "e8bb2ed5eac5195dc85ac9c84d22f67d7977cd196d3469125d9753bf89b170ed"
+        },
+        {
+          "path": "common/src/status.c",
+          "sha256": "8cae41d98f3ee4f8978e01100c59b2882a078e683fae38c42839d3bf3566ccca"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_nginx_i12_export_offline.py",
+          "sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_archive_blob_mismatch_cannot_publish_identity"
+      },
+      "cases": [
+        {
+          "id": "offline.nginx-export.archive-blob-mismatch-cannot-publish-identity.single-input",
+          "requirement": "Offline real nginx-export: archive blob mismatch cannot publish identity",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.nginx-export.archive-mode-mismatch-cannot-publish-identity",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/nginx/build_capture.py",
+          "sha256": "1965c0135708d256346a7bf95708aa2b10dd2d6b9b6ad4ed47634a4eed118e68"
+        },
+        {
+          "path": "ci/tools/new-change-record.py",
+          "sha256": "e8bb2ed5eac5195dc85ac9c84d22f67d7977cd196d3469125d9753bf89b170ed"
+        },
+        {
+          "path": "common/src/status.c",
+          "sha256": "8cae41d98f3ee4f8978e01100c59b2882a078e683fae38c42839d3bf3566ccca"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_nginx_i12_export_offline.py",
+          "sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_archive_mode_mismatch_cannot_publish_identity"
+      },
+      "cases": [
+        {
+          "id": "offline.nginx-export.archive-mode-mismatch-cannot-publish-identity.single-input",
+          "requirement": "Offline real nginx-export: archive mode mismatch cannot publish identity",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.nginx-export.archive-traversal-cannot-escape-or-publish-identity",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/nginx/build_capture.py",
+          "sha256": "1965c0135708d256346a7bf95708aa2b10dd2d6b9b6ad4ed47634a4eed118e68"
+        },
+        {
+          "path": "ci/tools/new-change-record.py",
+          "sha256": "e8bb2ed5eac5195dc85ac9c84d22f67d7977cd196d3469125d9753bf89b170ed"
+        },
+        {
+          "path": "common/src/status.c",
+          "sha256": "8cae41d98f3ee4f8978e01100c59b2882a078e683fae38c42839d3bf3566ccca"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_nginx_i12_export_offline.py",
+          "sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_archive_traversal_cannot_escape_or_publish_identity"
+      },
+      "cases": [
+        {
+          "id": "offline.nginx-export.archive-traversal-cannot-escape-or-publish-identity.single-input",
+          "requirement": "Offline real nginx-export: archive traversal cannot escape or publish identity",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.nginx-export.duplicate-inventory-cannot-publish-identity",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/nginx/build_capture.py",
+          "sha256": "1965c0135708d256346a7bf95708aa2b10dd2d6b9b6ad4ed47634a4eed118e68"
+        },
+        {
+          "path": "ci/tools/new-change-record.py",
+          "sha256": "e8bb2ed5eac5195dc85ac9c84d22f67d7977cd196d3469125d9753bf89b170ed"
+        },
+        {
+          "path": "common/src/status.c",
+          "sha256": "8cae41d98f3ee4f8978e01100c59b2882a078e683fae38c42839d3bf3566ccca"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_nginx_i12_export_offline.py",
+          "sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_duplicate_inventory_cannot_publish_identity"
+      },
+      "cases": [
+        {
+          "id": "offline.nginx-export.duplicate-inventory-cannot-publish-identity.single-input",
+          "requirement": "Offline real nginx-export: duplicate inventory cannot publish identity",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.nginx-export.inventory-parent-collision-cannot-publish-identity",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/nginx/build_capture.py",
+          "sha256": "1965c0135708d256346a7bf95708aa2b10dd2d6b9b6ad4ed47634a4eed118e68"
+        },
+        {
+          "path": "ci/tools/new-change-record.py",
+          "sha256": "e8bb2ed5eac5195dc85ac9c84d22f67d7977cd196d3469125d9753bf89b170ed"
+        },
+        {
+          "path": "common/src/status.c",
+          "sha256": "8cae41d98f3ee4f8978e01100c59b2882a078e683fae38c42839d3bf3566ccca"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_nginx_i12_export_offline.py",
+          "sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_inventory_parent_collision_cannot_publish_identity"
+      },
+      "cases": [
+        {
+          "id": "offline.nginx-export.inventory-parent-collision-cannot-publish-identity.single-input",
+          "requirement": "Offline real nginx-export: inventory parent collision cannot publish identity",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.nginx-export.missing-archive-member-cannot-publish-identity",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/nginx/build_capture.py",
+          "sha256": "1965c0135708d256346a7bf95708aa2b10dd2d6b9b6ad4ed47634a4eed118e68"
+        },
+        {
+          "path": "ci/tools/new-change-record.py",
+          "sha256": "e8bb2ed5eac5195dc85ac9c84d22f67d7977cd196d3469125d9753bf89b170ed"
+        },
+        {
+          "path": "common/src/status.c",
+          "sha256": "8cae41d98f3ee4f8978e01100c59b2882a078e683fae38c42839d3bf3566ccca"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_nginx_i12_export_offline.py",
+          "sha256": "6463af8b207462149bb17577d708575bfb1f040487ce7ce0226c9c948dee8988"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_i12_export_offline.ExportAdmissionTests.test_missing_archive_member_cannot_publish_identity"
+      },
+      "cases": [
+        {
+          "id": "offline.nginx-export.missing-archive-member-cannot-publish-identity.single-input",
+          "requirement": "Offline real nginx-export: missing archive member cannot publish identity",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.lighttpd-mime-overlay.exact-mime-and-constructor-overlays-bind-actual-source-bytes",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+          "sha256": "0a19d7065319e8adce9f47bb89cd0ce0e140d081c73bba7635452bce5cab63b9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/manifest.json",
+          "sha256": "3d465e2ff92187eaf716fe6fba59cbcc024567c162b97b42b99ddae483fdd2e0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6-from-0d903fc5e643.patch",
+          "sha256": "e5e6eddfc223df14c41e75c954b10a83c1d47c1a76947e1dfcbc240c4c07ede7"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0-native-lifecycle-observer.c.patch",
+          "sha256": "bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537-native-lifecycle-observer.c.lines.json",
+          "sha256": "157b841744e528cd0c0056da394682755d4d4f4a834234e2a86f99de849a820c"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/3f0ada7c405a54a28462359711f800ff4e18d0f2bb205b217fb5dfac82a05e0a-test-sdk-mime-merge09.cpp.lines.json",
+          "sha256": "8a5a1b371a61597148635e20be3e49e1c19e4592295e76deaa6492521af97699"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_lighttpd_i12_mime_preparation_offline.py",
+          "sha256": "64ea60d335330e5b714da4ef0a1859510c4ac3bb9bf04c5f8cb16cd829ffe7b0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_exact_mime_and_constructor_overlays_bind_actual_source_bytes"
+      },
+      "cases": [
+        {
+          "id": "offline.lighttpd-mime-overlay.exact-mime-and-constructor-overlays-bind-actual-source-bytes.single-input",
+          "requirement": "Offline real lighttpd-mime-overlay: exact mime and constructor overlays bind actual source bytes",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.lighttpd-mime-overlay.wrong-disposable-marker-rejects-before-collector-write",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+          "sha256": "0a19d7065319e8adce9f47bb89cd0ce0e140d081c73bba7635452bce5cab63b9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/manifest.json",
+          "sha256": "3d465e2ff92187eaf716fe6fba59cbcc024567c162b97b42b99ddae483fdd2e0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6-from-0d903fc5e643.patch",
+          "sha256": "e5e6eddfc223df14c41e75c954b10a83c1d47c1a76947e1dfcbc240c4c07ede7"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0-native-lifecycle-observer.c.patch",
+          "sha256": "bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537-native-lifecycle-observer.c.lines.json",
+          "sha256": "157b841744e528cd0c0056da394682755d4d4f4a834234e2a86f99de849a820c"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/3f0ada7c405a54a28462359711f800ff4e18d0f2bb205b217fb5dfac82a05e0a-test-sdk-mime-merge09.cpp.lines.json",
+          "sha256": "8a5a1b371a61597148635e20be3e49e1c19e4592295e76deaa6492521af97699"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_lighttpd_i12_mime_preparation_offline.py",
+          "sha256": "64ea60d335330e5b714da4ef0a1859510c4ac3bb9bf04c5f8cb16cd829ffe7b0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_wrong_disposable_marker_rejects_before_collector_write"
+      },
+      "cases": [
+        {
+          "id": "offline.lighttpd-mime-overlay.wrong-disposable-marker-rejects-before-collector-write.single-input",
+          "requirement": "Offline real lighttpd-mime-overlay: wrong disposable marker rejects before collector write",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.lighttpd-mime-overlay.nonregistered-collector-hash-rejects-before-overlay",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+          "sha256": "0a19d7065319e8adce9f47bb89cd0ce0e140d081c73bba7635452bce5cab63b9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/manifest.json",
+          "sha256": "3d465e2ff92187eaf716fe6fba59cbcc024567c162b97b42b99ddae483fdd2e0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6-from-0d903fc5e643.patch",
+          "sha256": "e5e6eddfc223df14c41e75c954b10a83c1d47c1a76947e1dfcbc240c4c07ede7"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0-native-lifecycle-observer.c.patch",
+          "sha256": "bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537-native-lifecycle-observer.c.lines.json",
+          "sha256": "157b841744e528cd0c0056da394682755d4d4f4a834234e2a86f99de849a820c"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/3f0ada7c405a54a28462359711f800ff4e18d0f2bb205b217fb5dfac82a05e0a-test-sdk-mime-merge09.cpp.lines.json",
+          "sha256": "8a5a1b371a61597148635e20be3e49e1c19e4592295e76deaa6492521af97699"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_lighttpd_i12_mime_preparation_offline.py",
+          "sha256": "64ea60d335330e5b714da4ef0a1859510c4ac3bb9bf04c5f8cb16cd829ffe7b0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_nonregistered_collector_hash_rejects_before_overlay"
+      },
+      "cases": [
+        {
+          "id": "offline.lighttpd-mime-overlay.nonregistered-collector-hash-rejects-before-overlay.single-input",
+          "requirement": "Offline real lighttpd-mime-overlay: nonregistered collector hash rejects before overlay",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.lighttpd-mime-overlay.symlinked-collector-rejects-without-changing-target",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+          "sha256": "0a19d7065319e8adce9f47bb89cd0ce0e140d081c73bba7635452bce5cab63b9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/manifest.json",
+          "sha256": "3d465e2ff92187eaf716fe6fba59cbcc024567c162b97b42b99ddae483fdd2e0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6-from-0d903fc5e643.patch",
+          "sha256": "e5e6eddfc223df14c41e75c954b10a83c1d47c1a76947e1dfcbc240c4c07ede7"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0-native-lifecycle-observer.c.patch",
+          "sha256": "bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537-native-lifecycle-observer.c.lines.json",
+          "sha256": "157b841744e528cd0c0056da394682755d4d4f4a834234e2a86f99de849a820c"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/3f0ada7c405a54a28462359711f800ff4e18d0f2bb205b217fb5dfac82a05e0a-test-sdk-mime-merge09.cpp.lines.json",
+          "sha256": "8a5a1b371a61597148635e20be3e49e1c19e4592295e76deaa6492521af97699"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_lighttpd_i12_mime_preparation_offline.py",
+          "sha256": "64ea60d335330e5b714da4ef0a1859510c4ac3bb9bf04c5f8cb16cd829ffe7b0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_symlinked_collector_rejects_without_changing_target"
+      },
+      "cases": [
+        {
+          "id": "offline.lighttpd-mime-overlay.symlinked-collector-rejects-without-changing-target.single-input",
+          "requirement": "Offline real lighttpd-mime-overlay: symlinked collector rejects without changing target",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.lighttpd-mime-overlay.existing-accessor-destination-rejects-without-replacing-bytes",
+      "groups": [
+        "offline-unit",
+        "coverage"
+      ],
+      "sources": [
+        {
+          "path": "ci/lib/active_coverage.py",
+          "sha256": "3d640fd83376150422d04df49f206203b78c515c92de0d60951858343ea2de0e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "b97d8f0957c23028ca724b536b3808b7ca0948e4483f6e8febfa281faf330449"
+        },
+        {
+          "path": "ci/lib/i12_path_safety.py",
+          "sha256": "60584708dae5648de07dfc536b4e4f81c742888c954944f0775a60c37eb4dde0"
+        },
+        {
+          "path": "ci/lib/python_coverage_bootstrap.py",
+          "sha256": "2998512076844cbcd9267fcc928fa7f324a7582e24bdcc4ed9a0734c26b7f656"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/sonar_source_roles.py",
+          "sha256": "7689d258e132cafeb70c99da925cd65b74798727be23f6e6dfd4cd411edb3b7b"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/capture_sources.py",
+          "sha256": "ac68ddd8c758f511f5b2a8154d9f015fc830eed69c496dfeaed3719e3fdccb64"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+          "sha256": "0a19d7065319e8adce9f47bb89cd0ce0e140d081c73bba7635452bce5cab63b9"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/manifest.json",
+          "sha256": "3d465e2ff92187eaf716fe6fba59cbcc024567c162b97b42b99ddae483fdd2e0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6-from-0d903fc5e643.patch",
+          "sha256": "e5e6eddfc223df14c41e75c954b10a83c1d47c1a76947e1dfcbc240c4c07ede7"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/deltas/bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0-native-lifecycle-observer.c.patch",
+          "sha256": "bd09f4e2dd090fb732792c53b20c4f512de91f1685ff088d619f3448ccfe2ae0"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/0d903fc5e6432769a136931b7ebea16a6f87db941d28d23583ccccf4c75e6537-native-lifecycle-observer.c.lines.json",
+          "sha256": "157b841744e528cd0c0056da394682755d4d4f4a834234e2a86f99de849a820c"
+        },
+        {
+          "path": "ci/runtime/lifecycle/i12/objects/text/3f0ada7c405a54a28462359711f800ff4e18d0f2bb205b217fb5dfac82a05e0a-test-sdk-mime-merge09.cpp.lines.json",
+          "sha256": "8a5a1b371a61597148635e20be3e49e1c19e4592295e76deaa6492521af97699"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        },
+        {
+          "path": "tests/test_lighttpd_i12_mime_preparation_offline.py",
+          "sha256": "64ea60d335330e5b714da4ef0a1859510c4ac3bb9bf04c5f8cb16cd829ffe7b0"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_lighttpd_i12_mime_preparation_offline.MimePreparationTests.test_existing_accessor_destination_rejects_without_replacing_bytes"
+      },
+      "cases": [
+        {
+          "id": "offline.lighttpd-mime-overlay.existing-accessor-destination-rejects-without-replacing-bytes.single-input",
+          "requirement": "Offline real lighttpd-mime-overlay: existing accessor destination rejects without replacing bytes",
           "profiles": [
             "parent-infrastructure"
           ]

@@ -49,6 +49,14 @@ def stored_spop_backend_rows():
 
 
 class BackendDecodingTests(unittest.TestCase):
+    def setUp(self):
+        from ci.lib.active_test_inventory import validate_output_root
+
+        storage = validate_output_root(ROOT, Path(os.environ["RUNNER_TEMP"]))
+        selected_storage = patch.object(OBSERVE.CAPTURE, "STORAGE", storage)
+        selected_storage.start()
+        self.addCleanup(selected_storage.stop)
+
     def test_physical_count_requires_complete_log_and_positive_zero_control(self):
         with tempfile.TemporaryDirectory(dir=OBSERVE.CAPTURE.STORAGE) as directory:
             root = Path(directory)
