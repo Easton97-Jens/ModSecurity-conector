@@ -42,4 +42,4 @@ I12 or V08–V10 matrix.
 
 Builds, static contracts and component tests prove only their own layers. The
 current delivery result and open evidence boundaries are recorded once in the
-[PR #410 closeout](pr-410-i12-closeout-20261024.md).
+[current PR #382 closeout](pr-382-merge-readiness.md).

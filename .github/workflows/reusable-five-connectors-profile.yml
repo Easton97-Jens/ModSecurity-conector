@@ -38,7 +38,12 @@ jobs:
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify fixed No-CRS workflow contract
-        run: python3 -m unittest -v tests.test_all_connectors_no_crs_workflow_contract
+        run: |
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+          python3 ci/tools/run-active-tests.py --group inventory
+
+      - name: Validate global expanded behavioral inventory
+        run: python3 ci/tools/run-active-tests.py --check
 
       - name: Resolve fixed connector matrix
         id: profile

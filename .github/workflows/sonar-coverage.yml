@@ -1,0 +1,143 @@
+name: Selected coverage and Sonar analysis
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  selected-coverage:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: off
+      CGO_ENABLED: '0'
+      PYTHONNOUSERSITE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out the exact analyzed source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Set up canonical Go without cache reuse
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Admit the entire expanded active inventory
+        run: |
+          python3 ci/tools/run-active-tests.py --check --group coverage
+          python3 ci/tools/sync-sonar-test-scope.py --check
+      - name: Install the reviewed hash-bound CI dependency
+        run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+      - name: Install the actual native coverage and ModSecurity development prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential libmodsecurity-dev
+          header=$(dpkg-query -L libmodsecurity-dev | awk '/\/modsecurity\/modsecurity.h$/ { print; count++ } END { if (count != 1) exit 1 }')
+          library=$(dpkg-query -L libmodsecurity-dev | awk '/\/libmodsecurity.so$/ { print; count++ } END { if (count != 1) exit 1 }')
+          {
+            echo "MODSECURITY_INCLUDE_DIR=${header%/modsecurity/modsecurity.h}"
+            echo "MODSECURITY_LIB_DIR=${library%/libmodsecurity.so}"
+            echo "MODSECURITY_LIB_FILE=$library"
+          } >> "$GITHUB_ENV"
+      - name: Collect actual coverage during admitted selected tests
+        id: coverage
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+          GOCACHE: ${{ runner.temp }}/go-cache
+          GOMODCACHE: ${{ runner.temp }}/go-modules
+        run: |
+          set -euo pipefail
+          command -v cc >/dev/null
+          command -v gcov >/dev/null
+          umask 077
+          mkdir "$RUNNER_TEMP/parent-coverage"
+          python3 ci/tools/collect-active-coverage.py run \
+            --strict-skips --output-root "$RUNNER_TEMP/parent-coverage"
+      - name: Verify report, source, inventory and build identity before import
+        run: python3 ci/tools/collect-active-coverage.py verify --output-root "$RUNNER_TEMP/parent-coverage"
+      - name: Retain actual line observations and revision-bound report manifest
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: parent-selected-coverage-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/parent-coverage/coverage.xml
+            ${{ runner.temp }}/parent-coverage/manifest.json
+            ${{ runner.temp }}/parent-coverage/**/go.out
+            ${{ runner.temp }}/parent-coverage/**/python.json
+            ${{ runner.temp }}/parent-coverage/**/python-subprocess/*.json
+            ${{ runner.temp }}/parent-coverage/**/*.gcov.json.gz
+      - name: Validate existing analysis credential at the fixed Sonar origin
+        env:
+          SONAR_TOKEN: ${{ secrets.MODSECURITYCONECTOR }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.request
+
+          class RejectRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise RuntimeError("Sonar credential validation must not redirect")
+
+          token = os.environ.get("SONAR_TOKEN", "")
+          if not token:
+              raise SystemExit("Existing repository analysis credential is unavailable")
+          authorization = base64.b64encode((token + ":").encode("utf-8")).decode("ascii")
+          request = urllib.request.Request("https://sonarcloud.io/api/authentication/validate",
+                                           headers={"Authorization": "Basic " + authorization})
+          try:
+              opener = urllib.request.build_opener(RejectRedirect())
+              with opener.open(request, timeout=30) as response:
+                  value = json.loads(response.read(4096))
+          except (OSError, ValueError, RuntimeError):
+              raise SystemExit("Existing Sonar credential could not be validated at its fixed origin")
+          if value.get("valid") is not True:
+              raise SystemExit("Existing repository analysis credential is not valid for Sonar")
+          print("SONAR_ANALYSIS_CREDENTIAL_VALID")
+          PY
+      - name: Analyze the current source and import its actual coverage
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.MODSECURITYCONECTOR }}
+          SONAR_USER_HOME: ${{ runner.temp }}/sonar-cache
+        with:
+          scannerVersion: 8.1.0.6389
+          skipSignatureVerification: 'false'
+          args: >-
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+            -Dsonar.coverageReportPaths=${{ steps.coverage.outputs.generic_report }}
+            -Dsonar.go.coverage.reportPaths=${{ steps.coverage.outputs.go_reports }}
+            -Dsonar.working.directory=${{ runner.temp }}/sonar-work
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=600

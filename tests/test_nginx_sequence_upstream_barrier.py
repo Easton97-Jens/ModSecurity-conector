@@ -166,3 +166,9 @@ class BarrierQualityTests(unittest.TestCase):
         handler.server.client_headers_seen.wait.assert_not_called()
         self.assertFalse(handler.server.prefix_sent.is_set())
         self.assertFalse(handler.server.marker_sent.is_set())
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

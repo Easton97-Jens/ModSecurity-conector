@@ -8,6 +8,10 @@ CONFIG_MATERIALIZER="$CONNECTOR_DIR/config/prepare_envoy_ext_proc_config.sh"
 RUNTIME_CONFIG_MATERIALIZER="$CONNECTOR_DIR/config/prepare_envoy_ext_proc_runtime_config.sh"
 COMMON_BUILD="$CONNECTOR_DIR/build/build_ext_proc.sh"
 
+if [ "${ON_DEMAND_TESTS:-0}" != 1 ]; then
+    exec "${PYTHON:-python3}" "$CONNECTOR_DIR/../../ci/tools/run-active-tests.py" --group envoy
+fi
+
 command -v go >/dev/null 2>&1 || {
     echo "envoy_ext_proc_test: missing Go toolchain" >&2
     exit 77

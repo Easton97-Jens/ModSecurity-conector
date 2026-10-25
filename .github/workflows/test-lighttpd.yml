@@ -35,7 +35,7 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
-          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow
+          python3 ci/tools/run-active-tests.py --group lighttpd
       - name: Execute lighttpd technical-error callers and negative controls
         env:
           TMPDIR: ${{ runner.temp }}
@@ -49,4 +49,4 @@ jobs:
           namespace_temp_root="$(/usr/bin/mktemp -d "${RUNNER_TEMP}/lighttpd-namespace-contract.XXXXXX")"
           /usr/bin/chmod 700 -- "$namespace_temp_root"
           export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"
-          python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
+          python3 ci/tools/run-active-tests.py --group lighttpd

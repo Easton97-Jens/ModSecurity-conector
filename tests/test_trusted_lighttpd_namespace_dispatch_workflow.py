@@ -63,8 +63,12 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         if triggers != ["workflow_dispatch"]:
             errors.append("workflow must have only workflow_dispatch")
         inputs = re.findall(r"(?m)^      ([A-Za-z_][A-Za-z0-9_-]*):", trigger_body)
-        if inputs != ["target"]:
-            errors.append("workflow must expose only target")
+        if inputs != ["target", "on_demand"]:
+            errors.append("workflow must expose only target and the explicit on-demand selector")
+        require_markers(
+            errors, trigger_body, "explicit specialist selection",
+            ("      on_demand:\n", "        type: boolean\n        default: false"),
+        )
         require_markers(
             errors,
             trigger_body,
@@ -111,6 +115,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
         "protected-master boundary",
         (
             "github.event_name == 'workflow_dispatch'",
+            "inputs.on_demand == true",
             f"github.repository == '{EXPECTED_REPOSITORY}'",
             "github.event.repository.fork == false",
             "github.ref == 'refs/heads/master'",
@@ -578,7 +583,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             'source_symlink="$(/usr/bin/find -P "$SOURCE_ROOT" -type l -print -quit)"',
             'test -z "$source_symlink"',
             'cd "$SOURCE_ROOT"',
-            "/usr/bin/python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace",
+            "ON_DEMAND_TESTS=1 /usr/bin/python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace",
             'temporary_entry="$(/usr/bin/find -P "$TEMP_ROOT" -mindepth 1 -maxdepth 1 -print -quit)"',
             'test -z "$temporary_entry"',
             'exit "$test_status"',
@@ -1144,3 +1149,9 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
                 self.assertIn(original, source_namespace)
                 mutated = text[:source_namespace_index] + source_namespace.replace(original, replacement, 1)
                 self.assertNotEqual(trusted_dispatch_errors(mutated), [])
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

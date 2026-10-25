@@ -15,6 +15,7 @@ build-starter:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_starter.sh
 
 self-test: build-starter
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/self_test_starter.sh
 
 build-lighttpd-bridge:
@@ -23,6 +24,7 @@ build-lighttpd-bridge:
 build-bridge-starter: build-lighttpd-bridge
 
 self-test-lighttpd-bridge: build-lighttpd-bridge
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/self_test_bridge.sh
 
 self-test-bridge: self-test-lighttpd-bridge
@@ -48,16 +50,25 @@ check-lighttpd-patched-host: build-lighttpd-patched-host
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/check_patched_lifecycle_host.sh
 
 runtime-smoke-lighttpd-patched: build-lighttpd-patched-host
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then \
+		[ "$${MSCONNECTOR_CRS_RUNTIME:-0}" = 1 ] || { echo "FAIL: specialist native lifecycle requires explicit ON_DEMAND_TESTS=1" >&2; exit 2; }; \
+		python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.crs.lighttpd; \
+	fi
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/run_patched_lifecycle_smoke.sh
 
 build-lighttpd-stock-sidecar:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_stock_sidecar.sh
 
 self-test-lighttpd-stock-sidecar: build-lighttpd-stock-sidecar
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 MSCONNECTOR_STOCK_SIDECAR_BINARY="$(BUILD_ROOT)/lighttpd-stock-sidecar/lighttpd-stock-sidecar" \
 		python3 tests/test_stock_sidecar_contract.py
+else
+	python3 "$(abspath ../../ci/tools/run-active-tests.py)" --group lighttpd
+endif
 
 self-test-lighttpd-stock-real-backend: build-lighttpd-stock-sidecar
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	mkdir -p "$(BUILD_ROOT)/stock-real-backend"
 	chmod 700 "$(BUILD_ROOT)/stock-real-backend"
 	PYTHONDONTWRITEBYTECODE=1 \
@@ -70,12 +81,15 @@ self-test-lighttpd-stock-real-backend: build-lighttpd-stock-sidecar
 		python3 harness/run_stock_sidecar_real_backend.py
 
 check-lighttpd-config: build-lighttpd-connector
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.config.lighttpd; fi
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/check_lighttpd_config.sh
 
 start-smoke-lighttpd: build-lighttpd-connector
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.start.lighttpd; fi
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/start_lighttpd_smoke.sh
 
 runtime-smoke-lighttpd: build-lighttpd-connector
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.no-crs.lighttpd; fi
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/runtime_lighttpd_smoke.sh
 
 no-crs-baseline-lighttpd: export MSCONNECTOR_NO_CRS_BASELINE := 1

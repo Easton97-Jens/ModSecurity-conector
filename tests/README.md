@@ -4,7 +4,7 @@
 
 ## Purpose and boundary
 
-\`tests/\` contains focused Python tests for root orchestration, configuration,
+\`tests/\` contains focused Python tests and native fixtures for root orchestration, configuration,
 artifact layout, lifecycle wiring, capability boundaries, and path/security
 contracts. They provide fast regression coverage for repository behavior that
 can be checked without presenting a synthetic host run as evidence.
@@ -13,6 +13,44 @@ These tests are not the Framework case catalog, a replacement for connector
 harnesses, or canonical runtime evidence. Passing unit tests do not establish
 production readiness, CRS completeness, HTTP/2 or HTTP/3 verification, a
 complete matrix, or strict verification for all connectors.
+
+## One automatic active inventory
+
+[config/testing/active-cases.json](../config/testing/active-cases.json) is the
+single authority for normal local, CI and scheduled behavioral selection across
+Common, all connector profiles, Python/Go/native/runtime checks and tests of
+infrastructure. The limit is **100 fully expanded active behavioral cases for
+the whole project**, not 100 methods per suite, job or language. This is a
+ceiling, not a target to fill. Independently
+executed parameters and failure conditions remain separate cases. Repeating
+the same IDs locally, with a race detector or in Hosted CI repeats execution
+cost; it does not add another distinct active case.
+
+The [runner](../ci/tools/run-active-tests.py) validates the complete inventory,
+including source bindings and every expanded case, before starting selected
+test processes. Overflow fails visibly; no first-100 truncation occurs. Group
+or case selection cannot bypass admission of the full inventory. Selecting one
+variant includes its execution's other declared variants. Unknown or empty
+selections fail. <code>make test</code> and <code>make test-active</code> use this
+runner; functional checks beneath lint/build aggregates use the same authority.
+Default Python discovery exposes only its admitted Python projection, not a
+second catalog and not the complete native/Go/runtime acceptance run.
+
+Retained specialist definitions are listed in the generated
+[archive disposition](../reports/testing/test-selection-archive.generated.json).
+Its Python/Go definition count is **not** an expanded active-case count;
+unselected parameters of partly selected definitions remain on demand.
+Native/script and Framework specialist sources remain in their owning trees.
+Regenerate the disposition through <code>ci/tools/update-test-archive.py</code>,
+never by editing its output. Archive entries are non-executable and establish
+neither a current PASS nor preserved automatic coverage.
+
+<code>ON_DEMAND_TESTS=1</code> is an explicit opt-in for a separately requested
+specialist assessment. Keep it unset for standard validation; do not persist it
+in shell initialization, default CI or schedules. It does not authorize a new
+I12 campaign, elevated privileges, cross-repository writes or relaxed checks.
+The concrete lost-coverage categories and profile boundaries are recorded in
+[Testing and evidence](../docs/testing-and-evidence.md).
 
 ## Structure and source of truth
 
@@ -35,6 +73,11 @@ a documentation placeholder: replace it with a concise lowercase identifier
 such as \`runtime_path_policy\`, producing the literal file
 \`tests/test_runtime_path_policy.py\`. Do not create a file literally named
 \`test_<area>.py\`.
+
+A new automatically selected behavior needs a stable case ID, requirement,
+profile and executable selector in the active inventory. At capacity, name the
+replaced or genuinely consolidated behavior and document lost coverage; adding
+a method or hiding independent scenarios in a loop does not avoid counting.
 
 Keep fixtures self-contained, portable, and non-secret. Test the smallest root
 behavior that protects a contract; put reusable catalog cases, normalizer
@@ -65,16 +108,18 @@ argument, or expected artifact.
 
 | Command or target | Purpose and outcome boundary |
 | --- | --- |
-| \`.venv/bin/python -m unittest -v tests.test_runtime_path_policy\` | Runs one focused test module when \`.venv/bin/python\` exists. Replace the module suffix with a literal checked-in test name; this is unit coverage, not host evidence. |
-| \`python3 -m unittest discover -v tests\` | Discovers root Python tests with the system Python when it satisfies project dependencies. It does not run the Framework suite. |
-| \`make check-framework-fixture-syntax\` | Validates Framework fixture syntax from the root target; it is a syntax/contract check, not a runtime result. |
-| \`make check-test-matrix\` | Checks generated test-matrix consistency and ownership boundaries. |
-| \`make quick-check\` | Runs the repository's focused quick contract checks. It does not create canonical runtime evidence. |
-| `make check-native-engine-body-inspection` | Runs genuine libModSecurity request/response limits and Companion C serialization/phase regressions. Requires a C17 compiler, headers and library; the Envoy native CI job also runs it. Component results do not establish live connector host evidence. |
-| `make check-native-lifecycle-observer` | Verifies the test-only GNU linker observer with real Common state, a controlled native ABI and the explicitly selected SDK. Requires `NATIVE_OBSERVER_TEST_OUT`, `MODSECURITY_INCLUDE_DIR` and `MODSECURITY_LIB_DIR`; missing configuration blocks the target. |
-| \`make lint\` | Runs broad syntax, contract, documentation, and governance checks, including root test-related contracts. |
+| <code>make check-active-inventory</code> | Admits the complete expanded inventory and prints its actual count without running cases. |
+| <code>make test</code>, <code>make test-active</code> | Runs the full admitted selection, including native and runtime prerequisites; this is not a lightweight host-free check. |
+| <code>python3 ci/tools/run-active-tests.py --group inventory --output-root /srv/modsecurity-work/tests</code> | Runs one admitted group with the canonical project Python; the existing output parent must be trusted, owned, canonical and external. |
+| <code>python3 -m unittest discover -v tests</code> | Runs only admitted Python definitions through the shared discovery hooks. It does not cover the Go/native/runtime selections or run the Framework catalog. |
+| <code>ON_DEMAND_TESTS=1 python3 -m unittest -v tests.test_runtime_path_policy</code> | Explicitly requests the retained specialist module; its wider assertions are outside automatic selection and may require separately scoped maintenance. |
+| <code>make check-framework-fixture-syntax</code> | Static Framework fixture syntax/contract validation, not a runtime result. |
+| <code>make check-test-matrix</code> | Checks generated matrix consistency and ownership; generating a matrix does not execute its cases. |
+| <code>make quick-check</code>, <code>make lint</code> | Retains static/configuration/documentation/governance checks; functional portions select the same active inventory and create no general host qualification. |
+| <code>ON_DEMAND_TESTS=1 make check-native-engine-body-inspection</code> | Retained full native limits/serialization/phase suite; requires the real C17 compiler and selected SDK. Without the flag, this alias selects the active Common group, not that complete specialist suite. |
+| <code>ON_DEMAND_TESTS=1 make check-native-lifecycle-observer</code> | Retained full GNU-linker observer suite with explicit <code>NATIVE_OBSERVER_TEST_OUT</code>, <code>MODSECURITY_INCLUDE_DIR</code> and <code>MODSECURITY_LIB_DIR</code>. Without the flag, this alias selects the active Common group after its existing SDK/output preflight. |
 
-The native suite accepts the existing `MODSECURITY_PREFIX`,
+The on-demand native suite accepts the existing `MODSECURITY_PREFIX`,
 `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_FILE` and `MODSECURITY_LIB_DIR`
 SDK selection; invalid explicit paths fail before compilation. With an external
 library, executables use its directory as their runtime search path. Inspection
@@ -83,7 +128,7 @@ phase and event integrity; escaped-field overflow must neither write nor advance
 the hash chain. Lightweight event-protocol tests retain their separate dependency
 boundary.
 
-The lifecycle observer records actual API entry/return pairs, separate host and
+The on-demand lifecycle observer records actual API entry/return pairs, separate host and
 canonical transaction IDs, Common state snapshots and per-process final receipts.
 Link it only into test artifacts with the fourteen `--wrap` symbols listed in
 `tests/test_native_lifecycle_observer.py`. A supervisor supplies a private inherited

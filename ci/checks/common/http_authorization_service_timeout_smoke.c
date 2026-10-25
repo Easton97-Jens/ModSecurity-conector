@@ -469,7 +469,14 @@ static pid_t start_service_with_profile_options(
     argv[argc++] = "--connection-timeout-ms";
     argv[argc++] = timeout;
     argv[argc] = NULL;
-    _exit(msconnector_http_authorization_service_main(argc, argv, profile));
+    const int result = msconnector_http_authorization_service_main(argc, argv, profile);
+#ifdef MSCONNECTOR_ACTIVE_GCOV
+    /* This fixture intentionally uses _exit, which skips GCC's exit hook.
+     * Persist only the real counters from the completed service execution. */
+    extern void __gcov_dump(void);
+    __gcov_dump();
+#endif
+    _exit(result);
 }
 
 static pid_t start_service_with_options(
@@ -1435,14 +1442,26 @@ static int rejects_unknown_or_invalid_option_values(void) {
         max_connections_option_has_result("", 2);
 }
 
-int main(void) {
-    msconnector_test_request_stream_stubs_smoke();
+int main(int argc, char **argv) {
     const char incomplete_headers[] =
         "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
     const char incomplete_body[] =
         "POST /stall HTTP/1.1\r\nHost: slow.example\r\nContent-Length: 4\r\n\r\nx";
 
     (void)signal(SIGPIPE, SIG_IGN);
+    if (argc != 1) {
+        if (argc == 3 && strcmp(argv[1], "--active-case") == 0) {
+            if (strcmp(argv[2], "incomplete-headers") == 0) {
+                return run_stalled_request_case("incomplete_headers", incomplete_headers) ? 0 : 1;
+            }
+            if (strcmp(argv[2], "incomplete-body") == 0) {
+                return run_stalled_request_case("incomplete_body", incomplete_body) ? 0 : 1;
+            }
+        }
+        (void)fprintf(stderr, "expected --active-case incomplete-headers|incomplete-body\n");
+        return 2;
+    }
+    msconnector_test_request_stream_stubs_smoke();
     if (!rejects_unbounded_timeout_override()) {
         (void)fprintf(stderr, "timeout override of zero was unexpectedly accepted\n");
         return 1;

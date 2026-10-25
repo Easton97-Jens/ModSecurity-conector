@@ -289,3 +289,9 @@ class NativeCleanupBridgeTests(unittest.TestCase):
         self.assertEqual(state[:2], [1, 1])
         self.assertEqual(event["reason"], "common_return=0;common_complete=1;native_cleanup_completed=1;error_class=engine_timeout")
         self.assertEqual(event["cleanup_reason"], "engine_timeout")
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

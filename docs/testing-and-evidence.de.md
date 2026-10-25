@@ -6,21 +6,84 @@
 
 Tests unterscheiden Strukturprüfungen, Build-/Konfigurationsprüfungen,
 fokussierten Hostverkehr, Full-Lifecycle-Ausführung und Evidence-Validierung.
-Das Bestehen einer Ebene bedeutet nicht, dass eine andere bestanden hat. Die
-ausgewählte Dokumentation ist auf die sechs HTTP/1.1-Kernpfade begrenzt und
-behauptet keine Produktionsreife, kein CRS, keine vollständige Matrix, kein
-HTTP/2, kein HTTP/3 und kein Strict-Verhalten für alle Connectoren.
+Das Bestehen einer Ebene bedeutet nicht, dass eine andere bestanden hat.
+Dieser Leitfaden beschreibt ausgewählte HTTP/1.1-Verträge und erhaltene
+Spezialschnittstellen; er belegt weder aktuelle Readiness noch Produktionsfreigabe,
+CRS-Vollständigkeit, vollständige Matrix, HTTP/2, HTTP/3 oder strikte Abnahme
+jedes Connectors.
 
-Die allgemeinen Make-Targets in diesem Leitfaden behalten ihren
-Sechs-Connector-Scope. Der zeitgesteuerte/manuelle Workflow
-<code>all-connectors-no-crs.yml</code> ist enger: Sein geschlossenes Profil
-<code>no-crs</code> führt nur Apache, HAProxy, Envoy, Traefik und lighttpd aus.
-Es weist unbekannte Profile und Zeilen außerhalb dieser Zuordnung ab; NGINX ist
-kein Ergebnis dieses Workflows. Das Profile-Aggregate validiert je ein
-gebundenes Ergebnis und einen Receipt pro ausgewähltem Connector, einschließlich
-Run-/Commit-Identität und Cleanup-Status. Diese Validierung ist kein Nachweis
-eines bestandenen gehosteten Runtime-Laufs und liefert keine CRS-, MRTS-,
-HTTP/2-, HTTP/3-, Full-Matrix- oder Produktions-Claims.
+Das einzige [Aktivinventar](../config/testing/active-cases.json) wählt normales
+lokales, CI- und zeitgesteuertes Verhalten. Die geschlossene Fünf-Profil-Baseline
+<code>all-connectors-no-crs.yml</code> wählt Apache, HAProxy, Envoy, Traefik und
+lighttpd; NGINX besitzt einen getrennten geschützten Exact-Head-Pfad. Ausgewählte
+CRS-Prüfungen haben eigene Profil-IDs und Nachweise. Weder ein Fünf-Profil-
+Aggregat noch ein erfolgreiches Geschwisterprofil liefert ein unbeobachtetes
+Hostergebnis.
+
+## Aktive Fälle, Zulassung und archivierte Spezialprüfungen
+
+Projektweit gelten höchstens **100 vollständig expandierte aktive
+Verhaltensfälle**: Common, jeder Connector/jedes logische Profil, Unit-/
+Integrations-/Native-/Runtime-Fälle, Infrastrukturtests und durch Parent gewählte
+Framework-/MRTS-Fälle teilen ein Budget. Der [Runner](../ci/tools/run-active-tests.py)
+prüft das vollständige Inventar vor dem Start ausgewählter Testprozesse. Er
+prüft stabile IDs, Anforderungen, Profile, ausführbare Selektoren und
+Quellbindungen. Mehr als 100 scheitert; die Auswahl wird nie still gekürzt.
+Die Obergrenze ist kein aufzufüllendes Ziel. Eine Methode, Schleife oder ein
+Collector mit unabhängigen Parameter-/Fehlerszenarien macht diese nicht zu einem
+einzelnen Fall. Funktionale Zulassungs-, Überlauf-, Discovery- und Coverage-
+Integritätskontrollen verbrauchen dasselbe Budget.
+
+<code>make check-active-inventory</code> meldet die tatsächliche expandierte
+Fallzahl ohne Fallausführung. <code>make test</code> / <code>make test-active</code>
+führen das zugelassene Inventar aus. Normale zuständige Gruppen und exakte
+Fall-/Modulfilter wählen Teilmengen nach globaler Zulassung. Funktionale Checks
+hinter <code>make lint</code>, <code>make quick-check</code>, Builds und CI
+verwenden dieselbe Auswahl. Reine Builds, Formatierung, statische Analyse und
+Security-Scans bleiben eigene Operationen; dahinter versteckte funktionale
+Tests sind nicht von der Fallzählung ausgenommen. Die Wiederholung einer ID bei
+begründeter Nachprüfung, Race-Lauf oder Hosted-CI kostet eine weitere Ausführung,
+keinen weiteren verschiedenen aktiven Fall.
+
+Erhaltene Spezialprüfungen benötigen einen aktuellen Auftrag für die zusätzliche
+Prüfung und explizit <code>ON_DEMAND_TESTS=1</code>. Das Flag nicht global
+exportieren oder normalen automatischen Defaults hinzufügen. Es ändert die
+Auswahl erhaltener Spezialprüfungen; es erteilt keine Privilegien, Framework-/
+MRTS-Schreibrechte, Merge-, Release- oder I12-Qualifikationsbefugnis. Historische
+I12-Matrix-/Oracle-/Hostkampagnen bleiben geschlossen: Archivierung plant keine
+Wiederholung und belegt kein <code>I12_COMPLETE</code>.
+
+Die generierte [Archivdisposition](../reports/testing/test-selection-archive.generated.json)
+verzeichnet erhaltene Python-Methoden und Go-Test-/Fuzz-Definitionen und bindet
+ihre Quell-/Inventardigests. Nur <code>ci/tools/update-test-archive.py</code>
+erzeugt sie neu. Ihre Definitionszahl ist keine vollständig expandierte
+Verhaltensfallzahl, wird nicht zur aktiven Fallzahl addiert und behauptet nicht,
+dass jede archivierte Assertion noch besteht. Nicht ausgewählte Parameter einer
+teilweise ausgewählten Definition bleiben auf Abruf verfügbar; Native-/Skript-
+Collectoren und Framework-Kataloge bleiben in ihren zuständigen Quellen.
+Kein Archiveintrag ist ein ausführbarer Selektor oder ein neuer PASS.
+
+| Erhaltener Bereich auf Abruf | Nicht mehr behauptete automatische Abdeckung |
+| --- | --- |
+| Vollständige Python-Vertrags-/Validator-/Installer-/Updater-Mutationssuiten | Vollständige Permutationen, Tabellen ungültiger Eingaben und historische erwartete Workflow-Layouts außerhalb benannter aktiver Kontrollen. |
+| Vollständige Go-Pakete und zufällige C-/Go-Fuzz-Kampagnen | Nicht ausgewählte Tabellen-/Subtestvarianten und generierte Fuzz-Eingaben; aktive exakte Tests, ausgewählte Race-Wiederholungen und substantielle Security-Analyse bleiben. |
+| Native Common-/Connector- und Runtime-Pfad-Spezialcollectoren | Vollständige Fehler-/Parametertabellen und der frühere Pfadkatalog mit 35 Szenarien; die vier gewählten echten Pfadeingaben qualifizieren nicht jede alte Pfadbedingung. |
+| Vollständige NGINX-Hostkampagnen | Inheritance/Override, Mode-Repair, unsichere Ziele, USR1/Reload/Overlap, Error-Page-/Body-Buffer- und archivierte negative Konfigurationskampagnen; die gewählten Callback-Fälle On/Off belegen diese nicht. |
+| Breite Smoke-, Full-Matrix-, MRTS-, H2-/H3- und historische I12-Werkzeuge | Vollständige Katalog-, Protokoll-, Oracle-, Ledger- und Hostqualifikation. Enge ausgewählte Runtime-/CRS-Ergebnisse behalten ihre eigenen Profilgrenzen. |
+
+Das Entfernen eines Verhaltens aus der automatischen Auswahl dokumentiert
+verlorene automatische Abdeckung; es löst keinen bekannten Defekt und erfindet
+keinen historischen Erfolg. Archivierte Quellen und ihre ursprünglichen
+Ergebnisse/Revisionen bleiben erhalten. Neue aktive Fälle an der Obergrenze
+benötigen einen benannten Ersatz oder echte Konsolidierung mit dokumentierter
+betroffener Anforderung und Risiko.
+
+Profilnachweise bleiben getrennt: HAProxy HTX qualifiziert kein SPOE/SPOP mit
+Response-Companion; Envoy ext_proc qualifiziert kein ext_authz mit Observer;
+Traefik Native-UDS qualifiziert kein forwardAuth mit Observer; lighttpd Stock,
+Patched-Native und Beobachtungen des alten Header-Kompatibilitätspfads
+qualifizieren einander nicht. Jedes Ergebnis bleibt an sein tatsächlich
+ausgewähltes Profil gebunden.
 
 ## Testebenen
 
@@ -30,7 +93,7 @@ HTTP/2-, HTTP/3-, Full-Matrix- oder Produktions-Claims.
 | Build | <code>make build-&lt;connector&gt;</code> | Einen ausgewählten Buildschritt | Konfigurationsladen oder Request-/Response-Verhalten |
 | Konfiguration | <code>make check-config-&lt;connector&gt;</code> | Dass die ausgewählte Konfiguration geparst oder geladen werden kann | Laufzeitverhalten |
 | Fokussierter Smoke | <code>make runtime-smoke-&lt;connector&gt;</code> | Die vom Target dokumentierte enge Hostübung | Full Lifecycle oder Katalogvollständigkeit |
-| Full Lifecycle | <code>make full-lifecycle-&lt;connector&gt;</code> | Ausgewähltes Profil plus Artefakterzeugung | Produktionsreife oder alle Protokolle |
+| Full Lifecycle auf Abruf | <code>ON_DEMAND_TESTS=1 make full-lifecycle-&lt;connector&gt;</code> | Ausgewähltes Profil plus Artefakterzeugung | Produktionsreife oder alle Protokolle |
 | Evidence-Validierung | <code>make evidence-check-&lt;connector&gt;</code> | Dass vorhandene Laufartefakte den Vertrag dieses Validators erfüllen | Einen neuen Hostlauf |
 
 Der Platzhalter <code>&lt;connector&gt;</code> ist genau einer von Apache,
@@ -42,7 +105,7 @@ Target-Form.
 | Ziel | Befehlsmuster | Grenze |
 | --- | --- | --- |
 | Schnelle Repository-Validierung | <code>make quick-check</code> | Startet nicht jeden Host und erstellt keine kanonische Evidence |
-| Ein ausgewählter aggregierter Kandidat | <code>NO_CRS_RUN_ID=&lt;run-id&gt; make full-lifecycle-all-connectors</code> | Erzeugt nur Kandidatenartefakte |
+| Ausdrücklicher Spezial-Aggregatkandidat | <code>ON_DEMAND_TESTS=1 NO_CRS_RUN_ID=&lt;run-id&gt; make full-lifecycle-all-connectors</code> | Erzeugt nur Kandidatenartefakte |
 | Aggregierte Kernvalidierung | <code>NO_CRS_RUN_ID=&lt;run-id&gt; make check-six-connector-core-completion</code> | Liest finalisierte Evidence für diese Run-ID |
 | Eine Konfigurationsprüfung | <code>make check-config-&lt;connector&gt;</code> | Sendet keinen Verkehr |
 
@@ -52,9 +115,10 @@ und kein Promotion-Mechanismus.
 
 ## Cases, Regeln und Protokollgrenzen
 
-Das Framework besitzt wiederverwendbare YAML-Cases, Katalogauswahl, Schemata
-und Normalisierung. Das Connector-Repository besitzt Hostintegration und seine
-ausgewählten Regel-/Konfigurationsinputs. Repository-eigene No-CRS-Regeln und
+Das Framework besitzt wiederverwendbare YAML-Falldefinitionen, Schemata und
+Normalisierung. Parent besitzt automatische Fallzulassung, Hostintegration und
+ausgewählte Regel-/Konfigurationsinputs; durch Parent erreichte Framework-
+Auswahlen müssen mit demselben Aktivinventar übereinstimmen. Repository-eigene No-CRS-Regeln und
 IDs sind vom OWASP CRS getrennt. Ein vorbereitetes CRS-Input oder ein
 quellbasierter Protokollpfad verifiziert weder CRS-Verhalten noch HTTP/2 oder
 HTTP/3.
@@ -86,7 +150,12 @@ Zugangsdaten, Cookies, Authorization-Werte, private Schlüssel, Zertifikate,
 rohe Request-Bodies, rohe Response-Bodies oder lokale Runtime-Ausgabe werden
 nicht eingecheckt.
 
-### Selektierte NGINX-Konfigurations-Evidence ohne Requests
+### Archivierte NGINX-Konfigurationsspezialisten ohne Requests
+
+Die unten erhaltenen negativen Konfigurationsverträge liegen auf Abruf
+außerhalb der normalen aktiven Auswahl. Ihre historischen Receipts behalten
+ihre ursprüngliche Revision; die aktiven Callback-Fälle On/Off wiederholen
+oder qualifizieren diese Negativprüfungen nicht.
 
 Die geschlossenen Konfigurationsverträge `invalid_boolean` und `invalid_size`
 verwenden `ci/runtime/lifecycle/run-nginx-configtest.py`. Eine echte Invocation
@@ -176,7 +245,7 @@ Privilegabgabe mit `no_new_privs`; privilegierte Operationen haben feste
 nur-Staging-Pfade und führen keinen Checkout-Code aus.
 
 Jeder eingebettete Immutable-Git-Object-Launcher verifiziert den exakten
-Git-Blob-Preimage `b"blob " + Dezimallänge + b"\0" + source`, bevor `compile`
+Git-Blob-Preimage `b"blob " + decimal length + b"\0" + source`, bevor `compile`
 ihn ausführen kann. `\0` ist hier Git's einzelnes NUL-Trennbyte und nicht ein
 druckbarer Backslash plus Null; ein abweichender Preimage lässt den Job
 fehlschlagen, bevor ausgewählter Checkout-Code ausgeführt wird.

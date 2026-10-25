@@ -19,6 +19,12 @@ NGINX_ARCHIVE_SHA256=${NGINX_SHA256:-}
 PHASE4_CASE=nginx_phase4_deny_after_commit_log_only
 INHERITANCE_CASE=phase1_header_block
 ALLOW_CASE=allow_without_marker
+FUNCTIONAL_SCOPE=${NGINX_FUNCTIONAL_SCOPE:-selected-phase4}
+case "$FUNCTIONAL_SCOPE" in selected-phase4|full) ;; *) echo "FAIL: unknown Functional-A selection scope" >&2; exit 2 ;; esac
+if [ "$FUNCTIONAL_SCOPE" = full ] && [ "${ON_DEMAND_TESTS:-0}" != 1 ]; then
+    echo "FAIL: full Functional-A campaign requires explicit ON_DEMAND_TESTS=1" >&2
+    exit 2
+fi
 
 fail() {
     echo "nginx_exact_head: fail $*" >&2
@@ -141,7 +147,7 @@ publish_functional_evidence() {
         --owner-uid "$FUNCTIONAL_EVIDENCE_OWNER_UID" \
         --owner-gid "$FUNCTIONAL_EVIDENCE_OWNER_GID" \
         --parent-sha "$EXPECTED_PARENT_SHA" \
-        --nginx-archive-sha256 "$NGINX_ARCHIVE_SHA256" || \
+        --nginx-archive-sha256 "$NGINX_ARCHIVE_SHA256" --scope "$FUNCTIONAL_SCOPE" || \
         fail "could not publish bounded Functional-A evidence"
 }
 
@@ -206,11 +212,17 @@ assert_phase4_jsonl_and_callback() {
     error_log="$case_root/harness/server-logs/nginx_phase4_deny_after_commit_log_only/error.log"
     access_log="$case_root/harness/server-logs/nginx_phase4_deny_after_commit_log_only/access.log"
     lifecycle_log="$case_root/logs/nginx-lifecycle.txt"
-    [ -f "$current_log" ] && [ -f "$prior_log" ] || \
-        fail "phase4 JSONL evidence is incomplete for mode=$CURRENT_MODE"
+    [ -f "$current_log" ] || fail "phase4 JSONL evidence is incomplete for mode=$CURRENT_MODE"
+    if [ "$FUNCTIONAL_SCOPE" = full ]; then
+        [ -f "$prior_log" ] || fail "USR1 JSONL evidence is incomplete for mode=$CURRENT_MODE"
+    else
+        prior_log=
+    fi
     [ -f "$error_log" ] || fail "no deterministic NGINX error log for mode=$CURRENT_MODE"
     [ -f "$access_log" ] || fail "no deterministic NGINX access log for mode=$CURRENT_MODE"
-    [ -f "$lifecycle_log" ] || fail "no lifecycle evidence for mode=$CURRENT_MODE"
+    if [ "$FUNCTIONAL_SCOPE" = full ]; then
+        [ -f "$lifecycle_log" ] || fail "no lifecycle evidence for mode=$CURRENT_MODE"
+    fi
 
     /usr/bin/python3 - "$CURRENT_MODE" "$current_log" "$prior_log" "$error_log" "$access_log" <<'PY'
 import json
@@ -221,6 +233,8 @@ mode, current_name, prior_name, error_name, access_name = sys.argv[1:]
 canary = "nginx-functional-a-canary=must-redact"
 records = []
 for name in (prior_name, current_name):
+    if not name:
+        continue
     raw = Path(name).read_text(encoding="utf-8")
     if canary in raw:
         raise SystemExit("query canary leaked into JSONL")
@@ -263,6 +277,7 @@ access_log = Path(access_name).read_text(encoding="utf-8")
 if canary not in access_log:
     raise SystemExit("raw request URI did not reach the NGINX/WAF request path")
 PY
+    [ "$FUNCTIONAL_SCOPE" = full ] || return 0
     /usr/bin/grep -F 'phase=phase4_usr1 result=retained_secure_fd' "$lifecycle_log" >/dev/null || \
         fail "USR1 lifecycle did not retain the secure descriptor"
     /usr/bin/grep -F 'phase=phase4_reload_unsafe result=failed_old_cycle_preserved' "$lifecycle_log" >/dev/null || \
@@ -348,9 +363,12 @@ for CURRENT_MODE in on off; do
         "$mode_root/artifact-identity.before.sha256"
 
     echo "nginx_exact_head: mode=$CURRENT_MODE phase4-functional"
-    run_harness_case "$mode_root" phase4 "$PHASE4_CASE" regular location 1 1
+    lifecycle_probe=0
+    [ "$FUNCTIONAL_SCOPE" != full ] || lifecycle_probe=1
+    run_harness_case "$mode_root" phase4 "$PHASE4_CASE" regular location "$lifecycle_probe" 1
     assert_phase4_jsonl_and_callback "$mode_root"
 
+    if [ "$FUNCTIONAL_SCOPE" = full ]; then
     run_harness_case "$mode_root" allow "$ALLOW_CASE" regular location 0 0
     assert_unconfigured_allow_control "$mode_root"
 
@@ -364,6 +382,7 @@ for CURRENT_MODE in on off; do
     for unsafe_target in unsafe_symlink unsafe_fifo unsafe_directory unsafe_writable_parent unsafe_wrong_owner; do
         expect_config_rejection "$mode_root" "$unsafe_target"
     done
+    fi
 
     write_artifact_identity "$mode_root/artifact-identity.after.sha256"
     assert_same_artifact_identity "$FUNCTIONAL_ROOT/artifact-identity.start.sha256" \
@@ -375,8 +394,10 @@ done
     "$FUNCTIONAL_ROOT/off/artifact-identity.after.sha256" || \
     fail "on/off cells did not use the same candidate artifact set"
 publish_functional_evidence
-NGINX_REQUEST_BODY_LIMIT=1048576 \
-NGINX_REQUEST_BODY_NO_FILES_LIMIT=1048576 \
-NGINX_REQUEST_BODY_LIMIT_ACTION=Reject \
-/usr/bin/python3 -I "$SCRIPT_DIR/run_error_page_intervention.py"
-echo "nginx_exact_head: functional-A runtime=passed"
+if [ "$FUNCTIONAL_SCOPE" = full ]; then
+    NGINX_REQUEST_BODY_LIMIT=1048576 \
+    NGINX_REQUEST_BODY_NO_FILES_LIMIT=1048576 \
+    NGINX_REQUEST_BODY_LIMIT_ACTION=Reject \
+    /usr/bin/python3 -I "$SCRIPT_DIR/run_error_page_intervention.py"
+fi
+printf 'nginx_exact_head: scope=%s runtime=passed\n' "$FUNCTIONAL_SCOPE"

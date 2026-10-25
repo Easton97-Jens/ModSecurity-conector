@@ -208,3 +208,9 @@ class EngineBudgetBridgeTests(unittest.TestCase):
             self.assertEqual(event["phase"], "response_headers")
             self.assertEqual(event["http_status"], 504)
         self.assertEqual(events[1]["timeout_stage"], "response_headers")
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

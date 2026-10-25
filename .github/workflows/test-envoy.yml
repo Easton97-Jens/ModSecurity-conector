@@ -39,13 +39,12 @@ jobs:
           RUNNER_TEMP: ${{ runner.temp }}
         run: make check-i10-envoy-callers
       - name: Test Envoy response observer
-        working-directory: connectors/envoy/ext_proc
         env:
           GOTOOLCHAIN: local
           TMPDIR: /tmp
         run: |
-          go test -mod=readonly -count=1 ./internal/responseobserver
-          go test -mod=readonly -count=1 -run 'a^' ./cmd/msconnector-envoy-response-observer
+          python3 ci/tools/run-active-tests.py --module connectors/envoy/ext_proc
+          (cd connectors/envoy/ext_proc && go build -mod=readonly ./cmd/msconnector-envoy-response-observer)
       - name: Check Envoy Common and host contracts
         run: |
           set -eu
@@ -58,7 +57,7 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
           PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 -m unittest -v tests.test_private_runtime_sockets tests.test_envoy_transport_hardening_contract
+        run:  python3 ci/tools/run-active-tests.py --group envoy
       - name: Set up repository-selected Go for the native bridge
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -75,10 +74,9 @@ jobs:
           # Parent owns the CPython 3.15 artifact; preserve Framework dependency versions.
           python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
             --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
-      - name: Compile and execute the real Common and CGo bridge tests
+      - name: Compile the real Common and CGo bridge without discovering tests
         env:
           GOTOOLCHAIN: local
-          ENVOY_EXT_PROC_COMMON_TEST: "1"
           ALLOW_RUNTIME_DOWNLOADS: "1"
           ALLOW_RUNTIME_BUILDS: "1"
           RUNTIME_COMPONENT_TARGET: shared

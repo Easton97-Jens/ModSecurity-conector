@@ -30,7 +30,7 @@ jobs:
         run: |
           set -eu
           command -v cc >/dev/null
-          python3 -m unittest -v tests.test_traefik_engine_service_contract
+          python3 ci/tools/run-active-tests.py --group traefik-python
       - name: Verify native provenance with real foreign Unix peers
         env:
           PYTHON_EXECUTABLE: ${{ steps.setup-python.outputs.python-path }}
@@ -41,13 +41,7 @@ jobs:
           trap 'sudo rm -rf -- "$provenance_root"' EXIT
           sudo chmod 0755 "$provenance_root"
           sudo env RUNNER_TEMP="$provenance_root" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
-            "$PYTHON_EXECUTABLE" - <<'PY'
-          import unittest
-          suite = unittest.defaultTestLoader.loadTestsFromName(
-              "tests.test_traefik_trusted_provenance.TraefikTrustedProvenanceTests")
-          result = unittest.TextTestRunner(verbosity=2).run(suite)
-          raise SystemExit(0 if result.wasSuccessful() and not result.skipped else 1)
-          PY
+            "$PYTHON_EXECUTABLE" ci/tools/run-active-tests.py --group traefik-peer --strict-skips
       - name: Install Go required by the Traefik observer
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -60,11 +54,10 @@ jobs:
           RUNNER_TEMP: ${{ runner.temp }}
         run: make check-i10-traefik-callers
       - name: Execute the Traefik response-observer suite
-        working-directory: connectors/traefik/response_observer
         run: |
           export GOTOOLCHAIN=local
           export TMPDIR=/tmp
-          go test -mod=readonly -count=1 ./...
+          python3 ci/tools/run-active-tests.py --module connectors/traefik/response_observer
       - name: Check Traefik Common and host contracts
         run: |
           set -eu
@@ -77,7 +70,7 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
           PYTHONDONTWRITEBYTECODE: "1"
-        run: python3 -m unittest -v tests.test_private_runtime_sockets tests.test_traefik_runtime_smoke_security
+        run:  python3 ci/tools/run-active-tests.py --group traefik-python
       - name: Collect host runtime preflight evidence
         if: always()
         env:

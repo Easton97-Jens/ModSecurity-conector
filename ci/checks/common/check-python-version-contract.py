@@ -83,6 +83,10 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "zizmor"),
         JobIdentity("ci-findings-regressions.yml", "nginx-b09-regression"),
         JobIdentity("ci-security-codeql.yml", "trusted-go-version"),
+        JobIdentity("ci-security-codeql.yml", "traefik-go"),
+        JobIdentity("ci-security-codeql.yml", "bounded-c-cpp"),
+        JobIdentity("validate-go-candidate.yml", "go-candidate"),
+        JobIdentity("sonar-coverage.yml", "selected-coverage"),
         JobIdentity("test-connectors-with-crs-no-mrts.yml", "connector-mode"),
         JobIdentity("test-connectors-with-crs-no-mrts.yml", "aggregate-with-crs-no-mrts"),
         JobIdentity("test-nginx-exact-head.yml", "nginx-exact-head"),
@@ -144,7 +148,7 @@ EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS: Mapping[JobIdentity, str] = {
 TRUSTED_SYSTEM_PYTHON_JOB = JobIdentity(
     "run-trusted-lighttpd-namespace-dispatch.yml", "trusted-lighttpd-namespace"
 )
-TRUSTED_SYSTEM_WORKFLOW_SHA256 = "28caa1a509278552f281d66b844aa0a3ee8bbb7a7d18b277e7c56a0bc1ab6dc8"
+TRUSTED_SYSTEM_WORKFLOW_SHA256 = "fdf678e477c10203b1e6707852267c478cfbf9b47a02e5f22efaff00ef2a14d6"
 EXPECTED_SYSTEM_PYTHON_JOBS = frozenset({TRUSTED_SYSTEM_PYTHON_JOB})
 
 

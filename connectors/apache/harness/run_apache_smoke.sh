@@ -1273,16 +1273,25 @@ start_server() {
                 fi
                 fail "Apache exited before request; see $LOG_DIR/httpd.log"
             fi
-            if phase4_terminal_test_uses_h2; then
-                ready_url="https://127.0.0.1:$PORT/__modsec_smoke_ready"
-                set -- "$CURL_BIN" -sS -k --http1.1 -o /dev/null "$ready_url"
+            if [ "${ON_DEMAND_TESTS:-0}" != 1 ]; then
+                # Automatic startup opens transport only. The inventoried
+                # request supplies HTTP/WAF behavior and its own assertions.
+                if port_accepts_tcp "$PORT" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+                    ready=1
+                    break
+                fi
             else
-                ready_url="http://127.0.0.1:$PORT/__modsec_smoke_ready"
-                set -- "$CURL_BIN" -sS -o /dev/null "$ready_url"
-            fi
-            if "$@" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
-                ready=1
-                break
+                if phase4_terminal_test_uses_h2; then
+                    ready_url="https://127.0.0.1:$PORT/__modsec_smoke_ready"
+                    set -- "$CURL_BIN" -sS -k --http1.1 -o /dev/null "$ready_url"
+                else
+                    ready_url="http://127.0.0.1:$PORT/__modsec_smoke_ready"
+                    set -- "$CURL_BIN" -sS -o /dev/null "$ready_url"
+                fi
+                if "$@" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+                    ready=1
+                    break
+                fi
             fi
             i=$((i + 1))
             sleep 1

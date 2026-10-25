@@ -78,17 +78,27 @@ Führen Sie den lokalen Struktur-/Dokumentationscheck aus:
 make quick-check
 ~~~
 
-Dieser validiert repository-orientierte Checks; er führt nicht jeden
-Connector-Host aus und erzeugt keine Full-Lifecycle-Evidence.
+Dieser validiert statische Repository-Checks und zugelassene funktionale
+Teilmengen aus [config/testing/active-cases.json](config/testing/active-cases.json).
+Dieses einzige Inventar begrenzt das gesamte Projekt auf höchstens 100
+expandierte Verhaltensfälle. <code>make check-active-inventory</code> prüft die
+vollständige Auswahl ohne Teststart; <code>make test</code> führt sie mit ihren
+tatsächlichen Voraussetzungen aus. Normale Aliase beweisen keine vollständigen
+Profile oder Geschwisterpfade. NGINX-Hostprüfungen nutzen den geschützten
+Exact-Head-Pfad; ein unbekannter/leerer aktiver Gruppenname bleibt ein Fehler.
+
+Die unten erhaltene Full-Lifecycle-Kampagne ist Spezialarbeit mit explizitem
+<code>ON_DEMAND_TESTS=1</code> und benötigt einen aktuellen Zusatzauftrag. Das
+Flag ist kein automatischer Testdefault und erlaubt keine neue I12-Kampagne.
 
 ## Build- und Testüberblick
 
 | Ziel | Beginnen mit | Wichtige Grenze |
 |---|---|---|
 | Eine ausgewählte Route bauen | <code>make build-nginx</code> | Build-Erfolg ist keine Runtime-Evidence |
-| Ausgewählte Konfiguration prüfen | <code>make check-config-nginx</code> | Config-Load ist keine Traffic-Ausführung |
-| Einen fokussierten Smoke ausführen | <code>make runtime-smoke-nginx</code>, wo bereitgestellt | Ein Smoke ist keine Full-Lifecycle-Promotion |
-| Einen ausgewählten Aggregate-Candidate-Run erzeugen | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-all-connectors</code> | Run-ID ist ein Beispiel für ein sicheres Token, kein Outcome-Claim |
+| Ausgewählte Konfiguration prüfen | <code>make check-config-apache</code> | Config-Load ist keine Traffic-Ausführung |
+| Einen fokussierten Smoke ausführen | <code>make runtime-smoke-apache</code>, wo bereitgestellt | Ein Smoke ist keine Full-Lifecycle-Promotion |
+| Einen ausgewählten Aggregate-Candidate-Run erzeugen | <code>ON_DEMAND_TESTS=1 NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-all-connectors</code> | Run-ID ist ein Beispiel für ein sicheres Token, kein Outcome-Claim |
 | Finalisierte Evidence validieren | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make check-six-connector-core-completion</code> | Read-only-Gate; Exit <code>0</code> ist auf diesen Gate-Vertrag begrenzt |
 
 Die exakten Eingaben, Ausgaben, Target-Bedeutungen, Statuswerte, Exit-Codes und

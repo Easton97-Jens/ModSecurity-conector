@@ -2,7 +2,13 @@
 
 **Language:** English | [Deutsch](pr-382-checklist.de.md)
 
-## Current review/Go reconciliation, 2026-10-13
+## Historical snapshot
+
+Current review and merge-decision status is maintained in the [PR #382 closeout](pr-382-merge-readiness.md). At the earlier head `d510d21dba7eab3c9f0ccbe579fbc9c105eb3da1`, #410 was already fully integrated and `verified_pr` established. The new global inventory/coverage migration is assessed only in the current closeout.
+
+All subsequent status statements, open items and instructions belong to their named historical revisions. They are superseded as future work instructions: no I12 rerun, retrospective PASS or `I12_COMPLETE`. Historical results and evidence limits remain preserved.
+
+## Historical review/Go reconciliation, 2026-10-13
 
 State: **BLOCKED_FOR_I12**. Current remediation starts at
 `4639f982a8125f4150394e4d4f2e8af4e690f494`. The [consolidated Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.md)
@@ -53,7 +59,7 @@ References: [contract/migration](pr-382-event-contract.md),
 
 PR #409 combines verified I10 head `caafe7ecec1a91669cbb82cea18b2b97309cde44` with newer PR #382 base `d94a7a38b90bc56b828d70f7df8794e12fd21e10`, including I09/I11 closure and engine-owned body limits. Completed checkboxes preserve their separately verified earlier implementation acceptance; they do not claim freshly executed tests or CI on the combined head. Fresh integration/delivery checks are recorded separately in the [refresh Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261012-pr409-base-refresh.md); they are pending at this documentation reconciliation. I12/V08–V10 live evidence remains open; R16/R17 are not rebound.
 
-## Current 2026-10-11 I11 sink reconciliation
+## Historical 2026-10-11 I11 sink reconciliation
 
 Integration readback: published I11 head `6a79efe7` and PR #382 base `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) are combined in PR #406. Fresh local integration checks and conflict-resolution decisions are in the [integration change record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.md). The I09 and I11 evidence below belongs to their separate earlier revisions; it is not current-head CI or live-host proof. Pushed-head delivery checks are tracked separately in PR #406.
 

@@ -391,6 +391,7 @@ jobs:
             .github/workflows/run-protected-nginx-exact-head.yml \
             .github/workflows/run-protected-nginx-root-broker.yml \
             .github/workflows/run-trusted-lighttpd-namespace-dispatch.yml \
+            .github/workflows/sonar-coverage.yml \
             .github/workflows/test-apache.yml \
             .github/workflows/test-common.yml \
             .github/workflows/test-connectors-with-crs-no-mrts.yml \

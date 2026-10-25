@@ -2,10 +2,7 @@
 
 **Sprache:** [English](pr-382-event-contract.md) | Deutsch
 
-Stand: Implementierungsreferenz für eine unvollständige Draft-Migration, kein
-Nachweis gleichen Verhaltens in allen laufenden Hosts. Die
-[Implementierungs- und Verifikationscheckliste](pr-382-checklist.de.md) nennt offene
-Routen, ausstehende Prüfungen und revisionsgebundene Nachweise. Aktualisiert: 2026-09-22.
+Implementierungsreferenz; gleiches Verhalten in allen laufenden Hosts wird daraus nicht abgeleitet. Der aktuelle Lieferstatus steht im [Abschluss von PR #382](pr-382-merge-readiness.de.md). Die [historische Checkliste](pr-382-checklist.de.md) erhält revisionsgebundene Implementierungs- und Nachweishistorie. Ursprüngliches Referenzdatum: 2026-09-22.
 
 ## Native Rückgaben sind operationsspezifisch
 

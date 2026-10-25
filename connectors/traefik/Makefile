@@ -90,16 +90,19 @@ build-traefik-connector: build-connector build-native-middleware
 build-forwardauth-service: build-connector
 
 check-config: build-connector
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.config.traefik; fi
 	scripts/check-config.sh
 
 check-traefik-config: check-config
 
 start-smoke: build-connector
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.start.traefik; fi
 	scripts/start-smoke.sh
 
 start-smoke-traefik: start-smoke
 
 runtime-smoke: build-connector
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.no-crs.traefik; fi
 	scripts/runtime-smoke.sh
 
 runtime-smoke-traefik: runtime-smoke
@@ -115,6 +118,10 @@ override PYTHON := $(value PYTHON)
 export BUILD_ROOT MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_PREFIX
 export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT TRAEFIK_ENGINE_SOCKET_TEST_PARENT PYTHON
 runtime-smoke-traefik-native:
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then \
+		[ "$${MSCONNECTOR_CRS_RUNTIME:-0}" = 1 ] || { echo "FAIL: specialist native lifecycle requires explicit ON_DEMAND_TESTS=1" >&2; exit 2; }; \
+		python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.crs.traefik; \
+	fi
 	sh scripts/runtime-native-middleware.sh
 
 no-crs-baseline-traefik: export MSCONNECTOR_NO_CRS_BASELINE := 1
@@ -131,6 +138,7 @@ build-forwardauth-starter: build-connector
 self-test: self-test-decision-service
 
 self-test-decision-service:
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	build/build-starter.sh self-test-decision-service
 
 self-test-forwardauth: self-test-decision-service
@@ -144,7 +152,11 @@ build-native-middleware:
 build-traefik-native-middleware: build-native-middleware
 
 test-native-middleware:
+ifeq ($(ON_DEMAND_TESTS),1)
 	build/build-native-middleware.sh test
+else
+	python3 "$(abspath ../../ci/tools/run-active-tests.py)" --group traefik
+endif
 
 test-traefik-native-middleware: test-native-middleware
 
@@ -154,8 +166,12 @@ build-engine-service:
 	build/build-engine-service.sh build
 
 test-engine-service:
+ifeq ($(ON_DEMAND_TESTS),1)
 	build/build-engine-service.sh test
 	build/test-engine-service-runtime.sh
+else
+	python3 "$(abspath ../../ci/tools/run-active-tests.py)" --group traefik-python
+endif
 
 clean:
 	build/build-starter.sh clean

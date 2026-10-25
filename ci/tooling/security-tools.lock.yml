@@ -43,6 +43,10 @@ pinned_actions:
     version: v2.5.0
     commit_sha: fa7117db83c52d787ae5a89f350999701505d78e
     upstream: https://github.com/ossf/scorecard-action
+  SonarSource/sonarqube-scan-action:
+    version: v8.3.0
+    commit_sha: d209202bc7d53ff1cc128f7f907dac145c9d6ae9
+    upstream: https://github.com/SonarSource/sonarqube-scan-action
 
 tools:
   actionlint:

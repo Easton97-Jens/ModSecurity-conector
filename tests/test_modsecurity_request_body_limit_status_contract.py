@@ -17,4 +17,11 @@ class NativeRequestLimitStatusContractTest(unittest.TestCase):
         runtime = (ROOT / "common/runtime/msconnector_runtime.c").read_text()
         self.assertIn("pending_request_decision", runtime)
         self.assertIn("msc_process_request_body(native->transaction)", runtime)
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
+
 if __name__ == "__main__": unittest.main()

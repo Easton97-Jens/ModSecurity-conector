@@ -146,3 +146,9 @@ class HaproxyRealEngineRequestLimitTests(unittest.TestCase):
     def test_no_files_limit_remains_engine_owned(self):
         self.run_case(limit=131072, no_files_limit=65536, action="Reject", engine_mode="On",
             length=120000, reject=False, match=True, representation="memory", marker=119999)
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

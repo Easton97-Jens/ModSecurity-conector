@@ -221,18 +221,10 @@ stop_owned_process() {
 }
 
 run_crs_runtime() {
-    if ! crs_allow_status=$("$PYTHON_BIN" "$HELPER" probe \
-        --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-        --url "https://127.0.0.1:$listen_port/?id=42" \
-        --method GET --data "" \
-        --header "X-Request-Id: $CRS_ALLOW_TRANSACTION_ID" \
-        --header "X-Framework-Run-ID: $CRS_RUNTIME_RUN_ID" \
-        --header "Content-Length: 0" \
-        --header "Host: crs-runtime.test" \
-        --evidence-path "$CRS_ALLOW_PROBE_EVIDENCE"); then
-        echo "envoy_ext_proc_runtime: FAIL - CRS allow probe could not be completed" >&2
-        return 1
-    fi
+    # Readiness already executed the identical canonical allow request and
+    # wrote its real probe evidence. Reuse that single transaction rather than
+    # selecting a second /allowed scenario or creating duplicate correlations.
+    crs_allow_status=$readiness_status
     if [ "$crs_allow_status" != "200" ]; then
         echo "envoy_ext_proc_runtime: FAIL - CRS allow request returned $crs_allow_status, expected 200" >&2
         return 1
@@ -702,11 +694,25 @@ while [ "$attempt" -lt 30 ]; do
         fi
     done
     set +e
+    if [ "$CRS_RUNTIME" = 1 ]; then
+        # The complete request is identical to the active CRS allow case:
+        # method, URI, Host, headers, empty body, rules and native profile.
+        readiness_status=$("$PYTHON_BIN" "$HELPER" probe \
+            --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
+            --url "https://127.0.0.1:$listen_port/?id=42" \
+            --method GET --data "" \
+            --header "X-Request-Id: $CRS_ALLOW_TRANSACTION_ID" \
+            --header "X-Framework-Run-ID: $CRS_RUNTIME_RUN_ID" \
+            --header "Content-Length: 0" \
+            --header "Host: crs-runtime.test" \
+            --evidence-path "$CRS_ALLOW_PROBE_EVIDENCE" 2>/dev/null)
+    else
     readiness_status=$("$PYTHON_BIN" "$HELPER" probe \
         --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
         --url "https://127.0.0.1:$listen_port/allowed" \
         --header "X-Request-Id: $READINESS_TRANSACTION_ID" \
         --evidence-path "$READINESS_PROBE_EVIDENCE" 2>/dev/null)
+    fi
     probe_rc=$?
     set -e
     if [ "$probe_rc" -eq 0 ] && [ "$readiness_status" = "200" ]; then

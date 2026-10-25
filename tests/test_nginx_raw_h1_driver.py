@@ -45,3 +45,9 @@ class RawH1DriverTest(unittest.TestCase):
         for data in (b"", b'{"uri":"/foreign"}\n', b'{"uri":"/own"}\n{"uri":"/own"}\n'):
             with self.assertRaises(ValueError):
                 self.driver.access_for_path(data, "/own")
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

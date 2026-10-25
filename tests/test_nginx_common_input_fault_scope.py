@@ -120,3 +120,9 @@ class InputFaultScopeTest(unittest.TestCase):
         self.assertEqual(rows[0]["validator_return"], 0)
         self.assertIs(rows[0]["diagnostic_match"], True)
         self.assertEqual(leaf.read_bytes(), b"")
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

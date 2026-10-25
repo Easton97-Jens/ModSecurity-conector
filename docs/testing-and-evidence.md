@@ -5,19 +5,79 @@
 ## Scope
 
 Testing distinguishes structural checks, build/configuration checks, focused
-host traffic, full-lifecycle execution, and evidence validation. Passing one
-layer does not imply that another layer passed. The selected documentation is
-limited to the six HTTP/1.1 core routes and makes no production, CRS,
-complete-matrix, HTTP/2, HTTP/3, or strict-for-all-connectors claim.
+host traffic, full-lifecycle execution and evidence validation. Passing one
+layer does not imply that another layer passed. This guide describes the
+selected HTTP/1.1 contracts and retained specialist interfaces; it does not
+establish current readiness, production approval, CRS completeness, a complete
+matrix, HTTP/2, HTTP/3 or strict acceptance of every connector.
 
-The general Make targets in this guide retain their six-connector scope. The
-scheduled/manual <code>all-connectors-no-crs.yml</code> workflow is narrower:
-its closed <code>no-crs</code> profile runs only Apache, HAProxy, Envoy,
-Traefik, and lighttpd. It rejects unknown profiles and rows outside that map;
-NGINX is not a result in that workflow. The profile aggregate validates one
-bound result and receipt per selected connector, including run and commit
-identity plus cleanup status. That validation is not hosted-runtime proof and
-does not provide CRS, MRTS, HTTP/2, HTTP/3, full-matrix, or production claims.
+The single [active inventory](../config/testing/active-cases.json) selects
+normal local, CI and scheduled behavior. The closed five-profile
+<code>all-connectors-no-crs.yml</code> baseline selects Apache, HAProxy, Envoy,
+Traefik and lighttpd; NGINX has its separate protected exact-head path. Selected
+CRS checks have their own profile IDs and evidence. Neither a five-profile
+aggregate nor a successful sibling profile supplies an unobserved host result.
+
+## Active cases, admission and archived specialists
+
+There are at most **100 fully expanded active behavioral cases project-wide**:
+Common, every connector/logical profile, unit/integration/native/runtime cases,
+infrastructure tests and Parent-selected Framework/MRTS cases share one budget.
+The [runner](../ci/tools/run-active-tests.py) admits the complete inventory
+before starting selected test processes. It checks stable IDs, requirements,
+profiles, executable selectors and source bindings. More than 100 fails;
+selection is never silently truncated. The ceiling is not a target to fill. A method, loop or collector containing
+independent parameter/error scenarios does not turn them into one case.
+Functional admission, overflow, discovery and coverage-integrity controls also
+consume this same budget.
+
+<code>make check-active-inventory</code> reports the actual expanded count
+without executing cases. <code>make test</code> / <code>make test-active</code>
+run the admitted inventory. Standard owning groups and exact case/module
+filters select subsets after global admission. Functional checks behind
+<code>make lint</code>, <code>make quick-check</code>, builds and CI use the same
+selection. Pure build, formatting, static analysis and security scans remain
+separate operations; hiding functional tests behind them does not exempt those
+cases. Repeating an ID during a justified retest, race run or Hosted CI costs
+another execution, not another distinct active case.
+
+Retained specialists require a current request for the additional assessment and
+explicit <code>ON_DEMAND_TESTS=1</code>. Do not export that flag globally or add
+it to ordinary automated defaults. The flag changes retained specialist
+selection; it grants no privilege, Framework/MRTS write, merge, release or I12
+qualification authority. Historical I12 matrix/oracle/host campaigns remain
+closed: archiving them does not schedule a repeat or establish
+<code>I12_COMPLETE</code>.
+
+The generated [archive disposition](../reports/testing/test-selection-archive.generated.json)
+indexes retained Python methods and Go Test/Fuzz definitions and binds their
+source/inventory digests. Only
+<code>ci/tools/update-test-archive.py</code> regenerates it. Its definition count
+is not a count of fully expanded behaviors, is not added to the active count
+and does not assert that every archived assertion still passes. Unselected
+parameters of a partly selected definition remain on demand; native/script
+collectors and Framework catalogs remain available in their owning sources.
+No archive entry is an executable selector or a new PASS.
+
+| Retained on-demand area | Automatic coverage no longer claimed |
+| --- | --- |
+| Complete Python contract/validator/installer/updater mutation suites | Exhaustive permutations, malformed-input tables and historical expected workflow layouts beyond the named active controls. |
+| Complete Go packages and randomized C/Go fuzz campaigns | Unselected table/subtest variants and generated fuzz inputs; active exact tests, selected race repeats and substantive security analysis remain. |
+| Native Common/connector and runtime-path specialist collectors | Full error/parameter tables and the former 35-scenario path-policy catalog; the four selected real path inputs do not qualify every old path condition. |
+| Full NGINX host campaigns | Inheritance/override, mode repair, unsafe targets, USR1/reload/overlap, error-page/body-buffer and archived configuration-negative campaigns; the selected callback On/Off cases do not prove these. |
+| Broad smoke, full matrix, MRTS, H2/H3 and historical I12 tooling | Full catalog, protocol, oracle, ledger and host qualification. Narrow selected runtime/CRS results keep their own profile boundaries. |
+
+Removing a behavior from automatic selection records lost automatic coverage;
+it does not resolve a known defect or fabricate a historical success. Archived
+sources and their original results/revisions remain retained. New active cases
+at the ceiling require a named replacement or genuine consolidation with the
+affected requirement and risk recorded.
+
+Profile proof is separate: HAProxy HTX does not qualify SPOE/SPOP with a response
+companion; Envoy ext_proc does not qualify ext_authz with an observer; Traefik
+native UDS does not qualify forwardAuth with an observer; lighttpd Stock,
+patched-native and legacy header-compatibility observations do not qualify one
+another. Bind every result to the actual selected profile.
 
 ## Test layers
 
@@ -27,7 +87,7 @@ does not provide CRS, MRTS, HTTP/2, HTTP/3, full-matrix, or production claims.
 | Build | <code>make build-&lt;connector&gt;</code> | A selected build stage | Config load or request/response behavior |
 | Configuration | <code>make check-config-&lt;connector&gt;</code> | Selected configuration can be parsed or loaded | Runtime behavior |
 | Focused smoke | <code>make runtime-smoke-&lt;connector&gt;</code> | The narrow host exercise documented by the target | Full lifecycle or catalog completeness |
-| Full lifecycle | <code>make full-lifecycle-&lt;connector&gt;</code> | Selected profile plus artifact production | Production readiness or all protocols |
+| Full lifecycle, on demand | <code>ON_DEMAND_TESTS=1 make full-lifecycle-&lt;connector&gt;</code> | Selected profile plus artifact production | Production readiness or all protocols |
 | Evidence validation | <code>make evidence-check-&lt;connector&gt;</code> | Existing run artifacts meet that validator's contract | A new host run |
 
 The placeholder <code>&lt;connector&gt;</code> is exactly one of Apache, NGINX,
@@ -38,7 +98,7 @@ HAProxy, Envoy, Traefik, or lighttpd in lowercase target form.
 | Goal | Command pattern | Boundary |
 | --- | --- | --- |
 | Fast repository validation | <code>make quick-check</code> | Does not start every host or create canonical evidence |
-| One selected aggregate candidate | <code>NO_CRS_RUN_ID=&lt;run-id&gt; make full-lifecycle-all-connectors</code> | Produces candidate artifacts only |
+| Explicit specialist aggregate candidate | <code>ON_DEMAND_TESTS=1 NO_CRS_RUN_ID=&lt;run-id&gt; make full-lifecycle-all-connectors</code> | Produces candidate artifacts only |
 | Aggregate core validation | <code>NO_CRS_RUN_ID=&lt;run-id&gt; make check-six-connector-core-completion</code> | Reads finalized evidence for that run ID |
 | One configuration check | <code>make check-config-&lt;connector&gt;</code> | Does not send traffic |
 
@@ -48,9 +108,10 @@ mechanism.
 
 ## Cases, rules, and protocol boundaries
 
-The Framework owns reusable YAML cases, catalog selection, schemas, and
-normalization. The connector repository owns host integration and its selected
-rule/configuration inputs. Repository-owned No-CRS rules and IDs are separate
+The Framework owns reusable YAML case definitions, schemas and normalization.
+Parent owns automatic case admission, host integration and selected
+rule/configuration inputs; Framework selections reached by Parent must match
+the same active inventory. Repository-owned No-CRS rules and IDs are separate
 from OWASP CRS. A prepared CRS input or a source-only protocol path does not
 verify CRS behavior, HTTP/2, or HTTP/3.
 
@@ -80,7 +141,11 @@ capability boundary.
 Do not commit credentials, cookies, authorization values, private keys,
 certificates, raw request bodies, raw response bodies, or local runtime output.
 
-### Selected NGINX configuration-only evidence
+### Archived NGINX configuration-only specialists
+
+The retained configuration-negative contracts below are on demand, outside
+normal active selection. Their historical receipts keep their original revision;
+the active callback On/Off cases do not rerun or qualify these negatives.
 
 The closed `invalid_boolean` and `invalid_size` configuration contracts use
 `ci/runtime/lifecycle/run-nginx-configtest.py`. An actual `nginx -e stderr -t`

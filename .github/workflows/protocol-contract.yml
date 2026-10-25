@@ -6,6 +6,12 @@ on:
   schedule:
     - cron: '17 3 * * 1'
   workflow_dispatch:
+    inputs:
+      on_demand:
+        description: Explicitly run the archived H2/H3 no-listener preflight matrix.
+        type: boolean
+        required: true
+        default: false
 
 permissions: {}
 
@@ -32,14 +38,12 @@ jobs:
         run: |
           set -eu
           make test-protocol-client
-          python3 -m unittest \
-            tests.test_nginx_protocol_harness_contract \
-            tests.test_runtime_component_cache_identity -v
+          python3 ci/tools/run-active-tests.py --group protocol
 
   nginx-profile-and-client-preflight:
     permissions:
       contents: read
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.on_demand
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:

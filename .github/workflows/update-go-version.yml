@@ -353,11 +353,7 @@ jobs:
           set -euo pipefail
           make check-go-version-contract
           python3 -m compileall -q ci scripts tests
-          python3 -m unittest -v \
-            tests.test_update_go_version \
-            tests.test_update_go_components \
-            tests.test_go_version_contract \
-            tests.test_ci_security_workflows
+          python3 ci/tools/run-active-tests.py --group supply-chain
           git diff --check
 
       - name: Validate Envoy Go module without toolchain fallback
@@ -369,8 +365,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
-          go test -race -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -383,8 +379,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
-          go test -race -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -397,8 +393,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
-          go test -race -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -411,8 +407,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
-          go test -race -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/response_observer
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/response_observer --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 

@@ -102,3 +102,9 @@ class NativeHTTPVersion(unittest.TestCase):
                         rules_sha256=hashlib.sha256(rules.read_bytes()).hexdigest()), indent=2) + "\n")
                 print(result.stdout, end="")
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

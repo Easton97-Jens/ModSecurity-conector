@@ -2,6 +2,12 @@
 
 **Sprache:** [English](pr-382-i12-handoff.md) | Deutsch
 
+## Historische Momentaufnahme
+
+Der aktuelle Stand zur Review- und Merge-Entscheidung steht im [Abschluss von PR #382](pr-382-merge-readiness.de.md). Am früheren Head `d510d21dba7eab3c9f0ccbe579fbc9c105eb3da1` war #410 bereits vollständig integriert und `verified_pr` belegt. Die neue globale Inventar-/Coverage-Migration wird ausschließlich im aktuellen Abschluss bewertet.
+
+Alle nachfolgenden Statusangaben, offenen Punkte und Handlungsanweisungen gehören zu den jeweils genannten historischen Revisionen. Sie sind als zukünftiger Arbeitsauftrag aufgehoben: kein erneuter I12-Lauf, kein nachträglicher PASS und kein `I12_COMPLETE`. Historische Ergebnisse und Nachweisgrenzen bleiben erhalten.
+
 Datum: 2026-10-13. Status: **BLOCKED_FOR_I12**. PR #382 bleibt Draft;
 PR #410 wird in dieser Aufgabe weder gemergt noch erneut ausgeführt.
 

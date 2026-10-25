@@ -458,7 +458,7 @@ jobs:
               APACHE_PROFILE_CELL_RUN_ID="$CRS_RUNTIME_RUN_ID" \
               APACHE_PROFILE_GITHUB_RUN_ID="$GITHUB_RUN_ID" \
               APACHE_PROFILE_GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
-              EVIDENCE_ROOT='' make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
+              EVIDENCE_ROOT='' python3 ci/tools/run-active-tests.py --group runtime-crs-apache
               ;;
             haproxy)
               require_decimal "$RUNTIME_UID"
@@ -558,10 +558,10 @@ jobs:
                       FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
                       HAPROXY_EVIDENCE_RECEIPT=1 \
                       HAPROXY_EVIDENCE_RECEIPT_PROJECTOR="$GITHUB_WORKSPACE/ci/runtime/lifecycle/project-haproxy-runtime-evidence.py" \
-                      /usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block CRS=with-crs MRTS=no-mrts
+                      /usr/bin/python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --group runtime-crs-haproxy
               ;;
             envoy|lighttpd|traefik)
-              EVIDENCE_ROOT='' make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"
+              EVIDENCE_ROOT='' python3 ci/tools/run-active-tests.py --group "runtime-crs-$CONNECTOR"
               ;;
             *)
               echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2

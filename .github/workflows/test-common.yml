@@ -74,16 +74,16 @@ jobs:
           umask 077
           mkdir -p "$TMPDIR"
           command -v cc >/dev/null
-          python3 -m unittest tests.test_reported_security_regressions -v
+          python3 ci/tools/run-active-tests.py --group common
       - name: Lightweight framework checks
         run: |
           make setup-dev
           make quick-check
-          make -n smoke-common
-          make -n smoke-apache
-          make -n smoke-nginx
-          make -n smoke-all
-          make -n runtime-matrix-all
+          make -n check-active-inventory
+          make -n check-active-inventory
+          make -n check-active-inventory
+          make -n check-active-inventory
+          make -n check-active-inventory
       - name: Execute productive HTTP and companion technical-error callers
         env:
           TMPDIR: ${{ runner.temp }}

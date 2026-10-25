@@ -214,3 +214,9 @@ class InputFaultDriverTest(unittest.TestCase):
                 self.driver.select_protocol_events([missing, cleanup], transaction), transaction))
         selected = self.driver.select_protocol_events([event, event, cleanup], transaction)
         self.assertTrue(helper.native_event_errors(selected, transaction))
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

@@ -636,6 +636,34 @@ export RUNTIME_COMPONENT_ENV_SNAPSHOT
     --artifact-profile "$NO_CRS_ARTIFACT_PROFILE" \
     --downstream-protocol "$selection_downstream_protocol" \
     --output "$PLAN"
+if [ "${ON_DEMAND_TESTS:-0}" != 1 ]; then
+    "$PYTHON" - "$CONNECTOR_ROOT" "$PLAN" "$connector" "$evidence_stage" <<'ACTIVE_PLAN'
+import json
+import sys
+from pathlib import Path
+root, plan_path = Path(sys.argv[1]), Path(sys.argv[2])
+sys.path.insert(0, str(root / "ci/lib"))
+from active_test_inventory import InventoryError, load_inventory
+try:
+    inventory = load_inventory(root)
+    if sys.argv[4] != "minimal_runtime_smoke":
+        raise InventoryError("specialist No-CRS catalogs require explicit ON_DEMAND_TESTS=1")
+    execution_id = "runtime.no-crs." + sys.argv[3]
+    matches = [item for item in inventory.executions if item["id"] == execution_id]
+    if len(matches) != 1:
+        raise InventoryError("No-CRS execution is absent from the authoritative inventory")
+    expected = {case["id"].removeprefix(execution_id + ".") for case in matches[0]["cases"]}
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    selected = [item for item in plan["cases"] if item.get("selection_status") == "SELECTED"]
+    actual = [item["case_id"] for item in selected]
+    if (len(actual) != len(expected) or len(set(actual)) != len(actual)
+            or set(actual) != expected
+            or any(item.get("runner_case") != item["case_id"] + ".yaml" for item in selected)):
+        raise InventoryError("Framework plan differs from the expanded Parent active inventory")
+except (InventoryError, OSError, ValueError, KeyError) as error:
+    raise SystemExit("FAIL: active No-CRS selection: " + str(error)) from error
+ACTIVE_PLAN
+fi
 NO_CRS_SELECTED_CASES=$("$PYTHON" -c '
 import json, sys
 plan = json.load(open(sys.argv[1], encoding="utf-8"))

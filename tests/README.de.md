@@ -4,7 +4,7 @@
 
 ## Zweck und Grenze
 
-\`tests/\` enthält fokussierte Python-Tests für Root-Orchestrierung,
+\`tests/\` enthält fokussierte Python-Tests und native Fixtures für Root-Orchestrierung,
 Konfiguration, Artefakt-Layout, Lifecycle-Wiring, Capability-Grenzen und
 Path-/Security-Contracts. Sie liefern schnelle Regression-Coverage für
 Repository-Verhalten, das ohne die Darstellung eines synthetischen Host-Laufs
@@ -14,6 +14,49 @@ Diese Tests sind weder der Framework-Case-Katalog noch Ersatz für
 Connector-Harnesses oder kanonische Runtime-Evidence. Bestandene Unit-Tests
 belegen keine Production Readiness, CRS-Vollständigkeit, HTTP/2-/HTTP/3-
 Verifikation, vollständige Matrix oder Strict-Verifikation für alle Connectoren.
+
+## Ein automatisches Aktivinventar
+
+[config/testing/active-cases.json](../config/testing/active-cases.json) ist die
+einzige maßgebliche Quelle für normale lokale, CI- und zeitgesteuerte
+Verhaltensauswahl über Common, alle Connector-Profile, Python-/Go-/Native-/
+Runtime-Prüfungen und Infrastrukturtests. Die Grenze beträgt **100 vollständig
+expandierte aktive Verhaltensfälle für das gesamte Projekt**, nicht 100 Methoden
+je Suite, Job oder Sprache. Das ist eine Obergrenze, kein aufzufüllendes Ziel.
+Unabhängig ausgeführte Parameter und Fehlerbedingungen
+bleiben eigene Fälle. Wiederholungen derselben IDs lokal, mit Race-Detector oder
+in Hosted-CI erhöhen die Ausführungskosten, nicht die Zahl verschiedener aktiver
+Fälle.
+
+Der [Runner](../ci/tools/run-active-tests.py) prüft das vollständige Inventar,
+einschließlich Quellbindungen und aller expandierten Fälle, vor dem Start der
+ausgewählten Testprozesse. Überlauf scheitert sichtbar; es gibt keine Kürzung
+auf die ersten 100. Gruppen- oder Fallauswahl umgeht die Zulassung des gesamten
+Inventars nicht. Die Auswahl einer Variante schließt die anderen deklarierten
+Varianten ihrer Ausführung ein. Unbekannte oder leere Auswahlen scheitern.
+<code>make test</code> und <code>make test-active</code> verwenden diesen Runner;
+funktionale Prüfungen hinter Lint-/Build-Aggregaten verwenden dieselbe Quelle.
+Die normale Python-Discovery liefert ausschließlich die zugelassene Python-
+Projektion, keinen zweiten Katalog und keinen vollständigen Native-/Go-/Runtime-
+Abnahmelauf.
+
+Erhaltene Spezialdefinitionen stehen in der generierten
+[Archivdisposition](../reports/testing/test-selection-archive.generated.json).
+Ihre Anzahl von Python-/Go-Definitionen ist **keine** expandierte aktive Fallzahl;
+nicht ausgewählte Parameter teilweise ausgewählter Definitionen bleiben auf
+Abruf verfügbar. Native-/Skript- und Framework-Spezialquellen bleiben in ihren
+zuständigen Bäumen. Die Disposition entsteht durch
+<code>ci/tools/update-test-archive.py</code>, niemals durch Bearbeitung der Ausgabe.
+Archiveinträge sind nicht ausführbar und belegen weder einen aktuellen PASS
+noch erhaltene automatische Abdeckung.
+
+<code>ON_DEMAND_TESTS=1</code> ist ein ausdrückliches Opt-in für eine separat
+beauftragte Spezialprüfung. Für Standardvalidierung bleibt es ungesetzt;
+es gehört weder dauerhaft in Shell-Initialisierung noch in normale CI oder
+Zeitpläne. Es autorisiert keine neue I12-Kampagne, erhöhte Privilegien,
+repository-übergreifende Schreibzugriffe oder gelockerte Prüfungen. Konkrete
+verlorene Abdeckung und Profilgrenzen stehen unter
+[Tests und Nachweise](../docs/testing-and-evidence.de.md).
 
 ## Struktur und Source of Truth
 
@@ -36,6 +79,12 @@ Einen neuen Root-Contract-Test als \`tests/test_<area>.py\` ablegen. Dabei ist
 Kennung wie \`runtime_path_policy\` ersetzen; daraus wird die literale Datei
 \`tests/test_runtime_path_policy.py\`. Niemals eine Datei namens
 \`test_<area>.py\` anlegen.
+
+Ein neues automatisch ausgewähltes Verhalten benötigt eine stabile Fall-ID,
+Anforderung, Profil und ausführbaren Selektor im Aktivinventar. An der Grenze
+müssen das ersetzte oder tatsächlich konsolidierte Verhalten und verlorene
+Abdeckung benannt werden; eine neue Methode oder versteckte unabhängige
+Szenarien in einer Schleife umgehen die Zählung nicht.
 
 Fixtures eigenständig, portabel und secret-frei halten. Das kleinste
 Root-Verhalten testen, das einen Contract schützt; wiederverwendbare
@@ -66,16 +115,18 @@ Testname, Fixture, Kommandoargument oder erwartetes Artefakt aufnehmen.
 
 | Kommando oder Target | Zweck und Ergebnisgrenze |
 | --- | --- |
-| \`.venv/bin/python -m unittest -v tests.test_runtime_path_policy\` | Führt ein fokussiertes Testmodul aus, wenn \`.venv/bin/python\` vorhanden ist. Das Modul-Suffix durch einen literalen eingecheckten Testnamen ersetzen; Unit-Coverage, keine Host-Evidence. |
-| \`python3 -m unittest discover -v tests\` | Findet Root-Python-Tests mit dem System-Python, wenn er die Projektabhängigkeiten erfüllt. Führt nicht die Framework-Suite aus. |
-| \`make check-framework-fixture-syntax\` | Validiert Framework-Fixture-Syntax über das Root-Target; ein Syntax-/Contract-Check, kein Runtime-Ergebnis. |
-| \`make check-test-matrix\` | Prüft Konsistenz und Ownership-Grenzen der generierten Test-Matrix. |
-| \`make quick-check\` | Führt die fokussierten schnellen Repository-Contract-Checks aus. Erzeugt keine kanonische Runtime-Evidence. |
-| `make check-native-engine-body-inspection` | Führt echte libModSecurity-Request-/Response-Limits und Companion-C-Serialisierungs-/Phasenregressionen aus. Benötigt C17-Compiler, Header und Bibliothek; läuft auch im nativen Envoy-CI-Job. Komponentenergebnisse belegen keine echte Connector-Host-Evidence. |
-| `make check-native-lifecycle-observer` | Prüft den GNU-Linker-Observer ausschließlich für Tests mit echtem Common-Zustand, kontrolliertem nativen ABI und ausdrücklich gewähltem SDK. Benötigt `NATIVE_OBSERVER_TEST_OUT`, `MODSECURITY_INCLUDE_DIR` und `MODSECURITY_LIB_DIR`; fehlende Konfiguration blockiert das Target. |
-| \`make lint\` | Führt breite Syntax-, Contract-, Dokumentations- und Governance-Checks aus, einschließlich Root-Test-bezogener Contracts. |
+| <code>make check-active-inventory</code> | Prüft das gesamte expandierte Inventar und gibt seine tatsächliche Fallzahl ohne Fallausführung aus. |
+| <code>make test</code>, <code>make test-active</code> | Führt die vollständige zugelassene Auswahl mit nativen und Runtime-Voraussetzungen aus; kein leichter hostfreier Check. |
+| <code>python3 ci/tools/run-active-tests.py --group inventory --output-root /srv/modsecurity-work/tests</code> | Führt eine zugelassene Gruppe mit dem kanonischen Projekt-Python aus; der bestehende Ausgabeparent muss vertrauenswürdig, eigen, kanonisch und extern sein. |
+| <code>python3 -m unittest discover -v tests</code> | Führt über gemeinsame Discovery-Hooks nur zugelassene Python-Definitionen aus. Deckt keine Go-/Native-/Runtime-Auswahl ab und startet keinen Framework-Katalog. |
+| <code>ON_DEMAND_TESTS=1 python3 -m unittest -v tests.test_runtime_path_policy</code> | Fordert ausdrücklich das erhaltene Spezialmodul an; seine breiteren Assertions liegen außerhalb der automatischen Auswahl und können separat beauftragte Wartung erfordern. |
+| <code>make check-framework-fixture-syntax</code> | Statische Framework-Fixture-Syntax-/Vertragsprüfung, kein Runtime-Ergebnis. |
+| <code>make check-test-matrix</code> | Prüft generierte Matrixkonsistenz und Zuständigkeit; die Matrixerzeugung führt ihre Fälle nicht aus. |
+| <code>make quick-check</code>, <code>make lint</code> | Erhält statische, Konfigurations-, Dokumentations- und Governance-Checks; funktionale Teile wählen dasselbe Aktivinventar und erzeugen keine allgemeine Hostqualifikation. |
+| <code>ON_DEMAND_TESTS=1 make check-native-engine-body-inspection</code> | Erhaltene vollständige native Limits-/Serialisierungs-/Phasensuite; benötigt echten C17-Compiler und ausgewähltes SDK. Ohne Flag wählt dieser Alias die aktive Common-Gruppe, nicht die komplette Spezialsuite. |
+| <code>ON_DEMAND_TESTS=1 make check-native-lifecycle-observer</code> | Erhaltene vollständige GNU-Linker-Observer-Suite mit explizitem <code>NATIVE_OBSERVER_TEST_OUT</code>, <code>MODSECURITY_INCLUDE_DIR</code> und <code>MODSECURITY_LIB_DIR</code>. Ohne Flag wählt dieser Alias nach seinem bestehenden SDK-/Ausgabe-Preflight die aktive Common-Gruppe. |
 
-Die native Suite akzeptiert die bestehende SDK-Auswahl über
+Die native Suite auf Abruf akzeptiert die bestehende SDK-Auswahl über
 `MODSECURITY_PREFIX`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_FILE` und
 `MODSECURITY_LIB_DIR`; ungültige explizite Pfade scheitern vor der Kompilierung.
 Bei einer externen Bibliothek verwenden Executables deren Verzeichnis als
@@ -84,7 +135,7 @@ Verlustfreie Byte-Escapes müssen Phase und Eventintegrität erhalten;
 Escape-Feldüberlauf darf weder schreiben noch die Hashkette fortsetzen.
 Leichtgewichtige Eventprotokolltests behalten ihre getrennte Dependency-Grenze.
 
-Der Lifecycle-Observer erfasst tatsächliche API-Eintritts-/Rückkehrpaare, getrennte
+Der Lifecycle-Observer auf Abruf erfasst tatsächliche API-Eintritts-/Rückkehrpaare, getrennte
 Host- und kanonische Transaktions-IDs, Common-Zustandsaufnahmen und finale Belege
 pro Prozess. Er wird ausschließlich in Testartefakte mit den vierzehn `--wrap`-
 Symbolen aus `tests/test_native_lifecycle_observer.py` gelinkt. Ein Supervisor

@@ -141,11 +141,7 @@ jobs:
           set -euo pipefail
           python3 -m compileall -q ci scripts tests
           python3 ci/checks/common/check-python-version-contract.py --json
-          python3 -m unittest -v \
-            tests.test_update_python_version \
-            tests.test_python_interpreter_contract \
-            tests.test_python_version_contract \
-            tests.test_ci_security_workflows
+          python3 ci/tools/run-active-tests.py --group supply-chain
           make check-ci-security-contract
           git diff --check
 

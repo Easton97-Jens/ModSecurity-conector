@@ -2,10 +2,7 @@
 
 **Language:** English | [Deutsch](pr-382-event-contract.de.md)
 
-Status: implementation reference for an incomplete Draft migration, not a
-claim of equivalent behavior in every running host. See the
-[implementation and verification checklist](pr-382-checklist.md) for remaining
-routes, pending checks, and revision-scoped evidence. Updated: 2026-09-22.
+Implementation reference; equivalent behavior in every running host is not inferred. Current delivery status is maintained in the [PR #382 closeout](pr-382-merge-readiness.md). The [historical checklist](pr-382-checklist.md) preserves revision-scoped implementation and evidence history. Original reference date: 2026-09-22.
 
 ## Native results are operation-specific
 

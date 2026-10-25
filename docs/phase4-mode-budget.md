@@ -88,4 +88,4 @@ withholds the rejected brigade under Safe log_only.
 Builds and component contracts do not establish complete hosted HTTP/1–HTTP/3,
 buffer-ownership or late-abort acceptance. See the
 [ten-profile matrix](body-inspection-review-matrix.md) for route boundaries and
-the [PR #410 closeout](pr-410-i12-closeout-20261024.md) for current results.
+the [current PR #382 closeout](pr-382-merge-readiness.md) for current results.

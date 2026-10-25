@@ -39,3 +39,9 @@ class NginxMigrationDriverTest(NginxConfigtestDriverTest):
         diagnostic = f'unknown directive "modsecurity_phase4_content_types_file" in {output}/nginx.conf:6'
         changed = self.invoke(case_id=case_id, output_name="changed", diagnostic=diagnostic, extra_script=mutation)
         self.assertEqual(changed.returncode, 1, changed.stderr)
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

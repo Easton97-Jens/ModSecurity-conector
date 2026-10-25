@@ -2,6 +2,12 @@
 
 **Sprache:** [English](pr-382-i09-i12-rest-matrix.md) | Deutsch
 
+## Historische Momentaufnahme
+
+Der aktuelle Stand zur Review- und Merge-Entscheidung steht im [Abschluss von PR #382](pr-382-merge-readiness.de.md). Am früheren Head `d510d21dba7eab3c9f0ccbe579fbc9c105eb3da1` war #410 bereits vollständig integriert und `verified_pr` belegt. Die neue globale Inventar-/Coverage-Migration wird ausschließlich im aktuellen Abschluss bewertet.
+
+Alle nachfolgenden Statusangaben, offenen Punkte und Handlungsanweisungen gehören zu den jeweils genannten historischen Revisionen. Sie sind als zukünftiger Arbeitsauftrag aufgehoben: kein erneuter I12-Lauf, kein nachträglicher PASS und kein `I12_COMPLETE`. Historische Ergebnisse und Nachweisgrenzen bleiben erhalten.
+
 Stand: 2026-10-10. Dokumentationsbasis und geprüfter Sourcebestand: `b2622a5d6ca746485c08f4789208299a111f47c7`.
 
 Diese manuell gepflegte Matrix enthält 56 Zeilen für 14 getrennte Routenteile, jeweils I09/I10/I11/I12. Sie übernimmt den nur lesenden, revisionsgebundenen Source-/Testpfadbestand; aufgeführte Tests wurden für diese Matrix nicht neu ausgeführt. `OPEN_REST_SCOPE` bleibt offen. `AUDIT_INCOMPLETE_NO_NEW_BUG_PROVEN` bedeutet unvollständigen Audit, nicht einen bewiesenen Bug; `SOURCE_CONFIRMED_PROPAGATION_GAP` bezeichnet die zwei getrennten I11-Sourcebefunde unten. `CURRENT_PR382_ROUTE_MATRIX_NOT_PROVEN` bezeichnet fehlenden Hostnachweis für diesen #382-Stand.

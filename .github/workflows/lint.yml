@@ -65,74 +65,11 @@ jobs:
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
         run: python ci/checks/documentation/check-bilingual-docs.py
-      - name: Verify native results and common event protocol
+      - name: Validate the global expanded inventory before any selected test
+        run: python3 ci/tools/run-active-tests.py --check
+      - name: Execute selected inventory, coverage, supply-chain and Common controls
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_native_result_event_protocol tests.test_native_error_classification tests.test_event_transport_observation tests.test_sonar_zero_gate tests.test_sonar_duplication_gate tests.test_pr382_decision_safety tests.test_pr382_profile_errors
-      - name: Verify runtime event sink failures
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_runtime_event_sink_failures tests.test_runtime_host_action_validation
-      - name: Verify immutable I12 oracles and physical lifecycle ledgers
-        if: ${{ !cancelled() }}
-        run: |
-          python -m unittest -v tests.test_i12_oracle_reconciliation tests.test_i12_lifecycle_ledger tests.test_i12_current_report
-          I12_TEST_ROOT="$RUNNER_TEMP" python -m unittest discover -s ci/runtime/lifecycle/i12 -p test_capture_sources.py -v
-      - name: Install I09 Apache compiled-test prerequisites
-        if: ${{ !cancelled() }}
-        run: |
-          set -eu
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes apache2-dev build-essential libmodsecurity-dev autoconf automake libtool pkg-config libyajl-dev libcurl4-openssl-dev libpcre2-dev libssl-dev liblmdb-dev
-      - name: Prepare the approved I12 SDK through the shared component producer
-        if: ${{ !cancelled() }}
-        env:
-          RUNTIME_COMPONENT_TARGET: shared
-          ALLOW_RUNTIME_DOWNLOADS: "1"
-          ALLOW_RUNTIME_BUILDS: "1"
-        run: |
-          set -eu
-          mkdir -p "$BUILD_ROOT/i12-sdk-reports"
-          RUNTIME_COMPONENT_ENV_SNAPSHOT=$(sh ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh "$BUILD_ROOT/i12-sdk-reports")
-          export RUNTIME_COMPONENT_ENV_SNAPSHOT
-          RUNTIME_REPORT_OUTPUT_ROOT="$BUILD_ROOT/i12-sdk-reports" make prepare-runtime-components
-          printf 'I12_SDK_ENV_SNAPSHOT=%s\n' "$RUNTIME_COMPONENT_ENV_SNAPSHOT" >> "$GITHUB_ENV"
-      - name: Verify I12 native observer and Apache header measurement controls
-        if: ${{ !cancelled() }}
-        run: |
-          set -eu
-          test -f "$I12_SDK_ENV_SNAPSHOT"
-          export NATIVE_OBSERVER_TEST_OUT="$BUILD_ROOT/i12-observer-controls"
-          RUNTIME_COMPONENT_ENV_SNAPSHOT="$I12_SDK_ENV_SNAPSHOT" \
-            RUNTIME_REPORT_OUTPUT_ROOT="$BUILD_ROOT/i12-sdk-reports" \
-            RUNTIME_COMPONENT_TARGET=shared SKIP_RUNTIME_COMPONENT_PREPARE=1 \
-            sh ci/provisioning/cache/with-runtime-components.sh \
-              python -m unittest -v tests.test_native_lifecycle_observer tests.test_apache_header_semantics
-      - name: Verify I09 route API and terminal error regressions
-        if: ${{ !cancelled() }}
-        run: make check-i09-native-routes
-      - name: Verify Envoy bridge failure boundaries
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_envoy_bridge_failures
-      - name: Verify NGINX connection and URI completion
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_nginx_request_phase_completion
-      - name: Verify NGINX request native result regressions
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_nginx_request_native_results tests.test_nginx_request_error_events tests.test_nginx_request_mapper_status tests.test_nginx_context_accounting tests.test_nginx_native_intervention_chain tests.test_nginx_native_logging tests.test_nginx_bounded_event_uri
-      - name: Verify NGINX late error and reentry regressions
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_nginx_late_error_results
-      - name: Verify Phase-4 migration and NGINX security contracts
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
-      - name: Verify NGINX adoption checker mutations
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_nginx_common_adoption
-      - name: Verify HAProxy Rule-ID adoption mutations
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_haproxy_adoption_rule_id
-      - name: Verify configuration reference generator regressions
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples
+        run: python3 ci/tools/run-active-tests.py --group inventory --group supply-chain --group common --group protocol
       - name: Verify generated configuration references
         if: ${{ !cancelled() }}
         run: python ci/tools/generate-connector-config-reference.py --check

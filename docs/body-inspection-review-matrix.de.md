@@ -43,4 +43,4 @@ behauptet eine vollständige I12- oder V08–V10-Matrix.
 
 Builds, statische Contracts und Komponententests belegen nur ihre eigene Ebene.
 Das aktuelle Lieferergebnis und offene Nachweisgrenzen stehen einmalig im
-[Abschluss von PR #410](pr-410-i12-closeout-20261024.de.md).
+[aktuellen Abschluss von PR #382](pr-382-merge-readiness.de.md).

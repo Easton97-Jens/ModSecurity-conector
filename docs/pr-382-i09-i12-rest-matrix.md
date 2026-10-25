@@ -2,6 +2,12 @@
 
 **Language:** English | [Deutsch](pr-382-i09-i12-rest-matrix.de.md)
 
+## Historical snapshot
+
+Current review and merge-decision status is maintained in the [PR #382 closeout](pr-382-merge-readiness.md). At the earlier head `d510d21dba7eab3c9f0ccbe579fbc9c105eb3da1`, #410 was already fully integrated and `verified_pr` established. The new global inventory/coverage migration is assessed only in the current closeout.
+
+All subsequent status statements, open items and instructions belong to their named historical revisions. They are superseded as future work instructions: no I12 rerun, retrospective PASS or `I12_COMPLETE`. Historical results and evidence limits remain preserved.
+
 Date: 2026-10-10. Documentation base and inspected source inventory: `b2622a5d6ca746485c08f4789208299a111f47c7`.
 
 This manually maintained matrix contains 56 rows for 14 distinct route legs, one each for I09/I10/I11/I12. It carries forward the read-only revision-bound source/test-path inventory; listed tests were not freshly executed for this matrix. `OPEN_REST_SCOPE` stays open. `AUDIT_INCOMPLETE_NO_NEW_BUG_PROVEN` means incomplete audit, not a proved bug; `SOURCE_CONFIRMED_PROPAGATION_GAP` identifies the two separate I11 source findings below. `CURRENT_PR382_ROUTE_MATRIX_NOT_PROVEN` denotes missing host proof for this #382 revision.

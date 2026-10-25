@@ -393,3 +393,9 @@ class ApacheFaultBoundaryTests(unittest.TestCase):
         self.marker.chmod(0o644)
         self.healthy(self.run_case("null-body"), "null-body")
         self.assertEqual(self.records(), [])
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

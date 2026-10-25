@@ -1,0 +1,225 @@
+"""Exercise admission and expansion before any selected child starts."""
+from contextlib import redirect_stderr
+import copy
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from unittest.mock import patch
+
+from ci.lib import active_test_inventory as active
+
+
+class ActiveTestInventoryTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP"))
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        self.root = self.directory / "repository"
+        self.root.mkdir()
+        self.output = self.directory / "output"
+        self.output.mkdir()
+        self.source = self.root / "tests/fixture_active.py"
+        self.source.parent.mkdir()
+        self.source.write_text("import unittest\nclass ControlTests(unittest.TestCase):\n"
+                               "    def test_pass(self):\n        self.assertTrue(True)\n", encoding="utf-8")
+        self.inventory_path = self.root / "inventory.json"
+        self.data = {"schema_version": 1, "executions": [{
+            "id": "fixture.control", "groups": ["control"],
+            "sources": [{"path": "tests/fixture_active.py", "sha256": hashlib.sha256(self.source.read_bytes()).hexdigest()}],
+            "selector": {"kind": "python", "target": "tests.fixture_active.ControlTests.test_pass"},
+            "cases": [{"id": "control.positive", "requirement": "A legitimate selected case remains selectable.",
+                       "profiles": ["parent"]}],
+        }]}
+
+    def load(self):
+        self.inventory_path.write_text(json.dumps(self.data), encoding="utf-8")
+        return active.load_inventory(self.root, self.inventory_path)
+
+    def test_valid_inventory_preserves_case_identity(self):
+        inventory = self.load()
+        selected = active.select_executions(inventory, groups=("control",))
+        summary = active.selection_summary(inventory, selected)
+        self.assertEqual(summary["active_case_count"], 1)
+        self.assertEqual(summary["selected_case_ids"], ["control.positive"])
+        self.assertEqual(summary["hard_limit"], 100)
+
+    def test_overflow_rejected_before_any_child_starts(self):
+        self.data["executions"][0]["cases"] = [
+            {"id": f"synthetic.case-{number}", "requirement": "Synthetic overflow admission input.",
+             "profiles": ["parent"]} for number in range(101)]
+        self.inventory_path.write_text(json.dumps(self.data), encoding="utf-8")
+        sentinel = self.output / "child-started"
+        with (patch.object(active.subprocess, "Popen", side_effect=lambda *args, **kwargs: sentinel.touch()) as child,
+              redirect_stderr(io.StringIO()) as error):
+            status = active.main(["--inventory", str(self.inventory_path), "--output-root", str(self.output)],
+                                 root=self.root)
+        self.assertEqual(status, 2)
+        self.assertIn("101 cases; hard limit is 100", error.getvalue())
+        child.assert_not_called()
+        self.assertFalse(sentinel.exists())
+
+    def test_duplicate_case_id_is_rejected(self):
+        self.data["executions"][0]["cases"].append(copy.deepcopy(self.data["executions"][0]["cases"][0]))
+        with self.assertRaisesRegex(active.InventoryError, "duplicate expanded case"):
+            self.load()
+
+    def test_duplicate_json_key_is_rejected(self):
+        self.inventory_path.write_text('{"schema_version":1,"schema_version":1,"executions":[]}',
+                                       encoding="utf-8")
+        with self.assertRaisesRegex(active.InventoryError, "duplicate JSON key"):
+            active.load_inventory(self.root, self.inventory_path)
+
+    def test_unknown_selector_is_rejected(self):
+        self.data["executions"][0]["selector"] = {"kind": "shell", "command": "true"}
+        with self.assertRaisesRegex(active.InventoryError, "unknown execution selector"):
+            self.load()
+
+    def test_source_digest_mismatch_prevents_execution(self):
+        inventory = self.load()
+        self.source.write_text("raise RuntimeError('unreviewed collector')\n", encoding="utf-8")
+        with patch.object(active.subprocess, "Popen") as child:
+            with self.assertRaisesRegex(active.InventoryError, "source digest mismatch before execution"):
+                active.execute_selected(inventory, inventory.executions, self.output)
+        child.assert_not_called()
+
+    def test_parent_traversal_source_is_rejected(self):
+        self.data["executions"][0]["sources"] = [{"path": "../outside.py", "sha256": "a" * 64}]
+        with self.assertRaisesRegex(active.InventoryError, "traverse outside"):
+            self.load()
+
+    def test_symlink_source_is_rejected(self):
+        original = self.root / "original.py"
+        self.source.rename(original)
+        self.source.symlink_to(original)
+        with self.assertRaisesRegex(active.InventoryError, "non-symlink"):
+            self.load()
+
+    def test_unknown_group_is_rejected(self):
+        inventory = self.load()
+        with self.assertRaisesRegex(active.InventoryError, "unknown or empty requested group"):
+            active.select_executions(inventory, groups=("unlisted",))
+
+    def test_empty_requested_group_is_rejected(self):
+        inventory = self.load()
+        with self.assertRaisesRegex(active.InventoryError, "unknown or empty requested group"):
+            active.select_executions(inventory, groups=("",))
+
+    def test_case_selection_closes_over_execution_variants(self):
+        self.data["executions"][0]["cases"].append({
+            "id": "control.negative", "requirement": "The second variant cannot hide behind one selector.",
+            "profiles": ["parent"]})
+        inventory = self.load()
+        selected = active.select_executions(inventory, case_ids=("control.negative",))
+        self.assertEqual(active.selection_summary(inventory, selected)["selected_case_ids"],
+                         ["control.positive", "control.negative"])
+
+    def test_inventory_cannot_raise_hard_limit(self):
+        self.data["hard_limit"] = 1000
+        with self.assertRaisesRegex(active.InventoryError, "closed inventory schema"):
+            self.load()
+
+    def test_unittest_discovery_uses_authoritative_inventory(self):
+        import tests
+
+        repository = Path(__file__).resolve().parents[1]
+        inventory = active.load_inventory(repository)
+        expected = {execution["selector"]["target"] for execution in inventory.executions
+                    if execution["selector"]["kind"] == "python"}
+        selected = tests.load_tests(unittest.TestLoader(), unittest.TestSuite(), None)
+
+        def selected_ids(suite):
+            for item in suite:
+                if isinstance(item, unittest.TestSuite):
+                    yield from selected_ids(item)
+                else:
+                    yield item.id()
+
+        actual = list(selected_ids(selected))
+        self.assertEqual(set(actual), expected)
+        self.assertEqual(len(actual), len(expected))
+
+    def test_start_directory_discovery_uses_authoritative_inventory(self):
+        repository = Path(__file__).resolve().parents[1]
+        inventory = active.load_inventory(repository)
+        expected = {execution["selector"]["target"] for execution in inventory.executions
+                    if execution["selector"]["kind"] == "python" and
+                    execution["selector"]["target"].startswith("tests.test_active_test_inventory.")}
+        loader = unittest.TestLoader()
+        selected = loader.discover(str(repository / "tests"), pattern="test_active_test_inventory.py",
+                                   top_level_dir=str(repository / "tests"))
+        self.assertFalse(loader.errors, loader.errors)
+
+        def selected_ids(suite):
+            for item in suite:
+                if isinstance(item, unittest.TestSuite):
+                    yield from selected_ids(item)
+                else:
+                    yield active.canonical_test_id(item, repository)
+
+        actual = list(selected_ids(selected))
+        self.assertTrue(expected)
+        self.assertEqual(set(actual), expected)
+        self.assertEqual(len(actual), len(expected))
+
+    @unittest.skipUnless(os.name == "posix", "owned process groups require the supported POSIX host")
+    def test_timeout_reaps_owned_process_group(self):
+        record = self.output / "processes.json"
+        log = self.output / "process.log"
+        fixture = """import json, os, signal, subprocess, sys, time
+child = None
+def reap(_signal, _frame):
+    if child is not None:
+        child.wait(timeout=10)
+    raise SystemExit(0)
+signal.signal(signal.SIGTERM, reap)
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+with open(sys.argv[1], 'w', encoding='utf-8') as output:
+    json.dump([os.getpid(), child.pid], output)
+time.sleep(30)
+"""
+        command = [sys.executable, "-c", fixture, str(record)]
+        try:
+            with log.open("w", encoding="utf-8") as stream:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    active._run_child(command, self.directory, dict(os.environ), stream, timeout=1.0)
+            self.assertTrue(record.is_file(), "the genuine parent and descendant must start before timeout")
+            identifiers = json.loads(record.read_text(encoding="utf-8"))
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline and any(self.process_exists(pid) for pid in identifiers):
+                time.sleep(0.05)
+            self.assertFalse(any(self.process_exists(pid) for pid in identifiers),
+                             "both owned processes must be reaped after timeout")
+        finally:
+            if record.is_file():
+                for identifier in json.loads(record.read_text(encoding="utf-8")):
+                    try:
+                        os.kill(identifier, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+    @staticmethod
+    def process_exists(identifier):
+        try:
+            os.kill(identifier, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
+
+if __name__ == "__main__":
+    unittest.main()

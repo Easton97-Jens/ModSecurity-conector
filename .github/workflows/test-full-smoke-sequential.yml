@@ -3,6 +3,11 @@ name: manual-heavy-runtime-validation
 on:
   workflow_dispatch:
     inputs:
+      on_demand:
+        description: Run the archived specialist smoke catalog outside the automatic active inventory
+        required: true
+        default: false
+        type: boolean
       cleanup_artifacts:
         description: Delete prior full-smoke artifacts before the run
         required: false
@@ -13,7 +18,7 @@ permissions: {}
 
 jobs:
   cleanup-artifacts:
-    if: ${{ inputs.cleanup_artifacts }}
+    if: ${{ inputs.on_demand && inputs.cleanup_artifacts }}
     name: Cleanup old smoke artifacts (${{ matrix.variant }})
     permissions:
       actions: write
@@ -127,7 +132,7 @@ jobs:
             }
 
   manual-heavy-runtime-validation:
-    if: ${{ always() }}
+    if: ${{ always() && inputs.on_demand }}
     needs: cleanup-artifacts
     permissions:
       contents: read
@@ -276,10 +281,10 @@ jobs:
           make fetch-deps
           case "${{ matrix.variant }}" in
             no-crs)
-              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-no-crs
+              ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-no-crs
               ;;
             with-crs)
-              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-with-crs
+              ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-with-crs
               ;;
             *)
               echo "unknown test variant: ${{ matrix.variant }}" >&2

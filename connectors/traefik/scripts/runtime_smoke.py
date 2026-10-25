@@ -498,14 +498,14 @@ def wait_for_tcp(port: int, process: subprocess.Popen[bytes], label: str) -> Non
     raise RuntimeError(f"{label} did not listen on port {port}: {last_error}")
 
 
-def wait_for_traefik(port: int, process: subprocess.Popen[bytes]) -> None:
-    """Wait for the entrypoint socket without sending a routed probe request.
+def wait_for_traefik(port: int, process: subprocess.Popen[bytes]) -> int:
+    """Wait for transport/provider startup and return the canonical allow result.
 
     The smoke router intentionally covers ``/`` and its forwardAuth/response
     companion path.  A synthetic ``/ready`` request would therefore exercise
     the transaction contract and can fail for reasons unrelated to process
-    startup.  Socket readiness is the only startup fact needed here; the
-    subsequent allow/block requests are the behavioral probes.
+    startup. Reuse the first routed canonical allow response after the provider
+    becomes available, so startup never adds a different HTTP/WAF input.
     """
 
     deadline = time.monotonic() + 12
@@ -532,8 +532,10 @@ def wait_for_traefik(port: int, process: subprocess.Popen[bytes]) -> None:
         if process.poll() is not None:
             raise RuntimeError(f"Traefik exited early with code {process.returncode}")
         try:
-            if http_status(f"http://127.0.0.1:{port}/ready") != 404:
-                return
+            status = http_status(f"http://127.0.0.1:{port}/allowed",
+                                 {"X-Request-Id": "traefik-forwardauth-allow"})
+            if status != 404:
+                return status
         except Exception:
             pass
         time.sleep(0.2)
@@ -798,11 +800,7 @@ def run(args: argparse.Namespace) -> int:
                     stdout=traefik_stdout,
                     stderr=traefik_stderr,
                 )
-                wait_for_traefik(traefik_port, traefik_process)
-                allowed_status = http_status(
-                    f"http://127.0.0.1:{traefik_port}/allowed",
-                    {"X-Request-Id": "traefik-forwardauth-allow"},
-                )
+                allowed_status = wait_for_traefik(traefik_port, traefik_process)
                 wait_for_private_socket(companion_socket, service_process)
                 blocked_status = http_status(
                     f"http://127.0.0.1:{traefik_port}/blocked",

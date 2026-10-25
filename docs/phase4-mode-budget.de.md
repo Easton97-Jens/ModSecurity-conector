@@ -93,4 +93,4 @@ Builds und Komponentencontracts belegen keine vollständige gehostete
 HTTP/1–HTTP/3-, Buffer-Ownership- oder Late-Abort-Abnahme. Die
 [Matrix der zehn Profile](body-inspection-review-matrix.de.md) beschreibt die
 Routengrenzen; aktuelle Ergebnisse stehen im
-[Abschluss von PR #410](pr-410-i12-closeout-20261024.de.md).
+[aktuellen Abschluss von PR #382](pr-382-merge-readiness.de.md).

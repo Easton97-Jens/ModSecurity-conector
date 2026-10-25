@@ -68,4 +68,4 @@ jobs:
           set -eu
           umask 077
           mkdir -p "$TMPDIR"
-          python3 -m unittest tests.test_nginx_error_page_intervention tests.test_security_finding_intake -v
+          python3 ci/tools/run-active-tests.py --group nginx

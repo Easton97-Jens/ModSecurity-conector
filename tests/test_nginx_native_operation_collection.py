@@ -301,3 +301,9 @@ class NativeCollectionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 collector.case_observations([path], 'nginx', '1100001',
                     {'invalid_content_length': (400, None, 1)}, allowed_native_operation_root=self.authority)
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

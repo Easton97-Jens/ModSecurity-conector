@@ -126,6 +126,16 @@ jobs:
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
+      - name: Set up canonical Python for active selection
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: go
@@ -133,9 +143,8 @@ jobs:
       - name: Build Traefik Go module
         working-directory: connectors/traefik/native_middleware
         run: go build ./...
-      - name: Fuzz Traefik UDS frame parser
-        working-directory: connectors/traefik/native_middleware
-        run: GOTOOLCHAIN=local go test -mod=readonly -run='^$' -fuzz='^FuzzUDSFrameAndResult$' -fuzztime=15s -parallel=1 .
+      - name: Execute inventoried Traefik parser and cancellation security regressions
+        run: python3 ci/tools/run-active-tests.py --module connectors/traefik/native_middleware
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
 
   bounded-c-cpp:
@@ -147,12 +156,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Set up canonical Python for active selection
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: c-cpp
           build-mode: manual
       - name: Build bounded C17 common helper scope
-        run: make check-common-helpers-c17
-      - name: Fuzz Common HTTP header parser
-        run: make check-common-http-header-fuzz
+        run: make build-codeql-common-scope
+      - name: Execute inventoried Common parser and memory security regressions
+        run: python3 ci/tools/run-active-tests.py --group common
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1

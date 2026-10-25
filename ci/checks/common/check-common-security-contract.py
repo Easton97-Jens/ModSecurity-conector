@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
+sys.path.insert(0, str(ROOT))
+from ci.lib.active_test_inventory import InventoryError, load_inventory, select_executions
 COMMON_APIS = ["resource_limits", "memory", "flow_guard", "integrity_event", "dos_guard"]
 EVENT_JSON_SOURCES = [
     "common/src/event.c",
@@ -137,13 +140,29 @@ if "enum msconnector_phase" not in (ROOT / "common/include/msconnector/flow_guar
 
 makefile = (ROOT / "Makefile").read_text(errors="ignore")
 for target in ["check-common-security-contract", "check-common-memory-safety", "check-common-flow-integrity"]:
-    if not re.search(rf"^{target}:\n\t", makefile, re.MULTILINE):
+    # Ask Make to resolve its actual default conditional recipe. A source
+    # regex requiring a tab immediately after ':' rejects valid ifeq blocks.
+    recipe = subprocess.run(["make", "--no-print-directory", "-n", target, "ON_DEMAND_TESTS=0"],
+                            cwd=ROOT, capture_output=True, text=True, check=False)
+    if recipe.returncode or not recipe.stdout.strip():
         errors.append(f"Makefile target {target} is not executable")
+    if target == "check-common-memory-safety" and "ci/tools/run-active-tests.py --group memory-safety" not in recipe.stdout:
+        errors.append("default memory safety target must dispatch the authoritative memory-safety group")
     lint_block = makefile[makefile.find("lint: check-framework") : makefile.find("summary: check-framework")]
     if f"$(MAKE) {target}" not in lint_block:
         errors.append(f"lint does not run {target}")
 if not re.search(r"^quick-check codex-check: lint", makefile, re.MULTILINE):
     errors.append("quick-check/codex-check must depend on lint")
+
+try:
+    memory = select_executions(load_inventory(ROOT), ("memory-safety",))
+    expected = {"wipe-free", "limit-rejection", "null-zero", "idempotent-null-free"}
+    if (len(memory) != 1 or memory[0]["selector"] != {
+            "kind": "native", "script": "ci/checks/common/check-common-memory-safety.sh", "args": []}
+            or {case["id"].rsplit(".", 1)[-1] for case in memory[0]["cases"]} != expected):
+        errors.append("memory-safety group must retain all four actual native ownership behaviors")
+except (InventoryError, OSError, ValueError) as error:
+    errors.append("invalid memory-safety inventory contract: " + str(error))
 
 if errors:
     print("\n".join(errors))

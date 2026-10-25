@@ -83,7 +83,7 @@ jobs:
       - name: Syntax and dry-run checks
         run: |
           make setup-dev
-          .venv/bin/python -m unittest -v tests.test_nginx_exact_head_gate_contract tests.test_nginx_exact_head_runtime_handoff tests.test_runtime_env_snapshot_contract
+          python3 ci/tools/run-active-tests.py --group nginx
           sh -n connectors/nginx/harness/run_nginx_smoke.sh
-          make -n smoke-nginx
+          make -n check-active-inventory
           make quick-check

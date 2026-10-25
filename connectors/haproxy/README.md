@@ -20,12 +20,12 @@ optional response-header phases, emits
 decision JSONL, and returns typed SPOE ACK variables for HAProxy enforcement.
 The SPOP listener has no authenticated transport and is intentionally restricted
 to `127.0.0.1`; remote or wildcard binds are unsupported and fail closed.
-`make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
+`ON_DEMAND_TESTS=1 make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
 materializes each case, starts HAProxy plus the production SPOA agent plus a
 backend, sends the case request with curl, asserts the observed status, and
 writes the standard HAProxy summary artifacts.
 
-`make runtime-matrix-haproxy` consumes live summary evidence from the split
+`ON_DEMAND_TESTS=1 make runtime-matrix-haproxy` consumes live summary evidence from the split
 No-CRS and With-CRS HAProxy runs. PASS/FAIL rows must come from live HAProxy
 execution; structurally unmappable rows use `NOT_EXECUTABLE`, and real
 environment/build/runtime blockers use `BLOCKED`.
@@ -68,7 +68,7 @@ Shared connector-neutral data shapes used by the starter:
 - ModSecurity binding self-test: buildable and self-testable under
   `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/`; verifies
   phase-1 header blocking and request-body append/processing in process.
-- Harness: `make smoke-haproxy` verifies live HAProxy to SPOA/SPOP to
+- Harness: `ON_DEMAND_TESTS=1 make smoke-haproxy` verifies live HAProxy to SPOA/SPOP to
   libmodsecurity enforcement for shared framework YAML cases.
 - Decision evidence: per-case `decision.jsonl`, HAProxy logs, SPOA logs, audit
   logs, observed status, and normalized `result.json`.
@@ -105,13 +105,13 @@ Supported local build targets:
 make -C connectors/haproxy build-metadata
 make -C connectors/haproxy build-spoa-starter
 make -C connectors/haproxy build-starter
-make -C connectors/haproxy self-test-spoa
-make -C connectors/haproxy self-test
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-spoa
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test
 make -C connectors/haproxy build-spoa-runtime
-make -C connectors/haproxy self-test-spoa-runtime
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-spoa-runtime
 make -C connectors/haproxy build-modsecurity-binding
-make -C connectors/haproxy self-test-modsecurity-binding
-make -C connectors/haproxy self-test-modsecurity-binding-crs
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-modsecurity-binding
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-modsecurity-binding-crs
 ```
 
 `build-spoa-starter` compiles a local binary that can describe its limitations
@@ -120,7 +120,7 @@ does not compile a HAProxy module, does not parse SPOP frames, does not run as a
 verified SPOA server, and does not link libmodsecurity.
 
 `build-spoa-runtime` compiles `haproxy-modsecurity-spoa`. Its self-test is
-protocol compatibility evidence; `make smoke-haproxy` is the live gate that
+protocol compatibility evidence; `ON_DEMAND_TESTS=1 make smoke-haproxy` is the live gate that
 starts HAProxy against this production agent and executes framework YAML cases.
 
 `build-modsecurity-binding` first verifies the local libmodsecurity C API
@@ -130,7 +130,8 @@ request-body rule processing, plus request/response body-wrapper lifecycle
 guards for a nonzero-length null pointer, append after EOS, and duplicate
 finalization. Those wrapper controls are self-test-only: they do not prove
 live HAProxy enforcement or a positive `RESPONSE_BODY` intervention.
-`make smoke-haproxy` is required for live HAProxy runtime evidence.
+`ON_DEMAND_TESTS=1 make smoke-haproxy` retains the broader live SPOP-catalog
+evidence path; active inventory cases establish only their narrower scope.
 
 ## libModSecurity compatibility contract
 
@@ -172,27 +173,40 @@ MODSECURITY_LIB_CANDIDATES=/selected/lib \
 make -C connectors/haproxy build-modsecurity-binding build-spoa-runtime
 ```
 
-Run `make -C connectors/haproxy self-test-modsecurity-binding` for the
-in-process binding controls. `make smoke-haproxy` remains the separate live
-SPOP gate, while `make -C connectors/haproxy runtime-smoke-haproxy-htx` remains
+Run `ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-modsecurity-binding` for the
+in-process binding controls. `ON_DEMAND_TESTS=1 make smoke-haproxy` remains the separate live
+SPOP gate, while `ON_DEMAND_TESTS=1 make -C connectors/haproxy runtime-smoke-haproxy-htx` remains
 the separate native HTX build and host-smoke gate; neither path substitutes for
 the other.
 
 ## Tests
 
-No local `connectors/haproxy/tests` folder is used. Executable runtime tests are
-framework-owned.
+No local `connectors/haproxy/tests` folder is used. The Framework owns reusable
+catalog definitions; Parent owns integration/regression tests and automatic
+selection through [config/testing/active-cases.json](../../config/testing/active-cases.json).
 
-Framework-owned paths and targets to use for future evidence:
+Standard <code>make test-no-crs</code> and <code>make test-with-crs</code> aliases
+select only admitted runtime subsets, not complete Framework suites or full
+profiles. The HAProxy group contains its named component regressions. SPOE/SPOP
+results do not qualify a native HTX host run, or vice versa. Every selection
+shares the global ceiling of 100 expanded behavioral cases.
+
+The retained broader matrix, smoke and self-test commands below require explicit
+<code>ON_DEMAND_TESTS=1</code>, a current additional request and their actual
+host/SDK prerequisites. The flag is not an ordinary CI default and does not
+reopen closed I12 campaigns. See [Testing and evidence](../../docs/testing-and-evidence.md)
+for selection and lost automatic coverage.
+
+Reusable Framework paths and explicitly requested broader commands:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
-- `make runtime-matrix-haproxy`
-- `make test-haproxy-no-crs`
-- `make test-haproxy-with-crs`
-- `make test-no-crs`
-- `make test-with-crs`
-- `make smoke-common`
+- `ON_DEMAND_TESTS=1 make runtime-matrix-haproxy`
+- `ON_DEMAND_TESTS=1 make test-haproxy-no-crs`
+- `ON_DEMAND_TESTS=1 make test-haproxy-with-crs`
+- `ON_DEMAND_TESTS=1 make test-no-crs`
+- `ON_DEMAND_TESTS=1 make test-with-crs`
+- `ON_DEMAND_TESTS=1 make smoke-common`
 
 Unsupported or currently unmaterializable rows are documented as
 `NOT_EXECUTABLE`. Harness, dependency, build, and runtime failures are
@@ -271,7 +285,7 @@ HAPROXY_HTX_SOURCE_DIR=/path/to/framework-synchronized-haproxy-source \
 MODSECURITY_INCLUDE_DIR=/path/to/include \
 MODSECURITY_LIB_DIR=/path/to/lib \
 BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
-make -C connectors/haproxy runtime-smoke-haproxy-htx
+ON_DEMAND_TESTS=1 make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
 The dedicated smoke builds a patched disposable Framework-synchronized HAProxy worktree,

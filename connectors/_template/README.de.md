@@ -101,12 +101,17 @@ Anwesenheit allein ist keine Build-Verifizierung.
 
 ## Erforderlicher Laufzeitnachweis
 
-Gilt nicht für die Vorlage. Laufzeitnachweise können nur durch Beton erbracht werden
-Anschlüsse.
+Gilt nicht für die Vorlage. Laufzeitnachweise entstehen nur für konkrete
+Connectoren und ihre tatsächlich ausgeführten Profile. Normale Aliase nutzen
+[config/testing/active-cases.json](../../config/testing/active-cases.json),
+kein neues lokales Testinventar: projektweit höchstens 100 vollständig
+expandierte aktive Verhaltensfälle. Neue aktive Anforderungen benötigen stabile
+IDs, Profile und ausführbare Selektoren; an der Obergrenze ist Ersatz oder
+echte Konsolidierung mit dokumentierter verlorener Abdeckung erforderlich.
 
-- [ ] `make test-no-crs` wird ausgeführt, wenn das Ziel existiert.
-- [ ] `make test-with-crs` wird ausgeführt, wenn das Ziel existiert.
-- [ ] `make smoke-common` wird ausgeführt, wenn das Ziel existiert.
+- [ ] Zugelassene No-CRS-Fall-IDs und tatsächlicher Connector-/Profilscope aufgezeichnet; <code>make test-no-crs</code> wählt nur seine aktive Teilmenge.
+- [ ] Zugelassene CRS-Fall-IDs und tatsächlicher Connector-/Profilscope aufgezeichnet; <code>make test-with-crs</code> wählt nur seine aktive Teilmenge.
+- [ ] Breitere Spezialbefehle wie <code>ON_DEMAND_TESTS=1 make smoke-common</code> nur ausführen, wenn ein aktueller Zusatzauftrag sie ausdrücklich umfasst.
 - [ ] Apache/NGINX oder Connector-spezifischer Bereich dokumentiert.
 - [ ] PASS/FAIL/BLOCKED-Zählungen dokumentiert.
 - [ ] Zusammenfassung der JSON-Pfade dokumentiert.
@@ -126,10 +131,14 @@ pro Connector erforderlich.
 
 ## No-CRS-Validierung
 
-Dokumentieren Sie für einen Betonverbinder den genauen No-CRS-Befehl und das Ergebnis:
+Der normale Alias <code>make test-no-crs</code> führt nur die zugelassene
+Runtime-Gruppe aus und belegt keinen vollständigen Katalog oder neuen
+Connector. Exakte Fall-IDs und Profilnachweise dokumentieren. Das erhaltene
+breitere Beispiel erfordert einen separat autorisierten Spezialauftrag:
+
 
 ```sh
-SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-no-crs
+ON_DEMAND_TESTS=1 SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-no-crs
 ```
 
 Aufnahme:
@@ -144,10 +153,14 @@ Ein No-CRS-PASS bedeutet nicht, dass es sich um einen With-CRS-PASS handelt.
 
 ## With-CRS-Validierung
 
-Dokumentieren Sie für einen Betonverbinder den genauen With-CRS-Befehl und das Ergebnis:
+Der normale Alias <code>make test-with-crs</code> führt nur die zugelassene
+CRS-Runtime-Gruppe aus. Er belegt keine umfassende CRS- oder Profilqualifikation.
+Exakte Fall-IDs dokumentieren. Das erhaltene breitere Beispiel erfordert einen
+separat autorisierten Spezialauftrag:
+
 
 ```sh
-SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-with-crs
+ON_DEMAND_TESTS=1 SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-with-crs
 ```
 
 Aufnahme:
@@ -165,6 +178,13 @@ Das Erwartungsmodell muss diese Varianten getrennt halten. Ändern Sie keine Bas
 No-CRS-Erwartung, ein With-CRS-Ergebnis zu erfüllen.
 
 ## Deckungsentscheidungsmatrix
+
+Die folgenden Kriterien gelten für eine ausdrücklich beauftragte Promotion,
+nicht für automatische Standardauswahl oder Routineänderungen. Sie verlangen
+keine Wiederaufnahme geschlossener I12-Matrix-/Oracle-/Hostkampagnen. Ein
+Spezial-Opt-in <code>ON_DEMAND_TESTS=1</code> erteilt weder Privilegien noch
+Framework-/MRTS-Schreibrechte; historische Nachweise behalten ihre Revision.
+Geschwisterprofile qualifizieren einander nicht.
 
 Jeder konkrete Connector muss den kanonischen
 [Neuer-Connector-Vertrag](../../docs/connectors/README.de.md#evidence-vertrag-für-neue-connectoren)
@@ -196,20 +216,20 @@ Start-/Neuladevalidierung und verbleibende FAIL/BLOCKED-Zeilen.
 
 `runtime-smoke-verified`:
 
-- aktueller `make test-no-crs` PASS für den beanspruchten Connector/Oszilloskop
-- aktueller Connector Smoke PASS für den beanspruchten Connector/Zielfernrohr
+- aktueller PASS der exakten zugelassenen No-CRS-Fall-IDs für den beanspruchten Connector/das Profil
+- aktueller tatsächlicher Connector-Host-Smoke-PASS für denselben Connector/dasselbe Profil
 - Befehls- und Ergebnispfade dokumentiert
 
 `crs-verified`:
 
-- aktueller `make test-with-crs` PASS für den beanspruchten Connector/Oszilloskop
+- aktueller PASS der exakten zugelassenen CRS-Fall-IDs für den beanspruchten Connector/das Profil
 - CRS geladen/wirksame Beweise dokumentiert
 - CRS-spezifische Erwartungen dokumentiert
 
 `more-than-partial`:
 
-- Kein CRS-PASS
-- Mit CRS-PASS
+- No-CRS-PASS
+- With-CRS-PASS
 - Phase 1/2/3/4 Mindestmatrix PASS
 - Negativ/Pass-Through-PASS
 - Audit-/Protokollnachweise vorhanden

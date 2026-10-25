@@ -2,7 +2,13 @@
 
 **Sprache:** [English](pr-382-checklist.md) | Deutsch
 
-## Aktueller Review-/Go-Abgleich vom 2026-10-13
+## Historische Momentaufnahme
+
+Der aktuelle Stand zur Review- und Merge-Entscheidung steht im [Abschluss von PR #382](pr-382-merge-readiness.de.md). Am früheren Head `d510d21dba7eab3c9f0ccbe579fbc9c105eb3da1` war #410 bereits vollständig integriert und `verified_pr` belegt. Die neue globale Inventar-/Coverage-Migration wird ausschließlich im aktuellen Abschluss bewertet.
+
+Alle nachfolgenden Statusangaben, offenen Punkte und Handlungsanweisungen gehören zu den jeweils genannten historischen Revisionen. Sie sind als zukünftiger Arbeitsauftrag aufgehoben: kein erneuter I12-Lauf, kein nachträglicher PASS und kein `I12_COMPLETE`. Historische Ergebnisse und Nachweisgrenzen bleiben erhalten.
+
+## Historischer Review-/Go-Abgleich vom 2026-10-13
 
 Status: **BLOCKED_FOR_I12**. Die aktuelle Korrektur startet bei
 `4639f982a8125f4150394e4d4f2e8af4e690f494`. Der [konsolidierte Change Record](../reports/audits/change-records/CR-20261013-pr382-consolidated.de.md)
@@ -56,7 +62,7 @@ Referenzen: [Vertrag/Migration](pr-382-event-contract.de.md),
 PR #409 kombiniert den verifizierten I10-Head `caafe7ecec1a91669cbb82cea18b2b97309cde44` mit der neueren PR-#382-Basis `d94a7a38b90bc56b828d70f7df8794e12fd21e10` einschließlich I09-/I11-Abschluss und engine-eigenen Body-Limits. Die abgeschlossenen Checkboxen erhalten ihre getrennte frühere Implementierungsakzeptanz; sie behaupten keine neu ausgeführten Tests oder CI am kombinierten Head. Frische Integrations-/Deliveryprüfungen stehen separat im [Aktualisierungs-Change-Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261012-pr409-base-refresh.de.md); zum Dokumentationsabgleich sind sie noch ausstehend. I12/V08–V10-Live-Nachweise bleiben offen; R16/R17 werden nicht umgebunden.
 
 
-## Aktueller I11-Sink-Abgleich vom 2026-10-11
+## Historischer I11-Sink-Abgleich vom 2026-10-11
 
 Integrationsstand: Der veröffentlichte I11-Head `6a79efe7` und PR-#382-Basis `492663334d89428dce084792145ef94e91579788` (I09 / PR #408) sind in PR #406 kombiniert. Frische lokale Integrationsprüfungen und Konfliktentscheidungen stehen im [Integrations-Change-Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261011-pr406-i09-i11-conflict-resolution.de.md). Die folgenden I09-/I11-Belege gehören zu ihren getrennten früheren Revisionen; sie sind kein CI- oder Live-Host-Nachweis des aktuellen Heads. Delivery-Prüfungen des gepushten Heads werden getrennt in PR #406 verfolgt.
 
