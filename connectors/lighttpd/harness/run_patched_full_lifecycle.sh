@@ -652,8 +652,8 @@ BARRIER_PORT=$(ready_port "$FIRST_BYTE_DIR/upstream-ready.json") || \
     blocked "synchronized upstream ready record has no valid port"
 
 else
-    "$PYTHON_BIN" - "$CRS_UPSTREAM_READY" <<'PY' \
-        >"$SMOKE_DIR/crs-upstream.stdout" 2>"$SMOKE_DIR/crs-upstream.stderr" &
+    (
+        exec "$PYTHON_BIN" - "$CRS_UPSTREAM_READY" <<'PY'
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -691,6 +691,7 @@ finally:
         pass
 server.serve_forever()
 PY
+    ) >"$SMOKE_DIR/crs-upstream.stdout" 2>"$SMOKE_DIR/crs-upstream.stderr" &
     CRS_UPSTREAM_PID=$!
     CRS_UPSTREAM_PID_TOKEN=$(owned_child_start_token "$CRS_UPSTREAM_PID") || \
         blocked "CRS control upstream did not start as a verifiable owned process"

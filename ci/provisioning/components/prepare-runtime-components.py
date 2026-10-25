@@ -11291,7 +11291,37 @@ def write_runtime_component_reports(
     build_md.write_text(generated_markdown_text(runtime_build_cache_markdown(build_cache), build_metadata_payload), encoding="utf-8")
     postprocess = connector_root / "ci/evidence/reports/update-runtime-reports.py"
     if postprocess.is_file():
-        run([sys.executable, str(postprocess), "--connector-root", str(connector_root), "--output-root", str(context["output_root"])])
+        command = [sys.executable, str(postprocess), "--connector-root", str(connector_root),
+                   "--output-root", str(context["output_root"]), "--cache-root", str(cache_root)]
+        # Approvals come only from invocation configuration, never the manifest.
+        configured = context.get("env", {})
+        overrides = [configured.get(key) for key in (
+            "APACHE_HTTPD", "APACHE", "APXS", "APXS_BIN", "APACHE_MODULE",
+            "NGINX_BINARY", "NGINX_MODULE", "MRTS_NATIVE_NGINX_BIN",
+            "MRTS_NATIVE_NGINX_MODULE_FILE", "HAPROXY_BIN", "HAPROXY_SPOA_BIN",
+            "MODSECURITY_LIB_FILE", "GO_FTW_BIN", "ALBEDO_BIN",
+        )]
+        for key, leaf in (
+            ("MRTS_NATIVE_NGINX_MODULE_DIR", NGINX_MODULE_FILENAME),
+            ("MODSECURITY_LIB_DIR", MODSECURITY_LIBRARY_FILENAME),
+            ("APACHE_MRTS_MODSECURITY_LIB_DIR", MODSECURITY_LIBRARY_FILENAME),
+            ("NGINX_MRTS_MODSECURITY_LIB_DIR", MODSECURITY_LIBRARY_FILENAME),
+        ):
+            if configured.get(key):
+                overrides.append(str(Path(configured[key]) / leaf))
+        approved = set()
+        for value in overrides:
+            if not value:
+                continue
+            try:
+                candidate = Path(value).resolve(strict=True)
+            except OSError:
+                continue
+            if candidate.is_file():
+                approved.add(str(candidate))
+        for candidate in sorted(approved):
+            command.extend(("--approved-component-file", candidate))
+        run(command)
     return component_md
 
 

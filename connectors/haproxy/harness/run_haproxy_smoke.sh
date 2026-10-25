@@ -1114,9 +1114,8 @@ start_backend() {
     if [ -n "$RUNTIME_SETSID_BIN" ]; then
         set -- "$RUNTIME_SETSID_BIN" "$@"
     fi
-    "$@" \
-        >"$LOG_DIR/backend.stdout.log" \
-        2>"$LOG_DIR/backend.stderr.log" <<'PY' &
+    (
+        exec "$@" <<'PY'
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
@@ -1166,6 +1165,7 @@ class Handler(BaseHTTPRequestHandler):
 
 ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 PY
+    ) >"$LOG_DIR/backend.stdout.log" 2>"$LOG_DIR/backend.stderr.log" &
     BACKEND_PID=$!
     wait_tcp_port "$BACKEND_PORT" || fail "backend failed to start on 127.0.0.1:$BACKEND_PORT"
 }

@@ -639,7 +639,8 @@ PY
 }
 
 start_catalog_upstream() {
-    "$PYTHON_BIN" - "$1" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" "${4:-0}" "${5:-}" "${6:-}" "$RUNTIME_ROOT" <<'PY' >"$2" 2>"$3" &
+    (
+        exec "$PYTHON_BIN" - "$1" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" "${4:-0}" "${5:-}" "${6:-}" "$RUNTIME_ROOT" <<'PY'
 import http.server, json, os, pathlib, ssl, stat, sys
 import time
 
@@ -733,6 +734,7 @@ context.load_cert_chain(certificate, private_key)
 server.socket = context.wrap_socket(server.socket, server_side=True)
 server.serve_forever()
 PY
+    ) >"$2" 2>"$3" &
     upstream_pid=$!
     upstream_start_token=$(start_token "$upstream_pid") || fail "catalog upstream ownership unavailable"
 }

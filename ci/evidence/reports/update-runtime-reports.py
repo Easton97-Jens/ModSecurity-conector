@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -24,7 +23,34 @@ from generated_report_utils import (
     report_path_from_root,
     report_relpath,
 )
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, safe_existing_file, safe_path, write_json_file, write_text_file
+from evidence_inputs import EvidenceInputs
+from report_path_safety import add_safe_roots, write_json_file, write_text_file
+
+
+INPUTS = EvidenceInputs(())
+
+
+def read_text_file(path: Any) -> str:
+    try:
+        return INPUTS.read_text(path)
+    except (OSError, ValueError):
+        return ""
+
+
+def safe_path(path: Any, *, must_exist: bool) -> Path | None:
+    if path is None:
+        return None
+    try:
+        candidate = INPUTS.path(path)
+    except (ValueError, TypeError):
+        return None
+    if must_exist and not INPUTS.is_file(candidate):
+        return None
+    return candidate
+
+
+def safe_existing_file(path: Any) -> Path | None:
+    return safe_path(path, must_exist=True)
 
 
 COMPONENT_KEYS = ("modsecurity", "apache_httpd", "nginx", "haproxy", "go_ftw", "albedo", "expat")
@@ -85,19 +111,11 @@ NATIVE_REPORT_FILES = [
 
 
 def read_json(path: Any) -> dict[str, Any]:
-    return read_json_file(path)
+    return INPUTS.json(path)
 
 
 def write_json(path: Any, data: dict[str, Any]) -> None:
     write_json_file(path, data)
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def runtime_contract_display(value: Any) -> str:
@@ -134,20 +152,26 @@ def local_cache_root(explicit: str | None = None) -> Path:
     return (cache_root / "shared").resolve()
 
 
-def file_proof(name: str, path_value: Any) -> dict[str, Any]:
+def file_proof(name: str, path_value: Any, *, inputs: EvidenceInputs | None = None) -> dict[str, Any]:
     path_text = str(path_value or "")
+    missing = {"name": name, "path": path_text or "-", "status": "missing", "sha256": "-", "size": 0}
     if not path_text:
-        return {"name": name, "path": "-", "status": "missing", "sha256": "-", "size": 0}
-    path = Path(path_text)
-    if not path.is_file():
-        return {"name": name, "path": path_text, "status": "missing", "sha256": "-", "size": 0}
-    return {
-        "name": name,
-        "path": path_text,
-        "status": "present",
-        "sha256": sha256_file(path),
-        "size": path.stat().st_size,
-    }
+        return missing
+    approved = inputs if inputs is not None else EvidenceInputs((local_cache_root(),))
+    try:
+        candidate = approved.path(path_text)
+        if candidate not in approved.files and not approved.is_dir(candidate.parent):
+            raise ValueError("component artifact parent is outside the no-follow input boundary")
+        # Installed libraries use final SONAME aliases. The alias cannot grant
+        # authority: its physical target must independently be approved, and
+        # the actual read still uses no-follow descriptors for every component.
+        target = candidate.resolve(strict=True) if candidate.is_symlink() else candidate
+        digest, size = approved.file_proof(approved.path(target))
+    except ValueError:
+        return missing | {"status": "rejected"}
+    except OSError:
+        return missing
+    return missing | {"status": "present", "sha256": digest, "size": size}
 
 
 def component_status_rows(components: dict[str, Any]) -> list[dict[str, Any]]:
@@ -167,7 +191,7 @@ def component_status_rows(components: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def important_cache_files(component_manifest: dict[str, Any], build_cache: dict[str, Any]) -> list[dict[str, Any]]:
+def important_cache_files(component_manifest: dict[str, Any], build_cache: dict[str, Any], *, inputs: EvidenceInputs | None = None) -> list[dict[str, Any]]:
     modsecurity = component_manifest.get("modsecurity") if isinstance(component_manifest.get("modsecurity"), dict) else {}
     apache = component_manifest.get("apache_httpd") if isinstance(component_manifest.get("apache_httpd"), dict) else {}
     nginx = component_manifest.get("nginx") if isinstance(component_manifest.get("nginx"), dict) else {}
@@ -176,32 +200,36 @@ def important_cache_files(component_manifest: dict[str, Any], build_cache: dict[
     albedo = component_manifest.get("albedo") if isinstance(component_manifest.get("albedo"), dict) else {}
     expat = component_manifest.get("expat") if isinstance(component_manifest.get("expat"), dict) else {}
     nginx_contract = nginx_runtime_contract(nginx)
+    def proof(name: str, value: Any) -> dict[str, Any]:
+        return file_proof(name, value, inputs=inputs)
+
     files = [
-        file_proof("libmodsecurity", modsecurity.get("lib_file")),
-        file_proof("apache_httpd", apache.get("httpd_bin")),
-        file_proof("apache_apxs", apache.get("apxs_bin")),
-        file_proof("apache_mod_security3", apache.get("module_file")),
-        file_proof("nginx", nginx_contract.get("binary_path") or nginx.get("nginx_bin") or nginx.get("local_nginx_bin")),
-        file_proof("nginx_modsecurity_module", nginx.get("module_file") or nginx.get("local_module_file")),
-        file_proof("haproxy", haproxy.get("haproxy_bin")),
-        file_proof("haproxy_spoa", haproxy.get("spoa_runtime_bin")),
-        file_proof("go-ftw", go_ftw.get("binary") or go_ftw.get("path")),
-        file_proof("albedo", albedo.get("binary") or albedo.get("path")),
-        file_proof("expat_header", expat.get("include") or expat.get("expat_h")),
+        proof("libmodsecurity", modsecurity.get("lib_file")),
+        proof("apache_httpd", apache.get("httpd_bin")),
+        proof("apache_apxs", apache.get("apxs_bin")),
+        proof("apache_mod_security3", apache.get("module_file")),
+        proof("nginx", nginx_contract.get("binary_path") or nginx.get("nginx_bin") or nginx.get("local_nginx_bin")),
+        proof("nginx_modsecurity_module", nginx.get("module_file") or nginx.get("local_module_file")),
+        proof("haproxy", haproxy.get("haproxy_bin")),
+        proof("haproxy_spoa", haproxy.get("spoa_runtime_bin")),
+        proof("go-ftw", go_ftw.get("binary") or go_ftw.get("path")),
+        proof("albedo", albedo.get("binary") or albedo.get("path")),
+        proof("expat_header", expat.get("include") or expat.get("expat_h")),
     ]
     shared = build_cache.get("shared_modsecurity_build") if isinstance(build_cache.get("shared_modsecurity_build"), dict) else {}
     if shared.get("lib_file"):
-        files.append(file_proof("shared_build_libmodsecurity", shared.get("lib_file")))
+        files.append(proof("shared_build_libmodsecurity", shared.get("lib_file")))
     return files
 
 
-def runtime_cache_index_payload(cache_root: Path, component_manifest: dict[str, Any], build_cache: dict[str, Any]) -> dict[str, Any]:
+def runtime_cache_index_payload(cache_root: Path, component_manifest: dict[str, Any], build_cache: dict[str, Any], *, approved_files: tuple[Path, ...] = ()) -> dict[str, Any]:
     manifest_path = cache_root / "manifest.json"
     build_cache_path = cache_root / "runtime-build-cache.json"
     git_components_path = cache_root / "git-components.json"
     runtime_env_path = cache_root / "runtime-env.sh"
+    inputs = EvidenceInputs((cache_root,), files=approved_files)
     component_status = component_status_rows(component_manifest)
-    important_files = important_cache_files(component_manifest, build_cache)
+    important_files = important_cache_files(component_manifest, build_cache, inputs=inputs)
     nginx = component_manifest.get("nginx") if isinstance(component_manifest.get("nginx"), dict) else {}
     return {
         "report_kind": "runtime-cache-index",
@@ -213,10 +241,10 @@ def runtime_cache_index_payload(cache_root: Path, component_manifest: dict[str, 
         "build_root": component_manifest.get("build_root") or "-",
         "local_artifact_policy": "Local cache directories and binaries are not committed; this generated index records provenance only.",
         "manifests": [
-            file_proof("component-cache manifest", manifest_path),
-            file_proof("runtime build-cache manifest", build_cache_path),
-            file_proof("git components manifest", git_components_path),
-            file_proof("runtime env", runtime_env_path),
+            file_proof("component-cache manifest", manifest_path, inputs=inputs),
+            file_proof("runtime build-cache manifest", build_cache_path, inputs=inputs),
+            file_proof("git components manifest", git_components_path, inputs=inputs),
+            file_proof("runtime env", runtime_env_path, inputs=inputs),
         ],
         "components": component_status,
         "nginx_runtime_contract": nginx_runtime_contract(nginx),
@@ -277,15 +305,17 @@ def runtime_cache_index_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def write_cache_reports_from_local_cache(connector_root: Path, report_dir: Path, cache_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+def write_cache_reports_from_local_cache(connector_root: Path, report_dir: Path, cache_root: Path, *, approved_files: tuple[Path, ...] = ()) -> tuple[dict[str, Any], dict[str, Any]]:
+    global INPUTS
+    INPUTS = EvidenceInputs((connector_root, report_dir, cache_root), files=approved_files)
     manifest_path = cache_root / "manifest.json"
     build_cache_path = cache_root / "runtime-build-cache.json"
     component_manifest = read_json(manifest_path)
     build_cache = read_json(build_cache_path)
     if not component_manifest or not build_cache:
         return component_manifest, build_cache
-    framework_root = Path(str(component_manifest.get("framework_root") or connector_root / "modules/ModSecurity-test-Framework"))
-    component_metadata = build_metadata(
+    framework_root = connector_root / "modules/ModSecurity-test-Framework"
+    component_metadata = INPUTS.build_metadata(build_metadata,
         generated_by="ci/provisioning/components/prepare-runtime-components.py",
         make_target="prepare-runtime-components",
         connector_root=connector_root,
@@ -294,7 +324,7 @@ def write_cache_reports_from_local_cache(connector_root: Path, report_dir: Path,
         generated_at=str(component_manifest.get("generated_at") or ""),
         report_key="runtime_component_cache",
     )
-    build_metadata_payload = build_metadata(
+    build_metadata_payload = INPUTS.build_metadata(build_metadata,
         generated_by="ci/provisioning/components/prepare-runtime-components.py",
         make_target="prepare-runtime-components",
         connector_root=connector_root,
@@ -303,8 +333,8 @@ def write_cache_reports_from_local_cache(connector_root: Path, report_dir: Path,
         generated_at=str(build_cache.get("generated_at") or component_manifest.get("generated_at") or ""),
         report_key="runtime_build_cache",
     )
-    index_payload = runtime_cache_index_payload(cache_root, component_manifest, build_cache)
-    index_metadata = build_metadata(
+    index_payload = runtime_cache_index_payload(cache_root, component_manifest, build_cache, approved_files=approved_files)
+    index_metadata = INPUTS.build_metadata(build_metadata,
         generated_by="ci/evidence/reports/update-runtime-reports.py",
         make_target="prepare-runtime-components",
         connector_root=connector_root,
@@ -574,7 +604,7 @@ def common_100003_conclusion(case_lines: list[str], error_text: str) -> dict[str
 
 def single_case_rerun(build_root: Path | None, target: str) -> dict[str, Any]:
     log_path = safe_runtime_child(build_root, "single-case", f"{target}-single.log")
-    if log_path is None or not log_path.is_file():
+    if log_path is None or not INPUTS.is_file(log_path):
         return {}
     text = read_text_if_file(log_path)
     return {
@@ -594,7 +624,7 @@ def collect_run_counts(run_text: str) -> dict[str, Any]:
 
 
 def audit_evidence_status(audit_log: Path | None, audit_text: str) -> str:
-    if audit_log is not None and audit_log.is_file() and not audit_text.strip():
+    if audit_log is not None and INPUTS.is_file(audit_log) and not audit_text.strip():
         return "empty"
     if audit_text:
         return "present"
@@ -1134,7 +1164,7 @@ def single_rerun_markdown(single_rerun: object) -> str:
 
 
 def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict[str, Any], build_cache: dict[str, Any]) -> None:
-    if not path.is_file():
+    if not INPUTS.is_file(path):
         return
     data = read_json(path)
     if not data:
@@ -1204,7 +1234,7 @@ def update_runtime_component_json(
 
 
 def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[str, Any], build_cache: dict[str, Any]) -> None:
-    if not path.is_file():
+    if not INPUTS.is_file(path):
         return
     text = read_text_file(path)
     if path.name == "mrts-native-full.generated.md":
@@ -1238,6 +1268,8 @@ def main() -> int:
     parser.add_argument("--connector-root", required=True)
     parser.add_argument("--cache-root", default=None)
     parser.add_argument("--output-root", default=None)
+    parser.add_argument("--approved-component-file", action="append", type=Path, default=[],
+                        help="explicit operator-approved installed component file outside the managed cache")
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
@@ -1247,8 +1279,8 @@ def main() -> int:
     report_dir.mkdir(parents=True, exist_ok=True)
     add_safe_roots(connector_root, report_dir)
     add_safe_roots(cache_root)
-    add_report_roots(report_dir)
-    write_cache_reports_from_local_cache(connector_root, report_dir, cache_root)
+    write_cache_reports_from_local_cache(connector_root, report_dir, cache_root,
+                                        approved_files=tuple(args.approved_component_file))
     components = component_inventory(report_dir)
     build_cache = build_cache_inventory(report_dir)
     diagnostics = collect_runtime_diagnostics(components)

@@ -40,6 +40,8 @@ from runtime_path_utils import (
     ensure_safe_runtime_directory,
     ensure_safe_writable_runtime_paths,
     is_under_root_home,
+    read_runtime_artifact_text,
+    runtime_artifact_path,
     runtime_path_rows,
     verified_runtime_paths,
     write_runtime_artifact_text_atomic,
@@ -135,12 +137,23 @@ def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Pa
     return canonical_connector, canonical_framework
 
 
-def count_jsonl_rows(path: Path) -> int:
+def count_jsonl_rows(path: Path, root: Path) -> int:
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
+        lines = read_runtime_artifact_text(root, path, "matrix results", errors="replace").splitlines()
+    except (OSError, ValueError):
         return 0
     return sum(1 for line in lines if line.strip())
+
+
+def private_job_json(root: Path, path: Path, label: str) -> dict[str, Any]:
+    target = runtime_artifact_path(root, path, label)
+    if not target.is_file():
+        return {}
+    try:
+        data = json.loads(read_runtime_artifact_text(root, target, label))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def full_matrix_job_tokens(logical_target: str) -> tuple[str, str, str] | None:
@@ -164,15 +177,15 @@ def full_matrix_job_artifacts(env: dict[str, str], logical_target: str) -> dict[
     matrix_root = Path(env.get("MATRIX_ROOT", ""))
     root = matrix_root / crs / mrts / connector
     job_path = root / "job.json"
-    job = read_json(job_path)
+    job = private_job_json(root, job_path, "matrix job")
     summary_path = Path(str(job.get("summary_path") or ""))
     if not summary_path.is_absolute():
         summary_path = root / "results" / "force-all" / f"{connector}-summary.json"
     results_jsonl = root / "results" / "force-all" / f"{connector}-results.jsonl"
-    summary = read_json(summary_path)
+    summary = private_job_json(root, summary_path, "matrix summary")
     connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
     cases = connector_summary.get("cases") if isinstance(connector_summary.get("cases"), dict) else {}
-    result_rows = count_jsonl_rows(results_jsonl)
+    result_rows = count_jsonl_rows(results_jsonl, root)
     status = str(job.get("status") or "")
     complete = (
         bool(job.get("ended_at"))
@@ -929,14 +942,22 @@ def full_matrix_job_state(record: dict[str, Any], env: dict[str, str]) -> dict[s
     return incomplete_full_matrix_job_state(record)
 
 
-def refresh_state(record: dict[str, Any]) -> dict[str, Any]:
+def refresh_state(record: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
     if record.get("classification") == "blocked_timeout":
         status = "refresh_timeout"
     elif record.get("return_code") == 0:
         status = "refresh_completed"
     else:
-        log_path = Path(str(record.get("log_path") or ""))
-        log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.is_file() else ""
+        log_text = ""
+        log_root = env.get("VERIFIED_RUN_LOG_ROOT")
+        if log_root:
+            try:
+                log_text = read_runtime_artifact_text(
+                    Path(log_root), Path(str(record.get("log_path") or "")),
+                    "report refresh log", errors="replace",
+                )
+            except (OSError, ValueError):
+                pass
         if (
             "SKIPPED_STALE_INPUT" in log_text
             or "required generated input is stale" in log_text
@@ -1001,7 +1022,7 @@ def apply_command_semantics(
         record.update(full_matrix_job_state(record, env))
         record["overall_status"] = record.get("overall_job_status") or record["runtime_status"]
     elif target in {"refresh-all-reports", "generate-system-environment-proof"}:
-        record.update(refresh_state(record))
+        record.update(refresh_state(record, env))
     elif target == "check-generated-report-layout":
         if record.get("return_code") == 0:
             record["overall_status"] = "checks_completed"

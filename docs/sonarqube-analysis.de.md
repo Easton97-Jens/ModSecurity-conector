@@ -22,7 +22,7 @@ Diese vier ähnlich benannten Mechanismen unterscheiden sich:
 
 Der Workflow pinnt die offizielle Scan-Action auf
 `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` (`v8.3.0`) und wählt explizit
-SonarScanner CLI `8.1.0.6389`. Die Scanner-Signaturprüfung bleibt aktiviert.
+SonarScanner CLI `8.2.0.6438`. Die Scanner-Signaturprüfung bleibt aktiviert.
 Die Scanner-Konfiguration ist manuell; CFamily AutoConfig bleibt unabhängig von
 `sonar.scanner.autoconfig.enabled`.
 
@@ -83,37 +83,49 @@ anfänglichen Scope mit bestätigter Analyse gleichzusetzen. CI-Kommandozeilenwe
 
 ## CFamily-Buildtreue
 
-Die vorhandenen Targets `make compile-db-nginx-c17` und `make compile-db-cpp17`
-erfassen NGINX/Common beziehungsweise den gezielten Evaluator. Sie liefern keine
-vollständige Compilation Database aller sechs Familien oder sämtlicher
-C-Test-/Fixture-Translation-Units. Eine solche unvollständige Datenbank würde
-die Analyse still auf ihre Schnittmenge mit dem Source-Scope verengen.
-AutoConfig erhält deshalb den breiteren Parent-Translation-Unit-Scope, ohne
-Compilerbefehle zu erfinden oder allein für den Scan Host-Toolchains
-hinzuzufügen. Siehe die [Buildanleitung](build/README.de.md).
+Der getrackte Parent-Bestand bei `9f44647593bac7947113558c6ad183ab118e80af`
+enthält 136 native Translation Units: 135 C und eine C++. Dazu gehören native
+Tests, Fixtures, Fuzz-Code und CI-Probes. Die bestehenden Targets
+`make compile-db-nginx-c17` und `make compile-db-cpp17` erfassen nur die
+NGINX-/Common-Deklaration und den gezielten Evaluator. Diese unvollständigen
+Datenbanken würden andere Parent-Units aus der CFamily-Analyse entfernen.
+AutoConfig und die Datenbankbeschränkung des Scope-Guards bleiben deshalb bis
+zum Nachweis eines echten vollständigen Parent-Buildvertrags bestehen.
 
-Aktuelle Buildverträge verwenden überwiegend C17; der gezielte Evaluator
-verwendet C++17 und das ältere `connectors/traefik/build/build-starter.sh` C99.
-Host-Includes, generierte Header, Feature-Defines, cgo-Flags und optionale
-C23-/Future-C-Profile unterscheiden sich je Build. AutoConfig leitet Optionen
-ab und beweist keine Übereinstimmung seiner Konfiguration mit jedem Host/Profil.
-Der C++-Berichtsstandard ist auf C++17 gepinnt; das steuert die Anwendbarkeit
-von Regeln und beweist keinen erfolgreichen C++-Build. Keine exakte
-C17-Kompilierungstreue behaupten oder einen gemeinsamen Satz inkompatibler
-Host-Makros vorgeben. AutoConfig-Qualitätswarnungen und den Anteil verstandenen
-Codes prüfen.
+| Komponente | Realer Buildkontext, den eine vollständige Datenbank erhalten muss |
+| --- | --- |
+| Common | `ci/checks/common/check-common-helpers.sh` kompiliert alle 58 `common/src/*.c` und führt Helper-, Konstruktor- und Interventionstests aus. |
+| NGINX | `make check-nginx-c17` benötigt konfigurierte Host-Header einschließlich `objs/ngx_auto_config.h`, ModSecurity-Header sowie Connector-/Common-Include-Pfade. |
+| Apache | `make check-apache-c17` bezieht reale Optionen aus `apxs` und der APR-Konfiguration und kompiliert die fünf Connector-Sources sowie den deklarierten Common-Teil. |
+| HAProxy | Die C17-Source-Prüfung erfasst den HTX-Filter nicht. `connectors/haproxy/htx-overlay/build-overlay.sh` baut ihn in einem echten Host-Baum mit Host-Defines und ModSecurity. |
+| Envoy | Connector-/Composite-Service-Builds verwenden C17, pthread und ModSecurity; `ext_proc` verwendet den CGo-Build-Tag `libmodsecurity` und seine Common-Runtime-Bridge. |
+| Traefik | Engine-Service-Builds verwenden C17, pthread und ModSecurity mit dem C++-Linker. Der Starter behält seinen eigenen C99-Vertrag. |
+| lighttpd | Modul-Builds benötigen die generierte `config.h`, `HAVE_CONFIG_H`, Host-API-Defines und gepinnte Host-Header. Stock-Sidecar und gepatchter nativer Kontext bleiben getrennt. |
 
-Header werden nur über einbindende Quelldateien analysiert. Mehrere unabhängige
-Connector-Binaries werden als ein Projekt dargestellt: CFamily nimmt für
-projektweite Analyse ein gelinktes Ziel an. Full-project-Regeln, Taint-Analyse
-und Cross-Translation-Unit-Analyse können dadurch Präzision verlieren. Die
-beobachtete AutoConfig-Implementierung deaktiviert C/C++-Taint-Analyse und nennt
-eine Liste nicht verfügbarer Regeln; dieser Scan liefert keine C/C++-Taint-Abdeckung. Keine
-Connector-Teilscans überschreiben das vermeintliche Gesamtergebnis desselben
-Projekts. Ein künftiger Datenbankwechsel muss die echten Befehle erfassen, alle
-beabsichtigten Translation Units mit den Einträgen vergleichen, erforderliche
-Includes/generierte Dateien erhalten und unterstützte Varianten sowie fehlende
-Units vor dem Moduswechsel dokumentieren.
+Der bestehende HTX-Build kopiert Parent-Sources in einen externen Host-Worktree.
+Eine naive Erfassung zeichnet diese kopierten Pfade auf, die nicht den
+Parent-Source-Pfaden entsprechen. Eine Zuordnung muss identischen Source-Inhalt
+bei Erhalt der tatsächlichen Compilerargumente und Header nachweisen;
+erfundene Compilerzeilen sind nicht zulässig.
+
+CI installiert nun die bestehenden Apache-/APR-/ModSecurity-Header-Voraussetzungen
+und kompiliert eine C17-Header-Probe. Die unterstützten Einstellungen
+`sonar.cfamily.customCIncludes` und `sonar.cfamily.customCppIncludes` stellen
+AutoConfig `/usr/include`, `/usr/include/apache2` und `/usr/include/apr-1.0`
+bereit. Während der Remediation-Entwicklung bestand außerdem eine echte lokale
+Apache-C17-Source-Kompilierung. Diese Prüfungen belegen installierten
+Header-/Buildkontext, keine aufgelösten Sonar-Includes oder gehostete Laufzeit.
+Die generierten NGINX-, HAProxy- und lighttpd-Hostkontexte bleiben in diesem
+Scan unvollständig; Verbesserungen erst anhand neuer Parsing-/Include-Diagnosen
+behaupten.
+
+Header werden über einbindende Translation Units analysiert. CFamily nimmt für
+projektweite Betrachtungen ein gemeinsam gelinktes Target an, während dieser
+Parent unabhängige Connector-Executables enthält. AutoConfig unterstützt zudem
+keine C/C++-Taintanalyse. Ein höherer Qualitätswert oder der C++-Reporting-Standard
+beweisen deren Ausführung nicht. Eine spätere Datenbankstrategie muss jede
+vorgesehene Unit und den benötigten Host-/Profilkontext erhalten und die
+unabhängigen Targets berücksichtigen; siehe [Buildanleitung](build/README.de.md).
 
 ## Repositoryweite C++-Standard-Scans
 
@@ -154,57 +166,113 @@ Jobs sind entfernt.
 
 ## CI, Tests und Coverage
 
-Der Workflow checkt die analysierte Revision mit vollständiger Git-Historie aus.
-Er verwendet den vorhandenen Secret-Namen `SONAR_TOKEN`; die Bestandsaufnahme
-bestätigte die Existenz des Secrets, nicht seinen Wert, seine Gültigkeit oder
-Analyseberechtigungen. Das Token ausschließlich in der Umgebung des
-Scanner-Schritts halten. Fork-Pull-Requests erhalten keine Repository-Secrets;
-der privilegierte Scan wird für sie übersprungen, statt nicht vertrauenswürdigen
-Code über `pull_request_target` auszuführen.
+Der Workflow checkt `${{ github.event.pull_request.head.sha || github.sha }}`
+mit vollständiger Historie aus und verwendet diese Revision für
+`sonar.scm.revision`. Das bestehende `SONAR_TOKEN` steht nur dem Scanner-Schritt
+zur Verfügung. Fork-PRs erhalten es nicht; es wird keine privilegierte
+`pull_request_target`-Ausführung eingeführt.
 
-Testklassifikation, Testausführung, Testausführungsbericht-Import und
-Coverageimport sind getrennte Vorgänge. Ein Wert für `sonar.tests` führt keine
-Tests aus. Nur für die ausgecheckte Revision erzeugte Berichte dürfen importiert
-werden. Coverageberichte müssen existieren, ein unterstütztes Format verwenden
-und Dateien unter dieser Projektbasis referenzieren; niemals leere Ersatzberichte
-erzeugen. Native C/C++-Coverage wird nicht bereitgestellt. Python-Coverage wird für den
-Konfigurationschecker durch Ausführung seiner echten CLI und acht gezielter
-Unit-Testmethoden gemessen; das beansprucht keine Ausführung aller Parent-Python-Tests. Bestehende Laufzeittests bleiben getrennte Evidence
-und werden durch ein statisches Analyseergebnis nicht impliziert.
+Testklassifikation, Testausführung, Coverage-Erzeugung und Analyzer-Import
+bleiben getrennte Vorgänge. `ci/checks/analysis/run-sonar-coverage.py` erzeugt
+echte Reports in frischen Sprachverzeichnissen unter einer externen
+`--output-root`. Das Werkzeug erfasst den SHA, prüft die Stabilität des Checkouts
+und verlangt für CI einen sauberen Checkout. `--allow-dirty` dient nur der
+lokalen Entwicklung und kennzeichnet Reports mit nicht committeten Änderungen.
+Leere Ersatzreports oder Coverage-Ausschlüsse verdecken keine
+Produktivcode-Lücken. Eine kurze externe `--temp-root` vermeidet
+Unix-Socket-Pfadgrenzen in Tests.
 
-Python-Coverage verwendet `coverage==7.17.0` (Apache-2.0, Python >=3.11, keine
-Laufzeitabhängigkeiten), in `ci/requirements/sonar-coverage.txt` auf den offiziellen
-PyPI-Universal-Wheel-SHA-256 gepinnt. CI erzeugt eine getrennte Umgebung unter
-`$RUNNER_TEMP/sonar-python`, installiert ausschließlich Binärpakete mit
-verpflichtenden Hashes und verwendet `ci/sonar-coverage.ini` für Branch-Coverage
-und relative Pfade. CLI-Check und Unit-Tests erzeugen echte parallele Datendateien,
-die zu `$RUNNER_TEMP/sonar-coverage/python.xml` kombiniert und über
-`sonar.python.coverage.reportPaths` importiert werden. Das gezielte
-Source-Verzeichnis ist `ci/checks/analysis`; seine beiden nicht ausgeführten
-vorhandenen Skripte bleiben bei gemessener Null. Keine Coverage-Ausschlüsse oder
-leeren Ersatzreports werden verwendet.
+Python verwendet die bestehende Hash-gepinnte Dependency `coverage==7.17.0` in
+einer isolierten Umgebung unter `$RUNNER_TEMP/sonar-python`.
+`ci/sonar-coverage.ini` misst produktiven Parent-Python-Code im gesamten
+Repository einschließlich Namespace-Verzeichnissen und Subprozessen mit
+relativen Dateipfaden. Die Auslassungen folgen den Grenzen eigenständiger
+Repositories, Tests und generierter Ausgaben. Explizite Scope-, Provenienz-,
+Artefakt- und Report-Sicherheitstests wählen aussagekräftiges Verhalten aus;
+der Bestand `PYTHON_TESTS` im Helper ist für diese Prüfung maßgeblich. Die
+XML-Validierung verlangt tatsächliche Ausführung und auflösbare
+Repository-Dateien und normalisiert die Source-Wurzel auf `.`, ohne Zähler zu
+verändern.
 
-CI führt vier vorhandene Einzelszenario-Go-Tests aus, einen je Modul, nachdem
-sie die Existenz jedes exakten Testnamens geprüft hat. Native
-`go test -coverprofile`-Reports werden unter `$RUNNER_TEMP/sonar-coverage`
-geschrieben, innerhalb ihrer Module mit `go tool cover` validiert und über
-`sonar.go.coverage.reportPaths` mit ihren vier echten Pfaden importiert.
-Das ist bewusst geringe Paket-Coverage:
+Go verwendet 37 benannte Lifecycle-/Sicherheitsszenarien aus dem Helper-Bestand
+`GO_TESTS`. Jedes Modul führt `-mod=readonly -coverpkg=./... ./...` aus und erhält
+nicht ausgeführte Pakete des Standard-Builds in der Messung. `go tool cover`
+validiert jeden Report. Fehlende ausgewählte Testnamen führen sichtbar zum
+Fehler.
 
-| Modul | Paket / ausgewählter Test | Report |
-| --- | --- | --- |
-| `connectors/envoy/ext_proc` | `./internal/responseobserver` / `TestClientFramesBoundedOrderedOperations` | `envoy.out` |
-| `connectors/traefik/native_middleware` | `.` / `TestMiddlewareForwardsRequestAuthorityAsHostHeader` | `traefik-native.out` |
-| `connectors/traefik/composite_middleware` | `.` / `TestStripInternalHeadersRemovesTrailerForms` | `traefik-composite.out` |
-| `connectors/traefik/response_observer` | `.` / `TestResponseHeaderEncodingUsesLengthThenBytesOrder` | `traefik-observer.out` |
+| Modul | Report unter `$RUNNER_TEMP/sonar-coverage/go` |
+| --- | --- |
+| `connectors/envoy/ext_proc` | `envoy.out` |
+| `connectors/traefik/native_middleware` | `traefik-native.out` |
+| `connectors/traefik/composite_middleware` | `traefik-composite.out` |
+| `connectors/traefik/response_observer` | `traefik-observer.out` |
 
-Diese vier Fälle prüfen nicht alle Modulpakete, Envoys mit `libmodsecurity`
-getaggte CGo-Integration, alternative Plattformen oder jede Connector-Laufzeit.
-Es werden keine Testausführungsberichte importiert. Gemessene Null- oder geringe
-Coverage bleibt sichtbar; keine Coverage-Exklusion oder Quality-Gate-Schwelle
-wird gelockert.
+Native Coverage stammt aus den bestehenden Common-Helper-, Konstruktor- und
+Interventionstests, kompiliert mit
+`-std=c17 -Wall -Wextra -Werror --coverage -O0`. Tatsächliche
+`.gcda`-Ausführungszähler sind erforderlich. Das passende GCC-`gcov` erzeugt
+individuelle Reports pro instrumentiertem Objekt, damit getrennt kompilierte
+Binärdateien ihre Messungen nicht überschreiben. Alle 58 Common-C-Source-Dateien
+müssen vertreten sein; Connector-Host-Runtime-Coverage wird nicht daraus
+abgeleitet.
+
+Auch die Go- und nativen Producer-Prozesse laufen unter Python-Coverage.
+`--language finalize-python` gleicht alle drei Sprachmanifeste mit demselben
+SHA ab, kombiniert Subprozessdaten mit `--append` und erzeugt sowie validiert
+das Python-XML erneut. Der Scanner importiert `python/python.xml`, die vier
+Go-Reports und `native/gcov` über `sonar.python.coverage.reportPaths`,
+`sonar.go.coverage.reportPaths` beziehungsweise `sonar.cfamily.gcov.reportsPath`.
+Erst frisches Scanner-Readback belegt den erfolgreichen Import.
+
+Entwicklungsläufe meldeten 185 produktive Python-Dateien einschließlich ehrlicher
+Nullwerte sowie 71 gcov-Reports über 62 Repository-Dateien einschließlich aller
+58 Common-C-Dateien. Die ausgewählten Go-Tests bestanden mit Modul-Coverage von
+27,5 %, 65,3 %, 69,0 % und 61,6 % in Tabellenreihenfolge. Wiederholte
+Go-Blockzeilen verschiedener Testbinärdateien müssen zusammengeführt statt
+addiert werden. Diese Beobachtungen verwendeten lokal Python `3.14.4` und Go
+`1.27.3`; CI bleibt auf Python `3.14.7` und Go `1.27.1` gepinnt. Das sind
+Entwicklungsnachweise, kein Import- oder Gate-Nachweis des finalen Commits.
+
+Die Auswahl führt nicht jeden Parent-Test, jede Plattform,
+Go-Integration mit dem Tag `libmodsecurity` oder jede Connector-Runtime aus.
+Sie belegt nicht, dass das repositoryweite Ziel einer kompakten Standardsuite
+bereits technisch erzwungen wird. Es werden keine Testausführungsreports
+importiert; die Coverage-Schwellen bleiben unverändert.
+
+## Sicherheit von Evidence-Eingaben
+
+Die Basisabfrage lieferte 46 offene Vulnerability-Findings. Die Triage fand für
+14 konkrete Kontrollen oder beabsichtigte Operatorberechtigung; die übrigen 32
+verfolgen Pfade aus Dateiinhalten, die auf Aufruferseite validiert werden müssen.
+Ein Rating allein beweist keine Sicherheitslücke. Kein Finding wurde allein für
+ein anderes Gate akzeptiert, unterdrückt oder als False Positive umgestellt.
+
+Bestätigte Lücken umfassten JSON-ausgewählte private Job-Summaries, gespeicherte
+Refresh-Logs, NGINX-Report-Auszüge und manifestgewählte Cache-Hashes. Evidence
+darf sich nicht selbst Zugriff auf einen anderen Hostpfad erteilen. Consumer
+binden Lesezugriffe an die vertrauenswürdig konfigurierte Aufrufwurzel und
+verwenden Deskriptoren regulärer Dateien ohne Linkverfolgung. Kanonische
+schreibgeschützte Source-Fixtures und explizit konfigurierte externe
+Runtime-/Cache-Pfade bleiben getrennte zulässige Eingaben. `build_root` oder
+`log_root` aus Reports dürfen die Allowlist nicht erweitern. Die konkret
+geänderten Consumer, Regressionsnachweise und verbleibenden Grenzen stehen im
+[Change Record](../reports/audits/change-records/CR-20261025-sonar-setup-remediation.de.md).
+Für den scannerseitigen Abschluss ist frisches Sonar-Finding-/Rating-Readback
+weiterhin erforderlich.
+
+Cache-Nachweise akzeptieren einen finalen SONAME-Alias nur, wenn dessen physisches Ziel unabhängig im konfigurierten Cache oder als exakt freigegebene Datei autorisiert ist. Der normale Komponenten-Producer übergibt seine vertrauenswürdig konfigurierten Overrides an `update-runtime-reports.py --approved-component-file`; direkte Aufrufe können diese Option für explizit gewählte installierte Dateien wiederholen. Ein Manifest kann sich keine Datei oder Wurzel selbst freigeben. Abgewiesene Referenzen behalten den sichtbaren Status `rejected` ohne Digest.
 
 ## Validierung und Wartung
+
+Der Workflow folgt der [offiziellen Scan-Action-Schnittstelle](https://github.com/SonarSource/sonarqube-scan-action#configuration): `scannerVersion=8.2.0.6438`, unterstützte `args`, vollständige Checkout-Historie und standardmäßige OpenPGP-Prüfung. Report-Properties verwenden Pfade relativ zur Projektwurzel, berechnet aus dem externen Runner-Verzeichnis; die Reports selbst bleiben außerhalb des Checkouts.
+
+| Sprache | Angewandter Dokumentationsvertrag |
+| --- | --- |
+| C / C++ | Unterstützte AutoConfig-Include-Einstellungen und nativer `.gcov`-Import; partielle Compilation Databases ersetzen nicht den vollständigen Parent-Scope. AutoConfig kann keine C/C++-Taintanalyse liefern. |
+| Go | Die gepinnte Go-1.27-Toolchain wird unterstützt. Jedes Modul behält sein `go.mod`, die `*_test.go`-Klassifizierung und vor dem Scan erzeugte Standardreports aus `-coverprofile`. |
+| Python | `sonar.python.version=3.14` verwendet Major.Minor; echte Cobertura-XML nutzt relative Quelldateinamen sowie Branch- und Subprozess-Messung. |
+| Shell | Bash und POSIX sind die offiziell unterstützten Dialekte. Tatsächliche Shebangs, `.sh`-/`.bash`-Quellscope und Verhaltensprüfungen erhalten; lokale Syntaxerfolge beweisen kein Sonar-Parsing. |
+| Workflows / JSON / YAML | Dedizierte Actions-Analyse und dokumentiertes generisches JSON-/YAML-Opt-in bleiben aktiviert; negative Workflow-Fixtures behalten ihre eng begrenzte Behandlung. |
 
 Bei Änderungen an `.python-version` im selben Change `sonar.python.version` auf
 den Haupt-/Nebenversionswert aktualisieren, wenn sich die Minorversion ändert; reine Patch-Updates erhalten ihn. Bei Updates von `.go-version` oder
@@ -222,9 +290,13 @@ rtk make check-bilingual-docs
 rtk make check-doc-links
 ```
 
-Der Scope-Checker vergleicht die Python-Minorversion, erhält sämtlichen
-gepflegten Code und C/C++-Tests, prüft alle vier `go.mod`-Dateien und gibt
-vollständige getrackte Pfadlisten aus. Er beweist keine Scanner-Ausführung und
+Der Scope-Checker vergleicht die Python-Minorversion, schützt gepflegte
+JSON-/YAML-Dateien und echte Workflows unabhängig, erhält Connector-Buildskripte,
+C/C++-Test-Sources sowie die verteilte Python-/Go-Testklassifikation, prüft alle
+vier `go.mod`-Dateien und gibt vollständige getrackte Pfadlisten aus. Nur die
+bestehenden unmittelbaren Verzeichnisse negativer Workflow-Fixtures werden
+explizit getrennt behandelt. Eine README ersetzt keinen analysierbaren
+Komponentencode und keine Konfiguration. Er beweist keine Scanner-Ausführung und
 bildet nicht jeden SCM-/Analyzer-Standard nach. Der zentrale Workflow-/Tool-Updater
 pflegt den Scan-Action-Pin; die explizite `scannerVersion` bei Änderungen am
 Scanner CLI separat prüfen.
@@ -248,35 +320,97 @@ sichtbar lassen; niemals Regeln oder Schwellen für ein Bestehen abschwächen.
 
 ## Beobachtete Cloud-Grenzen und externe Folgeaktion
 
-Der erste CI-Scan von `b3c7785fd7033fc57394c1e4562d627e2b294c4f` wurde serverseitig
-als Task `AaF0Nx8EdkEpBguA0kbW`, Analyse
-`8436e500-b997-4b7a-b428-b577aca20a43`, verarbeitet. Die Server-Warnungsliste war
-leer, beide ursprünglichen Python-Konfigurationsmeldungen fehlten. Der Scanner
-bestätigte alle 136 CFamily-Compilation-Units als vollständig analysiert, einen
-C/C++-Qualitätsscore von 77.52/100, das Laden aller vier Go-Reports sowie die
-Ausführung der Python-, Shell-, Actions-, YAML- und JSON-Sensoren. Sein Quality
-Gate scheiterte ausschließlich an 0% New-Code-Coverage; dies führte zum echten
-Python-Coverage-Erzeuger. Diese Ergebnisse beschreiben die erste Revision; die
-PR-Beschreibung enthält Verarbeitungs-/Gate-Evidence des aktuellen Heads.
+Authentifiziertes Readback bestätigte erneut die Basisrevision
+`9f44647593bac7947113558c6ad183ab118e80af`, Analyse
+`52df415d-2c24-43a3-a63a-de6e79c37d60`, aus
+[Lauf 40224506735](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40224506735).
+Das Hauptgate war `ERROR`: Security Rating E auf neuem Code und 0,6 % Coverage
+bei Schwellenwerten A und 80 %. Der Zeitraum `previous_version` beginnt am
+2026-05-14. Das paginierte Datei-Readback enthielt 663 Dateien und folgende neue
+abdeckbare Zeilen: Python 57.281; C 27.420; C++ 184; Go 6.284. Diese kumulierte
+Hauptbranch-Basis unterscheidet sich vom Gate über geänderte PR-Zeilen. Ein
+grüner PR darf nicht als behobene kumulierte Hauptbranch-Coverage gelten.
 
-Scanner-Logs enthalten weiterhin sechs Shell-Parsewarnungen in vorhandenen
-Skripten: `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh`,
-`connectors/envoy/harness/run_envoy_composite_matrix.sh`,
-`ci/runtime/lifecycle/run-full-matrix-parallel.sh`,
-`connectors/lighttpd/harness/run_patched_full_lifecycle.sh`,
-`connectors/haproxy/htx-overlay/resolve-modsecurity.sh` und
-`connectors/haproxy/harness/run_haproxy_smoke.sh`. Sie bleiben im Scope; eine
-selektierte Datei mit Parsewarnung beweist keine vollständige semantische
-Analyse. Go-Testdateien erzeugen nach korrekter Testklassifikation außerdem
-informative Warnungen zu ignorierten Duplikationsmeldungen.
+Die Basis verwendete Scanner CLI `8.1.0.6389` und CFamily `6.85.0.102562` und
+meldete 136 native Units, Qualität 77,52/100, Parsingfehler in 414/2.260
+Funktionen und 115/1.132 unaufgelöste projektbezogene Includes. AutoConfig
+deaktivierte die C/C++-Taintanalyse. Python-, Go-, CFamily-, Shell-, GitHub-Actions-,
+YAML- und JSON-Sensoren liefen; die ursprünglichen Warnungen zu fehlender
+Python-Version und Testzuordnung fehlten. Das sind Basisbeobachtungen, keine
+Ergebnisse eines späteren SHA.
 
-Die gespeicherte serverseitige Python-Architekturperspektive `py Intended Model`
-enthält 44 ungültige Gruppenlabels einschließlich ausgeschlossener Framework-/
-MRTS-Pfade und früherer Test-/Infrastrukturgruppen. Ein Projektadministrator muss
-dieses Intended Model prüfen und mit dem Parent-only-Source-/Test-Scope abgleichen.
-Dieser Task entfernt das Modell nicht und deaktiviert keine Architekturprüfungen,
-um Warnungen zu verbergen. Server-`warningCount=0` bedeutet keine Warnungsfreiheit
-des Scanner-Logs.
+| Ausgangsbefund | Aktuelle Einordnung vor finalem Head-Servernachweis |
+| --- | --- |
+| Haupt-Security-Rating E | `weiterhin offen`: bestätigte Eingabegrenzen werden repariert; Finding-/Rating-Abschluss braucht frisches Readback. |
+| Haupt-Coverage auf neuem Code 0,6 % | `weiterhin offen`: echte breitere Producer liegen vor; 80 % auf der kumulierten Basis sind nicht nachgewiesen. |
+| Fehlende native Includes / Parsingfehler | `weiterhin offen`: installierte Apache-/APR-/ModSecurity-Header und echte Buildprüfungen verbessern den verfügbaren Kontext; frische Analyzer-Deltas sind unbestätigt. |
+| Vollständige Parent-C/C++-Taintanalyse unter AutoConfig | `begründete Analyzergrenze`: nicht unterstützter Modus und Annahmen zu unabhängigen Targets bleiben ausdrücklich bestehen. |
+| Ignoriertes beabsichtigtes Python-Modell | `extern blockiert`: genaue Modellkorrektur liegt vor; der nötige PATCH-Medientyp wird von der autorisierten CLI nicht unterstützt. |
+| Verlust von JSON-/YAML-/Workflow-Scope | `behoben und nachgewiesen`: gezielte lokale Regressionen beweisen den Guard; Analyzer-Ausführung bleibt eine eigene Prüfung. |
+| Sechs Shell-Parserwarnungen | `weiterhin offen`: fünf Dateien haben gleichwertige Umschreibungen; alle sechs parsen lokal, frische Sonar-Akzeptanz bleibt erforderlich. |
+
+Jede gemeldete Shell-Datei verwendet `#!/bin/sh` und bestand `sh -n`, `bash -n`
+sowie ShellChecks Prüfung auf Fehlerniveau. Dynamische Oktalausdrücke im
+Apache-Cleanup wurden auf explizite Oktalvariablen umgestellt. Heredoc-Producer
+im Hintergrund in Envoy, lighttpd und HAProxy verwenden nun eine Subshell mit
+`exec`, wodurch die Prozessidentität von `$!` erhalten bleibt. HAProxys
+Architektur-Case-Muster enthalten explizite No-op-Arme. Das
+`exec 8<>"$candidate"` des Schedulers erhält die erforderliche
+Lese-/Schreib-FIFO-Semantik.
+
+| Datei | Lokale Klassifikation und Änderung |
+| --- | --- |
+| `ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh` | Gültige POSIX-Oktalarithmetik; explizite Oktalvariable erhält Berechtigungsmasken. Sonar-Ergebnis unbestätigt. |
+| `connectors/envoy/harness/run_envoy_composite_matrix.sh` | Gültiger Hintergrund-Heredoc; Subshell plus `exec` erhält Argumente, Umleitungen und PID. Sonar-Ergebnis unbestätigt. |
+| `ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Gültige Lese-/Schreib-FIFO-Umleitung; unverändert, weil getrennte Opens das Blockier-/EOF-Verhalten ändern. Sonar-Ergebnis unbestätigt. |
+| `connectors/lighttpd/harness/run_patched_full_lifecycle.sh` | Gültiger Hintergrund-Heredoc; gleichwertige Subshell-/`exec`-Form. Sonar-Ergebnis unbestätigt. |
+| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Gültige quotierte Case-Muster; gleichwertige kombinierte Muster und explizite `:`-Rümpfe. Sonar-Ergebnis unbestätigt. |
+| `connectors/haproxy/harness/run_haproxy_smoke.sh` | Gültiger Hintergrund-Heredoc; Subshell/`exec` erhält optionales `setsid` und PID. Sonar-Ergebnis unbestätigt. |
+
+Der minimale Parser-Reproduktionsfall des Schedulers lautet:
+
+```sh
+#!/bin/sh
+prepare() {
+    if exec 8<>"$1"; then
+        :
+    fi
+}
+```
+
+Dieses FIFO-Open nicht durch getrennte blockierende Opens ersetzen oder seine
+Datei ausschließen. Der neue Scan muss die sechs im Change Record genannten
+Dateien einzeln bestätigen; lokale Syntaxprüfung allein reicht nicht.
+
+Das Servermodell `py Intended Model` enthält 46 Gruppen auf oberster Ebene.
+Seine 44 ungültigen Labels enthalten `/`: 30 gehören zum Parent, 14 verweisen
+auf ausgeschlossenes Framework/MRTS. Der genaue überprüfbare Request-Body liegt
+unter [`config/analysis/sonar-python-architecture.patch.json`](../config/analysis/sonar-python-architecture.patch.json).
+Er entfernt nur diese 14 externen Gruppen, benennt die 30 Parent-Labels mit `_`
+um und erhält alle Parent-Muster, Metadaten, vier verschachtelten Gruppen sowie
+die bestehende leere Liste `constraints`. Er löscht die Perspektive nicht und
+erfindet keine Architektur-Constraints. Beide Advisory-Projekte haben derzeit
+keine Modelle.
+
+Hauptprojekt-UUID: `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`; Modell-ID:
+`cb04d3a3-7c8f-447c-99f0-ca49c97f054f`. Authentifizierte Lesezugriffe verwenden
+`/api/v2/architecture/models?projectId=608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`.
+Das autorisierte Update über `/usr/local/bin/sonar-with-env` und CLI `1.10.1`
+lieferte HTTP 415:
+`PATCH /api/v2/architecture/models/cb04d3a3-7c8f-447c-99f0-ca49c97f054f`
+verlangt `application/merge-patch+json`, diese CLI hat jedoch keine unterstützte
+Medientyp-Option. Die effektiven Rollen `architectureadmin`/`admin` waren
+vorhanden; anschließendes Readback bestätigte keine Änderung. Ein Administrator
+muss das vorbereitete Modell im Editor für die beabsichtigte Architektur oder
+über einen autorisierten Client mit diesem Medientyp anwenden, anschließend
+die Analyse erneut ausführen und die Perspektivanwendung bestätigen. Dieses
+Dokument erlaubt keinen Wrapper-, Credential- oder Authentifizierungs-Workaround.
+
+CI-/Sonar-Links des finalen Heads, terminale Verarbeitung, Haupt-/Advisory-Gates,
+Sprachausführung, Reportimporte und Nachher-Ergebnisse jeder Warnung müssen nach
+der Beobachtung im Change Record festgehalten werden. Ein erfolgreicher Upload,
+ein älteres grünes Ergebnis, `warningCount=0` oder die Conclusion eines
+Advisory-Jobs allein reichen nicht.
 
 ## Offizielle Referenzen
 
@@ -294,3 +428,5 @@ des Scanner-Logs.
 
 - [Manual project creation](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/administering-your-projects/setting-up-project)
 - [DevOps binding](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/about-sonarqube-cloud-solution/resources-structure/binding-with-dop)
+
+- [Native C/C++ coverage / Native C/C++-Coverage](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/c-c-objective-c-test-coverage)

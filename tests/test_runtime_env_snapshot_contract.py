@@ -77,6 +77,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
 
     def test_native_summary_and_mismatch_helpers_keep_outputs_with_reduced_context_parameters(self) -> None:
         with tempfile.TemporaryDirectory(prefix="native-summary-signatures-") as temporary:
+            self.enterContext(mock.patch.object(runtime_mismatch, "INPUTS", runtime_mismatch.EvidenceInputs((ROOT, Path(temporary)))))
             root = Path(temporary)
             with (
                 mock.patch.object(native_comparison, "build_metadata", return_value={}),

@@ -15,10 +15,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
-from best_effort_evidence_readers import (
-    read_json_object as read_json,
-    read_jsonl_objects as read_jsonl,
-)
+from evidence_inputs import EvidenceInputs
 from generated_report_utils import (
     GENERATED_ROOT,
     build_metadata,
@@ -31,6 +28,17 @@ from generated_report_utils import (
 from report_path_safety import add_safe_roots, write_text_file
 from runtime_path_utils import verified_runtime_paths
 from verified_run_id import VerifiedRunIdError, validate_verified_run_id
+
+
+INPUTS = EvidenceInputs(())
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    return INPUTS.json(path)
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return INPUTS.jsonl(path)
 
 
 JOB_ID = "nginx:with-crs:with-mrts"
@@ -56,10 +64,10 @@ def rel(path: str | Path, root: Path) -> str:
 
 
 def read_lines(path: str | Path) -> list[str]:
-    item = Path(path)
-    if not item.is_file():
+    try:
+        return INPUTS.read_text(path).splitlines()
+    except (OSError, ValueError):
         return []
-    return item.read_text(encoding="utf-8", errors="replace").splitlines()
 
 
 def final_run_prefix(job: dict[str, Any]) -> str:
@@ -223,9 +231,10 @@ def request_headers(path: str | Path) -> list[str]:
 
 def request_body_info(path: str | Path) -> dict[str, Any]:
     item = Path(path)
-    if not item.is_file():
-        return {"path": str(item), "status": "missing", "bytes": 0, "excerpt": ""}
-    raw = item.read_bytes()
+    try:
+        raw = INPUTS.read_bytes(item)
+    except (OSError, ValueError):
+        return {"path": str(item), "status": "missing_or_rejected", "bytes": 0, "excerpt": ""}
     excerpt = raw[:160].decode("utf-8", errors="replace")
     return {"path": str(item), "status": "present", "bytes": len(raw), "excerpt": excerpt}
 
@@ -384,6 +393,8 @@ def selected_representative_rows(rows: list[dict[str, Any]]) -> list[dict[str, A
 def case_runtime_paths(row: dict[str, Any]) -> tuple[str, Path, Path, Path]:
     case_name = str(row.get("name") or "")
     harness_root = harness_root_from_evidence(Path(str(row.get("evidence_path") or "")))
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", case_name):
+        raise ValueError("invalid evidence case identity")
     case_root = harness_root / "runtime" / case_name / "conf"
     return case_name, case_root / "case.env", case_root / "request-headers.txt", case_root / "request-body.bin"
 
@@ -437,6 +448,8 @@ def permissions_probe(row: dict[str, Any]) -> dict[str, Any]:
     case_name = str(row.get("name") or "")
     harness_root = harness_root_from_evidence(evidence_path)
     index_path = harness_root / "runtime" / case_name / DOCROOT_INDEX_PATH
+    if not INPUTS.is_file(index_path):
+        return {"index_path": str(index_path), "path_components": [], "status": "missing_or_rejected"}
     paths: list[dict[str, Any]] = []
     current = Path("/")
     for part in index_path.parts[1:]:
@@ -524,6 +537,8 @@ def nginx_cluster_fix_plan() -> list[dict[str, Any]]:
 
 
 def build_payload(connector_root: Path, build_root: Path, verified_run_id: str) -> dict[str, Any]:
+    global INPUTS
+    INPUTS = EvidenceInputs((connector_root, build_root))
     verified_run_id = validate_verified_run_id(verified_run_id)
     paths = nginx_cluster_paths(connector_root, build_root, verified_run_id)
     job = read_json(paths["job_json"])
@@ -697,7 +712,7 @@ def main() -> int:
 
     payload = build_payload(connector_root, build_root, verified_run_id)
     inputs = [Path(value) for value in payload["inputs"].values()]
-    metadata = build_metadata(
+    metadata = INPUTS.build_metadata(build_metadata,
         generated_by="ci/evidence/reports/generate-nginx-mrts-http500-cluster-analysis.py",
         make_target="generate-nginx-mrts-http500-cluster-analysis",
         connector_root=connector_root,
