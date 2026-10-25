@@ -166,12 +166,13 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      # Run ASan before CodeQL installs its process-tracing LD_PRELOAD.
+      - name: Execute inventoried Common parser and memory security regressions
+        run: python3 ci/tools/run-active-tests.py --group common
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: c-cpp
           build-mode: manual
       - name: Build bounded C17 common helper scope
         run: make build-codeql-common-scope
-      - name: Execute inventoried Common parser and memory security regressions
-        run: python3 ci/tools/run-active-tests.py --group common
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1

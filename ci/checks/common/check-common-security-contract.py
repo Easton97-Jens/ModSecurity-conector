@@ -6,7 +6,7 @@ import sys
 
 ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
 sys.path.insert(0, str(ROOT))
-from ci.lib.active_test_inventory import InventoryError, load_inventory, select_executions
+from ci.lib.active_test_inventory import load_inventory, select_executions
 COMMON_APIS = ["resource_limits", "memory", "flow_guard", "integrity_event", "dos_guard"]
 EVENT_JSON_SOURCES = [
     "common/src/event.c",
@@ -161,7 +161,7 @@ try:
             "kind": "native", "script": "ci/checks/common/check-common-memory-safety.sh", "args": []}
             or {case["id"].rsplit(".", 1)[-1] for case in memory[0]["cases"]} != expected):
         errors.append("memory-safety group must retain all four actual native ownership behaviors")
-except (InventoryError, OSError, ValueError) as error:
+except (OSError, ValueError) as error:
     errors.append("invalid memory-safety inventory contract: " + str(error))
 
 if errors:

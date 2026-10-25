@@ -29,7 +29,8 @@ MAX_INPUT_BYTES = 2 * 1024 * 1024
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 IDENTIFIER = re.compile(r"[a-z][a-z0-9_.-]{0,127}", re.ASCII)
 PYTHON_TARGET = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){2,}", re.ASCII)
-GO_TEST = re.compile(r"Test[A-Za-z0-9_]+(?:/[A-Za-z0-9_.:=+-]+)*", re.ASCII)
+GO_TEST = re.compile(r"Test\w+(?:/[A-Za-z0-9_.:=+-]+)*", re.ASCII)
+GO_ALL_PACKAGES = "./..."
 GO_MODULES = frozenset({
     "connectors/envoy/ext_proc", "connectors/traefik/native_middleware",
     "connectors/traefik/response_observer", "connectors/traefik/composite_middleware",
@@ -148,9 +149,9 @@ def _validate_python_selector(selector: dict[str, Any], sources: dict[str, str])
 def _go_package(value: Any) -> bool:
     if not isinstance(value, str):
         return False
-    if value in {".", "./..."}:
+    if value in {".", GO_ALL_PACKAGES}:
         return True
-    return (isinstance(value, str) and value.startswith("./") and
+    return (value.startswith("./") and
             re.fullmatch(r"\./[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*", value, re.ASCII) is not None)
 
 
@@ -262,15 +263,15 @@ def _go_test_definition(root: Path, selector: dict[str, Any], source_bytes: dict
     prefix = selector["module"] + "/"
     package = selector["package"]
     package_root = root / selector["module"]
-    if package not in {".", "./..."}:
+    if package not in {".", GO_ALL_PACKAGES}:
         package_root /= package.removeprefix("./")
-    candidates = (package_root.rglob("*_test.go") if package == "./..."
+    candidates = (package_root.rglob("*_test.go") if package == GO_ALL_PACKAGES
                   else package_root.glob("*_test.go"))
     matches = [path.relative_to(root).as_posix() for path in candidates
                if pattern.search(read_source(root, path.relative_to(root).as_posix()))]
     if len(matches) != 1 or matches[0] not in source_bytes:
         raise InventoryError("Go selector must resolve to one bound test definition")
-    if package != "./...":
+    if package != GO_ALL_PACKAGES:
         relative_package = "" if package == "." else package.removeprefix("./") + "/"
         if str(PurePosixPath(matches[0]).parent) + "/" != prefix + relative_package:
             raise InventoryError("Go selector package differs from its bound test definition")
@@ -282,6 +283,17 @@ def _validate_test_definition(root: Path, execution: dict[str, Any], source_byte
         _python_test_definition(selector, source_bytes)
     if selector["kind"] == "go":
         _go_test_definition(root, selector, source_bytes)
+
+
+def _validate_source_definitions(root: Path, executions: list[dict[str, Any]]) -> None:
+    for execution in executions:
+        source_bytes = {}
+        for relative, expected in execution["sources"].items():
+            data = read_source(root, relative)
+            if hashlib.sha256(data).hexdigest() != expected:
+                raise InventoryError(f"reviewed source digest mismatch: {relative}")
+            source_bytes[relative] = data
+        _validate_test_definition(root, execution, source_bytes)
 
 
 def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
@@ -306,14 +318,7 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
     selectors = [json.dumps(item["selector"], sort_keys=True) for item in executions]
     if len(execution_ids) != len(set(execution_ids)) or len(selectors) != len(set(selectors)):
         raise InventoryError("duplicate execution ID or selector; enumerate variants together")
-    for execution in executions:
-        source_bytes = {}
-        for relative, expected in execution["sources"].items():
-            data = read_source(root, relative)
-            if hashlib.sha256(data).hexdigest() != expected:
-                raise InventoryError(f"reviewed source digest mismatch: {relative}")
-            source_bytes[relative] = data
-        _validate_test_definition(root, execution, source_bytes)
+    _validate_source_definitions(root, executions)
     return Inventory(root, digest, tuple(executions), case_ids, path)
 
 

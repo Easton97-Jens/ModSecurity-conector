@@ -14,6 +14,45 @@ ROOT = Path(__file__).resolve().parents[2]
 DESTINATION = ROOT / "reports/testing/test-selection-archive.generated.json"
 
 
+def python_definitions(path: Path, name: str, python_targets: set[str]) -> tuple[list[str], list[str]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    module = name[:-3].replace("/", ".")
+    definitions: list[str] = []
+    selected: list[str] = []
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        methods = [method for method in node.body
+                   if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+                   and method.name.startswith("test_")]
+        for method in methods:
+            target = f"{module}.{node.name}.{method.name}"
+            (selected if target in python_targets else definitions).append(target)
+    return definitions, selected
+
+
+def go_definitions(path: Path, go_targets: set[tuple[str, str, str]]) -> tuple[list[str], list[str]]:
+    module = next((parent.as_posix() for parent in path.relative_to(ROOT).parents
+                   if (ROOT / parent / "go.mod").is_file()), None)
+    if module is None:
+        return [], []
+    relative = path.relative_to(ROOT / module).parent.as_posix()
+    package = "." if relative == "." else "./" + relative
+    methods = re.findall(r"^func (Test\w+|Fuzz\w+)\(", path.read_text(encoding="utf-8"), re.MULTILINE)
+    definitions = [method for method in methods if (module, package, method) not in go_targets]
+    selected = [method for method in methods if (module, package, method) in go_targets]
+    return definitions, selected
+
+
+def source_definitions(path: Path, name: str, python_targets: set[str],
+                       go_targets: set[tuple[str, str, str]]) -> tuple[list[str], list[str]]:
+    if path.suffix == ".py" and (path.name.startswith("test_") or path.name.endswith("_test.py")):
+        return python_definitions(path, name, python_targets)
+    if name.endswith("_test.go"):
+        return go_definitions(path, go_targets)
+    return [], []
+
+
 def archive() -> dict:
     inventory_bytes = (ROOT / "config/testing/active-cases.json").read_bytes()
     inventory = json.loads(inventory_bytes)
@@ -28,25 +67,7 @@ def archive() -> dict:
         path = ROOT / name
         if name.startswith("modules/") or path.is_symlink() or not path.is_file():
             continue
-        definitions = []
-        selected = []
-        if path.suffix == ".py" and (path.name.startswith("test_") or path.name.endswith("_test.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            module = name[:-3].replace("/", ".")
-            for node in tree.body:
-                if isinstance(node, ast.ClassDef):
-                    for method in node.body:
-                        if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)) and method.name.startswith("test_"):
-                            target = f"{module}.{node.name}.{method.name}"
-                            (selected if target in python_targets else definitions).append(target)
-        elif name.endswith("_test.go"):
-            module = next((parent.as_posix() for parent in path.relative_to(ROOT).parents
-                           if (ROOT / parent / "go.mod").is_file()), None)
-            if module:
-                relative = path.relative_to(ROOT / module).parent.as_posix()
-                package = "." if relative == "." else "./" + relative
-                for method in re.findall(r"^func (Test\w+|Fuzz\w+)\(", path.read_text(encoding="utf-8"), re.MULTILINE):
-                    (selected if (module, package, method) in go_targets else definitions).append(method)
+        definitions, selected = source_definitions(path, name, python_targets, go_targets)
         if definitions or selected:
             retained.append({"source": name, "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                              "on_demand_definitions": definitions, "contains_selected_definitions": selected})

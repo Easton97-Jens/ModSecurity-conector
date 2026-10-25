@@ -32,7 +32,7 @@ jobs:
         run: |
           set -eu
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
       - name: Install reviewed hash-bound CI dependencies
         run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Initialize runner temp paths

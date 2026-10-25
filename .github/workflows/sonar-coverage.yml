@@ -29,7 +29,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          submodules: false
+          submodules: true
           persist-credentials: false
       - name: Set up canonical Python
         id: setup-python
@@ -57,14 +57,40 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
-          header=$(dpkg-query -L libmodsecurity-dev | awk '/\/modsecurity\/modsecurity.h$/ { print; count++ } END { if (count != 1) exit 1 }')
-          library=$(dpkg-query -L libmodsecurity-dev | awk '/\/libmodsecurity.so$/ { print; count++ } END { if (count != 1) exit 1 }')
-          {
-            echo "MODSECURITY_INCLUDE_DIR=${header%/modsecurity/modsecurity.h}"
-            echo "MODSECURITY_LIB_DIR=${library%/libmodsecurity.so}"
-            echo "MODSECURITY_LIB_FILE=$library"
-          } >> "$GITHUB_ENV"
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev autoconf automake libtool pkg-config bison flex libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+      - name: Build the Framework-approved shared ModSecurity SDK
+        env:
+          PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP" <<'PY'
+          from pathlib import Path
+          import sys
+          from ci.lib.active_coverage import external_root
+          external_root(Path(sys.argv[1]))
+          PY
+          umask 077
+          sdk_root=$(mktemp -d "$RUNNER_TEMP/selected-modsecurity-sdk.XXXXXXXX")
+          env \
+            VERIFIED_RUN_ROOT="$sdk_root" \
+            BUILD_ROOT="$sdk_root/build" \
+            SOURCE_ROOT="$sdk_root/src" \
+            TMP_ROOT="$sdk_root/tmp" \
+            LOG_ROOT="$sdk_root/logs" \
+            CACHE_ROOT="$sdk_root/cache-v2" \
+            CONNECTOR_COMPONENT_CACHE="$sdk_root/cache-v2/shared" \
+            RUNTIME_REPORT_OUTPUT_ROOT="$sdk_root/build/runtime-component-reports" \
+            RUNTIME_COMPONENT_TARGET=shared \
+            ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 \
+            /bin/sh ci/provisioning/cache/with-runtime-components.sh \
+            /bin/sh -eu -s <<'SDK_EXPORT'
+              test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+              test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+              printf "%s\n" \
+                "MODSECURITY_INCLUDE_DIR=$MODSECURITY_INCLUDE_DIR" \
+                "MODSECURITY_LIB_DIR=$MODSECURITY_LIB_DIR" \
+                "MODSECURITY_LIB_FILE=$MODSECURITY_LIB_DIR/libmodsecurity.so" >> "$GITHUB_ENV"
+          SDK_EXPORT
       - name: Collect actual coverage during admitted selected tests
         id: coverage
         env:

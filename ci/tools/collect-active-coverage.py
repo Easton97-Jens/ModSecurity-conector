@@ -19,8 +19,11 @@ from ci.lib.active_coverage import (CoverageError, compile_instrumented, digest,
                                     make_manifest, python_lines, regular_bytes,
                                     source_path, trace_python, validate_manifest,
                                     write_generic_report)
-from ci.lib.active_test_inventory import (InventoryError, execute_selected,
-                                         load_inventory, select_executions)
+from ci.lib.active_test_inventory import (execute_selected, load_inventory,
+                                         select_executions)
+
+GENERIC_REPORT = "coverage.xml"
+MANIFEST_REPORT = "manifest.json"
 
 
 def git_output(*arguments: str) -> str:
@@ -79,8 +82,8 @@ def build_identity(selected: tuple[dict, ...]) -> dict:
 
 def _github_outputs(output: Path, manifest: dict) -> None:
     names = [str(output / name) for name in manifest["reports"] if name.endswith("/go.out")]
-    record = {"coverage_root": str(output), "generic_report": str(output / "coverage.xml"),
-              "go_reports": ",".join(names), "manifest": str(output / "manifest.json")}
+    record = {"coverage_root": str(output), "generic_report": str(output / GENERIC_REPORT),
+              "go_reports": ",".join(names), "manifest": str(output / MANIFEST_REPORT)}
     target = os.environ.get("GITHUB_OUTPUT")
     if target:
         with open(target, "a", encoding="utf-8") as stream:
@@ -91,18 +94,8 @@ def _github_outputs(output: Path, manifest: dict) -> None:
     print(json.dumps(record, sort_keys=True))
 
 
-def collect(output: Path, strict_skips: bool) -> int:
-    inventory = load_inventory(ROOT)
-    selected = select_executions(inventory, ("coverage",))
-    external_root(output)
-    if any(output.iterdir()):
-        raise CoverageError("coverage collection requires a fresh empty output directory")
-    revision = git_output("rev-parse", "HEAD")
-    before = source_snapshot()
-    build = build_identity(selected)
-    dirty = bool(git_output("status", "--porcelain", "--untracked-files=normal"))
-    summary = execute_selected(inventory, selected, output, strict_skips=strict_skips,
-                               coverage_root=output)
+def validate_execution_identity(inventory, selected: tuple[dict, ...], summary: dict,
+                                revision: str, before: dict[str, str]) -> None:
     if summary["inventory_sha256"] != inventory.digest or load_inventory(ROOT).digest != inventory.digest:
         raise CoverageError("active inventory changed while coverage tests executed")
     if git_output("rev-parse", "HEAD") != revision or source_snapshot() != before:
@@ -111,7 +104,10 @@ def collect(output: Path, strict_skips: bool) -> int:
         raise CoverageError("coverage requires terminal successful selected executions")
     if any(result.get("observed", {}).get("skips", 0) for result in summary["results"]):
         raise CoverageError("coverage identity cannot promote skipped selected cases to executed evidence")
-    measurement = Path(summary["coverage_directory"])
+
+
+def collect_observations(selected: tuple[dict, ...], output: Path,
+                         measurement: Path) -> tuple[dict, dict, list[str]]:
     observations: dict[str, dict[int, int]] = {}
     raw_reports = []
     go_sources: dict[str, dict[int, int]] = {}
@@ -134,6 +130,11 @@ def collect(output: Path, strict_skips: bool) -> int:
             raw_reports.append(raw.relative_to(output).as_posix())
         for name in gcov_lines(directory, ROOT, observations):
             raw_reports.append((measurement / name).relative_to(output).as_posix())
+    return observations, go_sources, raw_reports
+
+
+def validate_measurements(selected: tuple[dict, ...], observations: dict,
+                          go_sources: dict) -> dict:
     measured_python = [name for name in observations if name.endswith(".py")]
     measured_native = [name for name in observations if Path(name).suffix in {".c", ".cc", ".cpp", ".h"}]
     measured_cpp = "common/scripts/modsecurity_targeted_eval.cc" in observations
@@ -146,7 +147,27 @@ def collect(output: Path, strict_skips: bool) -> int:
     if not expected_modules or any(not any(name.startswith(module + "/") for name in go_sources)
                                    for module in expected_modules):
         raise CoverageError("selected coverage must produce actual profiles for every selected Go module")
-    sources = write_generic_report(ROOT, observations, output / "coverage.xml")
+    return {"python_sources": len(measured_python), "native_sources": len(measured_native),
+            "cpp_evaluator": measured_cpp, "go_modules": sorted(expected_modules)}
+
+
+def collect(output: Path, strict_skips: bool) -> int:
+    inventory = load_inventory(ROOT)
+    selected = select_executions(inventory, ("coverage",))
+    external_root(output)
+    if any(output.iterdir()):
+        raise CoverageError("coverage collection requires a fresh empty output directory")
+    revision = git_output("rev-parse", "HEAD")
+    before = source_snapshot()
+    build = build_identity(selected)
+    dirty = bool(git_output("status", "--porcelain", "--untracked-files=normal"))
+    summary = execute_selected(inventory, selected, output, strict_skips=strict_skips,
+                               coverage_root=output)
+    validate_execution_identity(inventory, selected, summary, revision, before)
+    observations, go_sources, raw_reports = collect_observations(
+        selected, output, Path(summary["coverage_directory"]))
+    measurements = validate_measurements(selected, observations, go_sources)
+    sources = write_generic_report(ROOT, observations, output / GENERIC_REPORT)
     # Go keeps its native statement-block format for Sonar's Go importer. It is
     # not inserted into generic XML as invented line-by-line execution hits.
     for relative in go_sources:
@@ -159,15 +180,14 @@ def collect(output: Path, strict_skips: bool) -> int:
             generic_sources.pop(relative, None)
     selected_cases = summary["selected_case_ids"]
     manifest = make_manifest(ROOT, output, revision, inventory.digest, selected_cases,
-                             generic_sources, ["coverage.xml", *raw_reports], dirty=dirty, build_identity=build)
+                             generic_sources, [GENERIC_REPORT, *raw_reports], dirty=dirty, build_identity=build)
     manifest["go_sources"] = {relative: before[relative] for relative in sorted(go_sources)}
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / MANIFEST_REPORT).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     _github_outputs(output, manifest)
     print("COVERAGE_GENERATED: " + json.dumps({"revision": revision,
           "inventory_sha256": inventory.digest, "case_count": len(selected_cases),
           "generic_sources": len(generic_sources), "go_sources": len(go_sources),
-          "raw_report_count": len(raw_reports), "python_sources": len(measured_python),
-          "native_sources": len(measured_native), "cpp_evaluator": measured_cpp, "go_modules": sorted(expected_modules),
+          "raw_report_count": len(raw_reports), **measurements,
           "dirty_worktree": dirty}, sort_keys=True))
     return 0
 
@@ -175,7 +195,7 @@ def collect(output: Path, strict_skips: bool) -> int:
 def verify(output: Path) -> int:
     inventory = load_inventory(ROOT)
     selected = select_executions(inventory, ("coverage",))
-    value = json.loads(regular_bytes(output / "manifest.json"))
+    value = json.loads(regular_bytes(output / MANIFEST_REPORT))
     go_sources = value.get("go_sources", {})
     if not isinstance(go_sources, dict) or not go_sources:
         raise CoverageError("coverage manifest is missing actual Go source measurements")
@@ -217,7 +237,7 @@ def main() -> int:
         if arguments.command == "verify":
             return verify(arguments.output_root)
         return collect(arguments.output_root, arguments.strict_skips)
-    except (CoverageError, InventoryError, OSError, ValueError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"COVERAGE_REJECTED: {exc}", file=sys.stderr)
         return 2
 

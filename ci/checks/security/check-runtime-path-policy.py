@@ -291,15 +291,15 @@ def main() -> int:
         check_python_policy()
         check_shell_policy()
         print("check-runtime-path-policy: full on-demand catalog PASS")
-        return 0
-    if args.case is None:
+    elif args.case is None:
         os.execv(sys.executable, [sys.executable, str(_CI_ROOT / "tools/run-active-tests.py"), "--group", "runtime-path-policy"])
-    try:
-        admit_selected_policy_case(args.case)
-        selected_policy_case(args.case)
-    except (OSError, ValueError) as error:
-        fail(str(error))
-    print(f"check-runtime-path-policy: {args.case} PASS")
+    else:
+        try:
+            admit_selected_policy_case(args.case)
+            selected_policy_case(args.case)
+        except (OSError, ValueError) as error:
+            fail(str(error))
+        print(f"check-runtime-path-policy: {args.case} PASS")
     return 0
 
 

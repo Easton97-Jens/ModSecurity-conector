@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source; no automatic execution and no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "2fb539abb1a8cbca98d235cd66631fe0a850d8d426bdaf73fa35c345b5d871cb",
+  "inventory_sha256": "485f0b55492114d9ce76f110caa1cf19cba1d6fe67241984a9266dfdfb7a935d",
   "on_demand_definition_count": 5930,
   "purpose": "Non-executable archive disposition; only config/testing/active-cases.json selects active cases.",
   "schema_version": 1,

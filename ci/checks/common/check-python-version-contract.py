@@ -45,6 +45,7 @@ UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
 UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
 UPDATE_WORKFLOW_TOOLS_WORKFLOW = "update-workflow-tools.yml"
 CI_SECURITY_WORKFLOW_LINT_WORKFLOW = "ci-security-workflow-lint.yml"
+CI_SECURITY_CODEQL_WORKFLOW = "ci-security-codeql.yml"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
 PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
@@ -82,9 +83,9 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "apr-util-provenance"),
         JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "zizmor"),
         JobIdentity("ci-findings-regressions.yml", "nginx-b09-regression"),
-        JobIdentity("ci-security-codeql.yml", "trusted-go-version"),
-        JobIdentity("ci-security-codeql.yml", "traefik-go"),
-        JobIdentity("ci-security-codeql.yml", "bounded-c-cpp"),
+        JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "trusted-go-version"),
+        JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "traefik-go"),
+        JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "bounded-c-cpp"),
         JobIdentity("validate-go-candidate.yml", "go-candidate"),
         JobIdentity("sonar-coverage.yml", "selected-coverage"),
         JobIdentity("test-connectors-with-crs-no-mrts.yml", "connector-mode"),

@@ -30,6 +30,7 @@ MAX_REPORT_BYTES = 64 * 1024 * 1024
 SHA256 = re.compile(r"[a-f0-9]{64}", re.ASCII)
 REVISION = re.compile(r"[a-f0-9]{40}", re.ASCII)
 IDENTIFIER = re.compile(r"[a-z][a-z0-9_.-]{0,127}", re.ASCII)
+COMPILER_NAMES = ("cc", "c++", "gcc", "g++", "clang", "clang++")
 
 
 class CoverageError(ValueError):
@@ -115,8 +116,10 @@ def python_command(target: str, output_root: Path, execution_id: str,
 
 def _compiler_wrapper(directory: Path, variable: str, default: str) -> Path:
     compiler = shlex.split(os.environ.get(variable, default))
-    if not compiler or shutil.which(compiler[0]) is None:
+    if not compiler:
         raise CoverageError("native coverage requires the selected actual compiler")
+    compiler[0] = _admitted_compiler(compiler[0])
+    _validate_compiler_flags(compiler[1:])
     wrapper = directory / ("coverage-" + variable.lower())
     text = "#!/bin/sh\nexec " + shlex.join([
         sys.executable, str(ROOT / "ci/tools/collect-active-coverage.py"),
@@ -142,6 +145,7 @@ def coverage_environment(output_root: Path, execution_id: str) -> dict[str, str]
     cc = _compiler_wrapper(directory, "CC", "cc")
     cxx = _compiler_wrapper(directory, "CXX", "c++")
     environment = {"CC": str(cc), "CXX": str(cxx), "ACTIVE_COVERAGE_NOTES": str(notes),
+                   "ACTIVE_COVERAGE_DIRECTORY": str(directory),
                    "GCOV_PREFIX": str(data), "GCOV_PREFIX_STRIP": "0",
                    "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"}
     environment.update(provision_bootstrap(directory, ROOT, execution_id,
@@ -169,20 +173,48 @@ def _compiler_note_paths(arguments: list[str], binary: Path, output_index: int) 
             and Path(argument).suffix in source_suffixes and Path(argument).is_file()]
 
 
-def compile_instrumented(arguments: list[str]) -> int:
-    if arguments and arguments[0] == "--":
-        arguments = arguments[1:]
-    if not arguments or "-o" not in arguments:
-        raise CoverageError("coverage compiler requires an explicit output file")
-    index = arguments.index("-o")
-    if index + 1 >= len(arguments):
-        raise CoverageError("coverage compiler output file is missing")
-    binary = Path(arguments[index + 1]).absolute()
-    notes = external_root(Path(os.environ["ACTIVE_COVERAGE_NOTES"]))
-    result = subprocess.run([*arguments, "--coverage", "-fprofile-abs-path",
-                             "-DMSCONNECTOR_ACTIVE_GCOV=1"], check=False)
-    if result.returncode:
-        return result.returncode
+def _admitted_execution() -> dict:
+    from ci.lib.active_test_inventory import load_inventory
+
+    inventory = load_inventory(ROOT)
+    execution_id = os.environ.get("ACTIVE_TEST_EXECUTION")
+    admitted = [item for item in inventory.executions if item["id"] == execution_id]
+    if (len(admitted) != 1 or
+            os.environ.get("ACTIVE_TEST_INVENTORY_SHA256") != inventory.digest):
+        raise CoverageError("coverage child requires its fully admitted inventory execution")
+    return admitted[0]
+
+
+def _admitted_compiler(requested: str) -> str:
+    # Resolve only known compiler entry points in the OS executable search path.
+    # Neither arbitrary CLI executables nor a caller-controlled PATH are authority.
+    allowed = {str(Path(found).resolve(strict=True))
+               for name in COMPILER_NAMES
+               if (found := shutil.which(name, path=os.defpath)) is not None}
+    found = shutil.which(requested, path=os.defpath)
+    if found is not None:
+        canonical = str(Path(found).resolve(strict=True))
+        for executable in allowed:
+            if canonical == executable:
+                return executable
+    raise CoverageError("coverage compiler must be an installed standard GCC or Clang executable")
+
+
+def _validate_compiler_flags(arguments: list[str]) -> None:
+    redirects = ("-fplugin", "-fpass-plugin", "-specs", "--specs", "-wrapper",
+                 "-B", "-fuse-ld", "--gcc-toolchain", "--gcc-install-dir",
+                 "-Xclang", "-Xlinker", "-Xpreprocessor", "-cc1", "-load",
+                 "-mllvm", "-iplugindir")
+    for argument in arguments:
+        if (not isinstance(argument, str) or "@" in argument or
+                any(ord(character) < 32 for character in argument) or
+                argument.startswith(redirects) or
+                argument.startswith("-Wl,") and any(
+                    flag in argument.lower() for flag in ("plugin", "specs", "wrapper"))):
+            raise CoverageError("coverage compiler rejects response, plugin and tool-redirection arguments")
+
+
+def _preserve_compiler_notes(arguments: list[str], binary: Path, index: int, notes: Path) -> None:
     # Preserve original path layout to pair only these compiler outputs with
     # their GCOV_PREFIX counters after test-owned temporary directories vanish.
     for candidate in _compiler_note_paths(arguments, binary, index):
@@ -196,6 +228,28 @@ def compile_instrumented(arguments: list[str]) -> int:
             raise CoverageError("compiler notes collide for different native source builds")
         if not destination.exists():
             destination.write_bytes(data)
+
+
+def compile_instrumented(arguments: list[str]) -> int:
+    if arguments and arguments[0] == "--":
+        arguments = arguments[1:]
+    if (not arguments or arguments.count("-o") != 1 or
+            any(argument.startswith("-o") and argument != "-o" for argument in arguments[1:])):
+        raise CoverageError("coverage compiler requires an explicit output file")
+    _admitted_execution()
+    compiler = _admitted_compiler(arguments[0])
+    _validate_compiler_flags(arguments[1:])
+    index = arguments.index("-o")
+    if index + 1 >= len(arguments):
+        raise CoverageError("coverage compiler output file is missing")
+    binary = Path(arguments[index + 1]).absolute()
+    external_root(binary.parent)
+    notes = external_root(Path(os.environ["ACTIVE_COVERAGE_NOTES"]))
+    result = subprocess.run([compiler, *arguments[1:], "--coverage", "-fprofile-abs-path",
+                             "-DMSCONNECTOR_ACTIVE_GCOV=1"], check=False)
+    if result.returncode:
+        return result.returncode
+    _preserve_compiler_notes(arguments, binary, index, notes)
     return 0
 
 
@@ -229,17 +283,23 @@ def _executable_lines(code: types.CodeType) -> set[int]:
 
 def trace_python(target: str, output: Path) -> int:
     # Import only the same exact child entry point used by the inventory runner.
-    from ci.lib.active_test_inventory import load_inventory, python_child
-    inventory = load_inventory(ROOT)
-    execution_id = os.environ.get("ACTIVE_TEST_EXECUTION")
-    admitted = [item for item in inventory.executions if item["id"] == execution_id
-                and item["selector"] == {"kind": "python", "target": target}]
-    if (len(admitted) != 1 or
-            os.environ.get("ACTIVE_TEST_INVENTORY_SHA256") != inventory.digest):
+    from ci.lib.active_test_inventory import python_child
+    admitted = _admitted_execution()
+    if admitted["selector"] != {"kind": "python", "target": target}:
         raise CoverageError("traced Python child must match its fully admitted inventory execution")
-    external_root(output.parent)
-    if output.exists():
-        raise CoverageError("Python coverage output must be fresh")
+    directory = external_root(Path(os.environ["ACTIVE_COVERAGE_DIRECTORY"]))
+    if directory.name != admitted["id"] or directory.stat().st_mode & 0o077:
+        raise CoverageError("Python coverage requires its private admitted execution directory")
+    destination = directory / "python.json"
+    if output != destination:
+        raise CoverageError("Python coverage output must be the fixed admitted python.json")
+    # Reserve only the fixed internal name before executing the admitted child.
+    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        return _write_python_trace(target, stream, python_child)
+
+
+def _write_python_trace(target: str, stream, python_child) -> int:
     tracer = trace.Trace(count=True, trace=False, ignoredirs=[sys.base_prefix])
     result = tracer.runfunc(python_child, target)
     observed: dict[str, dict[str, int]] = {}
@@ -252,7 +312,7 @@ def trace_python(target: str, output: Path) -> int:
             source_path(ROOT, relative)
             observed.setdefault(relative, {})[str(line)] = count
     payload = {"schema_version": 1, "target": target, "files": observed}
-    output.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    stream.write(json.dumps(payload, sort_keys=True) + "\n")
     return result
 
 
@@ -302,7 +362,7 @@ def go_lines(profile: Path, root: Path, module: str,
             raise CoverageError("Go coverage block exceeds the current source")
         # Native profiles retain the exact block format as raw evidence. Generic
         # line coverage reports the lines spanned by those measured Go blocks.
-        add_lines(lines, relative, {line: count for line in range(first, end + 1)})
+        add_lines(lines, relative, dict.fromkeys(range(first, end + 1), count))
 
 
 def _gcov_source_lines(value: dict, root: Path, lines: dict[str, dict[int, int]]) -> None:
