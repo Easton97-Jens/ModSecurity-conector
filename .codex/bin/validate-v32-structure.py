@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import sys, tomllib
+import json, sys, tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 CTX = ROOT / '.codex' / 'context'
@@ -67,6 +67,20 @@ if 'command-execution-policy.md' not in index:
     errors.append('index.md does not route RTK/command execution to command-execution-policy.md')
 if 'RTK is the mandatory local execution proxy' not in cmd:
     errors.append('command-execution-policy.md lacks the mandatory RTK baseline')
+try:
+    hook_config = json.loads((ROOT/'.codex/hooks.json').read_text())
+    pre_tool_hooks = hook_config.get('hooks', {}).get('PreToolUse', [])
+    rtk_hooks = [
+        hook
+        for group in pre_tool_hooks
+        if group.get('matcher') == 'Bash'
+        for hook in group.get('hooks', [])
+        if hook.get('type') == 'command' and hook.get('command') == 'rtk hook codex'
+    ]
+    if len(rtk_hooks) != 1:
+        errors.append('hooks.json must register exactly one native RTK Codex PreToolUse/Bash hook')
+except (OSError, ValueError, AttributeError, TypeError) as exc:
+    errors.append(f'invalid Codex hooks.json: {exc}')
 if SONAR_WRAPPER not in sonar:
     errors.append('sonarqube-policy.md lacks canonical sonar-with-env wrapper')
 if SONAR_WRAPPER in services:
