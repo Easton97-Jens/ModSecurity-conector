@@ -41,6 +41,34 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Validate the configured analysis credential at the fixed Sonar origin
+        env:
+          SONAR_TOKEN: ${{ secrets.MODSECURITYCONECTOR }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          class RejectRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise RuntimeError("Sonar credential validation must not redirect")
+
+          token = os.environ.get("SONAR_TOKEN", "")
+          if not token:
+              raise SystemExit("Configured repository Sonar analysis credential is unavailable")
+          request = urllib.request.Request("https://sonarcloud.io/api/authentication/validate",
+                                           headers={"Authorization": "Bearer " + token})
+          try:
+              opener = urllib.request.build_opener(RejectRedirect())
+              with opener.open(request, timeout=30) as response:
+                  value = json.loads(response.read(4096))
+          except (OSError, ValueError, RuntimeError):
+              raise SystemExit("Configured Sonar credential could not be validated at its fixed origin")
+          if value.get("valid") is not True:
+              raise SystemExit("Configured repository analysis credential is not valid for Sonar")
+          print("SONAR_ANALYSIS_CREDENTIAL_VALID")
+          PY
       - name: Set up canonical Go without cache reuse
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -122,36 +150,6 @@ jobs:
             ${{ runner.temp }}/parent-coverage/**/python.json
             ${{ runner.temp }}/parent-coverage/**/python-subprocess/*.json
             ${{ runner.temp }}/parent-coverage/**/*.gcov.json.gz
-      - name: Validate existing analysis credential at the fixed Sonar origin
-        env:
-          SONAR_TOKEN: ${{ secrets.MODSECURITYCONECTOR }}
-        run: |
-          python3 - <<'PY'
-          import base64
-          import json
-          import os
-          import urllib.request
-
-          class RejectRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, req, fp, code, msg, headers, newurl):
-                  raise RuntimeError("Sonar credential validation must not redirect")
-
-          token = os.environ.get("SONAR_TOKEN", "")
-          if not token:
-              raise SystemExit("Existing repository analysis credential is unavailable")
-          authorization = base64.b64encode((token + ":").encode("utf-8")).decode("ascii")
-          request = urllib.request.Request("https://sonarcloud.io/api/authentication/validate",
-                                           headers={"Authorization": "Basic " + authorization})
-          try:
-              opener = urllib.request.build_opener(RejectRedirect())
-              with opener.open(request, timeout=30) as response:
-                  value = json.loads(response.read(4096))
-          except (OSError, ValueError, RuntimeError):
-              raise SystemExit("Existing Sonar credential could not be validated at its fixed origin")
-          if value.get("valid") is not True:
-              raise SystemExit("Existing repository analysis credential is not valid for Sonar")
-          print("SONAR_ANALYSIS_CREDENTIAL_VALID")
-          PY
       - name: Analyze the current source and import its actual coverage
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:

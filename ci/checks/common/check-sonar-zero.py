@@ -17,7 +17,9 @@ SONAR_ROOT = "https://sonarcloud.io/api/"
 PROJECT = "Easton97-Jens_ModSecurity-conector"
 CHECK_NAME = "SonarCloud Code Analysis"
 MAX_RESPONSE_BYTES = 1048576
-MAX_ATTEMPTS = 30
+# CI analysis includes the pinned SDK build and actual selected coverage before
+# upload. Wait for that bounded producer; a pending/stale result never passes.
+MAX_ATTEMPTS = 240
 PAGE_SIZE = 100
 MAX_PAGES = 20
 DUPLICATION_METRICS = ("new_duplicated_lines", "new_duplicated_blocks", "new_duplicated_lines_density")

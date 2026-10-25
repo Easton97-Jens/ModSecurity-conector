@@ -296,6 +296,20 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
     }
 )
 
+# These are read-only validation inputs, not additions to the publisher's
+# mutation surface. Admission inspects every execution, even when the proposed
+# tree contract selects only the supply-chain group.
+PROPOSED_TREE_ACTIVE_RUNTIME_PATHS = frozenset(
+    {
+        "config/testing/active-cases.json",
+        "ci/lib/active_test_inventory.py",
+        "ci/tools/run-active-tests.py",
+        "ci/checks/common/check-sonar-zero.py",
+        "scripts/update-go-components.py",
+        "tests/__init__.py",
+    }
+)
+
 
 @dataclass(frozen=True)
 class RepositoryIdentity:
@@ -1670,10 +1684,36 @@ def proposed_validation_root() -> Path:
     return proposed
 
 
+def admitted_validation_inventory(root: Path) -> Any:
+    """Load the fixed stdlib-only admission module without starting children."""
+
+    module_path = resolve_regular_file(root, Path("ci/lib/active_test_inventory.py"))
+    spec = importlib.util.spec_from_file_location("workflow_tool_active_inventory", module_path)
+    if spec is None or spec.loader is None:
+        raise UpdateError("cannot load the authoritative active-inventory admission module")
+    module = importlib.util.module_from_spec(spec)
+    previous = sys.modules.get(spec.name)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module.load_inventory(root)
+    except (OSError, ValueError) as exc:
+        raise UpdateError("proposed-tree inputs require a valid complete active inventory") from exc
+    finally:
+        if previous is None:
+            sys.modules.pop(spec.name, None)
+        else:
+            sys.modules[spec.name] = previous
+
+
 def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
     """Copy the strict update surface and Connector contract inputs privately."""
 
-    for relative_text in sorted(ALLOWED_UPDATE_PATHS | PROPOSED_TREE_BASELINE_PATHS):
+    inventory = admitted_validation_inventory(source_root)
+    bound_sources = {name for execution in inventory.executions for name in execution["sources"]}
+    inputs = (ALLOWED_UPDATE_PATHS | PROPOSED_TREE_BASELINE_PATHS
+              | PROPOSED_TREE_ACTIVE_RUNTIME_PATHS | bound_sources)
+    for relative_text in sorted(inputs):
         relative = Path(relative_text)
         source = resolve_regular_file(source_root, relative)
         destination = destination_root / relative
@@ -1683,6 +1723,9 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
         with source.open("rb") as input_file, destination.open("xb") as output_file:
             shutil.copyfileobj(input_file, output_file)
         destination.chmod(0o600)
+    # Re-admit the copied bytes, rather than assuming source verification also
+    # proves the private snapshot. The actual runner repeats this before tests.
+    admitted_validation_inventory(destination_root)
 
 
 def run_proposed_tree_contract_checks(proposed_root: Path) -> None:

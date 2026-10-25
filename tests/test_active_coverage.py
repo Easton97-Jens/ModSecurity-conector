@@ -146,6 +146,20 @@ class ActiveCoverageTests(unittest.TestCase):
         self.assertEqual(set(observed), {"measured.c"})
         self.assertGreater(observed["measured.c"][1], 0)
 
+    def test_unsafe_compiler_argument_rejected_before_process(self):
+        source = self.root / "safe.c"
+        source.write_text("int main(void) { return 0; }\n", encoding="utf-8")
+        payload = self.base / "payload.o"
+        payload.write_text("INPUT(/outside/unapproved.so)\n", encoding="utf-8")
+        arguments = ["cc", str(source), str(payload),
+                     "-o", str(self.base / "unsafe-output")]
+        with patch("ci.lib.active_coverage.subprocess.run") as process:
+            with self.assertRaisesRegex(
+                    CoverageError,
+                    "^compiler object or shared library must have a genuine ELF header$"):
+                compile_instrumented(arguments)
+            process.assert_not_called()
+
 # Parent default discovery uses the one admitted active-case inventory.
 if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
     def load_tests(loader, standard_tests, pattern):

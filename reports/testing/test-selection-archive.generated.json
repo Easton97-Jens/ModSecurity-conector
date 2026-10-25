@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source; no automatic execution and no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "485f0b55492114d9ce76f110caa1cf19cba1d6fe67241984a9266dfdfb7a935d",
-  "on_demand_definition_count": 5930,
+  "inventory_sha256": "6786f000060e4c49de9bcbd63e0aa2974c28372c911dc2067f088322631e1dbe",
+  "on_demand_definition_count": 5931,
   "purpose": "Non-executable archive disposition; only config/testing/active-cases.json selects active cases.",
   "schema_version": 1,
   "sources": [
@@ -1606,15 +1606,15 @@
         "tests.test_active_coverage.ActiveCoverageTests.test_manifest_rejects_foreign_revision",
         "tests.test_active_coverage.ActiveCoverageTests.test_manifest_rejects_foreign_inventory",
         "tests.test_active_coverage.ActiveCoverageTests.test_go_blocks_map_to_current_module_source",
-        "tests.test_active_coverage.ActiveCoverageTests.test_compiler_notes_preserve_real_source_identity"
+        "tests.test_active_coverage.ActiveCoverageTests.test_compiler_notes_preserve_real_source_identity",
+        "tests.test_active_coverage.ActiveCoverageTests.test_unsafe_compiler_argument_rejected_before_process"
       ],
       "on_demand_definitions": [],
       "source": "tests/test_active_coverage.py",
-      "source_sha256": "a09aee22c29efe60d5a8be4c7754c1dc184730084ae1940fa53cf3452cfd5de8"
+      "source_sha256": "2c78fb59dcd22dc91c45325e712679f763506f44b48f6d3d8eaa3a4eb1498ffb"
     },
     {
       "contains_selected_definitions": [
-        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_valid_inventory_preserves_case_identity",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_overflow_rejected_before_any_child_starts",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_unknown_selector_is_rejected",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_source_digest_mismatch_prevents_execution",
@@ -1625,6 +1625,7 @@
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_timeout_reaps_owned_process_group"
       ],
       "on_demand_definitions": [
+        "tests.test_active_test_inventory.ActiveTestInventoryTests.test_valid_inventory_preserves_case_identity",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_duplicate_case_id_is_rejected",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_duplicate_json_key_is_rejected",
         "tests.test_active_test_inventory.ActiveTestInventoryTests.test_parent_traversal_source_is_rejected",

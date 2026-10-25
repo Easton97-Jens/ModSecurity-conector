@@ -31,6 +31,8 @@ SHA256 = re.compile(r"[a-f0-9]{64}", re.ASCII)
 REVISION = re.compile(r"[a-f0-9]{40}", re.ASCII)
 IDENTIFIER = re.compile(r"[a-z][a-z0-9_.-]{0,127}", re.ASCII)
 COMPILER_NAMES = ("cc", "c++", "gcc", "g++", "clang", "clang++")
+SDK_LIB_DIR = "MODSECURITY_LIB_DIR"
+RPATH_FLAG = "-Wl,-rpath,"
 
 
 class CoverageError(ValueError):
@@ -119,7 +121,7 @@ def _compiler_wrapper(directory: Path, variable: str, default: str) -> Path:
     if not compiler:
         raise CoverageError("native coverage requires the selected actual compiler")
     compiler[0] = _admitted_compiler(compiler[0])
-    _validate_compiler_flags(compiler[1:])
+    _compiler_arguments(compiler[1:], require_output=False)
     wrapper = directory / ("coverage-" + variable.lower())
     text = "#!/bin/sh\nexec " + shlex.join([
         sys.executable, str(ROOT / "ci/tools/collect-active-coverage.py"),
@@ -200,18 +202,191 @@ def _admitted_compiler(requested: str) -> str:
     raise CoverageError("coverage compiler must be an installed standard GCC or Clang executable")
 
 
-def _validate_compiler_flags(arguments: list[str]) -> None:
-    redirects = ("-fplugin", "-fpass-plugin", "-specs", "--specs", "-wrapper",
-                 "-B", "-fuse-ld", "--gcc-toolchain", "--gcc-install-dir",
-                 "-Xclang", "-Xlinker", "-Xpreprocessor", "-cc1", "-load",
-                 "-mllvm", "-iplugindir")
-    for argument in arguments:
-        if (not isinstance(argument, str) or "@" in argument or
-                any(ord(character) < 32 for character in argument) or
-                argument.startswith(redirects) or
-                argument.startswith("-Wl,") and any(
-                    flag in argument.lower() for flag in ("plugin", "specs", "wrapper"))):
-            raise CoverageError("coverage compiler rejects response, plugin and tool-redirection arguments")
+def _native_build_roots() -> tuple[Path, ...]:
+    roots = []
+    for variable in ("RUNNER_TEMP", "TMP_ROOT", "BUILD_ROOT", "CPP_BUILD_ROOT"):
+        value = os.environ.get(variable)
+        if value and Path(value).exists():
+            roots.append(external_root(Path(value)))
+    if not roots:
+        raise CoverageError("coverage compiler requires an existing admitted build or runner root")
+    return tuple(roots)
+
+
+def _sdk_directory(variable: str) -> Path | None:
+    value = os.environ.get(variable)
+    if not value:
+        return None
+    if variable == SDK_LIB_DIR and not re.fullmatch(r"[^,\x00-\x1f\x7f]+", value):
+        raise CoverageError("selected SDK library directory cannot contain linker separators or controls")
+    directory = Path(value)
+    if not directory.is_absolute() or directory.resolve(strict=True) != directory:
+        raise CoverageError("selected SDK directory must be canonical and absolute")
+    for component in (*reversed(directory.parents), directory):
+        status = component.lstat()
+        public = component != directory and status.st_uid == 0 and status.st_mode & stat.S_ISVTX
+        if (not stat.S_ISDIR(status.st_mode) or status.st_uid not in (0, os.geteuid()) or
+                status.st_mode & 0o022 and not public):
+            raise CoverageError("selected SDK directory ancestry must be trusted")
+    return directory
+
+
+def _trusted_system_directory(path: Path, include: bool, library: bool) -> bool:
+    # Actual Apache/APR directory operands only, never system source-file access.
+    allowed = []
+    if include:
+        allowed.extend((Path("/usr/include/apache2"), Path("/usr/include/apr-1.0")))
+    if library:
+        allowed.append(Path("/usr/lib/x86_64-linux-gnu"))
+    if path not in allowed:
+        return False
+    for component in (*reversed(path.parents), path):
+        observed = component.lstat()
+        if not stat.S_ISDIR(observed.st_mode) or observed.st_uid != 0 or observed.st_mode & 0o022:
+            raise CoverageError("system compiler directory ancestry must be root-owned and not writable by other users")
+    return True
+
+
+def _native_path(value: str, *, directory: bool = False, output: bool = False,
+                 system_include: bool = False, system_library: bool = False) -> str:
+    # Reconstruct canonical paths only after assigning their permitted role.
+    path = Path(value)
+    if not path.is_absolute() or ".." in path.parts:
+        raise CoverageError("compiler paths must be absolute without parent traversal")
+    builds = _native_build_roots()
+    if output:
+        external_root(path.parent)
+        if not any(path.parent.is_relative_to(root) for root in builds) or path.is_symlink():
+            raise CoverageError("compiler output must remain in an admitted build root")
+        return str(path.parent / path.name)
+    resolved = path.resolve(strict=True)
+    if system_library:
+        return _native_library_directory(resolved)
+    if resolved == path and _trusted_system_directory(resolved, system_include, False):
+        return str(resolved)
+    sdk = filter(None, (_sdk_directory("MODSECURITY_INCLUDE_DIR"),
+                        _sdk_directory(SDK_LIB_DIR)))
+    if not any(resolved.is_relative_to(root) for root in (ROOT, *builds, *sdk)):
+        raise CoverageError("compiler input is outside source, admitted build roots and selected SDK")
+    if directory:
+        if not resolved.is_dir():
+            raise CoverageError("compiler include or library directory must exist")
+    elif not resolved.is_file():
+        raise CoverageError("compiler input must be an existing regular source, object or library")
+    return str(resolved)
+
+
+def _native_library_directory(path: Path) -> str:
+    # -L affects even the compiler's implicit libc/libstdc++/libgcc lookups.
+    # Admit no source/build directory that could shadow those libraries.
+    if path == _sdk_directory(SDK_LIB_DIR) or _trusted_system_directory(path, False, True):
+        return str(path)
+    raise CoverageError("compiler library search directory must be the selected SDK or trusted APR directory")
+
+
+def _native_binary_argument(argument: str) -> str:
+    return _validate_native_binary(Path(_native_path(argument)))
+
+
+def _validate_native_binary(path: Path, *, required: bool = False) -> str:
+    if required or path.suffix in {".o", ".a", ".so"} or ".so." in path.name:
+        raw = regular_bytes(path)
+        if path.suffix == ".a":
+            if not raw.startswith(b"!<arch>\n"):
+                raise CoverageError("compiler archive must be a regular archive, not a thin archive or linker script")
+        elif (len(raw) < 18 or raw[:4] != b"\x7fELF" or raw[4] not in (1, 2) or
+              raw[5] not in (1, 2) or raw[6] != 1):
+            raise CoverageError("compiler object or shared library must have a genuine ELF header")
+        elif int.from_bytes(raw[16:18], "little" if raw[5] == 1 else "big") not in (1, 3):
+            raise CoverageError("compiler ELF input must be a relocatable object or shared library")
+    return str(path)
+
+
+def _selected_library(directory: Path, stem: str, selected: str | None = None) -> list[str]:
+    candidates = [Path(selected)] if selected else [directory / (stem + ".so"), directory / (stem + ".a")]
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        library = candidate.resolve(strict=True)
+        if not library.is_relative_to(directory):
+            raise CoverageError("selected library must remain inside its trusted library directory")
+        return [_validate_native_binary(library, required=True)]
+    raise CoverageError("selected native library has no existing shared library or regular archive")
+
+
+def _compiler_argument(argument: str) -> list[str]:
+    fixed = ("-Wall", "-Wextra", "-Werror", "-pthread", "-c", "-g", "-O0", "-O1", "-O2", "-O3",
+             "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections", "-Wl,--wrap=free",
+             "-fno-omit-frame-pointer", "-fPIC", "-std=c99", "-std=c11", "-std=c17",
+             "-std=c2x", "-std=c23", "-std=c++17", "-std=c++20",
+             "-fsanitize=address", "-fsanitize=undefined", "-fsanitize=address,undefined")
+    for flag in fixed:
+        if argument == flag:
+            return [flag]
+    if re.fullmatch(r"-D[A-Za-z_][A-Za-z_0-9]*(?:=[A-Za-z_0-9.+-]+)?", argument):
+        return [argument]
+    for prefix in ("-I", "-L"):
+        if argument.startswith(prefix) and len(argument) > len(prefix):
+            return [prefix, _native_path(argument[len(prefix):], directory=True,
+                                         system_include=prefix == "-I", system_library=prefix == "-L")]
+    library = _compiler_library_argument(argument)
+    if library is not None:
+        return library
+    suffixes = {".c", ".cc", ".cpp", ".cxx", ".C", ".o", ".a", ".so"}
+    if argument.startswith("-") or (Path(argument).suffix not in suffixes and
+                                    ".so." not in Path(argument).name):
+        raise CoverageError("coverage compiler argument is outside its closed native-build grammar")
+    return [_native_binary_argument(argument)]
+
+
+def _compiler_library_argument(argument: str) -> list[str] | None:
+    if argument == "-lapr-1":
+        directory = Path("/usr/lib/x86_64-linux-gnu")
+        if not _trusted_system_directory(directory, False, True):
+            raise CoverageError("APR library directory must be trusted")
+        return _selected_library(directory, "libapr-1")
+    if argument == "-lmodsecurity":
+        directory = _sdk_directory(SDK_LIB_DIR)
+        if directory is None:
+            raise CoverageError("libmodsecurity requires its selected SDK directory")
+        return _selected_library(directory, "libmodsecurity", os.environ.get("MODSECURITY_LIB_FILE"))
+    if argument.startswith(RPATH_FLAG):
+        selected = _sdk_directory(SDK_LIB_DIR)
+        if selected is None or argument.removeprefix(RPATH_FLAG) != str(selected):
+            raise CoverageError("compiler rpath must equal the selected SDK library directory")
+        return [RPATH_FLAG + str(selected)]
+    return None
+
+
+def _compiler_operand(argument: str, value: str) -> list[str]:
+    if argument == "-D":
+        return _compiler_argument("-D" + value)
+    return [argument, _native_path(value, directory=argument != "-o", output=argument == "-o",
+                                   system_include=argument in {"-I", "-isystem"},
+                                   system_library=argument == "-L")]
+
+
+def _compiler_arguments(arguments: list[str], *, require_output: bool = True) -> list[str]:
+    admitted: list[str] = []
+    output_count = 0
+    position = 0
+    while position < len(arguments):
+        argument = arguments[position]
+        if not argument or "@" in argument or any(ord(character) < 32 for character in argument):
+            raise CoverageError("compiler arguments must be literal native-build tokens")
+        if argument in {"-I", "-isystem", "-L", "-o", "-D"}:
+            position += 1
+            if position >= len(arguments):
+                raise CoverageError("compiler argument requires its literal operand")
+            value = arguments[position]
+            admitted.extend(_compiler_operand(argument, value))
+            output_count += argument == "-o"
+        else:
+            admitted.extend(_compiler_argument(argument))
+        position += 1
+    if output_count != int(require_output):
+        raise CoverageError("coverage compiler requires exactly one explicit output file")
+    return admitted
 
 
 def _preserve_compiler_notes(arguments: list[str], binary: Path, index: int, notes: Path) -> None:
@@ -238,18 +413,15 @@ def compile_instrumented(arguments: list[str]) -> int:
         raise CoverageError("coverage compiler requires an explicit output file")
     _admitted_execution()
     compiler = _admitted_compiler(arguments[0])
-    _validate_compiler_flags(arguments[1:])
-    index = arguments.index("-o")
-    if index + 1 >= len(arguments):
-        raise CoverageError("coverage compiler output file is missing")
-    binary = Path(arguments[index + 1]).absolute()
-    external_root(binary.parent)
+    admitted = _compiler_arguments(arguments[1:])
+    index = admitted.index("-o")
+    binary = Path(admitted[index + 1])
     notes = external_root(Path(os.environ["ACTIVE_COVERAGE_NOTES"]))
-    result = subprocess.run([compiler, *arguments[1:], "--coverage", "-fprofile-abs-path",
+    result = subprocess.run([compiler, *admitted, "--coverage", "-fprofile-abs-path",
                              "-DMSCONNECTOR_ACTIVE_GCOV=1"], check=False)
     if result.returncode:
         return result.returncode
-    _preserve_compiler_notes(arguments, binary, index, notes)
+    _preserve_compiler_notes([compiler, *admitted], binary, index + 1, notes)
     return 0
 
 
