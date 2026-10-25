@@ -357,6 +357,13 @@ die AutoConfig-Taintgrenze bleiben bestehen. Der Change Record enthält die
 vollständige Basis-Finding-Einordnung und Messergebnisse; Folge-Heads müssen
 separat im PR geprüft werden.
 
+Der Folgescan von `8f632bdd` in [Lauf 40232441972](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40232441972)
+beendete ebenfalls die Serververarbeitung und bestätigte die verschwundene
+Resolver-Warnung. Fünf ursprüngliche Shell-Warnungen sind damit behoben; die
+gültige Scheduler-FIFO-Form bleibt die einzelne dokumentierte Shell-Parsergrenze.
+Gate und Coverage bleiben ERROR/E und 80,5 %. Ergebnisse des finalen reinen
+Dokumentations-Folgecommits stehen in PR #421.
+
 | Ausgangsbefund | Aktuelle Einordnung vor finalem Head-Servernachweis |
 | --- | --- |
 | Haupt-Security-Rating E | `weiterhin offen`: Sourcekorrekturen haben Regressionstests; das PR-Gate bleibt wegen drei geschützter Deskriptor-Opens auf E. Gegennachweise sind ohne Server-Transitions dokumentiert. |
@@ -365,7 +372,7 @@ separat im PR geprüft werden.
 | Vollständige Parent-C/C++-Taintanalyse unter AutoConfig | `begründete Analyzergrenze`: nicht unterstützter Modus und Annahmen zu unabhängigen Targets bleiben ausdrücklich bestehen. |
 | Ignoriertes beabsichtigtes Python-Modell | `extern blockiert`: genaue Modellkorrektur liegt vor; der nötige PATCH-Medientyp wird von der autorisierten CLI nicht unterstützt. |
 | Verlust von JSON-/YAML-/Workflow-Scope | `behoben und nachgewiesen`: gezielte lokale Regressionen beweisen den Guard; Analyzer-Ausführung bleibt eine eigene Prüfung. |
-| Sechs Shell-Parserwarnungen | Vier bei `13b17c` `behoben und nachgewiesen`; Scheduler `begründete Analyzergrenze`; Resolver-Folgeänderung braucht frischen Nachweis. |
+| Sechs Shell-Parserwarnungen | Fünf bei `8f632bdd` `behoben und nachgewiesen`; Scheduler `begründete Analyzergrenze`. |
 
 Jede gemeldete Shell-Datei verwendet `#!/bin/sh` und bestand `sh -n`, `bash -n`
 sowie ShellChecks Prüfung auf Fehlerniveau. Dynamische Oktalausdrücke im
@@ -383,7 +390,7 @@ Lese-/Schreib-FIFO-Semantik.
 | `connectors/envoy/harness/run_envoy_composite_matrix.sh` | Gültiger Hintergrund-Heredoc; Subshell plus `exec` erhält Argumente, Umleitungen und PID. Warnung bei `13b17c` verschwunden. |
 | `ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Gültige Lese-/Schreib-FIFO-Umleitung; unverändert, weil getrennte Opens das Blockier-/EOF-Verhalten ändern. Warnung bei `13b17c` besteht. |
 | `connectors/lighttpd/harness/run_patched_full_lifecycle.sh` | Gültiger Hintergrund-Heredoc; gleichwertige Subshell-/`exec`-Form. Warnung bei `13b17c` verschwunden. |
-| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Gültige quotierte Case-Muster bei `13b17c` weiter gemeldet; einzelne Muster mit maskierten Leerzeichen bestehen lokale Verhaltenstests, nächster Scan ausstehend. |
+| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Gültige quotierte Case-Muster bei `13b17c` weiter gemeldet; einzelne Muster mit maskierten Leerzeichen erhalten das Verhalten und beseitigten die Warnung bei `8f632bdd`. |
 | `connectors/haproxy/harness/run_haproxy_smoke.sh` | Gültiger Hintergrund-Heredoc; Subshell/`exec` erhält optionales `setsid` und PID. Warnung bei `13b17c` verschwunden. |
 
 Der minimale Parser-Reproduktionsfall des Schedulers lautet:

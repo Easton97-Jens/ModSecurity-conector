@@ -78,6 +78,7 @@ unverändertes Servermodell.
 
 ## Geänderte Dateien
 
+- `.gitleaksignore` für die zwei exakten Dokumentations-Fingerprints öffentlicher Finding-IDs.
 - `connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main_test.go`.
 
 - `.github/workflows/sonarqube.yml`, `ci/sonar-coverage.ini`, `ci/checks/analysis/run-sonar-coverage.py`.
@@ -214,7 +215,7 @@ Grenzwert als die terminierte Zeichenfolge belegt allein kein Überlesen. Auch
 der [GNU-C-Library-Vertrag für Suchfunktionen](https://snapshots.sourceware.org/glibc/trunk/latest/manual/html_node/Search-Functions.html)
 beschreibt die Suche bis zum ersten Treffer. Diese vier Findings sind potenzielle
 Analyzer-Fehlalarme mit `no_change`, keine bestätigten Pufferüberläufe oder
-Server-Transitions. C++20-Keys: `AaF0yz5SaVChWkKVlx_W`, `AaF0yz5SaVChWkKVlx_X`,
+Server-Transitions. C++20-Finding-IDs sind unter anderem `AaF0yz5SaVChWkKVlx_W`, `AaF0yz5SaVChWkKVlx_X`,
 `AaF0yz5SaVChWkKVlx_Z`, `AaF0yz5SaVChWkKVlx_Y`.
 
 Ein eigenständiger Probeaufbau mit dem exakten Helper-Quelltext bestand unter
@@ -223,6 +224,16 @@ die drei gemeldeten Literale, einen terminierten 256-Byte-Puffer mit Grenze 4096
 NUL am letzten erlaubten Byte, begrenzte Ablehnung ohne Terminator und unveränderte
 Ausgabe bei ungültigen Argumenten. Es gab keinen Sanitizer-Befund. Der produktive
 Helper bleibt unverändert.
+
+Gitleaks meldete im PR-Bereich bei `8f632bdd` zwei generische API-Key-Treffer
+für die öffentlichen Sonar-Finding-IDs oben, je einen pro Sprachfassung. Die
+exakten Commit-/Pfad-/Regel-/Zeilen-Fingerprints stehen in `.gitleaksignore`;
+keine Datei, Regel oder Credential-Schablone wird pauschal ausgeschlossen. Die
+Formulierung vermeidet den Eindruck von Zugangsdaten. Diese technische
+Nicht-Secret-Einordnung ändert keinen Sonar-Finding-Status. Der vollständige
+Vier-Commit-PR-Bereich und aktuelle Record-Inhalt bestanden ohne ungeprüfte
+Treffer; synthetische Credential-Muster lösten weiterhin die GitHub-PAT- und
+generische API-Key-Regel aus, mit vollständiger Redigierung.
 
 Eine ergänzende Cache-Regression trennt Berechtigung und Existenz: Ein externes
 SONAME-Ziel muss bei Existenz und Abwesenheit denselben abgelehnten Nachweis ohne
@@ -246,6 +257,19 @@ Architekturlabels führten weiterhin zum Ignorieren der Intended-Perspektive.
 Diese Beobachtungen sind an diesen Zwischen-SHA gebunden; nachfolgende
 Source-Änderungen verlangen einen neuen sauberen Scan und Readback des exakten Heads.
 
+Der Folge-Source-Head `8f632bdd45f117ba7e8b025c1fbfac37cdad8cef`,
+[Lauf 40232441972](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40232441972),
+beendete die Serververarbeitung: Task `AaF01odhZaGJAnPJkdwU`, Analyse
+`6759e9c6-2376-41a9-85cd-2df9de1d0ca6`, Status `SUCCESS`. Die Resolver-Warnung
+fehlt nun: **Fünf von sechs ursprünglichen Shell-Warnungen sind nachgewiesen behoben**;
+die unveränderte gültige Scheduler-FIFO-Syntax bleibt die dokumentierte Analyzergrenze.
+Haupt-PR-Coverage bleibt bei 80,5 %, native Kennzahlen bleiben wie oben bei
+91,28/193/46 und das Gate allein wegen der drei Deskriptor-Open-Findings auf
+`ERROR`. Beide Advisory-Jobs scheiterten weiter an ihren tatsächlichen Gates.
+Die zwei oben beschriebenen öffentlichen ID-Fehlalarme in Gitleaks benötigen
+einen reinen Dokumentations-Folgecommit; dessen terminale CI-/Sonar-Nachweise
+werden PR #421 beigefügt.
+
 Der zweite CI-Versuch bei `161bfd7118b7480d0d997ff1bd4a5157f97ca1d8`, [Lauf 40230777535](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230777535), bestand kanonisches Python-/Go-Setup, deckte aber eine bestehende dateisystemabhängige Go-Fixture auf: Löschen und Neuerzeugen einer geschlossenen regulären Datei erlaubte sofortige Inode-Wiederverwendung im Replacement-during-Close-Test. Die Fixture benennt nun das Original vor Erzeugung des Ersatzes um und garantiert damit einen anderen lebenden Inode; Ersatz-Erhaltungsassertion und produktiver Listener bleiben unverändert. Unabhängiges Source-Review stützte die Diagnose; gezielte Ersatz- und reale Socket-Cleanup-Tests bestanden lokal 20 Wiederholungen. Dies korrigiert Testdeterminismus und behauptet keine absolute Immunität gegen Same-UID-Races.
 
 Die erste PR-Head-CI bei `d094e1dacd1f540b1ffcf35b7da5bd4b3c255665`, [Lauf 40230520936](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230520936), bestand kanonisches Python-Setup und alle 61 ausgewählten Python-Tests. Go-Setup wählte `1.27.1`; danach scheiterte der Coverage-Schritt vor dem Scan, weil setup-go globales Python im PATH vor die venv setzte (`No module named coverage`). Der Workflow nennt nun für jeden Coverage-Producer, Merge und Finalizer explizit den venv-Interpreter. Für diesen fehlgeschlagenen Versuch wird weder Scanner-Upload noch Gate-Ergebnis behauptet.
@@ -268,7 +292,7 @@ in diesem Record noch nicht vor.
 | Fehlende native Includes / Parsingfehler | `weiterhin offen`: Zwischenqualität 91,28 und 193/2.260 Funktionsfehler belegen Verbesserung; NGINX-/HAProxy-/lighttpd-Kontextlücken bleiben. |
 | Vollständige Parent-C/C++-Taintanalyse in AutoConfig | `begründete Analyzergrenze`: nicht unterstützter Modus und unabhängige ausführbare Targets bestehen fort. |
 | Ignoriertes Python-Modell | `extern blockiert`: Medientyp-Fähigkeit der autorisierten CLI fehlt; exakter Vorschlag liegt vor. |
-| Sechs Shell-Parserwarnungen | Vier beim Zwischen-SHA `behoben und nachgewiesen`; gültige FIFO-Syntax ist eine `begründete Analyzergrenze`; Resolver-Warnung bis zum Scan der neuen Schreibweise `weiterhin offen`. |
+| Sechs Shell-Parserwarnungen | Fünf bei `8f632bdd` `behoben und nachgewiesen`; gültige Scheduler-FIFO-Syntax ist eine `begründete Analyzergrenze`. |
 | Fehlender JSON-/YAML-/Workflow-Scope-Guard | `behoben und nachgewiesen`: gezielte lokale Guard-Regressionen bestanden. |
 
 Die Hauptprojekt-UUID ist `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`; die Modell-ID

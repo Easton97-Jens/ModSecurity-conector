@@ -326,6 +326,12 @@ lighttpd host/generated headers and the AutoConfig taint limit remain.
 The Change Record contains complete baseline-finding dispositions and measured
 results; follow-up head results must be verified separately in the PR.
 
+The follow-up scan of `8f632bdd` in [run 40232441972](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40232441972)
+also completed server processing and confirmed the resolver warning absent.
+Five original Shell warnings are therefore resolved; the valid scheduler FIFO
+form remains the single documented Shell parser limit. Gate and coverage remain
+ERROR/E and 80.5%. Final documentation-only follow-up results are recorded in PR #421.
+
 | Original finding | Current disposition before final-head server verification |
 | --- | --- |
 | Main Security Rating E | `weiterhin offen`: source fixes have regressions; PR gate remains E on three guarded descriptor opens. Counterevidence is documented without server transitions. |
@@ -334,7 +340,7 @@ results; follow-up head results must be verified separately in the PR.
 | Full-Parent C/C++ taint under AutoConfig | `begründete Analyzergrenze`: unsupported mode and independent-target assumptions remain explicit. |
 | Python intended model ignored | `extern blockiert`: exact model correction is prepared; required PATCH media type is unsupported by the authorized CLI. |
 | JSON/YAML/workflow scope loss | `behoben und nachgewiesen`: targeted local regressions prove the guard; analyzer execution remains a separate check. |
-| Six Shell parse warnings | Four `behoben und nachgewiesen` at `13b17c`; scheduler `begründete Analyzergrenze`; resolver retry needs fresh proof. |
+| Six Shell parse warnings | Five `behoben und nachgewiesen` at `8f632bdd`; scheduler `begründete Analyzergrenze`. |
 
 Every reported Shell file uses `#!/bin/sh` and passed `sh -n`, `bash -n` and
 ShellCheck's error-level check. Dynamic octal expressions in Apache cleanup
@@ -351,7 +357,7 @@ semantics.
 | `connectors/envoy/harness/run_envoy_composite_matrix.sh` | Valid background heredoc; subshell plus `exec` preserves arguments, redirections and PID. Warning absent at `13b17c`. |
 | `ci/runtime/lifecycle/run-full-matrix-parallel.sh` | Valid read/write FIFO redirection; unchanged because separate opens alter blocking/EOF behavior. Warning persists at `13b17c`. |
 | `connectors/lighttpd/harness/run_patched_full_lifecycle.sh` | Valid background heredoc; equivalent subshell/`exec` form. Warning absent at `13b17c`. |
-| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Valid quoted case patterns still warned at `13b17c`; separate escaped-space patterns pass local behavior checks, next scan pending. |
+| `connectors/haproxy/htx-overlay/resolve-modsecurity.sh` | Valid quoted case patterns still warned at `13b17c`; separate escaped-space patterns preserve behavior and removed the warning at `8f632bdd`. |
 | `connectors/haproxy/harness/run_haproxy_smoke.sh` | Valid background heredoc; subshell/`exec` preserves optional `setsid` and PID. Warning absent at `13b17c`. |
 
 The scheduler's minimal parser reproducer is:

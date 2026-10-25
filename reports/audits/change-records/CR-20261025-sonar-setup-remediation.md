@@ -70,6 +70,7 @@ update failed HTTP 415; readback proved the server model unchanged.
 
 ## Changed files
 
+- `.gitleaksignore` for the two exact public-issue-ID documentation fingerprints.
 - `connectors/envoy/ext_proc/cmd/msconnector-envoy-response-observer/main_test.go`.
 
 - `.github/workflows/sonarqube.yml`, `ci/sonar-coverage.ini`, `ci/checks/analysis/run-sonar-coverage.py`.
@@ -199,7 +200,7 @@ than the terminated string does not itself prove an overread. The
 [GNU C Library search-function contract](https://snapshots.sourceware.org/glibc/trunk/latest/manual/html_node/Search-Functions.html)
 also describes first-match search. These four findings are candidate analyzer
 false positives with `no_change`, not confirmed buffer overflows or server
-transitions. C++20 keys: `AaF0yz5SaVChWkKVlx_W`, `AaF0yz5SaVChWkKVlx_X`,
+transitions. C++20 issue identifiers include `AaF0yz5SaVChWkKVlx_W`, `AaF0yz5SaVChWkKVlx_X`,
 `AaF0yz5SaVChWkKVlx_Z`, `AaF0yz5SaVChWkKVlx_Y`.
 
 An exact-source standalone helper probe compiled with C17, warnings as errors,
@@ -207,6 +208,15 @@ AddressSanitizer and UndefinedBehaviorSanitizer passed the three reported
 literals, a terminated 256-byte buffer with bound 4096, NUL at the last allowed
 byte, bounded unterminated rejection and unchanged output on invalid arguments.
 No sanitizer finding occurred. The production helper remains unchanged.
+
+The PR-range Gitleaks check at `8f632bdd` reported two generic-API-key matches
+on the public Sonar issue identifiers above, one per language record. The exact
+commit/path/rule/line fingerprints are recorded in `.gitleaksignore`; no file,
+rule or credential pattern is broadly excluded. The wording avoids implying
+credential material. This technical non-secret disposition does not change any
+Sonar issue status. The full four-commit PR range and current record content
+passed with no unreviewed matches; synthetic credential-shaped controls still
+triggered the GitHub PAT and generic-API-key rules, with full redaction.
 
 A follow-up cache regression distinguishes authority from existence: an outside
 SONAME target must yield the same rejected/no-digest proof whether present or
@@ -227,6 +237,18 @@ locally validated: shell syntax, ShellCheck, five resolver tests and nine
 before/after architecture cases passed. The 44 invalid architecture labels still caused the intended
 perspective to be ignored. These observations are bound to this intermediate
 SHA; subsequent source changes require a new clean scan and exact-head readback.
+
+Follow-up source head `8f632bdd45f117ba7e8b025c1fbfac37cdad8cef`,
+[run 40232441972](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40232441972),
+completed server processing: task `AaF01odhZaGJAnPJkdwU`, analysis
+`6759e9c6-2376-41a9-85cd-2df9de1d0ca6`, status `SUCCESS`. The resolver warning
+is now absent: **five of six original Shell warnings are resolved and measured**;
+the unchanged valid scheduler FIFO syntax remains the documented analyzer limit.
+Main PR coverage remains 80.5%, native metrics remain 91.28/193/46 as above,
+and the gate remains `ERROR` solely on the three descriptor-open findings.
+Both advisory jobs still failed their real gates. The two public-ID Gitleaks
+false positives described above require a follow-up documentation-only commit;
+that head's terminal CI/Sonar evidence will be attached to PR #421.
 
 Second CI attempt at `161bfd7118b7480d0d997ff1bd4a5157f97ca1d8`, [run 40230777535](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40230777535), passed canonical Python/Go setup but exposed a pre-existing filesystem-dependent Go fixture: deleting and recreating a closed regular file allowed immediate inode reuse in the replacement-during-close test. The fixture now renames the original before creating the replacement, guaranteeing a distinct live inode; the replacement-preservation assertion and production listener are unchanged. Independent source review supported the diagnosis; the targeted replacement and real-socket cleanup tests passed 20 repetitions locally. This is a test determinism correction, not a claim of absolute same-UID race immunity.
 
@@ -250,7 +272,7 @@ available in this record.
 | Native missing includes/parsing errors | `weiterhin offen`: intermediate quality 91.28 and 193/2,260 function errors show improvement; NGINX/HAProxy/lighttpd context gaps remain. |
 | Full-Parent C/C++ taint in AutoConfig | `begründete Analyzergrenze`: unsupported mode and independent executable targets remain. |
 | Ignored Python model | `extern blockiert`: media-type capability missing in authorized CLI; exact proposal supplied. |
-| Six Shell parser warnings | Four `behoben und nachgewiesen` at the intermediate SHA; valid FIFO syntax is a `begründete Analyzergrenze`; resolver warning remains `weiterhin offen` pending the new spelling's scan. |
+| Six Shell parser warnings | Five `behoben und nachgewiesen` at `8f632bdd`; valid scheduler FIFO syntax is a `begründete Analyzergrenze`. |
 | Missing JSON/YAML/workflow scope guard | `behoben und nachgewiesen`: focused local guard regressions passed. |
 
 The model's main project UUID is `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2`; model ID
