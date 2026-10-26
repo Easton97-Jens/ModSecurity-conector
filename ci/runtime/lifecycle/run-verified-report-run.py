@@ -68,6 +68,7 @@ FIELD_VALUE_TABLE_HEADER = "| Field | Value |"
 FIELD_VALUE_TABLE_DIVIDER = "|---|---|"
 FOUR_COLUMN_TABLE_DIVIDER = "|---|---|---|---|"
 ARGPARSE_ERROR_TERMINATION_ASSERTION = "argparse.error must terminate execution"
+CURRENT_RUN_MARKER_LABEL = "current-run marker"
 
 
 def git_output(args: list[str], cwd: Path) -> str:
@@ -1841,7 +1842,7 @@ def restore_current_verified_run_id(args: argparse.Namespace, current_run_file: 
     # FIFO cannot block between path validation and the descriptor checks.
     try:
         target = runtime_artifact_path(
-            current_run_file.parent, current_run_file, "current-run marker"
+            current_run_file.parent, current_run_file, CURRENT_RUN_MARKER_LABEL
         )
         no_follow = getattr(os, "O_NOFOLLOW", None)
         nonblocking = getattr(os, "O_NONBLOCK", None)
@@ -1854,7 +1855,7 @@ def restore_current_verified_run_id(args: argparse.Namespace, current_run_file: 
                 target.name, os.O_RDONLY | no_follow | nonblocking,
                 dir_fd=parent_descriptor,
             )
-            require_regular_runtime_artifact(descriptor, "current-run marker")
+            require_regular_runtime_artifact(descriptor, CURRENT_RUN_MARKER_LABEL)
             details = os.fstat(descriptor)
             if details.st_uid != os.geteuid() or details.st_mode & 0o022 or details.st_nlink != 1:
                 raise ValueError("current-run marker has unsafe ownership, permissions or links")
@@ -1988,7 +1989,7 @@ def prepare_verified_run_context(
     logs_dir = Path(paths["VERIFIED_RUN_INSTANCE_LOG_ROOT"])
     write_runtime_artifact_text_atomic(
         Path(paths["VERIFIED_RUNS_ROOT"]), current_run_file,
-        verified_run_id + "\n", "current-run marker",
+        verified_run_id + "\n", CURRENT_RUN_MARKER_LABEL,
     )
     commands_file = run_root / "verified-commands.json"
     env = dict(os.environ)

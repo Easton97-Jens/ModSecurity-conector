@@ -100,18 +100,30 @@ naive capture records those copied paths, which do not match Parent source
 paths. Any mapping must prove identical source content while retaining the real
 compiler arguments and headers; invented compiler rows are not acceptable.
 
-CI now installs the existing Apache/APR/ModSecurity header prerequisites and
-compiles a C17 header probe. Supported `sonar.cfamily.customCIncludes` and
-`sonar.cfamily.customCppIncludes` supply `/usr/include`, `/usr/include/apache2`
-and `/usr/include/apr-1.0` to AutoConfig. A local real Apache C17 source compile
-also passed during remediation development. These checks establish installed
-header/build context, not resolved Sonar includes or hosted runtime behavior.
-NGINX, HAProxy and lighttpd generated host contexts remain incomplete in this
-scan; inspect fresh parsing/include diagnostics before claiming improvement.
+CI installs the existing Apache/APR header prerequisites and compiles a C17
+header probe. `ci/checks/analysis/prepare-sonar-native-context.py` prepares real
+pinned NGINX and HAProxy source trees and the canonically patched lighttpd tree,
+runs the actual required configure/autogen steps, and records archive, patch,
+configuration and generated-header hashes. Supported
+`sonar.cfamily.customCIncludes` and `sonar.cfamily.customCppIncludes` consume
+those host paths alongside `/usr/include`, `/usr/include/apache2` and
+`/usr/include/apr-1.0`.
+
+The 2026-10-26 development correction also obtains official ModSecurity public
+headers from the version approved by the pinned Framework contract and places
+them before distribution headers. The distribution SDK `3.0.12` lacks cleanup
+APIs used by the unchanged C++ evaluator; an actual negative syntax probe
+confirmed that mismatch. The approved `3.0.17` headers passed the corresponding
+syntax probe. The actual NGINX `src/http/v2` dependency directory is included
+without inventing feature defines or changing the configured host profile.
+The complete development preparation passed with 13 include directories and
+11 generated/source hashes. This proves header preparation and the selected
+compiler probe; fresh scanner diagnostics must establish the remaining parsing
+and include counts. It does not establish hosted runtime behavior.
 
 Headers are analyzed through including translation units. CFamily whole-project
 reasoning assumes a single linked target, while this Parent contains independent
-connector executables. AutoConfig also does not support C/C++ taint analysis.
+connector executables. AutoConfig and multiple code variants do not support C/C++ taint analysis.
 Neither a higher quality score nor the C++ reporting-standard override proves
 those analyses ran. A future database strategy must preserve every intended
 unit and required host/profile context and account for the independent targets;
@@ -338,7 +350,11 @@ Five original Shell warnings are therefore resolved; the valid scheduler FIFO
 form remains the single documented Shell parser limit. Gate and coverage remain
 ERROR/E and 80.5%. Final documentation-only follow-up results are recorded in PR #421.
 
-| Original finding | Current disposition before final-head server verification |
+The following table is historical evidence for `13b17c` / `8f632bdd`, not the
+current issue inventory. The complete 2026-10-26 continuation below and the
+[closeout](sonarqube-pr421-closeout.md) supersede its open-issue decisions.
+
+| Original finding | Historical disposition at those heads |
 | --- | --- |
 | Main Security Rating E | `weiterhin offen`: source fixes have regressions; PR gate remains E on three guarded descriptor opens. Counterevidence is documented without server transitions. |
 | Main new-code coverage 0.6% | PR import `behoben und nachgewiesen` at 80.5%; accumulated master coverage remains `weiterhin offen` until a corresponding main analysis. |
@@ -397,15 +413,63 @@ The authorized update through `/usr/local/bin/sonar-with-env` and CLI `1.10.1`
 returned HTTP 415: `PATCH /api/v2/architecture/models/cb04d3a3-7c8f-447c-99f0-ca49c97f054f`
 requires `application/merge-patch+json`, while this CLI has no supported media-type
 option. Effective `architectureadmin`/`admin` roles were present; subsequent
-readback confirmed no mutation. An administrator must apply the prepared model
-through the intended-architecture editor or an authorized client supporting that
-media type, then rerun analysis and confirm perspective application. No wrapper,
+readback confirmed no mutation. The repeated authorized request on 2026-10-26 again returned HTTP 415; readback
+confirmed the model unchanged. Installed CLI `1.10.1.16776` is the latest
+published release. Its released API implementation supports JSON/form content
+types, with no header override; architecture commands on unreleased upstream
+code do not provide a supported installed route. Apply the exact reviewed body
+through a supported, authorized client with that media type integrated with the
+mandatory authentication wrapper; read back the unchanged Parent patterns,
+nested groups and constraints, then run a fresh analysis proving perspective
+application. No verified UI editor/import route is asserted. No wrapper,
 credential or authentication workaround is authorized by this document.
 
 Final-head CI/Sonar links, terminal processing, main/advisory gates, language
 execution, report imports and per-warning after-results must be recorded in the
 Change Record when observed. A successful upload, an older green result,
 `warningCount=0` or an advisory job conclusion alone is insufficient.
+
+## Complete PR issue continuation, 2026-10-26
+
+The freshly paginated main-project query for PR #421 used
+`sinceLeakPeriod=true`, `issueStatuses=OPEN,CONFIRMED` and all issue types:
+100 plus 50 results, 150 distinct issues. This is 122 Shell and 28 Python
+issues: 141 maintainability, eight security and one reliability issue. Legacy
+severity counts are six MINOR, 116 MAJOR, 25 CRITICAL and three BLOCKER. The
+separate advisory inventories under the same New Code/status scope are 31 and
+16 issues; they are not the older total-vulnerability counts of 27 and 24.
+Main security hotspots were separately checked: zero.
+
+The verified starting source is `1aa9646a65e5b3bd85b911c99ff40be73eee2cd3`.
+All three corresponding server tasks completed successfully; before the new
+individual decisions, their gates were ERROR. Genuine report imports yielded
+82.3% main PR coverage and 83.7% advisory branch new-code coverage. Neither
+value repairs accumulated master coverage. Later uncommitted development
+changes and their local coverage cannot replace a clean-head CI import.
+
+After independent complete-flow/source review and attack/allowed controls,
+the newly explicit user authorization was used for 21 individual
+`FALSE_POSITIVE` transitions with issue-specific comments: eight main, eight
+C++20 and five C++23. Every status and matching comment was read back. No risk
+was accepted and no rule, profile, gate or threshold was weakened. These
+server decisions supersede the historical no-transition statements above;
+new findings require their own review. The 142 main nonsecurity issues and
+23/11 advisory nonsecurity issues have local code corrections pending a fresh
+scan. Named POSIX function arguments, equivalent control-flow simplification
+and Python complexity/test corrections preserve the relevant interfaces and
+security controls. Actual before/after Shell characterization and the
+instrumented 80-method Python selection passed. Six existing Envoy and twelve
+HAProxy ShellCheck warnings remain unchanged; this is not a clean overall
+ShellCheck result. The scheduler retains `exec 8<>` FIFO behavior.
+
+The architecture application remains externally blocked as described above.
+Native scanner closure, new-code issue counts and final-head CI/Sonar remain
+open until a new clean source revision has terminal evidence for all three
+projects. The Python simulation-cost and predecessor messages remain bounded
+analyzer limitations with baseline evidence. PR #421 stays Draft while
+required criteria are missing. The [Change Record](../reports/audits/change-records/CR-20261025-sonar-setup-remediation.md)
+and [closeout](sonarqube-pr421-closeout.md) distinguish local repairs, actual
+server decisions and remaining proof. No merge or master change is claimed.
 
 ## Official references
 
@@ -425,3 +489,7 @@ Change Record when observed. A successful upload, an older green result,
 - [DevOps binding](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/about-sonarqube-cloud-solution/resources-structure/binding-with-dop)
 
 - [Native C/C++ coverage / Native C/C++-Coverage](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/c-c-objective-c-test-coverage)
+
+- [Scanner CLI 8.2.0.6438](https://github.com/SonarSource/sonar-scanner-cli/releases/tag/8.2.0.6438)
+- [CFamily taint analysis](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis)
+- [CLI 1.10.1.16776](https://github.com/SonarSource/sonarqube-cli/releases/tag/1.10.1.16776), [released API command](https://github.com/SonarSource/sonarqube-cli/blob/ef0f792b7c4bb18d2432015baae4984a6cd50d99/src/commands/api/api.ts), [released HTTP client](https://github.com/SonarSource/sonarqube-cli/blob/ef0f792b7c4bb18d2432015baae4984a6cd50d99/src/core/server/http-client.ts)

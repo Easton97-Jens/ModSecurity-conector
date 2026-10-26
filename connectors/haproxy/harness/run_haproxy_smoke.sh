@@ -106,6 +106,7 @@ path_is_under_any_root() {
         [ -n "$root" ] || continue
         case "$path" in
             "$root"|"$root"/*) return 0 ;;
+            *) ;;
         esac
     done
     return 1
@@ -119,6 +120,7 @@ require_not_system_or_root_path() {
     fi
     case "$path" in
         /root|/root/*) blocked "$label must not use /root runtime paths: $path" ;;
+        *) ;;
     esac
 }
 
@@ -131,6 +133,7 @@ require_under_source_root() {
     require_not_system_or_root_path "$path" "$label"
     case "$path" in
         /src|/src/*) return 0 ;;
+        *) ;;
     esac
     if path_is_under_any_root "$path" \
         "$VERIFIED_RUN_ROOT" \
@@ -152,6 +155,7 @@ require_under_runtime_root() {
     require_not_system_or_root_path "$path" "$label"
     case "$path" in
         /src|/src/*|/tmp|/tmp/*) return 0 ;;
+        *) ;;
     esac
     if path_is_under_any_root "$path" \
         "$VERIFIED_RUN_ROOT" \
@@ -702,6 +706,7 @@ cleanup_runtime_process() {
             printf '%s\n' "haproxy_smoke: invalid $process_name PID during cleanup" >&2
             return 1
             ;;
+        *) ;;
     esac
     if [ -n "$RUNTIME_SETSID_BIN" ]; then
         signal_runtime_process_group_members "$process_pid" TERM || return 1
@@ -719,19 +724,17 @@ cleanup_runtime_process() {
             printf '%s\n' "haproxy_smoke: cannot stop $process_name leader during cleanup" >&2
             return 1
         fi
-        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
-            if /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
-                ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1; then
-                printf '%s\n' "haproxy_smoke: cannot stop $process_name process group during cleanup" >&2
-                return 1
-            fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20 && \
+            /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
+            ! /bin/kill -TERM -- "-$process_pid" >/dev/null 2>&1; then
+            printf '%s\n' "haproxy_smoke: cannot stop $process_name process group during cleanup" >&2
+            return 1
         fi
-        if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
-            if /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
-                ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1; then
-                printf '%s\n' "haproxy_smoke: cannot kill $process_name process group during cleanup" >&2
-                return 1
-            fi
+        if ! wait_for_runtime_process_leader_exit "$process_pid" 20 && \
+            /bin/kill -0 -- "-$process_pid" >/dev/null 2>&1 && \
+            ! /bin/kill -KILL -- "-$process_pid" >/dev/null 2>&1; then
+            printf '%s\n' "haproxy_smoke: cannot kill $process_name process group during cleanup" >&2
+            return 1
         fi
         if ! wait_for_runtime_process_leader_exit "$process_pid" 20; then
             printf '%s\n' "haproxy_smoke: $process_name leader did not exit during cleanup" >&2
@@ -786,7 +789,7 @@ cleanup_runtime_process() {
         else
             cleanup_pgrep_status=$?
             if [ "$cleanup_pgrep_status" -ne 1 ]; then
-                printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+                report_process_group_inspection_failure
                 return 1
             fi
         fi
@@ -803,11 +806,15 @@ cleanup_runtime_process() {
             cleanup_pgrep_status=$?
         fi
         if [ "$cleanup_pgrep_status" -ne 1 ]; then
-            printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+            report_process_group_inspection_failure
             return 1
         fi
     fi
     return 0
+}
+
+report_process_group_inspection_failure() {
+    printf '%s\n' 'haproxy_smoke: cannot inspect process-group members during cleanup' >&2
 }
 
 signal_runtime_process_group_members() {
@@ -819,7 +826,7 @@ signal_runtime_process_group_members() {
     else
         cleanup_pgrep_status=$?
         if [ "$cleanup_pgrep_status" -ne 1 ]; then
-            printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+            report_process_group_inspection_failure
             return 1
         fi
         cleanup_group_members=
@@ -827,6 +834,7 @@ signal_runtime_process_group_members() {
     for cleanup_member_pid in $cleanup_group_members; do
         case "$cleanup_member_pid" in
             *[!0-9]*|0|"$cleanup_group_pid") continue ;;
+            *) ;;
         esac
         if kill -0 "$cleanup_member_pid" >/dev/null 2>&1 && \
             ! /bin/kill -"$cleanup_signal" "$cleanup_member_pid" >/dev/null 2>&1; then
@@ -871,7 +879,7 @@ wait_for_runtime_process_group_exit() {
         if [ "$cleanup_pgrep_status" -eq 1 ]; then
             return 0
         fi
-        printf '%s\n' "haproxy_smoke: cannot inspect process-group members during cleanup" >&2
+        report_process_group_inspection_failure
         return 2
     done
     return 1
@@ -886,6 +894,7 @@ runtime_process_leader_running() {
     cleanup_leader_state=$("$RUNTIME_PS_BIN" -o stat= -p "$cleanup_leader_pid" 2>/dev/null || :)
     case "$cleanup_leader_state" in
         Z*) return 1 ;;
+        *) ;;
     esac
     return 0
 }
@@ -910,7 +919,7 @@ require_runtime_process_stopped() {
     process_pid=$2
 
     [ -n "$process_pid" ] || return 1
-    case "$process_pid" in *[!0-9]*|0) return 1 ;; esac
+    case "$process_pid" in *[!0-9]*|0) return 1 ;; *) ;; esac
     ! kill -0 "$process_pid" >/dev/null 2>&1 || return 1
     if [ -n "$RUNTIME_PGREP_BIN" ]; then
         if runtime_process_group_running "$process_pid"; then
@@ -963,6 +972,7 @@ require_haproxy_evidence_sha() {
     value=$1
     case "$value" in
         ''|*[!0-9a-f]*) return 1 ;;
+        *) ;;
     esac
     [ "${#value}" -eq 40 ]
 }
@@ -975,6 +985,7 @@ require_haproxy_evidence_cell_run_id() {
     esac
     case "$value" in
         *[!A-Za-z0-9._-]*) return 1 ;;
+        *) ;;
     esac
     [ "${#value}" -le 48 ]
 }
@@ -1250,7 +1261,8 @@ send_case_request() {
 }
 
 quote_request_path() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    unquoted_request_path=$1
+    "$PYTHON_BIN" - "$unquoted_request_path" <<'PY'
 import sys
 from urllib.parse import quote
 

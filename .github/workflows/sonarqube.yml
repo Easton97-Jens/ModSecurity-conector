@@ -158,8 +158,8 @@ jobs:
             -Dsonar.python.coverage.reportPaths=${{ env.SONAR_COVERAGE_RELATIVE }}/python/python.xml
             -Dsonar.go.coverage.reportPaths=${{ env.SONAR_COVERAGE_RELATIVE }}/go/envoy.out,${{ env.SONAR_COVERAGE_RELATIVE }}/go/traefik-native.out,${{ env.SONAR_COVERAGE_RELATIVE }}/go/traefik-composite.out,${{ env.SONAR_COVERAGE_RELATIVE }}/go/traefik-observer.out
             -Dsonar.cfamily.gcov.reportsPath=${{ env.SONAR_COVERAGE_RELATIVE }}/native/gcov
-            -Dsonar.cfamily.customCIncludes=/usr/include,/usr/include/apache2,/usr/include/apr-1.0,${{ steps.native-context.outputs.includes }}
-            -Dsonar.cfamily.customCppIncludes=/usr/include,/usr/include/apache2,/usr/include/apr-1.0,${{ steps.native-context.outputs.includes }}
+            -Dsonar.cfamily.customCIncludes=${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0
+            -Dsonar.cfamily.customCppIncludes=${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600
       - name: Report the actual analysis outcome

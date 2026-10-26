@@ -22,7 +22,8 @@ from evidence_inputs import EvidenceInputs
 
 def load(name: str, relative: str):
     spec = importlib.util.spec_from_file_location(name, ROOT / relative)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)

@@ -108,20 +108,32 @@ Parent-Source-Pfaden entsprechen. Eine Zuordnung muss identischen Source-Inhalt
 bei Erhalt der tatsächlichen Compilerargumente und Header nachweisen;
 erfundene Compilerzeilen sind nicht zulässig.
 
-CI installiert nun die bestehenden Apache-/APR-/ModSecurity-Header-Voraussetzungen
-und kompiliert eine C17-Header-Probe. Die unterstützten Einstellungen
-`sonar.cfamily.customCIncludes` und `sonar.cfamily.customCppIncludes` stellen
-AutoConfig `/usr/include`, `/usr/include/apache2` und `/usr/include/apr-1.0`
-bereit. Während der Remediation-Entwicklung bestand außerdem eine echte lokale
-Apache-C17-Source-Kompilierung. Diese Prüfungen belegen installierten
-Header-/Buildkontext, keine aufgelösten Sonar-Includes oder gehostete Laufzeit.
-Die generierten NGINX-, HAProxy- und lighttpd-Hostkontexte bleiben in diesem
-Scan unvollständig; Verbesserungen erst anhand neuer Parsing-/Include-Diagnosen
-behaupten.
+CI installiert die bestehenden Apache-/APR-Header-Voraussetzungen und
+kompiliert eine C17-Header-Probe.
+`ci/checks/analysis/prepare-sonar-native-context.py` bereitet echte gepinnte
+NGINX- und HAProxy-Sourcebäume sowie den kanonisch gepatchten lighttpd-Baum vor,
+führt die tatsächlich erforderlichen Configure-/Autogen-Schritte aus und
+zeichnet Archiv-, Patch-, Konfigurations- und generierte Header-Hashes auf.
+Die unterstützten Einstellungen `sonar.cfamily.customCIncludes` und
+`sonar.cfamily.customCppIncludes` verwenden diese Hostpfade neben `/usr/include`,
+`/usr/include/apache2` und `/usr/include/apr-1.0`.
+
+Die Entwicklungskorrektur vom 2026-10-26 bezieht außerdem offizielle öffentliche
+ModSecurity-Header aus der durch den gepinnten Framework-Vertrag freigegebenen
+Version und ordnet sie vor den Distributionsheadern ein. Dem Distributions-SDK
+`3.0.12` fehlen Cleanup-APIs des unveränderten C++-Evaluators; eine tatsächliche
+negative Syntaxprobe bestätigte diesen Versionskonflikt. Die freigegebenen
+Header von `3.0.17` bestanden die entsprechende Syntaxprobe. Das echte
+NGINX-Abhängigkeitsverzeichnis `src/http/v2` wird eingebunden, ohne
+Feature-Defines zu erfinden oder das konfigurierte Hostprofil zu ändern.
+Die vollständige Entwicklungsvorbereitung bestand mit 13 Include-Verzeichnissen
+und 11 generierten/Source-Hashes. Das belegt die Header-Vorbereitung und die
+ausgewählte Compilerprobe; verbleibende Parsing-/Include-Zahlen müssen neue
+Scannerdiagnosen feststellen. Gehostetes Laufzeitverhalten ist damit nicht belegt.
 
 Header werden über einbindende Translation Units analysiert. CFamily nimmt für
 projektweite Betrachtungen ein gemeinsam gelinktes Target an, während dieser
-Parent unabhängige Connector-Executables enthält. AutoConfig unterstützt zudem
+Parent unabhängige Connector-Executables enthält. AutoConfig und mehrere Codevarianten unterstützen zudem
 keine C/C++-Taintanalyse. Ein höherer Qualitätswert oder der C++-Reporting-Standard
 beweisen deren Ausführung nicht. Eine spätere Datenbankstrategie muss jede
 vorgesehene Unit und den benötigten Host-/Profilkontext erhalten und die
@@ -371,7 +383,12 @@ gültige Scheduler-FIFO-Form bleibt die einzelne dokumentierte Shell-Parsergrenz
 Gate und Coverage bleiben ERROR/E und 80,5 %. Ergebnisse des finalen reinen
 Dokumentations-Folgecommits stehen in PR #421.
 
-| Ausgangsbefund | Aktuelle Einordnung vor finalem Head-Servernachweis |
+Die folgende Tabelle dokumentiert historisch `13b17c` / `8f632bdd` und ist
+keine aktuelle Finding-Inventur. Die vollständige Fortsetzung vom 2026-10-26
+unten und der [Abschlussnachweis](sonarqube-pr421-closeout.de.md) ersetzen
+die damaligen offenen Finding-Entscheidungen.
+
+| Ausgangsbefund | Historische Einordnung dieser Heads |
 | --- | --- |
 | Haupt-Security-Rating E | `weiterhin offen`: Sourcekorrekturen haben Regressionstests; das PR-Gate bleibt wegen drei geschützter Deskriptor-Opens auf E. Gegennachweise sind ohne Server-Transitions dokumentiert. |
 | Haupt-Coverage auf neuem Code 0,6 % | PR-Import bei 80,5 % `behoben und nachgewiesen`; kumulierte Master-Coverage bis zu einer entsprechenden Hauptanalyse `weiterhin offen`. |
@@ -433,17 +450,71 @@ lieferte HTTP 415:
 `PATCH /api/v2/architecture/models/cb04d3a3-7c8f-447c-99f0-ca49c97f054f`
 verlangt `application/merge-patch+json`, diese CLI hat jedoch keine unterstützte
 Medientyp-Option. Die effektiven Rollen `architectureadmin`/`admin` waren
-vorhanden; anschließendes Readback bestätigte keine Änderung. Ein Administrator
-muss das vorbereitete Modell im Editor für die beabsichtigte Architektur oder
-über einen autorisierten Client mit diesem Medientyp anwenden, anschließend
-die Analyse erneut ausführen und die Perspektivanwendung bestätigen. Dieses
-Dokument erlaubt keinen Wrapper-, Credential- oder Authentifizierungs-Workaround.
+vorhanden; anschließendes Readback bestätigte keine Änderung. Der wiederholte autorisierte Request am 2026-10-26 lieferte erneut HTTP 415;
+das Readback bestätigte das unveränderte Modell. Die installierte CLI
+`1.10.1.16776` ist die neueste veröffentlichte Version. Ihre veröffentlichte
+API-Implementierung unterstützt JSON-/Form-Medientypen ohne Header-Override;
+Architekturkommandos aus unveröffentlichtem Upstream-Code bieten keinen
+unterstützten installierten Zugang. Der genaue geprüfte Body muss über einen
+unterstützten autorisierten Client mit diesem Medientyp und Einbindung des
+vorgeschriebenen Authentifizierungswrappers angewendet werden. Danach sind die
+erhaltenen Parent-Muster, verschachtelten Gruppen und Constraints zurückzulesen
+und die Perspektivanwendung durch eine neue Analyse nachzuweisen. Ein geprüfter
+UI-Editor-/Importweg wird nicht behauptet. Dieses Dokument erlaubt keinen
+Wrapper-, Credential- oder Authentifizierungs-Workaround.
 
 CI-/Sonar-Links des finalen Heads, terminale Verarbeitung, Haupt-/Advisory-Gates,
 Sprachausführung, Reportimporte und Nachher-Ergebnisse jeder Warnung müssen nach
 der Beobachtung im Change Record festgehalten werden. Ein erfolgreicher Upload,
 ein älteres grünes Ergebnis, `warningCount=0` oder die Conclusion eines
 Advisory-Jobs allein reichen nicht.
+
+## Vollständige PR-Finding-Fortsetzung, 2026-10-26
+
+Die frisch paginierte Hauptprojektabfrage für PR #421 verwendete
+`sinceLeakPeriod=true`, `issueStatuses=OPEN,CONFIRMED` und alle Finding-Typen:
+100 plus 50 Ergebnisse, 150 verschiedene Findings. Davon betreffen 122 Shell
+und 28 Python: 141 Wartbarkeit, acht Sicherheit und eines Zuverlässigkeit.
+Die Legacy-Schweregrade ergeben sechs MINOR, 116 MAJOR, 25 CRITICAL und drei
+BLOCKER. Die getrennten Advisory-Inventare im gleichen New-Code-/Status-Scope
+enthalten 31 und 16 Findings; das sind nicht die älteren Gesamtzahlen von
+27 und 24 Schwachstellen. Die Security-Hotspots des Hauptprojekts wurden
+separat geprüft: null.
+
+Der geprüfte Ausgangssource ist `1aa9646a65e5b3bd85b911c99ff40be73eee2cd3`.
+Alle drei zugehörigen Servertasks endeten erfolgreich; vor den neuen
+Einzelentscheidungen standen ihre Gates auf ERROR. Echte Reportimporte ergaben
+82,3 % Haupt-PR-Coverage und 83,7 % Advisory-Branch-Coverage auf neuem Code.
+Keiner dieser Werte behebt die kumulierte Master-Coverage. Spätere uncommittete
+Entwicklungsänderungen und deren lokale Coverage ersetzen keinen CI-Import
+eines sauberen Heads.
+
+Nach unabhängiger Prüfung vollständiger Datenflüsse und Sources sowie
+Angriffs-/erlaubten Kontrollen wurde die neue ausdrückliche Nutzerautorisierung
+für 21 einzelne `FALSE_POSITIVE`-Transitions mit Finding-spezifischen Kommentaren
+verwendet: acht Hauptprojekt, acht C++20 und fünf C++23. Jeder Status und der
+zugehörige Kommentar wurden zurückgelesen. Es wurden keine Risiken akzeptiert
+und keine Regeln, Profile, Gates oder Schwellen abgesenkt. Diese tatsächlichen
+Serverentscheidungen ersetzen die historischen Aussagen ohne Transitions oben;
+neue Findings benötigen eine eigene Prüfung. Die 142 Nicht-Sicherheitsfindings
+des Hauptprojekts und 23/11 der Advisories sind lokal im Code korrigiert; der
+neue Scan steht aus. Benannte POSIX-Funktionsargumente, gleichwertig vereinfachte
+Kontrollflüsse und Python-Komplexitäts-/Testkorrekturen erhalten die jeweiligen
+Schnittstellen und Sicherheitskontrollen. Tatsächliche Vorher-/Nachher-
+Charakterisierungen der Shell und die instrumentierte Python-Auswahl mit
+80 Methoden bestanden. Sechs bestehende Envoy- und zwölf HAProxy-ShellCheck-
+Warnungen bleiben unverändert; ein insgesamt sauberer ShellCheck-Lauf wird
+nicht behauptet. Der Scheduler erhält das FIFO-Verhalten von `exec 8<>`.
+
+Die Architekturanwendung bleibt wie oben beschrieben extern blockiert. Nativer
+Scannerabschluss, neue Finding-Zahlen und CI/Sonar des finalen Heads bleiben
+offen, bis eine neue saubere Sourcerevision terminale Nachweise für alle drei
+Projekte besitzt. Python-Simulationskosten- und Predecessor-Meldungen bleiben
+begrenzte Analyzergrenzen mit Basisnachweis. PR #421 bleibt Draft, solange
+Pflichtkriterien fehlen. [Change Record](../reports/audits/change-records/CR-20261025-sonar-setup-remediation.de.md)
+und [Abschlussnachweis](sonarqube-pr421-closeout.de.md) trennen lokale Korrekturen,
+tatsächliche Serverentscheidungen und verbleibende Nachweise. Ein Merge oder
+eine Änderung an master wird nicht behauptet.
 
 ## Offizielle Referenzen
 
@@ -463,3 +534,7 @@ Advisory-Jobs allein reichen nicht.
 - [DevOps binding](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/about-sonarqube-cloud-solution/resources-structure/binding-with-dop)
 
 - [Native C/C++ coverage / Native C/C++-Coverage](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/c-c-objective-c-test-coverage)
+
+- [Scanner CLI 8.2.0.6438](https://github.com/SonarSource/sonar-scanner-cli/releases/tag/8.2.0.6438)
+- [CFamily-Taintanalyse](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis)
+- [CLI 1.10.1.16776](https://github.com/SonarSource/sonarqube-cli/releases/tag/1.10.1.16776), [veröffentlichtes API-Kommando](https://github.com/SonarSource/sonarqube-cli/blob/ef0f792b7c4bb18d2432015baae4984a6cd50d99/src/commands/api/api.ts), [veröffentlichter HTTP-Client](https://github.com/SonarSource/sonarqube-cli/blob/ef0f792b7c4bb18d2432015baae4984a6cd50d99/src/core/server/http-client.ts)

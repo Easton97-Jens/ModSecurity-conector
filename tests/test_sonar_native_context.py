@@ -14,12 +14,71 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("sonar_native_context", ROOT / "ci/checks/analysis/prepare-sonar-native-context.py")
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 NATIVE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(NATIVE)
 
 
 class SonarNativeContextTests(unittest.TestCase):
+    def test_contract_versions_remain_ascii_after_concise_regex_change(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            nginx = root / "ci/provisioning/components/prepare-runtime-components.py"
+            haproxy = root / "connectors/haproxy/htx-overlay/version-contract.json"
+            lighttpd = root / "connectors/lighttpd/lighttpd-version.contract"
+            for path in (nginx, haproxy, lighttpd):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            haproxy.write_text(
+                '{"version":"3.2.25","source_url":"https://example.invalid/haproxy.tar.gz",'
+                '"sha256":"' + "0" * 64 + '"}')
+            lighttpd.write_text(
+                "LIGHTTPD_VERSION=1.4.85\nLIGHTTPD_DOWNLOAD_URL=https://example.invalid/lighttpd.tar.gz\n"
+                "LIGHTTPD_SHA256=" + "0" * 64 + "\nLIGHTTPD_PATCH_FILENAME=fixture.patch\n")
+            for version, allowed in (("1.31.6", True), ("1.٣١.6", False), ("1.31.６", False)):
+                pins = {
+                    "NGINX_PINNED_VERSION_READBACK": "nginx/" + version,
+                    "NGINX_PINNED_SOURCE_REPOSITORY": "https://example.invalid/nginx",
+                    "NGINX_PINNED_RELEASE_TAG": "fixture",
+                    "NGINX_PINNED_RELEASE_ASSET_NAME": "fixture.tar.gz",
+                    "NGINX_PINNED_RELEASE_ASSET_SHA256": "0" * 64,
+                }
+                nginx.write_text("\n".join(f"{key} = {value!r}" for key, value in pins.items()))
+                with self.subTest(version=version), mock.patch.object(NATIVE, "ROOT", root):
+                    if allowed:
+                        self.assertEqual(NATIVE.contracts()["nginx"]["version"], version)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "directory is invalid"):
+                            NATIVE.contracts()
+
+    def test_framework_modsecurity_identity_is_passive_and_complete(self) -> None:
+        identity = (
+            'MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/owasp-modsecurity/ModSecurity.git"\n'
+            'MODSECURITY_V3_APPROVED_COMMIT="1925753989ccce977cdaae417b55c9726c7cf02c"\n'
+            'MODSECURITY_V3_RELEASE_TAG="v3.0.17"\n')
+        self.assertEqual(NATIVE.modsecurity_contract(identity.encode())["version"], "3.0.17")
+        invalid = (
+            identity.replace("owasp-modsecurity/ModSecurity", "unapproved/source"),
+            identity.replace("1925753989ccce977cdaae417b55c9726c7cf02c", "main"),
+            identity.replace("v3.0.17", "v3.٠.17"),
+            identity.replace("v3.0.17", "v3.0.$(touch sentinel)"),
+            identity + 'MODSECURITY_V3_RELEASE_TAG="v3.0.18"\n',
+            identity.replace('MODSECURITY_V3_RELEASE_TAG="v3.0.17"\n', ""),
+        )
+        for value in invalid:
+            encoded = value.encode()
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                NATIVE.modsecurity_contract(encoded)
+
+    def test_framework_gitlink_mismatch_is_rejected_before_network(self) -> None:
+        unused = Path("/unused")
+        with mock.patch.object(NATIVE, "load_framework_revision_pins", return_value={"framework_sha": "1" * 40}), \
+                mock.patch.object(NATIVE, "git_output", return_value=b"160000 commit different\tframework\n"), \
+                mock.patch.object(NATIVE, "pinned_git_repository") as network:
+            with self.assertRaisesRegex(ValueError, "disagrees with the Parent gitlink"):
+                NATIVE.framework_modsecurity_contract(unused, unused)
+        network.assert_not_called()
+
     def test_bad_cached_checksum_cannot_reach_extraction(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -108,6 +167,24 @@ class SonarNativeContextTests(unittest.TestCase):
             bad.mkdir()
             with self.assertRaisesRegex(ValueError, "unambiguous"):
                 NATIVE.include_value([bad])
+
+    def test_nginx_generated_includes_accept_joined_and_quoted_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("objs", "src/core", "src/with space"):
+                (root / name).mkdir(parents=True)
+            (root / "objs/Makefile").write_text(
+                "ALL_INCS\t =\t-Isrc/core -I 'src/with space' \\\n\t-I objs\n")
+            self.assertEqual(NATIVE.nginx_includes(root), [
+                root / "src/core", root / "src/with space", root / "objs"])
+
+    def test_nginx_generated_includes_do_not_backtrack_across_near_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "objs").mkdir()
+            (root / "objs/Makefile").write_text(
+                "ALL_INCS" + " " * 65536 + "not-an-assignment\nALL_INCS = -I objs\n")
+            self.assertEqual(NATIVE.nginx_includes(root), [root / "objs"])
 
 
 if __name__ == "__main__":

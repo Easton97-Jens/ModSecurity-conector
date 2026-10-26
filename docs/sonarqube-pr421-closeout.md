@@ -2,9 +2,59 @@
 
 **Language:** English | [Deutsch](sonarqube-pr421-closeout.de.md)
 
-This records the targeted continuation of [Draft PR #421](https://github.com/Easton97-Jens/ModSecurity-conector/pull/421). The source-change scan at `59bc0842cea90d4052c0d005218fae3aca14c2b2` is identified below, separately from historical `4ec7581056889f8c70f44c6725f6bfa65a7fc45b`. The final documentation-only head still requires its own CI/server readback in the PR. No merge, `master` mutation, issue transition, gate reduction or broad exclusion is claimed. The [Change Record](../reports/audits/change-records/CR-20261025-sonar-setup-remediation.md) preserves development history.
+## Current full-inventory continuation — 2026-10-26
 
-## Main-project security decision records
+The current request expands review to **all 150 main-project New-Code issues**, rather than only eight security issues. [Complete individual triage](sonarqube-pr421-triage.md) retains every issue once, its direct link, rule/language, starting file/line, exact message, severity/quality impacts, code/flow context, action and bounded proof. The immutable starting source and all three fresh analysis bindings are `1aa9646a65e5b3bd85b911c99ff40be73eee2cd3`.
+
+| Project/scope | Unique starting issues | Individually proven/transitioned false positives | Local corrections awaiting fresh scan |
+| --- | ---: | ---: | ---: |
+| Main PR 421, New Code OPEN/CONFIRMED | 150 | 8 | 142 |
+| C++20 advisory master, New Code OPEN/CONFIRMED | 31 | 8 | 23 |
+| C++23 advisory master, New Code OPEN/CONFIRMED | 16 | 5 | 11 |
+
+Main pagination is exactly 100+50 = 150 server-reported/unique IDs, without security/severity/language/rule filters. Main impacts: 141 maintainability, 8 security, 1 reliability; 122 Shell/28 Python. Legacy severities: 6 MINOR, 116 MAJOR, 25 CRITICAL, 3 BLOCKER. Advisory New-Code inventories are separate from the earlier total vulnerability inventories of 27/24.
+
+The new explicit user authority permits individual proven false positives with reasons. All **21** such transitions were actually applied through `rtk bypass /usr/local/bin/sonar-with-env`, each with its own complete-flow counterevidence and named attack/allowed controls. `FALSE_POSITIVE` and the exact submitted comment were read back for every issue. These are not blanket acceptance or risk deferrals. The previous no-transition records below are historical, before this authority/action.
+
+The 142 main source corrections comprise all 122 Shell findings and 20 Python findings. POSIX argument bindings, intentional no-op defaults and condition merges preserve quoting, status and cleanup boundaries; no Bash-only local, exclusion or suppression is introduced. Python changes isolate metadata/coverage responsibilities, preserve same-descriptor evidence and invocation-only component approvals, keep ASCII validation explicit, and isolate the intended exception call in tests. Fresh scan closure is still required; local correction alone is not “Behoben”.
+
+### Native context: concrete causes and real probes
+
+The full current scanner log identifies missing `ngx_http_v2.h`. Actual CI installed `libmodsecurity-dev` 3.0.12; its headers lack `msc_rules_error_cleanup` and `msc_intervention_cleanup`, used by unchanged `common/scripts/modsecurity_targeted_eval.cc` at 391/456. An authentic upstream 3.0.12-header negative probe reproduces those failures in `RuleErrorCleanup`/`main`; the exact Framework-approved 3.0.17 headers compile the same evaluator with C++17 and warnings as errors. This proves an SDK/header incompatibility, not a product-cleanup defect.
+
+The new header acquisition reads passive source data from exact Framework gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf`, blob `496b5d8e0ec70d6d31f91aeaf08024050a5698ea`, which approves official ModSecurity commit `1925753989ccce977cdaae417b55c9726c7cf02c` / `v3.0.17`. The materialized headers tree is `8daab1d1734506b687b21efd44169c273eabca6a`. Private external filtered Git stores validate commit/blob identities; only required contract/header data is materialized. Framework/MRTS checkouts and gitlinks are not changed. Actual approved headers precede generic system includes; actual pinned `src/http/v2` supplies the conditional dependency without inventing `NGX_HTTP_V2` or altering H1 configure behavior.
+
+The complete development preparation passed: real NGINX configure, canonical patched-lighttpd bootstrap/configure, approved SDK and unchanged evaluator syntax probe; 13 include directories and 11 file hashes recorded. Its source is dirty development at `1aa9646a`, not clean-head CI. Remaining aggregate parsing/include closure must come from the next scan. No partial compilation database replaces AutoConfig; independent targets and stock/patched/feature variants retain their explicit limits. C/C++ taint is unsupported in AutoConfig and when analyzing multiple variants; a higher parsing score cannot prove it ran. [Official CFamily limits](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis).
+
+### Current verification and separate diagnostics
+
+The measured Python producer passed 80 methods in 7.829 s; 44 affected metadata/boundary/coverage/report methods passed in 4.711 s. Native helper validation passed 11 methods. Independent security validation passed 15 attack/allowed groups on both immutable and frozen candidate source, plus malformed Git-identity/nonliteral-contract and literal real-Git argument controls. Shell batches passed 17 Envoy and 12 host methods, 42 Envoy before/after cases and nine lighttpd behavior cases. Syntax passed; ShellCheck retains six existing Envoy and twelve existing HAProxy diagnostics, so no whole-ShellCheck-green claim is made.
+
+Hotspots are completely zero in the main PR and both advisory branches. All GitHub annotation pages reconcile **92/92**: 50 Sonar inline issue references, 36 runner-image notices, two actual Go-cache configuration warnings, three scanner-exit annotations and one CodeQL overlay/full-database fallback warning. These are separate from the 150 issues. The two Go jobs now key cache data from their actual module files; Actionlint, Zizmor and three existing CodeQL trusted-version/lock/permission checks passed. Current CI is needed to prove those warnings gone.
+
+The missing-blame file is a normal tracked file, not an omitted source or shallow-checkout assumption. It contains one literal CR inside a valid Shell pattern: Git counts 28 LF lines while universal readers count 29. Representing that same CR with quoted `$(printf '\r')` yields 28/28 without changing matching. Twelve actual old/new Shell cases have identical status/stdout/stderr; the real TLS materializer tests pass for allowed escaped paths and rejected LF/CR without output. This is a pre-existing source-encoding compatibility correction; a new analysis must confirm blame recovery. FIFO `exec 8<>` remains unchanged. Python sink-cost/predecessor messages have already been demonstrated in baseline scans; they remain separately bounded analyzer gaps, not an asserted PR regression.
+
+Official source verification confirms signed scan Action `v8.3.0`, Scanner `8.2.0.6438`, Python 3.14, current Go, Bash/POSIX, Actions and generic JSON/YAML interfaces and genuine Python/four-module Go/gcov import parameters. The rolling scanner documentation index lagging at 8.1 is not evidence that the official stable 8.2 release is unsupported. [Scanner release](https://github.com/SonarSource/sonar-scanner-cli/releases/tag/8.2.0.6438), [Action interface](https://github.com/SonarSource/sonarqube-scan-action/blob/v8.3.0/action.yml), [coverage parameters](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/test-coverage-parameters).
+
+### Architecture application remains externally blocked
+
+Fresh full server comparison reproduces exactly 14 Framework/MRTS-group removals and 30 Parent-label renames, preserving other model fields, nested groups and constraints. The canonical PATCH again returns HTTP 415 and full readback is unchanged. Installed CLI `1.10.1.16776` is also the latest official released client, commit `ef0f792b7c4bb18d2432015baae4984a6cd50d99`: its API options expose only data/verbose, and transport supports JSON/form without header override. `application/merge-patch+json` cannot be selected. Unreleased master architecture commands are not an installed/released supported route. No client update, raw-token operation or alternate credential wrapper is used. [Exact released API implementation](https://github.com/SonarSource/sonarqube-cli/blob/ef0f792b7c4bb18d2432015baae4984a6cd50d99/src/commands/api/api.ts), [transport](https://github.com/SonarSource/sonarqube-cli/blob/ef0f792b7c4bb18d2432015baae4984a6cd50d99/src/core/server/http-client.ts).
+
+The supported external handoff remains: back up/review current model, integrate an authorized supported merge-patch-capable client with the required authentication path, PATCH the exact prepared body, compare readback, then run a new exact-head analysis showing the perspective applied. No unverified UI editor/import capability is prescribed. The 44 ignored labels remain an external technical blocker.
+
+### Real readiness requirements and remaining closure
+
+Active master ruleset `19138299` requires exactly `actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, `zizmor`, strict up-to-date base and resolved review threads. Required approvals are zero; current reviews/threads are empty. The installed GitHub CLI's supported authenticated GET resolves the connector's initial access limit: classic protection returns 404 “Branch not protected”; the active ruleset remains authoritative. Sonar is not a GitHub ruleset-required context, but repository delivery policy requires the applicable current-head Sonar gate to pass. Advisory names alone do not make them GitHub-required.
+
+All 18 non-Sonar workflows and selected Apache/CRS runtime at starting `1aa9646a` were terminal success. That selected-block/audit/cleanup proof is not a complete runtime matrix; current artifact ZIP bytes were not independently downloaded/verified. Historical PR coverage 82.3%, advisory new-code coverage 83.7% and accumulated master coverage 0.6% remain separate. New reports, gate conditions, native warning results and full old/new issue comparison must be bound to the new clean final head.
+
+Overall status remains **teilweise abgeschlossen/blockiert**, Draft, until current-head validation and required technical criteria are satisfied. No merge, master push, force-push, threshold/profile reduction or broad exclusion is authorized or performed. This current section supersedes the historical status wording below. The final clean-head tasks, analyses, conditions and CI outcomes are reconciled in the PR after each push; an older scan never substitutes for them.
+
+## Historical evidence before the full-inventory continuation
+
+The following records describe earlier source/analysis snapshots and the former absence of issue-transition authority. They are retained as history, not current issue counts or current OPEN/authorization claims.
+
+### Main-project security decision records
 
 Complete readback at `59bc0842` retains the three original OPEN `pythonsecurity:S2083` vulnerabilities for PR 421; five new helper findings are assessed separately below. The three full flows match the previous exact-head records. Every flow starts at JSON file content in `run-native-case-comparison.py:129`, selects `report["request"]` at 668, passes the return at 726–732, `run_requested_cases:1237`, main 1265–1268, `write_summary:1100–1118`, `reader.file_proof:1122`, `EvidenceInputs.file_proof:93–94`, and `_descriptor:41` before the sinks below.
 
@@ -36,7 +86,7 @@ The repository-relative command form is `rtk bypass env PYTHONNOUSERSITE=1 PYTHO
 
 Decision ready for an authorized issue administrator, separately for each row: retain the issue ID and its exact flow, attach the corresponding controls and named attack/control results, verify the current source revision, and propose **False Positive** for the reviewed flow. No issue comments or status updates were published. Technical counterevidence does not itself grant transition authority; [Sonar issue editing](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/issues/editing) also requires the relevant issue permission and changes gate metrics.
 
-## Independent advisory decisions
+### Independent advisory decisions
 
 The table concerns the **complete historical 23-issue snapshots per advisory at `4ec7581056889f8c70f44c6725f6bfa65a7fc45b`**, independently reviewed against source. All 23 pairs have equal rule, path, line, message and complete normalized flows, differing only by project prefix. Their judgments were not inherited from the three main issues. Proposed outcomes are **22 pairs `not_actionable`, one pair `needs_review`**, with no server transitions. This was a source review; the advisory reviewer ran no tests and does not establish per-pair dynamic coverage.
 
@@ -72,7 +122,7 @@ Operator-selected output/Framework roots do not authorize arbitrary paths for a 
 
 A later live project snapshot belongs to unrelated revision `209ab41a16cc34c88e3dc23d312eada0a38a8169`: C++20 analysis `bd46227f-a29a-4e0b-8a4c-4f9c70499854`, C++23 `93ef6dc3-f223-42a4-a0cf-38c31cdf851d`. Its issue result reports total 110 but contains only the first 100. That partial, unrelated snapshot cannot prove PR 421's current count, disposition or closure.
 
-## Architecture: reviewed change, blocked application
+### Architecture: reviewed change, blocked application
 
 Fresh server readback of model `cb04d3a3-7c8f-447c-99f0-ca49c97f054f` for project UUID `608d0a7b-481a-4f7e-acbf-ae8eb07c3be2` was compared with [the exact proposal](../config/analysis/sonar-python-architecture.patch.json). Of 46 top-level groups, 44 invalid slash labels are addressed by removing 14 excluded Framework/MRTS groups and renaming 30 Parent labels from `/` to `_`. Parent patterns, four nested groups, metadata and `constraints: []` are preserved; no rules are invented or removed from the retained Parent architecture.
 
@@ -87,7 +137,7 @@ Supported-access handoff, preserving authentication policy:
 
 No unverified UI import/editor capability is prescribed. The deprecated `sonar.architecture.configpath` is not a workaround: see [Web API](https://docs.sonarsource.com/sonarqube-cloud/appendices/web-api) and [deprecations](https://docs.sonarsource.com/sonarqube-cloud/deprecations-and-removals).
 
-## Native context and taint limits
+### Native context and taint limits
 
 At historical `4ec75810`, all **136 native translation units** remain in scope: quality **91.28/100**, parsing errors **193/2,260 functions**, unresolved project includes **46/1,132**. This improves the baseline 77.52/414/115 but is not a completion criterion. Actual pinned host context is NGINX `1.31.6`, HAProxy `3.2.25`, and patched lighttpd `1.4.85`. NGINX requires real configured `objs/ngx_auto_config.h`/`ngx_auto_headers.h` and its actual include paths; HAProxy's Linux/OpenSSL feature context is target-specific; lighttpd requires matching patched source and generated configuration.
 
@@ -97,7 +147,7 @@ The implementation is [prepare-sonar-native-context.py](../ci/checks/analysis/pr
 
 [Supported CFamily customization](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis) permits real include properties. **C/C++ taint is unsupported in AutoConfig**, and cross-translation-unit analysis cannot silently treat independently executable connector targets and incompatible variants as one linked program. Complete variant-preserving compilation context and explicit C/C++ taint proof remain **weiterhin offen** / **begründete Analyzergrenze**, respectively.
 
-## Python analyzer boundaries and Shell
+### Python analyzer boundaries and Shell
 
 Both full advisory scans emit these exact messages during Python security analysis:
 
@@ -115,7 +165,7 @@ SonarSource describes a hardcoded guard against exponential branch exploration w
 
 Five of six original Shell parser cases are absent at the identified head. `ci/runtime/lifecycle/run-full-matrix-parallel.sh` retains valid `exec 8<>` bidirectional FIFO semantics; the remaining parser warning is a **begründete Analyzergrenze**. No file exclusion or semantically different redirection is applied.
 
-## Runtime and coverage readback
+### Runtime and coverage readback
 
 [Runtime run 40233061042](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40233061042) is terminal **SUCCESS** for all five connector jobs and the aggregate job. Apache job `121290821692` passed actual `RUN_ONE_CASE=1 make verified-apache-case CASE=crs_sqli_anomaly_block CRS=with-crs MRTS=no-mrts`: selected case denied HTTP 403 with rule `942270`; audit, cleanup, selected-results and artifact validation passed. There is no observed failed Apache job to repair.
 
@@ -125,7 +175,7 @@ Apache compact artifact `12614940472` was downloaded/read in memory and its SHA-
 
 Actual Python XML, all four Go module reports and 71 native gcov reports were imported. Main PR new-code coverage **80.5%** passes the unchanged 80% condition; advisory branch new-code coverage is **82.7%**. Accumulated `master` previous-version coverage **0.6%** remains a separate baseline claim and has not been repaired or raised to 80% by this PR. All 18 non-Sonar workflows at the identified head are terminal success.
 
-## Historical exact-head Sonar ledger
+### Historical exact-head Sonar ledger
 
 All rows are historical exact-head evidence for `4ec7581056889f8c70f44c6725f6bfa65a7fc45b`, scanner `8.2.0.6438`, CFamily `6.85.0.102562`, [run 40233061104](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40233061104). Upload alone is not completion.
 
@@ -141,7 +191,7 @@ The eight new marker tests are `test_current_run_marker_rejects_outside_symlink_
 
 The historical three jobs preserve genuine coverage, 1,345 source/242 test files, 136 native units and four Go modules. The architecture warning, native counts, FIFO parser warning and full-advisory Python warnings above remain attached to that revision. Query exact CE activity/task and analysis IDs with scanner-context SHA; project-latest and unsupported `api/ce/component?pullRequest` filtering are insufficient PR proof.
 
-## Source-change scan and new decisions
+### Source-change scan and new decisions
 
 All three jobs in [run 40238653971](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40238653971) completed against clean `59bc0842cea90d4052c0d005218fae3aca14c2b2`, with scanner `8.2.0.6438` and CFamily `6.85.0.102562`. Server processing is terminal SUCCESS; all actual gates remain ERROR solely on Security Rating E. The unchanged other conditions pass: reliability/maintainability 1, duplication 0.0%, hotspot review 100%, coverage at least 80%. No conditions were ignored.
 

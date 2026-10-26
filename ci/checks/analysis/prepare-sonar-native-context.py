@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import configparser
 import hashlib
 import json
 import os
@@ -26,6 +27,121 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "ci/lib"))
 from runtime_path_utils import is_safe_runtime_root
+from framework_revision_pins import FRAMEWORK_PATH, load_framework_revision_pins
+
+GIT_PREFIX = ("git", "--no-replace-objects")
+
+
+def git_output(repository: Path, *arguments: str, data: bytes | None = None) -> bytes:
+    return subprocess.check_output(
+        [*GIT_PREFIX, "-C", str(repository), *arguments],
+        stderr=subprocess.PIPE, timeout=120, input=data,
+    )
+
+
+def pinned_git_repository(destination: Path, url: str, revision: str, logs: Path, label: str,
+                          *, bare: bool) -> list[dict[str, object]]:
+    """Fetch one exact commit and materialize only explicitly requested blobs."""
+    commands = [["git", "init", *(["--bare"] if bare else []), str(destination)]]
+    prefix = [*GIT_PREFIX, "-C", str(destination)]
+    commands.extend([
+        prefix + ["remote", "add", "origin", url],
+        prefix + ["config", "remote.origin.promisor", "true"],
+        prefix + ["config", "remote.origin.partialCloneFilter", "blob:none"],
+        prefix + ["-c", "fetch.fsckObjects=true", "fetch", "--depth=1", "--no-tags",
+                  "--filter=blob:none", "origin", revision],
+    ])
+    records = [run(command, destination.parent, logs / f"{label}-git-{index}.log", timeout=120)
+               for index, command in enumerate(commands)]
+    if git_output(destination, "rev-parse", "FETCH_HEAD").decode().strip() != revision:
+        raise ValueError("native source Git fetch returned a different commit")
+    return records
+
+
+def modsecurity_contract(common: bytes) -> dict[str, str]:
+    """Read the Framework's three immutable V3 declarations as passive data."""
+    fields = {"MODSECURITY_V3_APPROVED_REPO_URL", "MODSECURITY_V3_APPROVED_COMMIT",
+              "MODSECURITY_V3_RELEASE_TAG"}
+    values = {}
+    for line in common.decode("utf-8").splitlines():
+        name, separator, value = line.partition("=")
+        if separator and name in fields:
+            if name in values:
+                raise ValueError("Framework declares a duplicate ModSecurity identity")
+            try:
+                values[name] = ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                raise ValueError("Framework ModSecurity identity must contain literal values") from None
+    if set(values) != fields:
+        raise ValueError("Framework ModSecurity identity is incomplete")
+    origin = values["MODSECURITY_V3_APPROVED_REPO_URL"]
+    revision = values["MODSECURITY_V3_APPROVED_COMMIT"]
+    tag = values["MODSECURITY_V3_RELEASE_TAG"]
+    if origin != "https://github.com/owasp-modsecurity/ModSecurity.git":
+        raise ValueError("Framework ModSecurity identity must use the approved official origin")
+    if not isinstance(revision, str) or re.fullmatch(r"[a-f0-9]{40}", revision, re.ASCII) is None:
+        raise ValueError("Framework ModSecurity identity requires an exact commit")
+    if not isinstance(tag, str) or re.fullmatch(r"v3\.\d+\.\d+", tag, re.ASCII) is None:
+        raise ValueError("Framework ModSecurity identity requires a stable v3 release tag")
+    return {"source_url": origin, "commit": revision, "release_tag": tag, "version": tag[1:]}
+
+
+def framework_modsecurity_contract(output: Path, logs: Path) -> dict[str, object]:
+    pins = load_framework_revision_pins(ROOT)
+    revision = str(pins["framework_sha"])
+    entry = git_output(ROOT, "ls-tree", "HEAD", "--", FRAMEWORK_PATH)
+    if entry != f"160000 commit {revision}\t{FRAMEWORK_PATH}\n".encode("ascii"):
+        raise ValueError("Framework revision lock disagrees with the Parent gitlink")
+    modules = configparser.ConfigParser(interpolation=None)
+    modules.read_string(git_output(ROOT, "show", "HEAD:.gitmodules").decode("utf-8"))
+    origin = modules[f'submodule "{FRAMEWORK_PATH}"']["url"]
+    parsed = urlsplit(origin)
+    if (parsed.scheme != "https" or parsed.hostname != "github.com"
+            or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment or not parsed.path.endswith(".git")):
+        raise ValueError("Framework identity requires a credential-free GitHub HTTPS origin")
+    repository = output / "framework-contract.git"
+    commands = pinned_git_repository(repository, origin, revision, logs, "framework", bare=True)
+    specifier = revision + ":ci/lib/common.sh"
+    size = int(git_output(repository, "cat-file", "-s", specifier))
+    if not 0 < size <= 512 * 1024:
+        raise ValueError("Framework source contract exceeds the input size bound")
+    common = git_output(repository, "cat-file", "blob", specifier)
+    blob = git_output(repository, "rev-parse", specifier).decode("ascii").strip()
+    if git_output(repository, "hash-object", "--stdin", data=common).decode().strip() != blob:
+        raise ValueError("Framework source contract disagrees with its Git blob")
+    return {**modsecurity_contract(common), "framework_revision": revision,
+            "framework_source_url": origin, "framework_common_blob": blob,
+            "framework_common_sha256": hashlib.sha256(common).hexdigest(),
+            "framework_commands": commands}
+
+
+def modsecurity_headers(output: Path, logs: Path) -> tuple[Path, dict[str, object]]:
+    identity = framework_modsecurity_contract(output, logs)
+    source = output / "sources/modsecurity"
+    commands = pinned_git_repository(source, str(identity["source_url"]), str(identity["commit"]),
+                                     logs, "modsecurity", bare=False)
+    commands.append(run(
+        [*GIT_PREFIX, "-C", str(source), "sparse-checkout", "set",
+         "--no-cone", "/headers/"], output, logs / "modsecurity-sparse.log"))
+    commands.append(run(
+        [*GIT_PREFIX, "-C", str(source), "checkout", "--detach", str(identity["commit"])],
+        output, logs / "modsecurity-checkout.log"))
+    if git_output(source, "rev-parse", "HEAD").decode().strip() != identity["commit"]:
+        raise ValueError("ModSecurity header checkout disagrees with its approved identity")
+    if git_output(source, "status", "--porcelain", "--untracked-files=all"):
+        raise ValueError("ModSecurity header checkout is dirty")
+    headers = source / "headers"
+    identity.update({"source": str(source), "headers": str(headers), "commands": commands,
+                     "headers_tree": git_output(source, "rev-parse", "HEAD:headers").decode().strip()})
+    identity["public_headers"] = required_files([
+        headers / "modsecurity/modsecurity.h", headers / "modsecurity/rules_set.h",
+        headers / "modsecurity/transaction.h"])
+    identity["cleanup_api_probe"] = run(
+        ["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-isystem", str(headers),
+         "-fsyntax-only", str(ROOT / "common/scripts/modsecurity_targeted_eval.cc")],
+        ROOT, logs / "modsecurity-cleanup-api-probe.log")
+    return headers, identity
 
 
 def sha256(path: Path) -> str:
@@ -43,11 +159,12 @@ def contracts() -> dict[str, dict[str, str]]:
         and target.id.startswith("NGINX_PINNED_")
     }
     haproxy = json.loads((ROOT / "connectors/haproxy/htx-overlay/version-contract.json").read_text())
-    lighttpd = dict(
-        line.split("=", 1) for line in
+    lighttpd = {
+        key: value for line in
         (ROOT / "connectors/lighttpd/lighttpd-version.contract").read_text().splitlines()
         if line and not line.startswith("#")
-    )
+        for key, value in [line.split("=", 1)]
+    }
     nginx_version = values["NGINX_PINNED_VERSION_READBACK"].split("/", 1)[1]
     result = {
         "nginx": {"version": nginx_version, "directory": f"nginx-{nginx_version}",
@@ -68,7 +185,7 @@ def contracts() -> dict[str, dict[str, str]]:
             raise ValueError("native source contracts require credential-free pinned HTTPS URLs")
         if not re.fullmatch(r"[a-f0-9]{64}", item["sha256"]):
             raise ValueError("native source contract requires an exact SHA-256")
-        if not re.fullmatch(r"[a-z]+-[0-9]+(?:\.[0-9]+)+", item["directory"]):
+        if not re.fullmatch(r"[a-z]+-\d+(?:\.\d+)+", item["directory"], re.ASCII):
             raise ValueError("native source contract directory is invalid")
     if Path(result["lighttpd"]["patch"]).name != result["lighttpd"]["patch"]:
         raise ValueError("lighttpd patch must be a versioned leaf filename")
@@ -123,12 +240,12 @@ def unpack(archive: Path, sources: Path, expected: str) -> Path:
 
 
 def run(command: list[str], cwd: Path, log: Path, *,
-        environment: dict[str, str] | None = None) -> dict[str, object]:
+        environment: dict[str, str] | None = None, timeout: int = 300) -> dict[str, object]:
     selected_environment = environment or {}
     with log.open("x", encoding="utf-8") as output:
         subprocess.run(command, cwd=cwd, stdout=output, stderr=subprocess.STDOUT, check=True,
-                       env=dict(os.environ, TMPDIR=str(log.parent), **selected_environment))
-    return {"arguments": command, "directory": str(cwd), "log": str(log),
+                       env=dict(os.environ, TMPDIR=str(log.parent), **selected_environment), timeout=timeout)
+    return {"arguments": command, "directory": str(cwd), "log": str(log), "timeout_seconds": timeout,
             "environment": selected_environment}
 
 
@@ -142,10 +259,13 @@ def required_files(paths: list[Path]) -> dict[str, str]:
 def nginx_includes(source: Path) -> list[Path]:
     """Use the real configure-generated include search list, not guessed flags."""
     makefile = (source / "objs/Makefile").read_text().replace("\\\n", " ")
-    match = re.search(r"^ALL_INCS\s*=\s*(.*)$", makefile, re.MULTILINE)
-    if match is None:
+    for line in makefile.splitlines():
+        name, separator, value = line.partition("=")
+        if separator and name.strip() == "ALL_INCS":
+            arguments = shlex.split(value)
+            break
+    else:
         raise ValueError("NGINX configure did not publish ALL_INCS")
-    arguments = shlex.split(match.group(1))
     result = []
     for index, argument in enumerate(arguments):
         if argument == "-I":
@@ -223,11 +343,20 @@ def prepare(output: Path, pins: dict[str, dict[str, str]], archives_root: Path |
          "--sbindir=" + str(stage / "bin"), "--libdir=" + str(stage / "lib")],
         build, logs / "lighttpd-configure.log")
     generated.update(required_files([build / "config.h", patched / "src/plugin.h"]))
+    modsecurity_include, hosts["modsecurity"] = modsecurity_headers(output, logs)
+    generated.update(hosts["modsecurity"]["public_headers"])
     haproxy = Path(hosts["haproxy"]["source"])
     required_files([haproxy / "include/haproxy/api.h", haproxy / "VERSION", patched / "src/base.h"])
     if (haproxy / "VERSION").read_text().strip() != pins["haproxy"]["version"]:
         raise ValueError("HAProxy source VERSION disagrees with the contract")
-    includes = nginx_includes(nginx) + [haproxy / "include", build, patched / "src"]
+    # AutoConfig follows the connector's conditional HTTP/2 branches even
+    # though this real host configure is the H1 variant. Supply the actual
+    # pinned dependency header without defining or enabling NGX_HTTP_V2.
+    http2 = nginx / "src/http/v2"
+    generated.update(required_files([http2 / "ngx_http_v2.h"]))
+    hosts["nginx"]["conditional_http2_include"] = str(http2)
+    includes = [modsecurity_include] + nginx_includes(nginx) + [
+        http2, haproxy / "include", build, patched / "src"]
     if checkout_state() != (revision, initial_status):
         raise ValueError("checkout changed while native context was being prepared")
     manifest = {"revision": revision, "uncommitted_changes": bool(initial_status),
@@ -250,7 +379,7 @@ def main() -> int:
     try:
         pins = contracts()
         manifest = prepare(fresh_root(args.output_root), pins, args.archives_root)
-    except (ValueError, OSError, subprocess.CalledProcessError, tarfile.TarError) as error:
+    except (ValueError, OSError, subprocess.SubprocessError, tarfile.TarError, configparser.Error) as error:
         print(f"Sonar native context failed: {error}", file=sys.stderr)
         return 1
     print(manifest["include_value"])

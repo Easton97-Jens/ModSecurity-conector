@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def load(name: str, filename: str):
     spec = importlib.util.spec_from_file_location(name, ROOT / "ci/runtime/lifecycle" / filename)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
@@ -41,8 +42,9 @@ class SonarEvidenceBoundaryTests(unittest.TestCase):
             outside = root / "outside-id"
             outside.write_text("outside-sentinel\n", encoding="utf-8")
             marker.symlink_to(outside)
+            args = argparse.Namespace(phase="checks")
             with self.assertRaises(ValueError):
-                RUNNER.restore_current_verified_run_id(argparse.Namespace(phase="checks"), marker)
+                RUNNER.restore_current_verified_run_id(args, marker)
             self.assertNotIn("VERIFIED_RUN_ID", os.environ)
             self.assertEqual(outside.read_text(encoding="utf-8"), "outside-sentinel\n")
 
@@ -74,8 +76,9 @@ sys.exit(1)
             outside = root / "outside-id"
             outside.write_text("outside-sentinel\n", encoding="utf-8")
             os.link(outside, marker)
+            args = argparse.Namespace(phase="checks")
             with self.assertRaises(ValueError):
-                RUNNER.restore_current_verified_run_id(argparse.Namespace(phase="checks"), marker)
+                RUNNER.restore_current_verified_run_id(args, marker)
             self.assertNotIn("VERIFIED_RUN_ID", os.environ)
             self.assertEqual(outside.read_text(encoding="utf-8"), "outside-sentinel\n")
 
@@ -83,9 +86,10 @@ sys.exit(1)
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {}, clear=True):
             marker = Path(temporary) / "current-run-id"
             marker.write_text("valid-run" + " " * 8192, encoding="utf-8")
+            args = argparse.Namespace(phase="checks")
             with mock.patch.object(RUNNER.os, "read", wraps=os.read) as read:
                 with self.assertRaises(ValueError):
-                    RUNNER.restore_current_verified_run_id(argparse.Namespace(phase="checks"), marker)
+                    RUNNER.restore_current_verified_run_id(args, marker)
             self.assertEqual(read.call_args.args[1], 4097)
             self.assertNotIn("VERIFIED_RUN_ID", os.environ)
 
@@ -96,17 +100,19 @@ sys.exit(1)
             directory.chmod(0o777)
             marker = directory / "current-run-id"
             marker.write_text("untrusted-run\n", encoding="utf-8")
+            args = argparse.Namespace(phase="checks")
             with self.assertRaises(ValueError):
-                RUNNER.restore_current_verified_run_id(argparse.Namespace(phase="checks"), marker)
+                RUNNER.restore_current_verified_run_id(args, marker)
             self.assertNotIn("VERIFIED_RUN_ID", os.environ)
 
     def test_current_run_marker_does_not_accept_a_valid_prefix_after_short_read(self) -> None:
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {}, clear=True):
             marker = Path(temporary) / "current-run-id"
             marker.write_bytes(b"valid-run\ninvalid/suffix\n")
+            args = argparse.Namespace(phase="checks")
             with mock.patch.object(RUNNER.os, "read", side_effect=[b"valid-run", b"\ninvalid/suffix\n", b""]):
                 with self.assertRaises(ValueError):
-                    RUNNER.restore_current_verified_run_id(argparse.Namespace(phase="checks"), marker)
+                    RUNNER.restore_current_verified_run_id(args, marker)
             self.assertNotIn("VERIFIED_RUN_ID", os.environ)
 
     def test_owned_legacy_marker_preserves_append_and_explicit_id_behavior(self) -> None:

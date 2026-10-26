@@ -393,7 +393,7 @@ def selected_representative_rows(rows: list[dict[str, Any]]) -> list[dict[str, A
 def case_runtime_paths(row: dict[str, Any]) -> tuple[str, Path, Path, Path]:
     case_name = str(row.get("name") or "")
     harness_root = harness_root_from_evidence(Path(str(row.get("evidence_path") or "")))
-    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", case_name):
+    if not re.fullmatch(r"\w[\w.-]*", case_name, flags=re.ASCII):
         raise ValueError("invalid evidence case identity")
     case_root = harness_root / "runtime" / case_name / "conf"
     return case_name, case_root / "case.env", case_root / "request-headers.txt", case_root / "request-body.bin"

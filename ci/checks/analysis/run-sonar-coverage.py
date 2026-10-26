@@ -20,6 +20,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 RCFILE = ROOT / "ci/sonar-coverage.ini"
+GO_PACKAGE_PATTERN = "./..."
 # Explicit requirements: analysis scope, revision provenance, private artifacts,
 # report input classification, and engine inventory. No discovery of unrelated
 # runtime/I12 suites. Subprocess patching also measures invoked Parent writers.
@@ -160,17 +161,17 @@ def go_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
     for name, (relative, names) in GO_TESTS.items():
         module = ROOT / relative
         pattern = "^(" + "|".join(re.escape(name) for name in names) + ")$"
-        listing = run(["go", "test", "-mod=readonly", "-list", pattern, "./..."], cwd=module, env=env)
+        listing = run(["go", "test", "-mod=readonly", "-list", pattern, GO_PACKAGE_PATTERN], cwd=module, env=env)
         missing = set(names) - set(listing.splitlines())
         if missing:
             raise ValueError(f"selected Go tests are missing in {relative}: {sorted(missing)}")
         report = output / f"{name}.out"
         run(["go", "test", "-mod=readonly", "-count=1", "-timeout=120s", "-run", pattern,
-             "-coverpkg=./...", f"-coverprofile={report}", "./..."], cwd=module, env=env)
+             f"-coverpkg={GO_PACKAGE_PATTERN}", f"-coverprofile={report}", GO_PACKAGE_PATTERN], cwd=module, env=env)
         if len(report.read_text(encoding="utf-8").splitlines()) < 2:
             raise ValueError(f"Go coverage is empty: {relative}")
         run(["go", "tool", "cover", f"-func={report}"], cwd=module, env=env)
-        reports[name] = {"report": str(report), "selectors": list(names), "packages": "./..."}
+        reports[name] = {"report": str(report), "selectors": list(names), "packages": GO_PACKAGE_PATTERN}
     return reports
 
 
@@ -212,6 +213,15 @@ def native_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
             "limitation": "Common helper/constructor/intervention tests; no connector-host coverage"}
 
 
+def measure_coverage(language: str, output_root: Path, output: Path,
+                     env: dict[str, str], revision: str, *,
+                     allow_dirty: bool) -> tuple[dict[str, object], Path]:
+    if language == "finalize-python":
+        return finalize_python(output_root, env, revision, allow_dirty=allow_dirty), output_root / "python"
+    producer = {"python": python_coverage, "go": go_coverage, "native": native_coverage}[language]
+    return producer(output, env), output
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--language", choices=("python", "go", "native", "finalize-python"), required=True)
@@ -245,13 +255,8 @@ def main() -> int:
                   "evidence_layer": "selected real test coverage; runtime and analyzer import not implied"}
         with tempfile.TemporaryDirectory(prefix="scov-", dir=temp_root) as temporary:
             env["TMPDIR"] = temporary
-            if args.language == "finalize-python":
-                result["coverage"] = finalize_python(output_root, env, revision,
-                                                     allow_dirty=args.allow_dirty)
-                output = output_root / "python"
-            else:
-                result["coverage"] = {"python": python_coverage, "go": go_coverage,
-                                      "native": native_coverage}[args.language](output, env)
+            result["coverage"], output = measure_coverage(
+                args.language, output_root, output, env, revision, allow_dirty=args.allow_dirty)
         if run(["git", "rev-parse", "HEAD"], env=env).strip() != revision:
             raise ValueError("checkout revision changed while tests ran")
         if run(["git", "status", "--porcelain", "--untracked-files=normal"], env=env) != status:

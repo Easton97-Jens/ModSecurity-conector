@@ -356,3 +356,206 @@ Der saubere Source-Commit `59bc0842cea90d4052c0d005218fae3aca14c2b2` wurde in La
 Vollständige Schwachstelleninventare enthalten Hauptprojekt 8, C++20 27 und C++23 24. Das reparierte Marker-Finding verschwindet in beiden Advisories; C++23 lässt zusätzlich drei unveränderte Evidence-Reader-Findings aus, die andere Projekte behalten, ohne belegten Grund oder Statusänderung. Fünf neue Helper-Findings je Projekt erhielten unabhängiges vollständiges Flussreview, sechs bestandene Helper-Tests, acht abgewiesene Ausgabeangriffe, erlaubte Private-Root-Kontrolle und echte Literal-argv-/Sentinel-Kontrolle. Jedes hat eine einzelne False-Positive-Vorlage; Grenzen bei konkurrierendem Pfadaustausch desselben Benutzers und Upstream-Pfadnamenverhalten sind benannt. Keine Server-Issues wurden geändert. Beide vollständigen Advisories behalten die bestehenden Python-Kosten-/Predecessor-Warnungen; die Hauptprojekt-Architekturperspektive wird weiter ignoriert, FIFO-Semantik bleibt erhalten.
 
 Fünf Nicht-Sonar-CI-Workflows scheiterten an diesem Source-Head an der Entwicklerpfad-Dokumentationsprüfung. Beide Leserdokumente nutzen nun die portable Interpreterform; lokale Variablendokumentation (101 Referenzen), Zweisprachigkeits-, Pfad- und Linkprüfungen bestehen. Kein Validator wurde abgeschwächt. Diese reine Dokumentationskorrektur benötigt einen neuen finalen Head-CI-/Sonar-Lauf, dessen aktueller Nachweis im PR abgeglichen wird, um einen selbstreferenzierenden Dokumentationscommit zu vermeiden. Früherer erfolgreicher Runtime-Nachweis bleibt ausdrücklich an eigenen SHA und ausgewählten Fall gebunden. Gesamtergebnis bleibt partial; Architekturanwendung, Issue-Entscheidungen, native/Taint-Restlücken und finales aktuelles Head-Rücklesen behalten ihre dokumentierten Einordnungen.
+
+## Vollständige New-Code-Finding-Fortsetzung, 2026-10-26
+
+Diese Phase ersetzt die frühere auf Sicherheit begrenzte Inventur und die
+Einordnung ohne Transitions. Sauberer Ausgangshead des PR ist
+`1aa9646a65e5b3bd85b911c99ff40be73eee2cd3`; die folgenden lokalen
+Sourcekorrekturen sind bei Erstellung uncommittete Entwicklungsänderungen.
+Der Abschluss des genauen Heads benötigt neue CI und Serveranalyse nach deren
+Commit. Die Evidenz dieser Phase liegt unter
+`/var/tmp/codex/ModSecurity-conector/runs/pr421-all-findings-20261026`.
+Finding-Inventar, Source-/Datenflusskontrollen, Einzelaktionen und Readbacks
+bleiben getrennt von Scannerwarnungen, Annotationen, Hotspots und Coverage.
+
+### Inventur und anfängliche Analysebindung
+
+Die Hauptabfrage verwendete `sinceLeakPeriod=true`,
+`issueStatuses=OPEN,CONFIRMED`, `ps=100` und Seiten 1/2 ohne Typfilter:
+100 plus 50 Ergebnisse, genau 150 verschiedene Findings. Sprachzahlen:
+122 Shell und 28 Python; Qualitäten: 141 Wartbarkeit, acht Sicherheit und eines
+Zuverlässigkeit. Legacy-Schweregrade: sechs MINOR, 116 MAJOR, 25 CRITICAL und
+drei BLOCKER. Die separat abgefragten Security-Hotspots des Hauptprojekts
+betrugen null. Die Advisory-Abfragen verwenden denselben New-Code-/Status-Scope:
+C++20 31 und C++23 16 verschiedene Findings. Die früheren Gesamtzahlen von
+27/24 Schwachstellen haben einen anderen Scope.
+
+| Projekt | Anfänglicher CE-Task | Anfängliche Analyse | Beobachtete Bindung |
+| --- | --- | --- | --- |
+| Hauptprojekt | `AaF1LkTSF1KaAz-ccMvg` | `3a8694d2-6375-45ed-8133-f6506f4c9533` | `SUCCESS`, Source `1aa9646a65e5b3bd85b911c99ff40be73eee2cd3` |
+| C++20 | `AaF1LUoAdkEpBguA0qDb` | `64b9b52e-649f-4b38-ba7e-3a88825baad0` | `SUCCESS`, Source `1aa9646a65e5b3bd85b911c99ff40be73eee2cd3` |
+| C++23 | `AaF1LYWYZaGJAnPJkfuW` | `d8e56714-5881-4d40-bd7c-5cb51d3a1dee` | `SUCCESS`, Source `1aa9646a65e5b3bd85b911c99ff40be73eee2cd3` |
+
+Alle drei Gates standen vor den Einzelentscheidungen auf ERROR, mit
+Sicherheitsratings E/E/C; alle anderen Gatebedingungen bestanden und keine
+wurde ignoriert. Importierte Coverage: 82,3 % Haupt-PR-Coverage auf neuem Code
+und 83,7 % Advisory-Branch-Coverage auf neuem Code. Python-XML, vier Go-Reports
+und nativer gcov-Import bleiben erforderlich; Entwicklungscoverage ist kein
+CI-/Serverimport. Diese Prozentwerte beheben keine kumulierte Master-Coverage.
+`main-initial-inventory.json`, `main-initial-summary.json` und
+`analysis-bindings-initial.json` enthalten Inventur-/Bindungsnachweise; neue
+Scans müssen damit verglichen werden.
+
+### Einzelne Sicherheitsentscheidungen und lokale weitere Korrekturen
+
+Die unabhängige Prüfung hielt 21 getrennte Entscheidungen mit vollständigen
+Datenflüssen, Aufrufstellen, Source-/Sink-Gegennachweisen, Angriffs-/erlaubten
+Kontrollen und Einzelkommentaren in `current-security-triage.json` fest.
+Fünfzehn Angriffs-/Kontrollgruppen bestanden sowohl gegen die Ausgangssource
+als auch den eingefrorenen korrigierten Kandidaten. Deskriptor-Eigentums-,
+No-follow- und Regular-File-Kontrollen bleiben erhalten. Der Request-Inhalt
+wählt nicht die aufrufgesteuerte Reader-Wurzel; die Helper-Ausgabepfade stammen
+aus dem ausdrücklichen Operator-Aufruf oder festen privaten CI-Kindpfaden.
+Kontrollen für literale Argumentlisten, abgelehnte Git-Identitäten und
+nichtliterale Vertragsdaten bestanden ebenfalls; neue Git-bezogene Findings
+sind dadurch nicht vorab klassifiziert.
+
+Der aktuelle Nutzer autorisierte nachgewiesene False-Positive-Entscheidungen
+ausdrücklich. Jedes der 21 Findings erhielt eine eigene `FALSE_POSITIVE`-
+Transition und einen präzisen Kommentar: acht Hauptprojekt, acht C++20 und fünf
+C++23. `security-fp-actions.json` und die drei Projekt-Status-Readbacks bestätigen
+jeden Status und zugehörigen Kommentar. Es wurde kein Risiko akzeptiert; Gates,
+Regelprofile, Coverage-Schwellen, New-Code-Anforderungen und Scope-Ausschlüsse
+wurden nicht gelockert. Advisory-Entscheidungen besitzen eigene Datenflussnachweise.
+
+Alle 142 Nicht-Sicherheitsfindings des Hauptprojekts sind lokal im Code
+korrigiert; ein neuer Scan steht aus. Überlappende Advisory-Korrekturen betreffen
+23/11 weitere Findings. Envoy besitzt 87 lokale Finding-Korrekturen, darunter
+POSIX-sichere benannte Funktionsargumente und explizite No-op-Defaults. Die drei
+HAProxy-/lighttpd-Skripte besitzen 35 Korrekturen, darunter gleichwertige
+Verzweigungsvereinfachung, benannte Argumente und zentralisierte Cleanup-Texte.
+Python-Korrekturen zerlegen komplexe Receipt-/Coverage-/Reportfunktionen,
+erhalten die ASCII-Identitätsvalidierung und präzisieren beabsichtigte
+Exception-Grenzen. Sicherheitsrelevante Deskriptor- und konfigurierte
+Freigabekontrollen bleiben erhalten. Geänderte Dateien und Einzelnachweise stehen
+in `envoy-shell-triage.json`, `host-shell-triage.json` und den Python-/nativen
+Triage-Records. Aus den Codeänderungen wird kein Scannerabschluss abgeleitet.
+
+Vor Veröffentlichung beobachtete Validierung: 19 Basis-Evidenztests bestanden
+in 3,696 s; die fokussierte integrierte Auswahl bestand 44 Methoden in 4,711 s;
+die instrumentierte integrierte Auswahl bestand 80 Python-Methoden in 7,829 s
+mit gepinnter coverage 7.17.0. Elf tatsächliche Case-Identitätskontrollen
+bestanden. Envoys 17 bestehende Tests und 42 Vorher-/Nachher-Charakterisierungen
+bestanden; alle 20 eingebetteten Python-Heredocs waren bytegleich. Die
+Host-Shell-Validierung bestand zwölf ausgewählte Tests und neun Lighttpd-
+Äquivalenzfälle in 18 Ausführungen. Die Shellsyntax geänderter Skripte bestand.
+ShellCheck behielt sechs bestehende Envoy- und zwölf bestehende HAProxy-Warnungen;
+ein pauschaler ShellCheck-Erfolg wird nicht behauptet. Die gültige
+FIFO-Semantik des Schedulers mit `exec 8<>` bleibt unverändert.
+
+### Echter nativer Kontext und verbleibende Analyzergrenzen
+
+Das vollständige Scannerlog identifizierte das verbleibende externe Include
+als `ngx_http_v2.h`. Dem Distributions-SDK von ModSecurity `3.0.12` fehlten
+`msc_rules_error_cleanup` und `msc_intervention_cleanup`, die der unveränderte
+C++-Evaluator verwendet. Eine echte negative Syntaxprobe reproduzierte diese
+API-Fehler; die genauen freigegebenen öffentlichen Header von `3.0.17`
+kompilierten den unveränderten Evaluator unter C++17 mit Warnungen als Fehlern.
+Kein Cleanup-Aufruf wurde entfernt, kein Header oder Compilerbefehl erfunden
+und kein Feature-Define hinzugedichtet.
+
+Die unveränderliche Herkunftskette lautet Framework-Gitlink
+`99a7985c1be92a2297b1b59208f64df6768f2cbf`, Vertragsblob
+`496b5d8e0ec70d6d31f91aeaf08024050a5698ea`, freigegebener offizieller
+ModSecurity-Commit `1925753989ccce977cdaae417b55c9726c7cf02c` und öffentlicher
+Headerbaum `8daab1d1734506b687b21efd44169c273eabca6a`. Die Source-Datenbeschaffung
+initialisiert und beschreibt keine Framework-/MRTS-Worktrees. Freigegebene
+Header stehen vor apt-Headern; der echte NGINX-Include-Pfad `src/http/v2` kommt
+hinzu, ohne ein HTTP/2-Featureprofil zu aktivieren. Passiver Vertragsparser und
+Git-Objekt-Identitätsprüfungen des Helpers lehnen nicht unterstützte Vertragsdaten ab.
+
+Elf native Kontexttestmethoden bestanden in 0,033 s. Die vollständige echte
+Entwicklungsvorbereitung bestand mit Exit 0: NGINX 1.31.6, HAProxy 3.2.25,
+lighttpd 1.4.85, ModSecurity 3.0.17, 13 echte Include-Verzeichnisse und elf
+generierte/Source-Hashes, einschließlich tatsächlichem NGINX-Configure sowie
+unverändertem kanonischem lighttpd-Patch, Bash-Autogen- und Configure-Pfad.
+`native-context-integrated1/manifest.json` zeichnet Entwicklungssource und
+Dirty-Status auf. Neue Parsing-/Include-Zahlen von null sind damit nicht
+bewiesen. Alle unabhängigen Connector-Ziele und benötigten Varianten müssen
+abgedeckt bleiben; keine partielle Compilation Database wurde eingesetzt.
+
+Die offizielle CFamily-Dokumentation schließt C/C++-Taint in AutoConfig sowie
+mit mehreren Codevarianten aus; projektweite Analyse nimmt außerdem ein
+gemeinsam gelinktes Target an. Reporting-Standard-Override oder höherer Score
+belegen keine Taintabdeckung. Python-Simulationskostengrenze und beide
+Predecessor-Warnungen behalten ihre Basisgegennachweise und werden nicht als
+PR-Regressionen behauptet. Scanner CLI 8.2.0.6438 und Scan-Action 8.3.0 wurden
+gegen offizielle Release-/Inputverträge geprüft; signierte Scannerinstallation
+und Sprach-/Reportparameterverträge bleiben erhalten.
+
+### Architekturfähigkeit und Bereitschaft
+
+Ein frischer Modellabruf bestätigte den genauen versionierten Patch:
+14 ausgeschlossene Framework-/MRTS-Gruppen entfernen, 30 Parent-Labels umbenennen,
+Parent-Muster, Metadaten, vier verschachtelte Gruppen und Constraints erhalten.
+Der autorisierte Wiederholungsversuch lieferte erneut HTTP 415; das Readback
+blieb identisch, aufgezeichnet in `architecture-application-result.json`.
+Der erforderliche Medientyp lautet `application/merge-patch+json`. Die
+installierte/neueste veröffentlichte CLI `1.10.1.16776` aus
+`ef0f792b7c4bb18d2432015baae4984a6cd50d99` unterstützt im veröffentlichten
+API-/HTTP-Client nur JSON/Form; Architekturkommandos unveröffentlichter Sources
+sind kein installierter unterstützter Zugang. Der geprüfte Body benötigt einen
+unterstützten autorisierten Merge-Patch-Client mit Einbindung des
+vorgeschriebenen Wrappers, anschließend exaktes Modell-Readback und einen neuen
+Scan als Perspektivanwendungsnachweis. Kein ungeprüfter UI-Import-/Editorweg
+oder Credential-Wrapper-Bypass wird vorgeschrieben. Der Architekturstatus bleibt
+`extern blockiert`.
+
+Das aktive Master-Ruleset `19138299` fordert `actions`, `bounded-c-cpp`,
+`envoy-go`, `traefik-go`, `actionlint` und `zizmor`, alle am Ausgangshead bestanden;
+strikte Aktualität zur Basis und aufgelöste Review-Threads sind erforderlich.
+Pflichtfreigaben sind null, Reviews/Threads waren leer und in den geprüften
+Orten wurde keine CODEOWNERS gefunden. Klassische Branch-Protection-Details
+lieferten 403; das belegt kein fehlendes Ruleset-Enforcement. Die lokale
+Delivery-Policy fordert weiterhin das zutreffende aktuelle Haupt-Sonar-Gate.
+
+Der Runtime-Workflow des Ausgangsheads `40239931958` endete erfolgreich für
+fünf Connectoren und Aggregat; Apache-Job `121309664630` bewies den ausgewählten
+SQLi-Fall mit HTTP 403, Audit und Cleanup. Die aggregierte Vertragsabdeckung
+betrug fünf bestanden, null fehlgeschlagen, sechs blockiert und dreizehn nicht
+ausgeführt, mit `coverage_complete: false` und `merge_eligible: false`. Das
+qualifiziert keine vollständige Matrix. Aktuelle Artefakt-ZIP-Inhalte wurden
+nicht unabhängig geprüft. Alle 18 Nicht-Sonar-PR-Workflows des Ausgangsheads
+bestanden; diese Ergebnisse validieren nicht den nächsten Head.
+
+Die Sourcekorrekturen sind lokal validiert, die einzelnen False-Positive-
+Entscheidungen angewendet und zurückgelesen, nativer Scannerabschluss bleibt
+`weiterhin offen`, und dokumentierte Taint-/Python-/FIFO-Grenzen bleiben
+`begründete Analyzergrenze`. Finale saubere Head-Inventare, je Projekt
+Source-SHA/Analyse/terminale Verarbeitung/Gates/Importe/Warnungen und CI werden
+weiterhin benötigt. PR #421 bleibt Draft, solange Pflichtnachweise oder die
+Architekturanwendung fehlen. Kein Merge, keine Master-Änderung, Gateabsenkung
+oder breiter Ausschluss erfolgte. Der Koordinator hält die späteren genauen
+Source-/Head-Ergebnisse im PR und aktuellen Abschlussnachweis fest; dieser
+Entwicklungsphasen-Record behauptet keinen Abschluss.
+
+### Dokumentationsvalidierung dieser Phase
+
+Die vier Dokumentationsänderungen bestanden folgende tatsächlich ausgeführten
+Befehle im Task-Worktree. Variablenreferenzen: 101; Zweisprachigkeitsprüfung,
+Repository-Pfade und Framework-eigener nativer Linkchecker: bestanden.
+Die Change-Record-Prüfung belegt nur die Struktur; Whitespace bestand.
+Ein getrennter Vergleich bestätigte identische Anzahlen technischer
+Inline-Literale und identische Codeblöcke in beiden EN/DE-Paaren.
+Diese Dokumentationsprüfungen belegen keine finale CI, keinen Sonarabschluss
+und keine Laufzeitqualifikation; dafür bleibt die Prüfung des genauen Heads
+durch den Koordinator erforderlich.
+
+```text
+rtk make check-variable-documentation check-bilingual-docs check-doc-links PYTHON=/root/git/ModSecurity-conector/.venv/bin/python
+rtk bypass /root/git/ModSecurity-conector/.venv/bin/python ci/tools/new-change-record.py check
+rtk bypass git diff --check
+```
+
+### Vollständige Triage und Annotation-/Source-Encoding-Follow-up
+
+Die [vollständige Einzeltriage](../../../docs/sonarqube-pr421-triage.de.md) erfasst alle 150 Haupt-Issues und getrennte 31/16 Advisory-New-Code-Issues samt Code-/Flusskontext, Qualität/Schweregrad, Maßnahme und Nachweis. Alle eindeutigen IDs stimmen mit API-Seitengesamtzahlen überein; dies ist keine Security-only-Auswahl. Der aktuelle Abschluss ersetzt frühere No-Transition-/Current-Zahlenformulierungen und erhält ihre datierten Nachweise.
+
+Alle 92 GitHub-Annotationen wurden über die installierte authentifizierte GitHub-CLI tatsächlich geladen/abgeglichen, nachdem der Plugin-Endpunkt abgewiesen wurde. Kategorien sind 50 Sonar-Inline-Issuereferenzen, 36 Runner-Image-Hinweise, zwei Go-Cachewarnungen, drei Scanner-Exitannotationen und eine CodeQL-Fallbackwarnung. Annotationsstufen/-zahlen sind keine zusätzlichen Sonar-Issues oder CI-Jobergebnisse. Derselbe unterstützte CLI-Lesezugriff belegt fehlende klassische Branch Protection (404); aktives Ruleset `19138299` ist maßgeblich.
+
+Die zwei Cachewarnungen entsprechen tatsächlich fehlgeschlagenem Root-Modul-Lookup. `.github/workflows/ci-security-codeql.yml` verwendet nun vorhandene Envoy-`go.mod`/`go.sum` und natives Traefik-`go.mod` über `cache-dependency-path`, ohne Root-Modul/Prüfsumme zu erfinden oder Caching abzuschalten. Trusted-Go-Versionsauflösung und CodeQL-Lock/-Build/-Berechtigungen bleiben unverändert. Actionlint und Zizmor bestanden beide geänderten Workflows; drei bestehende CodeQL-Versions-/Lock-/Berechtigungsmethoden bestanden in 0.005 s. Aktuelle Head-CI muss Warnungsabschluss bestätigen.
+
+`connectors/envoy/config/lib/tls_yaml_render.sh` enthielt ein wörtliches CR im gültigen Abweisungspattern: Git-Blame enumerierte 28 LF-Zeilen, universelle Reader 29. Darstellung desselben Bytes über gequotetes `$(printf '\r')` erhält Matching/Escaping/Status und ergibt 28/28 Sourcezeilen. Zwölf tatsächliche Vorher-/Nachher-Shellkontrollen haben identischen Status/stdout/stderr; zwei bestehende TLS-Methoden bestanden in 0.088 s. `tests/test_envoy_transport_hardening_contract.py` prüft nun sowohl abgewiesene LF- als auch CR-Pfade ohne Ausgabe. Korrigiert wird Sourcerepräsentation, keine Runtime-Akzeptanz; nächster Scanner muss Blame-Wiederherstellung belegen. Keine neue PR-verursachte Regression wird behauptet. Die Unused-Path-Fixture des nativen Tests wurde zusätzlich vor `assertRaises` verschoben; ihre bestehende Negativmethode bestand in 0.001 s.
+
+Lokale echte vollständige Headervorbereitung und gemessener Python-Producer mit 80 Methoden bestanden; alle entsprechenden Entwicklungsnachweise sind dirty markiert und kein sauberer Head-Coverage-Import. Unabhängiges vollständiges Diffreview erfasste alle 37 geänderten Pfade vor dem neuen Triage-Paar; keine bestätigte Code-/Testregression gefunden. Finale Dokumentationschecks enthalten nun 103 Variablenreferenzen. Alle Sourcekorrekturen benötigen weiterhin neuen exakten Head-Scan, vollständigen Alt-/Neu-Issuevergleich und terminale CI; lokale Ergebnisse begründen keinen Merge oder Readiness-Anspruch.

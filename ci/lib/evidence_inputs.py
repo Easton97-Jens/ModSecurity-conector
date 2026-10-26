@@ -99,6 +99,66 @@ class EvidenceInputs:
                 digest.update(chunk)
             return digest.hexdigest(), size
 
+    def _input_record(self, path: Path, connector_root: Path) -> tuple[dict[str, Any], bytes]:
+        shown = str(path.relative_to(connector_root)) if path.is_relative_to(connector_root) else str(path)
+        try:
+            content = self.read_bytes(path)
+        except FileNotFoundError:
+            return {"path": shown, "status": "missing", "notes": "input file missing"}, b""
+        except (OSError, ValueError):
+            return {"path": shown, "status": "blocked", "notes": "input path rejected by configured evidence boundary"}, b""
+        digest = hashlib.sha256(content).hexdigest()
+        return {"path": shown, "status": "present" if content else "empty",
+                "sha256": digest, "source_hash": digest,
+                "notes": "input file available" if content else "input file exists but is empty"}, content
+
+    @staticmethod
+    def _json_receipt(content: bytes) -> tuple[dict[str, Any], str]:
+        try:
+            data = json.loads(content)
+        except ValueError:
+            return {}, ""
+        if not isinstance(data, dict):
+            return {}, ""
+        candidate = data.get("metadata")
+        metadata = candidate if isinstance(candidate, dict) else {}
+        return metadata, str(data.get("status") or metadata.get("run_status") or "")
+
+    @staticmethod
+    def _markdown_receipt(content: bytes) -> dict[str, Any]:
+        labels = (("Verified run id:", "verified_run_id"), ("Connector SHA:", "connector_sha"),
+                  ("Framework SHA:", "framework_sha"), ("Framework gitlink SHA:", "framework_gitlink_sha"),
+                  ("Framework checkout:", "framework_checkout_status"), ("Framework gitlink status:", "framework_gitlink_status"))
+        metadata: dict[str, Any] = {}
+        for line in content.decode("utf-8", errors="replace").splitlines()[:30]:
+            for label, field in labels:
+                if label in line.strip():
+                    metadata[field] = line.strip().split(label, 1)[1].strip().strip("` ")
+                    break
+        return metadata
+
+    @staticmethod
+    def _apply_source_receipt(record: dict[str, Any], path: Path, content: bytes,
+                              metadata: dict[str, Any], connector_root: Path,
+                              framework_root: Path, policy: Any) -> None:
+        source_metadata: dict[str, Any] = {}
+        source_status = ""
+        if path.suffix == ".json":
+            source_metadata, source_status = EvidenceInputs._json_receipt(content)
+        elif path.suffix == ".md":
+            source_metadata = EvidenceInputs._markdown_receipt(content)
+        provenance = policy._report_provenance(source_metadata)
+        record.update(provenance)
+        reasons = policy._report_staleness_reasons(
+            provenance, str(metadata.get("verified_run_id") or ""), connector_root, framework_root)
+        if reasons:
+            record.update(status="stale", notes="generated report input is stale: " + "; ".join(reasons))
+        elif not provenance.get("verified_run_id"):
+            record.update(status="stale", notes="generated report input has no verified_run_id")
+        elif source_status and policy._unusable_source_status(source_status):
+            record.update(status="blocked" if source_status.startswith("blocked") else source_status,
+                          notes=f"generated report input is not usable: status={source_status}")
+
     def build_metadata(self, builder: Callable[..., dict[str, Any]], *,
                        inputs: Iterable[Path | str], **arguments: Any) -> dict[str, Any]:
         """Build normal provenance from confined bytes without reopening inputs.
@@ -115,53 +175,10 @@ class EvidenceInputs:
         records = []
         for raw in inputs:
             path = Path(raw)
-            shown = str(path)
-            if path.is_relative_to(connector_root):
-                shown = str(path.relative_to(connector_root))
-            try:
-                content = self.read_bytes(path)
-            except FileNotFoundError:
-                records.append({"path": shown, "status": "missing", "notes": "input file missing"})
-                continue
-            except (OSError, ValueError):
-                records.append({"path": shown, "status": "blocked", "notes": "input path rejected by configured evidence boundary"})
-                continue
-            digest = hashlib.sha256(content).hexdigest()
-            record = {"path": shown, "status": "present" if content else "empty",
-                      "sha256": digest, "source_hash": digest,
-                      "notes": "input file available" if content else "input file exists but is empty"}
+            record, content = self._input_record(path, connector_root)
             if content and path.name in policy.FILENAME_TO_KEY:
-                source_metadata: dict[str, Any] = {}
-                source_status = ""
-                if path.suffix == ".json":
-                    try:
-                        data = json.loads(content)
-                    except (ValueError, UnicodeError):
-                        data = {}
-                    if isinstance(data, dict):
-                        candidate = data.get("metadata")
-                        source_metadata = candidate if isinstance(candidate, dict) else {}
-                        source_status = str(data.get("status") or source_metadata.get("run_status") or "")
-                elif path.suffix == ".md":
-                    labels = (("Verified run id:", "verified_run_id"), ("Connector SHA:", "connector_sha"),
-                              ("Framework SHA:", "framework_sha"), ("Framework gitlink SHA:", "framework_gitlink_sha"),
-                              ("Framework checkout:", "framework_checkout_status"), ("Framework gitlink status:", "framework_gitlink_status"))
-                    for line in content.decode("utf-8", errors="replace").splitlines()[:30]:
-                        for label, field in labels:
-                            if label in line.strip():
-                                source_metadata[field] = line.strip().split(label, 1)[1].strip().strip("` ")
-                                break
-                provenance = policy._report_provenance(source_metadata)
-                record.update(provenance)
-                reasons = policy._report_staleness_reasons(
-                    provenance, str(metadata.get("verified_run_id") or ""), connector_root, framework_root)
-                if reasons:
-                    record.update(status="stale", notes="generated report input is stale: " + "; ".join(reasons))
-                elif not provenance.get("verified_run_id"):
-                    record.update(status="stale", notes="generated report input has no verified_run_id")
-                elif source_status and policy._unusable_source_status(source_status):
-                    record.update(status="blocked" if source_status.startswith("blocked") else source_status,
-                                  notes=f"generated report input is not usable: status={source_status}")
+                self._apply_source_receipt(record, path, content, metadata,
+                                           connector_root, framework_root, policy)
             records.append(record)
         metadata["inputs"] = records
         metadata["input_status"] = policy.input_status_summary(records)
