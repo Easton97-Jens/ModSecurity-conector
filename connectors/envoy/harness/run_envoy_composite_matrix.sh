@@ -41,14 +41,17 @@ blocked() { echo "envoy_composite_matrix: BLOCKED - $1" >&2; exit 77; }
 case "$ENVOY_LOG_LEVEL" in trace|debug|info|warning|warn|error|critical|off) ;; *) blocked "ENVOY_COMPOSITE_LOG_LEVEL is invalid" ;; esac
 
 require_absolute() {
-    case "$1" in /*) ;; *) fail "$2 must be absolute" ;; esac
+    absolute_path=$1; absolute_label=${2-}
+    case "$absolute_path" in /*) ;; *) fail "$absolute_label must be absolute" ;; esac
 }
 require_file() {
-    [ -f "$1" ] || fail "$2 is missing: $1"
-    [ ! -L "$1" ] || fail "$2 must not be a symlink: $1"
+    required_file_path=$1; required_file_label=${2-}
+    [ -f "$required_file_path" ] || fail "$required_file_label is missing: $required_file_path"
+    [ ! -L "$required_file_path" ] || fail "$required_file_label must not be a symlink: $required_file_path"
 }
 require_owner_controlled_input() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    owner_input_path=$1
+    "$PYTHON_BIN" - "$owner_input_path" <<'PY'
 import os, pathlib, stat, sys
 path = pathlib.Path(sys.argv[1])
 try:
@@ -65,11 +68,13 @@ except OSError as exc:
 PY
 }
 require_executable() {
-    require_file "$1" "$2"
-    [ -x "$1" ] || fail "$2 is not executable: $1"
+    required_executable_path=$1; required_executable_label=$2
+    require_file "$required_executable_path" "$required_executable_label"
+    [ -x "$required_executable_path" ] || fail "$required_executable_label is not executable: $required_executable_path"
 }
 require_trusted_path() {
-    "$PYTHON_BIN" - "$1" "$2" <<'PY'
+    trusted_path=$1; trusted_path_role=$2
+    "$PYTHON_BIN" - "$trusted_path" "$trusted_path_role" <<'PY'
 import os, pathlib, stat, sys
 path = pathlib.Path(sys.argv[1])
 role = sys.argv[2]
@@ -98,7 +103,8 @@ while True:
 PY
 }
 require_runtime_parent_chain() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    runtime_parent_path=$1
+    "$PYTHON_BIN" - "$runtime_parent_path" <<'PY'
 import os, pathlib, stat, sys
 target = pathlib.Path(sys.argv[1])
 uid = os.getuid()
@@ -125,7 +131,8 @@ while True:
 PY
 }
 within_runtime() {
-    "$PYTHON_BIN" - "$RUNTIME_ROOT" "$1" <<'PY'
+    runtime_artifact_path=$1
+    "$PYTHON_BIN" - "$RUNTIME_ROOT" "$runtime_artifact_path" <<'PY'
 import pathlib, sys
 root = pathlib.Path(sys.argv[1]).resolve()
 target = pathlib.Path(sys.argv[2])
@@ -139,7 +146,8 @@ PY
 }
 
 start_token() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    start_token_pid=$1
+    "$PYTHON_BIN" - "$start_token_pid" <<'PY'
 import pathlib, sys
 pid = sys.argv[1]
 if not pid.isdecimal():
@@ -156,12 +164,14 @@ print(fields[19])
 PY
 }
 is_current() {
-    [ -n "$2" ] || return 1
-    [ "$(start_token "$1" 2>/dev/null)" = "$2" ] || return 1
-    [ "$(pid_uid "$1" 2>/dev/null)" = "$(id -u)" ]
+    current_pid=$1; current_token=$2
+    [ -n "$current_token" ] || return 1
+    [ "$(start_token "$current_pid" 2>/dev/null)" = "$current_token" ] || return 1
+    [ "$(pid_uid "$current_pid" 2>/dev/null)" = "$(id -u)" ]
 }
 pid_uid() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    pid_uid_pid=$1
+    "$PYTHON_BIN" - "$pid_uid_pid" <<'PY'
 import pathlib, sys
 for line in pathlib.Path("/proc", sys.argv[1], "status").read_text(encoding="ascii").splitlines():
     if line.startswith("Uid:"):
@@ -173,7 +183,8 @@ raise SystemExit(1)
 PY
 }
 is_zombie() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    zombie_pid=$1
+    "$PYTHON_BIN" - "$zombie_pid" <<'PY'
 import pathlib, sys
 try:
     line = pathlib.Path("/proc", sys.argv[1], "stat").read_text(encoding="ascii")
@@ -235,7 +246,7 @@ require_absolute "$COMPOSITE_RUNTIME_CONFIG" COMPOSITE_RUNTIME_CONFIG
 require_absolute "$EVENT_LOG_PATH" EVENT_LOG_PATH
 require_absolute "$PYTHON_BIN" PYTHON_BIN
 case "$EVENT_LOG_PATH" in *%CASE%*) ;; *) fail "EVENT_LOG_PATH must contain literal %CASE%" ;; esac
-case "$RUNTIME_ROOT" in "$REPO_ROOT"|"$REPO_ROOT"/*) fail "RUNTIME_ROOT is inside checkout" ;; esac
+case "$RUNTIME_ROOT" in "$REPO_ROOT"|"$REPO_ROOT"/*) fail "RUNTIME_ROOT is inside checkout" ;; *) : ;; esac
 require_executable "$ENVOY_BIN" Envoy
 require_executable "$COMPOSITE_BIN" composite
 require_file "$COMPOSITE_RUNTIME_CONFIG" composite_runtime_config
@@ -253,7 +264,8 @@ require_trusted_path "$PROJECTION_WRITER" input || fail "verifier projection wri
 command -v openssl >/dev/null 2>&1 || blocked "openssl is required"
 
 ensure_directory() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    ensured_directory=$1
+    "$PYTHON_BIN" - "$ensured_directory" <<'PY'
 import os, pathlib, stat, sys
 path = pathlib.Path(sys.argv[1])
 if path.exists() or path.is_symlink():
@@ -296,7 +308,16 @@ case "$envoy_version" in *"/$pinned_envoy_release/"*|*"version: $pinned_envoy_re
 create_private_loopback_tls "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" || fail "could not create private TLS"
 
 write_case_record() {
-    "$PYTHON_BIN" - "$1" "$2" "$3" "$4" "$5" "$6" "$7" "${8:-one_fresh_service_and_event_log_per_case}" "${9:-}" "$ENVOY_BIN" "$COMPOSITE_BIN" "${10:-}" "${11:-}" "${12:-not_reached}" "${13:-}" "${14:-}" "${15:-not_run}" "$RUNTIME_ROOT" <<'PY'
+    record_path=$1; record_case_id=$2; record_phase=$3; record_status=$4
+    record_event_log=$5; record_probe=$6; record_structural=$7
+    record_binding=${8:-one_fresh_service_and_event_log_per_case}; record_upstream=${9:-}
+    record_config=${10:-}; record_client_probe=${11:-}; record_upstream_state=${12:-not_reached}
+    record_verifier_manifest=${13:-}; record_verifier_summary=${14:-}; record_verifier_status=${15:-not_run}
+    "$PYTHON_BIN" - "$record_path" "$record_case_id" "$record_phase" "$record_status" \
+        "$record_event_log" "$record_probe" "$record_structural" "$record_binding" \
+        "$record_upstream" "$ENVOY_BIN" "$COMPOSITE_BIN" "$record_config" \
+        "$record_client_probe" "$record_upstream_state" "$record_verifier_manifest" \
+        "$record_verifier_summary" "$record_verifier_status" "$RUNTIME_ROOT" <<'PY'
 import hashlib, json, os, pathlib, stat, sys
 path, case_id, phase, status, event_log, probe, structural, binding, upstream_observation, envoy_binary, composite_binary, config, client_probe, upstream_state, verifier_manifest, verifier_summary, verifier_status, runtime_root_text = sys.argv[1:]
 MAX_BINARY_BYTES = 512 * 1024 * 1024
@@ -369,7 +390,8 @@ PY
 }
 
 check_event_log() {
-    "$PYTHON_BIN" - "$1" "$2" "$3" <<'PY'
+    checked_event_path=$1; checked_event_output=$2; checked_event_case_id=$3
+    "$PYTHON_BIN" - "$checked_event_path" "$checked_event_output" "$checked_event_case_id" <<'PY'
 import json, os, pathlib, stat, sys
 event_path, output_path, case_id = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
 MAX_EVENT_LOG_BYTES = 256 * 1024
@@ -466,7 +488,8 @@ PY
 }
 
 check_client_probe() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    checked_client_probe=$1
+    "$PYTHON_BIN" - "$checked_client_probe" <<'PY'
 import json, os, pathlib, stat, sys
 path = pathlib.Path(sys.argv[1])
 info = path.lstat()
@@ -501,7 +524,8 @@ PY
 }
 
 verifier_case_supported() {
-    case "$1" in
+    verifier_case_id=$1
+    case "$verifier_case_id" in
         p1_allow|p1_deny|p2_allow|p2_deny|p2_oversize|p3_deny|p3_redirect|p4_safe|envoy_response_metadata_omitted) return 0 ;;
         *) return 1 ;;
     esac
@@ -561,7 +585,10 @@ PY
 }
 
 probe_with_timeout() {
-    "$PYTHON_BIN" - "$1" "$2" "$3" "$4" "$5" "$6" <<'PY'
+    timeout_probe_port=$1; timeout_probe_certificate=$2; timeout_probe_path=$3
+    timeout_probe_method=$4; timeout_probe_body=$5; timeout_probe_evidence=$6
+    "$PYTHON_BIN" - "$timeout_probe_port" "$timeout_probe_certificate" "$timeout_probe_path" \
+        "$timeout_probe_method" "$timeout_probe_body" "$timeout_probe_evidence" <<'PY'
 import json, pathlib, socket, ssl, sys
 port, cert, path, method, body, evidence = sys.argv[1:]
 timeout = 10.0
@@ -600,21 +627,25 @@ PY
 }
 
 render_config() {
+    render_output=$1; render_listen_port=$2; render_upstream_port=$3
+    render_authz_port=$4; render_admin_port=$5
+    render_metadata_namespace=${6:-envoy.filters.http.ext_authz}
     cert=$(render_yaml_path_for_sed_replacement "$TLS_CERTIFICATE") || fail "unsafe certificate path"
     key=$(render_yaml_path_for_sed_replacement "$TLS_PRIVATE_KEY") || fail "unsafe key path"
-    sed -e "s|@LISTEN_PORT@|$2|g" -e "s|@UPSTREAM_PORT@|$3|g" \
-        -e "s|@AUTHZ_PORT@|$4|g" -e "s|@ADMIN_PORT@|$5|g" \
-        -e "s|@EXT_PROC_METADATA_NAMESPACE@|${6:-envoy.filters.http.ext_authz}|g" \
+    sed -e "s|@LISTEN_PORT@|$render_listen_port|g" -e "s|@UPSTREAM_PORT@|$render_upstream_port|g" \
+        -e "s|@AUTHZ_PORT@|$render_authz_port|g" -e "s|@ADMIN_PORT@|$render_admin_port|g" \
+        -e "s|@EXT_PROC_METADATA_NAMESPACE@|$render_metadata_namespace|g" \
         -e "s|@TLS_CERTIFICATE@|$cert|g" -e "s|@TLS_PRIVATE_KEY@|$key|g" \
-        "$TEMPLATE" >"$1"
-    chmod 600 "$1"
+        "$TEMPLATE" >"$render_output"
+    chmod 600 "$render_output"
 }
 
 wait_for_listener() {
+    listener_port=$1
     attempt=0
     while [ "$attempt" -lt 40 ]; do
         kill -0 "$service_pid" 2>/dev/null && kill -0 "$envoy_pid" 2>/dev/null || return 1
-        if "$PYTHON_BIN" - "$1" <<'PY' >/dev/null 2>&1
+        if "$PYTHON_BIN" - "$listener_port" <<'PY' >/dev/null 2>&1
 import socket, sys
 with socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=0.2): pass
 PY
@@ -625,10 +656,11 @@ PY
 }
 
 wait_for_composite_listener() {
+    composite_listener_port=$1
     attempt=0
     while [ "$attempt" -lt 40 ]; do
         kill -0 "$service_pid" 2>/dev/null || return 1
-        if "$PYTHON_BIN" - "$1" <<'PY' >/dev/null 2>&1
+        if "$PYTHON_BIN" - "$composite_listener_port" <<'PY' >/dev/null 2>&1
 import socket, sys
 with socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=0.2): pass
 PY
@@ -639,7 +671,11 @@ PY
 }
 
 start_catalog_upstream() {
-    "$PYTHON_BIN" - "$1" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" "${4:-0}" "${5:-}" "${6:-}" "$RUNTIME_ROOT" <<'PY' >"$2" 2>"$3" &
+    catalog_port=$1; catalog_stdout=$2; catalog_stderr=$3
+    catalog_response_delay=${4:-0}; catalog_request_observation=${5:-}; catalog_response_observation=${6:-}
+    (
+        exec "$PYTHON_BIN" - "$catalog_port" "$TLS_CERTIFICATE" "$TLS_PRIVATE_KEY" \
+            "$catalog_response_delay" "$catalog_request_observation" "$catalog_response_observation" "$RUNTIME_ROOT" <<'PY'
 import http.server, json, os, pathlib, ssl, stat, sys
 import time
 
@@ -733,6 +769,7 @@ context.load_cert_chain(certificate, private_key)
 server.socket = context.wrap_socket(server.socket, server_side=True)
 server.serve_forever()
 PY
+    ) >"$catalog_stdout" 2>"$catalog_stderr" &
     upstream_pid=$!
     upstream_start_token=$(start_token "$upstream_pid") || fail "catalog upstream ownership unavailable"
 }
@@ -757,23 +794,24 @@ run_case() {
     done
     set -- $("$PYTHON_BIN" "$HELPER" free-ports --count 4)
     [ "$#" -eq 4 ] || fail "case port allocator returned unexpected output"
-    render_config "$case_config" "$1" "$2" "$3" "$4" "$metadata_namespace"
-    "$ENVOY_BIN" --mode validate -c "$case_config" --base-id "$(($1 + $4))" --disable-hot-restart \
+    case_listen_port=$1; case_upstream_port=$2; case_authz_port=$3; case_admin_port=$4
+    render_config "$case_config" "$case_listen_port" "$case_upstream_port" "$case_authz_port" "$case_admin_port" "$metadata_namespace"
+    "$ENVOY_BIN" --mode validate -c "$case_config" --base-id "$((case_listen_port + case_admin_port))" --disable-hot-restart \
         >"$case_dir/envoy-validate.stdout.log" 2>"$case_dir/envoy-validate.stderr.log" ||
         fail "Envoy rejected config for case $case_id"
-    start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log" "$upstream_delay" "$case_upstream_request_observation" "$case_upstream_response_observation"
-    "$COMPOSITE_BIN" --mode envoy --listen "127.0.0.1:$3" --runtime-config "$COMPOSITE_RUNTIME_CONFIG" \
+    start_catalog_upstream "$case_upstream_port" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log" "$upstream_delay" "$case_upstream_request_observation" "$case_upstream_response_observation"
+    "$COMPOSITE_BIN" --mode envoy --listen "127.0.0.1:$case_authz_port" --runtime-config "$COMPOSITE_RUNTIME_CONFIG" \
         --event-log "$case_event_log" >"$case_dir/composite.stdout.log" 2>"$case_dir/composite.stderr.log" &
     service_pid=$!; service_start_token=$(start_token "$service_pid") || fail "composite ownership unavailable"
-    wait_for_composite_listener "$3" || fail "composite listener was not ready for case $case_id"
-    "$ENVOY_BIN" -c "$case_config" --base-id "$(($1 + $4))" --disable-hot-restart --log-level "$ENVOY_LOG_LEVEL" \
+    wait_for_composite_listener "$case_authz_port" || fail "composite listener was not ready for case $case_id"
+    "$ENVOY_BIN" -c "$case_config" --base-id "$((case_listen_port + case_admin_port))" --disable-hot-restart --log-level "$ENVOY_LOG_LEVEL" \
         >"$case_dir/envoy.stdout.log" 2>"$case_dir/envoy.stderr.log" &
     envoy_pid=$!; envoy_start_token=$(start_token "$envoy_pid") || fail "Envoy ownership unavailable"
-    wait_for_listener "$1" || fail "Envoy listener was not ready for case $case_id"
+    wait_for_listener "$case_listen_port" || fail "Envoy listener was not ready for case $case_id"
     set +e
     if [ "$kill_companion" -eq 1 ]; then
         "$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-            --url "https://127.0.0.1:$1$request_path" --method "$method" --no-redirect \
+            --url "https://127.0.0.1:$case_listen_port$request_path" --method "$method" --no-redirect \
             --evidence-path "$case_probe" >"$case_dir/probe.status" 2>"$case_dir/probe.stderr.log" &
         probe_pid=$!
         wait_for_event_phase "$case_event_log" lease || fail "lease was not observed before companion stop for $case_id"
@@ -782,37 +820,37 @@ run_case() {
         wait "$probe_pid"; probe_rc=$?
         observed_status=$(sed -n '1p' "$case_dir/probe.status")
     elif [ "$probe_timeout" -gt 2 ]; then
-        observed_status=$(probe_with_timeout "$1" "$TLS_CERTIFICATE" "$request_path" "$method" "$request_body" "$case_probe")
+        observed_status=$(probe_with_timeout "$case_listen_port" "$TLS_CERTIFICATE" "$request_path" "$method" "$request_body" "$case_probe")
         probe_rc=$?
     elif [ -n "$request_header" ] && [ -n "$request_body" ]; then
         observed_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-            --url "https://127.0.0.1:$1$request_path" --method "$method" --header "$request_header" \
+            --url "https://127.0.0.1:$case_listen_port$request_path" --method "$method" --header "$request_header" \
             --data "$request_body" --no-redirect --evidence-path "$case_probe")
         probe_rc=$?
     elif [ -n "$request_header" ]; then
         observed_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-            --url "https://127.0.0.1:$1$request_path" --method "$method" --header "$request_header" \
+            --url "https://127.0.0.1:$case_listen_port$request_path" --method "$method" --header "$request_header" \
             --no-redirect --evidence-path "$case_probe")
         probe_rc=$?
     elif [ -n "$request_body" ]; then
         observed_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-            --url "https://127.0.0.1:$1$request_path" --method "$method" --data "$request_body" \
+            --url "https://127.0.0.1:$case_listen_port$request_path" --method "$method" --data "$request_body" \
             --no-redirect --evidence-path "$case_probe")
         probe_rc=$?
     elif [ "$case_id" = p3_redirect ]; then
         observed_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-            --url "https://127.0.0.1:$1$request_path" --method "$method" --no-redirect \
+            --url "https://127.0.0.1:$case_listen_port$request_path" --method "$method" --no-redirect \
             --require-response-header "Location: $P3_REDIRECT_TARGET" --evidence-path "$case_probe")
         probe_rc=$?
     else
         observed_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-            --url "https://127.0.0.1:$1$request_path" --method "$method" --no-redirect \
+            --url "https://127.0.0.1:$case_listen_port$request_path" --method "$method" --no-redirect \
             --evidence-path "$case_probe")
         probe_rc=$?
     fi
     set -e
     [ "$probe_rc" -eq 0 ] || fail "probe failed for case $case_id"
-    case "$observed_status" in ''|*[!0-9]*) fail "non-status probe result for $case_id" ;; esac
+    case "$observed_status" in ''|*[!0-9]*) fail "non-status probe result for $case_id" ;; *) : ;; esac
     check_client_probe "$case_probe" || fail "client probe evidence failed for $case_id"
     if [ "$case_id" = p3_redirect ]; then
         [ "$observed_status" = 302 ] || fail "P3 redirect status was not 302"
@@ -887,22 +925,23 @@ run_follow_up_case() {
     done
     set -- $($PYTHON_BIN "$HELPER" free-ports --count 4)
     [ "$#" -eq 4 ] || fail "case port allocator returned unexpected output"
-    render_config "$case_config" "$1" "$2" "$3" "$4" envoy.filters.http.ext_authz
-    "$ENVOY_BIN" --mode validate -c "$case_config" --base-id "$(($1 + $4))" --disable-hot-restart \
+    case_listen_port=$1; case_upstream_port=$2; case_authz_port=$3; case_admin_port=$4
+    render_config "$case_config" "$case_listen_port" "$case_upstream_port" "$case_authz_port" "$case_admin_port" envoy.filters.http.ext_authz
+    "$ENVOY_BIN" --mode validate -c "$case_config" --base-id "$((case_listen_port + case_admin_port))" --disable-hot-restart \
         >"$case_dir/envoy-validate.stdout.log" 2>"$case_dir/envoy-validate.stderr.log" ||
         fail "Envoy rejected config for case $case_id"
-    start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log"
-    "$COMPOSITE_BIN" --mode envoy --listen "127.0.0.1:$3" --runtime-config "$COMPOSITE_RUNTIME_CONFIG" \
+    start_catalog_upstream "$case_upstream_port" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log"
+    "$COMPOSITE_BIN" --mode envoy --listen "127.0.0.1:$case_authz_port" --runtime-config "$COMPOSITE_RUNTIME_CONFIG" \
         --event-log "$case_event_log" >"$case_dir/composite.stdout.log" 2>"$case_dir/composite.stderr.log" &
     service_pid=$!; service_start_token=$(start_token "$service_pid") || fail "composite ownership unavailable"
-    wait_for_composite_listener "$3" || fail "composite listener was not ready for case $case_id"
-    "$ENVOY_BIN" -c "$case_config" --base-id "$(($1 + $4))" --disable-hot-restart --log-level "$ENVOY_LOG_LEVEL" \
+    wait_for_composite_listener "$case_authz_port" || fail "composite listener was not ready for case $case_id"
+    "$ENVOY_BIN" -c "$case_config" --base-id "$((case_listen_port + case_admin_port))" --disable-hot-restart --log-level "$ENVOY_LOG_LEVEL" \
         >"$case_dir/envoy.stdout.log" 2>"$case_dir/envoy.stderr.log" &
     envoy_pid=$!; envoy_start_token=$(start_token "$envoy_pid") || fail "Envoy ownership unavailable"
-    wait_for_listener "$1" || fail "Envoy listener was not ready for case $case_id"
+    wait_for_listener "$case_listen_port" || fail "Envoy listener was not ready for case $case_id"
     set +e
     deny_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-        --url "https://127.0.0.1:$1/vector/p1" --method GET --header "X-Msconnector-Vector: msconnector-p1-only" \
+        --url "https://127.0.0.1:$case_listen_port/vector/p1" --method GET --header "X-Msconnector-Vector: msconnector-p1-only" \
         --no-redirect --evidence-path "$deny_probe")
     deny_rc=$?
     set -e
@@ -910,7 +949,7 @@ run_follow_up_case() {
     [ "$deny_status" = 403 ] || fail "follow-up deny status was not 403: $deny_status"
     set +e
     allow_status=$("$PYTHON_BIN" "$HELPER" probe --runtime-root "$RUNTIME_ROOT" --tls-certificate "$TLS_CERTIFICATE" \
-        --url "https://127.0.0.1:$1/vector/allow" --method GET --no-redirect --evidence-path "$allow_probe")
+        --url "https://127.0.0.1:$case_listen_port/vector/allow" --method GET --no-redirect --evidence-path "$allow_probe")
     allow_rc=$?
     set -e
     [ "$allow_rc" -eq 0 ] || fail "follow-up allow probe failed"

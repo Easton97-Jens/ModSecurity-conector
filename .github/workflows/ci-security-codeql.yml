@@ -103,6 +103,9 @@ jobs:
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
+          cache-dependency-path: |
+            connectors/envoy/ext_proc/go.mod
+            connectors/envoy/ext_proc/go.sum
       - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           languages: go
@@ -126,6 +129,7 @@ jobs:
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
+          cache-dependency-path: connectors/traefik/native_middleware/go.mod
       - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           languages: go

@@ -19,7 +19,16 @@ import sys
 ROOT = Path(__file__).resolve().parents[3]
 CFAMILY_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"}
 CODE_SUFFIXES = CFAMILY_SUFFIXES | {".py", ".go", ".sh", ".bash"}
+CONFIG_SUFFIXES = {".json", ".yaml", ".yml"}
 COMPONENTS = ("common", "connectors", "ci", "scripts", "tests", ".github", "examples", "config", "fuzz")
+# These are independent ownership boundaries, not patterns copied from the
+# configurable sonar.exclusions value that this guard must validate.
+OUTPUT_ROOTS = ("build/", "dist/", "ci-artifacts/", "verified-runs/", "reports/testing/generated/")
+WORKFLOW_FIXTURE_DIRECTORIES = {
+    "ci/fixtures/workflow-permission-contract",
+    "ci/fixtures/zizmor",
+    "tests/fixtures/python-version-contract",
+}
 
 
 def properties(path: Path) -> dict[str, str]:
@@ -85,6 +94,23 @@ def expected_test(path: str) -> bool:
     )
 
 
+def maintained_analyzable(path: str) -> bool:
+    """Identify expected code/config independently of the requested scan scope."""
+    file = Path(path)
+    if file.suffix in CODE_SUFFIXES or file.name == "go.mod":
+        return True
+    if file.suffix not in CONFIG_SUFFIXES:
+        return False
+    if path.startswith(OUTPUT_ROOTS):
+        return False
+    # Only immediate YAML workflow fixtures are special. Sibling Python/C code,
+    # JSON contracts and nested directories retain normal analysis protection.
+    return not (
+        file.suffix in {".yaml", ".yml"}
+        and file.parent.as_posix() in WORKFLOW_FIXTURE_DIRECTORIES
+    )
+
+
 def validate_settings(config: dict[str, str], python_pin: str) -> None:
     """Keep manual scanner scope, project identity, and language versions aligned."""
     required = {
@@ -110,7 +136,7 @@ def verify_classification(path: str, test: bool, production: bool) -> None:
     file = Path(path)
     if test and production:
         raise ValueError(f"source/test overlap: {path}")
-    if file.suffix in CODE_SUFFIXES or file.name == "go.mod":
+    if maintained_analyzable(path):
         if expected_test(path) != test:
             raise ValueError(f"incorrect test classification: {path}")
         if not expected_test(path) and not production:
@@ -154,8 +180,11 @@ def validate(config: dict[str, str], python_pin: str, tracked: list[str]) -> dic
     validate_settings(config, python_pin)
     source, tests, excluded = classify_paths(config, tracked)
     for component in COMPONENTS:
-        if not any(path.startswith(component + "/") for path in source + tests):
-            raise ValueError(f"component missing from scope: {component}")
+        if not any(
+            path.startswith(component + "/") and maintained_analyzable(path)
+            for path in source + tests
+        ):
+            raise ValueError(f"component missing analyzable code/config: {component}")
     modules = sorted(path for path in source if Path(path).name == "go.mod")
     if len(modules) != 4:
         raise ValueError(f"review Go module inventory (expected four, found {len(modules)})")

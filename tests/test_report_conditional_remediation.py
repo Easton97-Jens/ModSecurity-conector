@@ -114,6 +114,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
             self.assertIsNone(NGINX_HTTP500.access_log_status(malformed))
 
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             access_log = Path(temporary) / "access.log"
             access_log.write_text(
                 "\n".join(
@@ -240,6 +242,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
 
     def test_haproxy_xml_parser_evidence_requires_one_safe_non_disruptive_decision(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             build_root = Path(temporary) / "build"
             result_path = build_root / "runtime" / "xml-result.json"
             decision_log = result_path.parent / "decision.jsonl"
@@ -371,6 +375,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
 
     def test_refresh_placeholder_retains_evidence_markdown_and_writes_a_safe_placeholder_json(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             connector_root = Path(temporary) / "connector"
             framework_root = Path(temporary) / "framework"
             connector_root.mkdir()
@@ -423,6 +429,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
 
     def test_refresh_submodule_and_dashboard_helpers_preserve_order_and_status_rules(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             root = Path(temporary)
             connector_root = root / "connector"
             framework_root = root / "framework"
@@ -637,6 +645,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
 
     def test_no_mrts_control_identity_uses_fixed_connector_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             build_root = Path(temporary) / "build"
             self.assertEqual(RUNTIME_MISMATCH.NGINX_FORCE_ALL_SUMMARY_FILE, "nginx-summary.json")
             for connector in ("apache", "haproxy", "nginx"):
@@ -669,6 +679,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
     def test_no_mrts_controls_keep_pass_403_and_missing_evidence_predicates(self) -> None:
         case_name = "control-case"
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             build_root = Path(temporary) / "build"
             for connector in ("apache", "haproxy", "nginx"):
                 with self.subTest(connector=connector):
@@ -746,6 +758,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
         case_name = "phase4-control"
         row = {"connector": "nginx", "variant": "with-crs/with-mrts", "case": case_name}
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             build_root = Path(temporary) / "build"
             control_root = build_root / "full-matrix" / "with-crs" / "no-mrts" / "nginx"
             summary_path = (
@@ -790,6 +804,8 @@ class ReportConditionalRemediationTest(unittest.TestCase):
 
     def test_report_status_branches_keep_existing_values(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(RUNTIME_MISMATCH, "INPUTS", RUNTIME_MISMATCH.EvidenceInputs((ROOT, Path(temporary)))))
+            self.enterContext(mock.patch.object(NGINX_HTTP500, "INPUTS", NGINX_HTTP500.EvidenceInputs((ROOT, Path(temporary)))))
             root = Path(temporary)
             case_path = root / "case.yaml"
             evidence_path = root / "evidence.json"
