@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside Parent default selection; no new PASS. The mandatory master Sonar assessment may separately select some definitions. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "7a5c71660d39f2974cb087fb7704c608d9712701af91e4f9e82759ad9a46e151",
+  "inventory_sha256": "c3ea575eebc7fe445feef74758b342beebb4a323e79bcc7465974cb5382b5b2c",
   "on_demand_definition_count": 5573,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects Parent cases. The mandatory master Sonar assessment declares its own separate selection.",
   "schema_version": 1,
@@ -3320,6 +3320,18 @@
       ],
       "source": "tests/test_event_transport_observation.py",
       "source_sha256": "869f1c72b054f544da0ab8722b39f3547976abada854ef62b4759b83e3b7bd71"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_explicit_external_commands_receipt_is_readable",
+        "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_default_inside_root_commands_receipt_is_readable",
+        "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_explicit_receipt_links_are_rejected_before_reading",
+        "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_producer_forwards_independent_build_root_and_retains_diagnostics",
+        "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_manifest_build_path_cannot_extend_the_configured_build_root"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_evidence_input_configuration_compatibility.py",
+      "source_sha256": "d0f1ebf37a3f13d8bf918cc904d7654283205d6edb562156056676e93486e690"
     },
     {
       "contains_selected_definitions": [],

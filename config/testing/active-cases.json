@@ -19844,7 +19844,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -20281,7 +20281,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -20718,7 +20718,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -21155,7 +21155,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -21592,7 +21592,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -22022,7 +22022,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -22452,7 +22452,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -22910,7 +22910,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -23361,7 +23361,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -23798,7 +23798,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -24228,7 +24228,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -24658,7 +24658,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -25088,7 +25088,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -25532,7 +25532,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -25962,7 +25962,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -26392,7 +26392,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -26885,7 +26885,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -27329,7 +27329,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -27759,7 +27759,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -28196,7 +28196,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -28626,7 +28626,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -29056,7 +29056,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -30177,7 +30177,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30239,7 +30239,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30301,7 +30301,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30363,7 +30363,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30425,7 +30425,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30487,7 +30487,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30549,7 +30549,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30611,7 +30611,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30673,7 +30673,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30735,7 +30735,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30797,7 +30797,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30873,7 +30873,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30935,7 +30935,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -30997,7 +30997,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31059,7 +31059,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31121,7 +31121,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31190,7 +31190,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31259,7 +31259,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31321,7 +31321,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31411,7 +31411,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31473,7 +31473,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31535,7 +31535,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31597,7 +31597,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -31659,7 +31659,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
@@ -32197,7 +32197,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/runtime/broker/nginx_exact_head_result_collector.py",
@@ -40135,7 +40135,7 @@
         },
         {
           "path": "ci/provisioning/components/prepare-runtime-components.py",
-          "sha256": "8216bd28c515cb47030e6bd00171e70396f8de1b537f0065788a69d46587d9eb"
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
         },
         {
           "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -43600,6 +43600,363 @@
         }
       ],
       "expected_subtests": 3
+    },
+    {
+      "id": "offline.evidence-invocation.01",
+      "groups": [
+        "offline-unit"
+      ],
+      "sources": [
+        {
+          "path": "tests/test_evidence_input_configuration_compatibility.py",
+          "sha256": "d0f1ebf37a3f13d8bf918cc904d7654283205d6edb562156056676e93486e690"
+        },
+        {
+          "path": "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
+          "sha256": "979ba8796377b8835c58c5eb73dde09924c56413efd8de1072fdcd88f620e2cf"
+        },
+        {
+          "path": "ci/evidence/reports/update-runtime-reports.py",
+          "sha256": "2c5c06b160c9bb70e8c14c3f109387346ab797acc168c5ae01ca1a91508149b8"
+        },
+        {
+          "path": "ci/provisioning/components/prepare-runtime-components.py",
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
+        },
+        {
+          "path": "ci/provisioning/components/nginx_exact_head_diagnostics.py",
+          "sha256": "7f2a0fd98c3ff5e08a52f4d2a986410d566dc020f7306077c33827bdbd98eff1"
+        },
+        {
+          "path": "ci/lib/evidence_inputs.py",
+          "sha256": "a28ce420b557862be4419a603f4d28659b23596977a58654e64b3d3c072375ea"
+        },
+        {
+          "path": "ci/lib/generated_report_utils.py",
+          "sha256": "5b99ba57ade057a58d77417bc16903db38c37e68f832b8db575fc3add9ffce6a"
+        },
+        {
+          "path": "ci/lib/report_path_safety.py",
+          "sha256": "ceefe36da8e09d42244f269a5ce45f941f91551e1701fde7b2f68d201a16c076"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/verified_run_id.py",
+          "sha256": "2bb206a87d29ca607013298f11cb9867e57eb3df7ffe4c316ada6432dbe7ae6e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "ee25f3ad5b99d710137a685677da15754c85d99fff6e5a91ac5eb9d6ec70033e"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_explicit_external_commands_receipt_is_readable"
+      },
+      "expected_subtests": 0,
+      "cases": [
+        {
+          "id": "offline.evidence-invocation.01.single",
+          "requirement": "explicit external commands receipt is readable",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.evidence-invocation.02",
+      "groups": [
+        "offline-unit"
+      ],
+      "sources": [
+        {
+          "path": "tests/test_evidence_input_configuration_compatibility.py",
+          "sha256": "d0f1ebf37a3f13d8bf918cc904d7654283205d6edb562156056676e93486e690"
+        },
+        {
+          "path": "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
+          "sha256": "979ba8796377b8835c58c5eb73dde09924c56413efd8de1072fdcd88f620e2cf"
+        },
+        {
+          "path": "ci/evidence/reports/update-runtime-reports.py",
+          "sha256": "2c5c06b160c9bb70e8c14c3f109387346ab797acc168c5ae01ca1a91508149b8"
+        },
+        {
+          "path": "ci/provisioning/components/prepare-runtime-components.py",
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
+        },
+        {
+          "path": "ci/provisioning/components/nginx_exact_head_diagnostics.py",
+          "sha256": "7f2a0fd98c3ff5e08a52f4d2a986410d566dc020f7306077c33827bdbd98eff1"
+        },
+        {
+          "path": "ci/lib/evidence_inputs.py",
+          "sha256": "a28ce420b557862be4419a603f4d28659b23596977a58654e64b3d3c072375ea"
+        },
+        {
+          "path": "ci/lib/generated_report_utils.py",
+          "sha256": "5b99ba57ade057a58d77417bc16903db38c37e68f832b8db575fc3add9ffce6a"
+        },
+        {
+          "path": "ci/lib/report_path_safety.py",
+          "sha256": "ceefe36da8e09d42244f269a5ce45f941f91551e1701fde7b2f68d201a16c076"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/verified_run_id.py",
+          "sha256": "2bb206a87d29ca607013298f11cb9867e57eb3df7ffe4c316ada6432dbe7ae6e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "ee25f3ad5b99d710137a685677da15754c85d99fff6e5a91ac5eb9d6ec70033e"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_default_inside_root_commands_receipt_is_readable"
+      },
+      "expected_subtests": 0,
+      "cases": [
+        {
+          "id": "offline.evidence-invocation.02.single",
+          "requirement": "Default inside-root commands receipt remains readable as the unchanged positive control.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.evidence-invocation.03",
+      "groups": [
+        "offline-unit"
+      ],
+      "sources": [
+        {
+          "path": "tests/test_evidence_input_configuration_compatibility.py",
+          "sha256": "d0f1ebf37a3f13d8bf918cc904d7654283205d6edb562156056676e93486e690"
+        },
+        {
+          "path": "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
+          "sha256": "979ba8796377b8835c58c5eb73dde09924c56413efd8de1072fdcd88f620e2cf"
+        },
+        {
+          "path": "ci/evidence/reports/update-runtime-reports.py",
+          "sha256": "2c5c06b160c9bb70e8c14c3f109387346ab797acc168c5ae01ca1a91508149b8"
+        },
+        {
+          "path": "ci/provisioning/components/prepare-runtime-components.py",
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
+        },
+        {
+          "path": "ci/provisioning/components/nginx_exact_head_diagnostics.py",
+          "sha256": "7f2a0fd98c3ff5e08a52f4d2a986410d566dc020f7306077c33827bdbd98eff1"
+        },
+        {
+          "path": "ci/lib/evidence_inputs.py",
+          "sha256": "a28ce420b557862be4419a603f4d28659b23596977a58654e64b3d3c072375ea"
+        },
+        {
+          "path": "ci/lib/generated_report_utils.py",
+          "sha256": "5b99ba57ade057a58d77417bc16903db38c37e68f832b8db575fc3add9ffce6a"
+        },
+        {
+          "path": "ci/lib/report_path_safety.py",
+          "sha256": "ceefe36da8e09d42244f269a5ce45f941f91551e1701fde7b2f68d201a16c076"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/verified_run_id.py",
+          "sha256": "2bb206a87d29ca607013298f11cb9867e57eb3df7ffe4c316ada6432dbe7ae6e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "ee25f3ad5b99d710137a685677da15754c85d99fff6e5a91ac5eb9d6ec70033e"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_producer_forwards_independent_build_root_and_retains_diagnostics"
+      },
+      "expected_subtests": 0,
+      "cases": [
+        {
+          "id": "offline.evidence-invocation.03.single",
+          "requirement": "producer forwards independent build root and retains diagnostics",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.evidence-invocation.04",
+      "groups": [
+        "offline-unit"
+      ],
+      "sources": [
+        {
+          "path": "tests/test_evidence_input_configuration_compatibility.py",
+          "sha256": "d0f1ebf37a3f13d8bf918cc904d7654283205d6edb562156056676e93486e690"
+        },
+        {
+          "path": "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
+          "sha256": "979ba8796377b8835c58c5eb73dde09924c56413efd8de1072fdcd88f620e2cf"
+        },
+        {
+          "path": "ci/evidence/reports/update-runtime-reports.py",
+          "sha256": "2c5c06b160c9bb70e8c14c3f109387346ab797acc168c5ae01ca1a91508149b8"
+        },
+        {
+          "path": "ci/provisioning/components/prepare-runtime-components.py",
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
+        },
+        {
+          "path": "ci/provisioning/components/nginx_exact_head_diagnostics.py",
+          "sha256": "7f2a0fd98c3ff5e08a52f4d2a986410d566dc020f7306077c33827bdbd98eff1"
+        },
+        {
+          "path": "ci/lib/evidence_inputs.py",
+          "sha256": "a28ce420b557862be4419a603f4d28659b23596977a58654e64b3d3c072375ea"
+        },
+        {
+          "path": "ci/lib/generated_report_utils.py",
+          "sha256": "5b99ba57ade057a58d77417bc16903db38c37e68f832b8db575fc3add9ffce6a"
+        },
+        {
+          "path": "ci/lib/report_path_safety.py",
+          "sha256": "ceefe36da8e09d42244f269a5ce45f941f91551e1701fde7b2f68d201a16c076"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/verified_run_id.py",
+          "sha256": "2bb206a87d29ca607013298f11cb9867e57eb3df7ffe4c316ada6432dbe7ae6e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "ee25f3ad5b99d710137a685677da15754c85d99fff6e5a91ac5eb9d6ec70033e"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_manifest_build_path_cannot_extend_the_configured_build_root"
+      },
+      "expected_subtests": 0,
+      "cases": [
+        {
+          "id": "offline.evidence-invocation.04.single",
+          "requirement": "manifest build path cannot extend the configured build root",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.evidence-invocation.05",
+      "groups": [
+        "offline-unit"
+      ],
+      "sources": [
+        {
+          "path": "tests/test_evidence_input_configuration_compatibility.py",
+          "sha256": "d0f1ebf37a3f13d8bf918cc904d7654283205d6edb562156056676e93486e690"
+        },
+        {
+          "path": "ci/evidence/reports/generate-verified-runtime-mismatch-analysis.py",
+          "sha256": "979ba8796377b8835c58c5eb73dde09924c56413efd8de1072fdcd88f620e2cf"
+        },
+        {
+          "path": "ci/evidence/reports/update-runtime-reports.py",
+          "sha256": "2c5c06b160c9bb70e8c14c3f109387346ab797acc168c5ae01ca1a91508149b8"
+        },
+        {
+          "path": "ci/provisioning/components/prepare-runtime-components.py",
+          "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
+        },
+        {
+          "path": "ci/provisioning/components/nginx_exact_head_diagnostics.py",
+          "sha256": "7f2a0fd98c3ff5e08a52f4d2a986410d566dc020f7306077c33827bdbd98eff1"
+        },
+        {
+          "path": "ci/lib/evidence_inputs.py",
+          "sha256": "a28ce420b557862be4419a603f4d28659b23596977a58654e64b3d3c072375ea"
+        },
+        {
+          "path": "ci/lib/generated_report_utils.py",
+          "sha256": "5b99ba57ade057a58d77417bc16903db38c37e68f832b8db575fc3add9ffce6a"
+        },
+        {
+          "path": "ci/lib/report_path_safety.py",
+          "sha256": "ceefe36da8e09d42244f269a5ce45f941f91551e1701fde7b2f68d201a16c076"
+        },
+        {
+          "path": "ci/lib/runtime_path_utils.py",
+          "sha256": "da6ae799903a94e540fc0e93323c5bf5f1810aa0f4c89c49bcfa368272ad82a4"
+        },
+        {
+          "path": "ci/lib/verified_run_id.py",
+          "sha256": "2bb206a87d29ca607013298f11cb9867e57eb3df7ffe4c316ada6432dbe7ae6e"
+        },
+        {
+          "path": "ci/lib/active_test_inventory.py",
+          "sha256": "ee25f3ad5b99d710137a685677da15754c85d99fff6e5a91ac5eb9d6ec70033e"
+        },
+        {
+          "path": "tests/__init__.py",
+          "sha256": "56c5f5c00e227c6f5249637ba3ce91eb68cba5a7f973a18896693a4a95017ed7"
+        }
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_evidence_input_configuration_compatibility.EvidenceInputConfigurationCompatibilityTests.test_explicit_receipt_links_are_rejected_before_reading"
+      },
+      "expected_subtests": 2,
+      "cases": [
+        {
+          "id": "offline.evidence-invocation.05.final",
+          "requirement": "Explicit receipt cannot follow final symlink before reading",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.evidence-invocation.05.intermediate",
+          "requirement": "Explicit receipt cannot follow intermediate symlink before reading",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
     }
   ]
 }

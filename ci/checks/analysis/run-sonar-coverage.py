@@ -46,7 +46,7 @@ GO_TESTS = {
         "TestClientFramesBoundedOrderedOperations",
         "TestProcessStreamsChunksAndCleansUpAtResponseEOS",
         "TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot",
-        "TestCheckRejects33ByteBodyWith413",
+        "TestCheckForwards33ByteBodyWithoutConnectorPolicy",
         "TestCheckPreservesValidatedRedirect",
         "TestProcessMissingMetadataFailsClosed503",
         "TestJSONLObserverRejectsFinalSymlink",

@@ -11322,6 +11322,8 @@ def write_runtime_component_reports(
     if postprocess.is_file():
         command = [sys.executable, str(postprocess), "--connector-root", str(connector_root),
                    "--output-root", str(context["output_root"]), "--cache-root", str(cache_root)]
+        if context.get("build_root"):
+            command.extend(("--build-root", str(context["build_root"])))
         # Approvals come only from invocation configuration, never the manifest.
         for candidate in configured_component_file_approvals(context.get("env", {})):
             command.extend(("--approved-component-file", candidate))
