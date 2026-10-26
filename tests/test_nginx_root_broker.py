@@ -1337,6 +1337,53 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             framework_sha="03880bf66b3905940466ff10b3a431a27ecc6b26",
         )
 
+    def test_caller_yaml_contract_accepts_uniform_ubuntu26_runners(self) -> None:
+        raw = (ROOT / ".github/workflows/run-protected-nginx-root-broker.yml").read_bytes()
+        document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+        for name in ("prepare-manifests", "verify-evidence", "result"):
+            document["jobs"][name]["runs-on"] = "ubuntu-26.04"
+        BROKER.validate_caller_workflow_document(
+            document,
+            broker_sha="49c40779a7b6de9f699391bcd524ea069787df42",
+            framework_sha="03880bf66b3905940466ff10b3a431a27ecc6b26",
+        )
+
+    def test_caller_yaml_contract_rejects_mixed_runner_modes(self) -> None:
+        raw = (ROOT / ".github/workflows/run-protected-nginx-root-broker.yml").read_bytes()
+        names = ("prepare-manifests", "verify-evidence", "result")
+        for uniform, differing in (("ubuntu-latest", "ubuntu-26.04"), ("ubuntu-26.04", "ubuntu-latest")):
+            for changed_job in names:
+                with self.subTest(uniform=uniform, changed_job=changed_job):
+                    document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+                    for name in names:
+                        document["jobs"][name]["runs-on"] = uniform
+                    document["jobs"][changed_job]["runs-on"] = differing
+                    with self.assertRaisesRegex(BROKER.BrokerError, "uniform runner mode"):
+                        BROKER.validate_caller_workflow_document(
+                            document,
+                            broker_sha="49c40779a7b6de9f699391bcd524ea069787df42",
+                            framework_sha="03880bf66b3905940466ff10b3a431a27ecc6b26",
+                        )
+
+    def test_caller_yaml_contract_rejects_unknown_and_structured_runners(self) -> None:
+        raw = (ROOT / ".github/workflows/run-protected-nginx-root-broker.yml").read_bytes()
+        for name in ("prepare-manifests", "verify-evidence", "result"):
+            for runner in ("ubuntu-24.04", "self-hosted", ["self-hosted", "linux"], ["ubuntu-26.04"]):
+                with self.subTest(job=name, runner=runner):
+                    document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+                    document["jobs"][name]["runs-on"] = runner
+                    with self.assertRaisesRegex(BROKER.BrokerError, "unexpected runner"):
+                        BROKER.validate_caller_workflow_document(
+                            document,
+                            broker_sha="49c40779a7b6de9f699391bcd524ea069787df42",
+                            framework_sha="03880bf66b3905940466ff10b3a431a27ecc6b26",
+                        )
+
+    def test_broker_workflow_uses_ubuntu26_runner(self) -> None:
+        workflow = (ROOT / ".github/workflows/nginx-root-broker.yml").read_text(encoding="utf-8")
+        self.assertEqual(workflow.count("    runs-on: ubuntu-26.04\n"), 1)
+        self.assertNotIn("runs-on: ubuntu-latest", workflow)
+
     def test_caller_yaml_contract_rejects_pin_job_variant_permission_and_secret_mutations(self) -> None:
         text = (ROOT / ".github" / "workflows" / "run-protected-nginx-root-broker.yml").read_text(
             encoding="utf-8"

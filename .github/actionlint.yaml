@@ -1,0 +1,5 @@
+# Supplemental official hosted labels for actionlint versions predating Ubuntu 26.04.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
