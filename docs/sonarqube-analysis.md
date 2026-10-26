@@ -429,6 +429,72 @@ execution, report imports and per-warning after-results must be recorded in the
 Change Record when observed. A successful upload, an older green result,
 `warningCount=0` or an advisory job conclusion alone is insufficient.
 
+## Current measured source closure — 2026-10-26
+
+Source `d5450cd3d88e7ac20c5fdee3e4173c65f5626ca8`. All three CI analysis jobs and terminal server tasks succeeded; all gates are `OK`. This is exact source closure before the documentation commit. The following documentation head needs its own fresh CI/Sonar proof in the PR; these results are not transferred to it.
+
+| Project | CE task | Analysis ID | Processing / gate | New-code coverage |
+| --- | --- | --- | --- | --- |
+| Easton97-Jens_ModSecurity-conector | `AaF2d1wrF1KaAz-ccYSb` | `5ca2a23e-9296-4c2d-8fbc-fa4d9a6b97eb` | `SUCCESS` / `OK` | 83.5% |
+| Easton97-Jens_ModSecurity-conector_cpp20_advisory | `AaF2dvPAk-m4lzyjm-LE` | `fd25c86a-c9f5-4cb3-8cd5-6e2a3e59ba69` | `SUCCESS` / `OK` | 84.6% |
+| Easton97-Jens_ModSecurity-conector_cpp23_advisory | `AaF2dqhewSmsgR9Bx97p` | `085ce801-0376-4963-9864-25391aae003b` | `SUCCESS` / `OK` | 84.6% |
+
+| Project | Reviewed IDs | `FIXED` | `FALSE_POSITIVE` | OPEN/CONFIRMED | Hotspots |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Main PR 421 | 152 | 143 | 9 | 0 | 0 |
+| C++20 advisory | 33 | 24 | 9 | 0 | 0 |
+| C++23 advisory | 18 | 12 | 6 | 0 | 0 |
+| Total | 203 | 179 | 24 | 0 | 0 |
+
+The 203 distinct IDs comprise fully paginated starting inventories 150/31/16 plus six discoveries. Every ID was separately read back. All types in the New Code OPEN/CONFIRMED scope return zero, as do separate hotspot queries. The three new complexity IDs are actually `FIXED`; the three new Git-security IDs remain `FALSE_POSITIVE` with individually verified comments. No risk was accepted; no rule, threshold, gate condition or New Code requirement was weakened and no broad exclusion introduced.
+
+All six unchanged gate conditions pass: reliability/security/maintainability each 1 against at most 1; `new_coverage` 83.5/84.6/84.6 against at least 80; `new_duplicated_lines_density` 0.0 against at most 3; `new_security_hotspots_reviewed` 100.0 against at least 100. No condition was ignored. The 83.5% is PR coverage, 84.6% advisory branch new-code coverage. Fresh separate master readback still confirms 0.6% overall coverage; this PR does not repair it.
+
+All three scans retain 1,350 sources, 243 tests, 136 native translation units and four Go modules; one Python XML, four Go reports and 71 gcov reports were imported per project. Native quality remains 100/100: parsing errors in 0/2,263 functions, 0/6 classes, 0/33,778 statements; 0/1,132 unresolved project includes and zero external include residuals. This proves measured parsing/include closure, not C/C++ taint.
+
+Remaining scanner warnings are separate from the 203 IDs: main 46 WARNs (44 architecture labels, FIFO parser, TLS file without changed lines), each advisory four WARNs (FIFO parser, two predecessor, FIFO syntax) plus the INFO simulation-cost skip at `ci/lib/runtime_path_utils.py:69`. C/C++ taint remains explicitly disabled in AutoConfig; multiple variants/independent targets remain separate limits. Missing TLS blame has disappeared, while the changed-lines warning remains. Python/FIFO limits have baseline counterevidence and are not asserted as PR regressions.
+
+Terminal runtime proof belongs separately to source `900dddb49c43ec4479c4b75a91071cadb97893c4`, run `40267347652`: all six jobs succeeded including Apache; selected 403/CRS/audit/cleanup proof, not full matrix qualification. Details and artifact limits remain in the 900 section. The source scan does not transfer runtime proof to another head.
+
+| Remaining item | Disposition after source proof |
+| --- | --- |
+| 203 issue IDs | 179 `behoben und nachgewiesen`, 24 proven false positives |
+| Measured native parsing/include residuals | `behoben und nachgewiesen` |
+| C/C++ taint, Python simulation-cost/predecessor, valid FIFO | `begründete Analyzergrenze` |
+| Architecture model with 44 labels, repeated HTTP 415 and unchanged readback | `extern blockiert` |
+| Remaining TLS changed-lines warning, final CI/Sonar at documentation head | `weiterhin offen` |
+
+Source issues/gates are therefore closed; external architecture application and final-head verification still prevent a complete technical closure claim. PR #421 remains Draft, overall status **teilweise abgeschlossen/blockiert**. No merge or master change. Sources: `d545-evidence-summary.json`, `d545-analysis-bindings.json`, `d545-*-baseline-readback.json`, `d545-*-log-evidence.json` and separate hotspot readbacks in run `pr421-all-findings-20261026`.
+
+## Historical source 900 state before final complexity closure
+
+The source scan of `900dddb49c43ec4479c4b75a91071cadb97893c4` confirms
+all 197 starting IDs: 176 analysis-`FIXED`, 21 individually justified
+`FALSE_POSITIVE`. Six new IDs (one Git argument-injection and contract-decoder
+complexity issue per project) remain separate in the
+[per-issue triage](sonarqube-pr421-triage.md); the three new security IDs now have individually verified FP transitions
+and the three complexity IDs still await rescan proof. Native parsing/include residuals are measurably repaired:
+quality 100/100, 0/2,263 functions, 0/6 classes, 0/33,778 statements,
+0/1,132 project includes and zero external include residuals with all
+136 translation units retained. C/C++ taint remains explicitly disabled.
+
+All three scans imported Python XML, four Go reports and 71 gcov reports.
+PR coverage 83.3% and advisory branch new-code coverage 84.4% remain distinct
+from accumulated master coverage. Fresh authenticated readback on 2026-10-26
+at 04:25 UTC independently confirms master coverage 0.6%; the detailed
+master-analysis binding remains in the closeout. The [closeout](sonarqube-pr421-closeout.md)
+contains exact CE/analysis bindings, gate conditions and limits. At that scan,
+gates were ERROR only for security rating 3. Architecture remains externally
+blocked. Missing TLS blame is no longer reported; the changed-file-without-
+changed-lines warning remains. Both CodeQL root-go.mod warnings are resolved;
+a different Traefik module-cache log warning remains with successful analysis.
+A later correction/documentation head needs its own current PR proof.
+PR #421 remains Draft.
+
+The development/older-scan sections below remain historical; their pending
+statements for starting IDs and parsing residuals are superseded by this
+source state.
+
 ## Complete PR issue continuation, 2026-10-26
 
 The freshly paginated main-project query for PR #421 used

@@ -469,6 +469,72 @@ der Beobachtung im Change Record festgehalten werden. Ein erfolgreicher Upload,
 ein älteres grünes Ergebnis, `warningCount=0` oder die Conclusion eines
 Advisory-Jobs allein reichen nicht.
 
+## Aktueller gemessener Sourceabschluss — 2026-10-26
+
+Source `d5450cd3d88e7ac20c5fdee3e4173c65f5626ca8`. Alle drei CI-Analysejobs und terminalen Servertasks sind erfolgreich; alle Gates sind `OK`. Dies ist der genaue Sourceabschluss vor dem Dokumentationscommit. Der folgende Dokumentationshead benötigt eigene neue CI-/Sonar-Nachweise im PR; diese Ergebnisse werden nicht auf ihn übertragen.
+
+| Project | CE task | Analysis ID | Processing / gate | New-code coverage |
+| --- | --- | --- | --- | --- |
+| Easton97-Jens_ModSecurity-conector | `AaF2d1wrF1KaAz-ccYSb` | `5ca2a23e-9296-4c2d-8fbc-fa4d9a6b97eb` | `SUCCESS` / `OK` | 83.5% |
+| Easton97-Jens_ModSecurity-conector_cpp20_advisory | `AaF2dvPAk-m4lzyjm-LE` | `fd25c86a-c9f5-4cb3-8cd5-6e2a3e59ba69` | `SUCCESS` / `OK` | 84.6% |
+| Easton97-Jens_ModSecurity-conector_cpp23_advisory | `AaF2dqhewSmsgR9Bx97p` | `085ce801-0376-4963-9864-25391aae003b` | `SUCCESS` / `OK` | 84.6% |
+
+| Project | Reviewed IDs | `FIXED` | `FALSE_POSITIVE` | OPEN/CONFIRMED | Hotspots |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Main PR 421 | 152 | 143 | 9 | 0 | 0 |
+| C++20 advisory | 33 | 24 | 9 | 0 | 0 |
+| C++23 advisory | 18 | 12 | 6 | 0 | 0 |
+| Total | 203 | 179 | 24 | 0 | 0 |
+
+Die 203 verschiedenen IDs bestehen aus den vollständig paginierten Ausgangsinventaren 150/31/16 und sechs Neufunden. Jede ID wurde separat zurückgelesen. Alle Typen im New-Code-OPEN/CONFIRMED-Scope ergeben null; getrennte Hotspotabfragen ebenfalls null. Die drei neuen Komplexitäts-IDs sind tatsächlich `FIXED`; die drei neuen Git-Sicherheits-IDs bleiben mit einzeln geprüften Kommentaren `FALSE_POSITIVE`. Kein Risiko wurde akzeptiert; keine Regel, Schwelle, Gatebedingung oder New-Code-Anforderung wurde abgeschwächt und kein breiter Ausschluss eingeführt.
+
+Alle sechs unveränderten Gatebedingungen bestehen: Reliability/Security/Maintainability jeweils 1 bei höchstens 1; `new_coverage` 83.5/84.6/84.6 bei mindestens 80; `new_duplicated_lines_density` 0.0 bei höchstens 3; `new_security_hotspots_reviewed` 100.0 bei mindestens 100. Keine Bedingung wurde ignoriert. Die 83.5% sind PR-Coverage, 84.6% Advisory-Branch-New-Code-Coverage. Frisches separates Master-Readback bestätigt weiterhin 0.6% Gesamtcoverage; der PR behebt sie nicht.
+
+Alle drei Scans erhalten 1,350 Sources, 243 Tests, 136 native Translation Units und vier Go-Module; je Projekt wurden Python-XML einmal, vier Go-Reports und 71 gcov-Reports importiert. Native Qualität bleibt 100/100: Parsingfehler in 0/2,263 Funktionen, 0/6 Klassen, 0/33,778 Statements; 0/1,132 unaufgelöste Projekt-Includes und null externe Includereste. Das belegt den gemessenen Parsing-/Include-Abschluss, nicht C/C++-Taint.
+
+Verbleibende Scannerwarnungen sind getrennt von den 203 IDs: Hauptprojekt 46 WARNs (44 Architekturlabels, FIFO-Parser, TLS-Datei ohne geänderte Zeilen), jedes Advisory vier WARNs (FIFO-Parser, zwei Predecessor, FIFO-Syntax) plus INFO-Simulationskostenskip bei `ci/lib/runtime_path_utils.py:69`. C/C++-Taint bleibt in AutoConfig ausdrücklich deaktiviert; mehrere Varianten/unabhängige Ziele bleiben gesonderte Grenzen. Fehlender TLS-Blame ist verschwunden, die Änderungszeilenwarnung bleibt. Python-/FIFO-Grenzen haben Basisgegennachweise und werden nicht als PR-Regression behauptet.
+
+Terminaler Runtime-Nachweis gehört getrennt zu Source `900dddb49c43ec4479c4b75a91071cadb97893c4`, Lauf `40267347652`: alle sechs Jobs erfolgreich einschließlich Apache; ausgewählter 403-/CRS-/Audit-/Cleanup-Nachweis, keine vollständige Matrixqualifikation. Details und Artefaktgrenzen stehen im 900-Abschnitt. Der Source-Scan überträgt Runtimebelege nicht auf einen anderen Head.
+
+| Restpunkt | Einordnung nach Sourcebeweis |
+| --- | --- |
+| 203 Finding-IDs | 179 `behoben und nachgewiesen`, 24 nachgewiesene Fehlalarme |
+| Gemessene native Parsing-/Includereste | `behoben und nachgewiesen` |
+| C/C++-Taint, Python-Simulationskosten/Predecessor, gültiges FIFO | `begründete Analyzergrenze` |
+| Architekturmodell mit 44 Labels, wiederholter HTTP 415 und unverändertes Readback | `extern blockiert` |
+| Verbliebene TLS-Änderungszeilenwarnung, abschließende CI/Sonar am Dokumentationshead | `weiterhin offen` |
+
+Source-Findings/Gates sind damit abgeschlossen; externe Architekturanwendung und finale Head-Verifikation verhindern weiterhin eine vollständige technische Abschlussbehauptung. PR #421 bleibt Draft, Gesamtstatus **teilweise abgeschlossen/blockiert**. Kein Merge und keine Änderung an master. Quellen: `d545-evidence-summary.json`, `d545-analysis-bindings.json`, `d545-*-baseline-readback.json`, `d545-*-log-evidence.json` und getrennte Hotspotreadbacks im Run `pr421-all-findings-20261026`.
+
+## Historischer Source-900-Stand vor finalem Komplexitätsabschluss
+
+Der Source-Scan von `900dddb49c43ec4479c4b75a91071cadb97893c4` bestätigt
+alle 197 Ausgangs-IDs: 176 durch Analyse `FIXED`, 21 einzeln begründet
+`FALSE_POSITIVE`. Sechs neue IDs (je eine Git-Argumentinjektion und
+Vertragsdecoder-Komplexität pro Projekt) bleiben getrennt in der
+[Einzeltriage](sonarqube-pr421-triage.de.md); die drei neuen Sicherheits-IDs besitzen inzwischen einzeln geprüfte FP-Transitions;
+für die drei Komplexitäts-IDs steht neuer Scannerbeweis aus. Native Parsing-/Includereste sind gemessen behoben:
+Qualität 100/100, 0/2,263 Funktionen, 0/6 Klassen, 0/33,778 Statements,
+0/1,132 Projekt-Includes und null externe Includereste bei erhaltenen
+136 Translation Units. C/C++-Taint bleibt ausdrücklich deaktiviert.
+
+Alle drei Scans importierten Python-XML, vier Go-Reports und 71 gcov-Reports.
+PR-Coverage 83.3% und Advisory-Branch-New-Code-Coverage 84.4% sind getrennt von
+kumulierter Master-Coverage. Frisches authentifiziertes Readback am 2026-10-26
+um 04:25 UTC bestätigt separat weiterhin Master-Coverage 0.6%; die genaue
+Master-Analysebindung steht im Abschlussnachweis. Der [Abschlussnachweis](sonarqube-pr421-closeout.de.md)
+enthält genaue CE-/Analysebindungen, Gatebedingungen und Grenzen. Die Gates
+standen beim genannten Scan allein wegen Security-Rating 3 auf ERROR. Architektur
+bleibt extern blockiert. Fehlender TLS-Blame ist nicht mehr gemeldet; die
+Warnung zu geänderter Datei ohne geänderte Zeilen bleibt. CodeQLs beide
+Root-go.mod-Warnungen sind behoben; eine andere Traefik-Modulcache-Logwarnung
+bleibt bei erfolgreicher Analyse. Ein späterer Korrektur-/Dokumentationshead
+benötigt eigenen aktuellen Nachweis im PR. PR #421 bleibt Draft.
+
+Die folgenden Entwicklungs-/älteren Scanabschnitte bleiben historisch;
+ihre Pending-Aussagen zu Ausgangs-IDs und Parsingresten werden durch diesen
+Source-Stand ersetzt.
+
 ## Vollständige PR-Finding-Fortsetzung, 2026-10-26
 
 Die frisch paginierte Hauptprojektabfrage für PR #421 verwendete
