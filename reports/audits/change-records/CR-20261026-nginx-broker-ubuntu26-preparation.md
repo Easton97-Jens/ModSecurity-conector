@@ -24,7 +24,9 @@ Validate one runner mode for the complete caller before checking each job. Exact
 
 ## Changed files
 
-`.github/workflows/nginx-root-broker.yml`, `.github/actionlint.yaml`, `ci/runtime/broker/nginx_root_broker.py`, `tests/test_nginx_root_broker.py`, and this paired Change Record.
+`.github/workflows/nginx-root-broker.yml`, `.github/actionlint.yaml`, `ci/runtime/broker/nginx_root_broker.py`, `tests/test_nginx_root_broker.py`, `sonar-project.properties`, and this paired Change Record.
+
+The first published head `89e3342c112ad9c23821413243dd7586432528c6` reached Sonar server processing with no open findings. Security, Reliability, Maintainability, duplication and reviewed hotspots passed; only coverage failed at 0% against 80%. The follow-up applies the user's standing coverage opt-out through `sonar.coverage.exclusions=**`, as already used in #382. Source scope, security rules, existing gate and terminal gate waiting remain unchanged. Fresh follow-up-head CI and server results are required.
 
 ## Commands executed
 
@@ -52,4 +54,4 @@ No canonical active-case inventory exists at this base; the externally admitted 
 
 ## Final diff and review status
 
-The scoped patch and source hashes are prepared for review. Static Python syntax, actionlint and the admitted offline selection passed. Independent static source review found no concrete bypass. Commit, push and Draft PR publication remain delivery work for Root; this record does not claim them completed. No merge was performed or authorized.
+The scoped patch was published in Draft PR #422. Static Python syntax, actionlint and the admitted offline selection passed. Independent static source review found no concrete bypass. The user authorized only #422 to merge after green required checks and final review, followed by the verified broker-pin update in #382. That authorization does not merge #382 or Framework #138. No merge has yet occurred; the coverage-only follow-up still requires exact-head verification.

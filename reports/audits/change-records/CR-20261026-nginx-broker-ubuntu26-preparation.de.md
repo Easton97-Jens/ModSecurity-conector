@@ -24,7 +24,9 @@ Vor den einzelnen Jobprüfungen einen gemeinsamen Runner-Modus des vollständige
 
 ## Geänderte Dateien
 
-`.github/workflows/nginx-root-broker.yml`, `.github/actionlint.yaml`, `ci/runtime/broker/nginx_root_broker.py`, `tests/test_nginx_root_broker.py` und dieser zweisprachige Change Record.
+`.github/workflows/nginx-root-broker.yml`, `.github/actionlint.yaml`, `ci/runtime/broker/nginx_root_broker.py`, `tests/test_nginx_root_broker.py`, `sonar-project.properties` und dieser zweisprachige Change Record.
+
+Der erste veröffentlichte Head `89e3342c112ad9c23821413243dd7586432528c6` erreichte die Sonar-Serververarbeitung ohne offene Befunde. Security, Reliability, Maintainability, Duplikation und geprüfte Hotspots bestanden; ausschließlich Coverage scheiterte mit 0% an 80%. Der Folgecommit übernimmt die bestehende Coverage-Abwahl des Nutzers über `sonar.coverage.exclusions=**`, wie bereits in #382. Quellumfang, Sicherheitsregeln, bestehendes Gate und terminales Gate-Warten bleiben erhalten. Frische CI- und Serverergebnisse des Folge-Heads sind erforderlich.
 
 ## Ausgeführte Befehle
 
@@ -52,4 +54,4 @@ Diese Basis enthält kein kanonisches Inventar aktiver Fälle; der extern zugela
 
 ## Finaler Diff- und Review-Status
 
-Der begrenzte Patch und die Quell-Hashes sind zur Prüfung vorbereitet. Statische Python-Syntaxprüfung, actionlint und die zugelassene Offline-Auswahl erfolgreich. Die unabhängige statische Quellprüfung fand keinen konkreten Bypass. Commit, Push und Draft-PR-Veröffentlichung bleiben Roots Lieferarbeit; dieser Record behauptet deren Abschluss nicht. Kein Merge wurde durchgeführt oder autorisiert.
+Der begrenzte Patch wurde in Draft-PR #422 veröffentlicht. Statische Python-Syntaxprüfung, actionlint und die zugelassene Offline-Auswahl erfolgreich. Die unabhängige statische Quellprüfung fand keinen konkreten Bypass. Der Nutzer autorisierte ausschließlich den Merge von #422 nach grünen Pflichtprüfungen und abschließendem Review sowie anschließend die Aktualisierung des geprüften Broker-Pins in #382. Diese Freigabe umfasst keinen Merge von #382 oder Framework #138. Noch kein Merge erfolgt; der Coverage-Folgecommit benötigt weiterhin die Verifikation seines exakten Heads.
