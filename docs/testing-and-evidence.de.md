@@ -22,69 +22,15 @@ Hostergebnis.
 
 ## Aktive Fälle, Zulassung und archivierte Spezialprüfungen
 
-Das Schema-3-[Aktivinventar](../config/testing/active-cases.json) deklariert 1757 expandierte Fälle / 874 Ausführungen: 97 Kernfälle / 77 Ausführungen und 1660 ausdrücklich autorisierte quellgebundene Python-Offline-Fälle / 797 Ausführungen. Die Kerngrenze bleibt 100, die Dateigrenze 2 MiB. Eine gemeinsame Tabelle dedupliziert 601 Quell-Digest-Einträge bei vollständigem Erhalt von Zuordnungen, Selektoren, Fallidentitäten und Validierung. Schema 1/2 bleiben lesbar. Unbekannte/ungenutzte/doppelte/typfehlerhafte/Pfad-/Hash-Referenzen werden vollständig vor Kindprozessen geprüft. Quellupdates erhalten Publisher-Nachweis und unverändertes No-op-Verhalten. Bestehende IDs und Szenarien bleiben erhalten. Offline-Kinder sperren Prozessstart und Netzwerkzugriff vor Imports; Paket-Discovery verschiebt Offline-Imports in diese Kinder. Rohes `unittest discover -s tests` importiert zunächst Hooks im Elternprozess; geprüfte Modul-Top-Level haben keine sofortige Host-/Prozessaktivität. Dies sind Auswahlzahlen, keine Abnahmenachweise; native/Go/Connector-Szenarien fallen nicht unter die Offline-Ausnahme.
+Alle automatischen funktionalen Pfade teilen **100 expandierte Standardfälle / 80 Ausführungen** im Schema-3-[Inventar](../config/testing/active-cases.json). Dazu gehören Harness-/Validatorkontrollen und die vorhandenen acht Offline-I12-Fälle. Connector-E2E bleibt bei 26. Keine historische I12-Host-/Matrix-/Oraclekampagne oder neue Qualifikation wird eröffnet.
 
-Sonar behält die maßgebliche Master-#421-Pipeline, die feste `PYTHON_TESTS`-Auswahl mit 13 Einträgen, 37 Go-Selektoren und die native Common-Prüfung. Die historische PR-#421-Auswahl mit 80 Methoden ist keine aktuelle expandierte Fallzahl. Master-Python-Ausführung misst zusätzlich zugelassene exakte Offline-IDs in geschützten Kindern mit echtem Branch-Tracing und rohen Kind-Nachweisen. Nur ausgewählte Kinder erhalten `ON_DEMAND_TESTS=1`; kein globaler Bypass wird aktiviert. Python-Erfassung, Go-/Native-Coverage, Berichtsimport und Server-Quality-Gate sind getrennte Nachweisebenen. Der entfernte PR-eigene Collector und eigene Gates bleiben entfernt. Historische I12-Host-/Matrix-/Oracle-Kampagnen bleiben geschlossen, E2E bleibt 26. Aktuelle Codefehlerkorrekturen, historische Coverage-/Erhaltungsnachweise und Gate-Status am exakten Head stehen zentral im [PR-#382-Status](pr-382-merge-readiness.de.md).
+Das Inventar bewahrt zusätzlich **1893 On-demand-Fälle / 839 Ausführungen**, ausgeschlossen vor Standard-Gruppen-/Modul-/Fall-/Ausführungsfilterung und Python-Discovery. Sie sind keine automatische Budgetausnahme. Diese Runner-Einträge verlangen ausdrücklich `--on-demand` sowie einen Gruppen-/Fall-/Ausführungsselektor. Modulweite Spezialschnittstellen behalten `ON_DEMAND_TESTS=1` für eine gesondert beauftragte Prüfung. Nützliche Quellen und ursprüngliche Evidence bleiben erhalten; fehlende Standardauswahl ist weder PASS noch Beleg erhaltener automatischer Abdeckung.
 
+Vollständige Quellhash-, Schema-, Duplikat-/Referenz-, genaue Selektor- und expandierte Fallprüfung bleiben vor der Ausführung Pflicht. Gemeinsamer Quellpool, 2-MiB-Inventarlimit und Python-Prozess-/Netzwerkguard bleiben erhalten. Mehr als 100 Standardfälle werden abgewiesen statt gekürzt. Das generierte [Archiv](../reports/testing/test-selection-archive.generated.json) klassifiziert nur den Standardabschnitt als automatisch ausgewählt. Seine Definitionszahlen sind keine expandierten Fallzahlen.
 
-Die neueste Nutzeranweisung nimmt Sonar-Coverage vollständig aus der Bewertung, auch aus Merge-Entscheidungen, und priorisiert echte Code-/Security-Fehler, gezielte Regressionen und CI am aktuellen Head. Das vorbereitete `sonar.coverage.exclusions=**` betrifft ausschließlich Coverage; es entfernt keinen Source aus Security-, Reliability-, Maintainability- oder Duplikationsanalyse. Coverage-Prozente und vollständige Coverage-/Rohdaten-Erhaltungsmessungen sind abgelöste Akzeptanzkriterien, keine weitere Arbeit. Das aktive eingebaute Gate ist unverändert; der nächste Scan muss nicht anwendbare Coverage und die fünf erhaltenen Bedingungen sowie verbindliche CI belegen, wie im [PR-#382-Status](pr-382-merge-readiness.de.md) beschrieben.
+Sonar behält die verbindliche Quell-/Scanner-/Sicherheitspipeline und echtes Warten auf das Quality Gate. Die früheren getrennten automatischen Python-/Go-/Common-Coverage-Kataloge sind jetzt ausdrücklich On-demand und fehlen in automatischen Workflows. Damit ist die Umgehung des gemeinsamen Budgets geschlossen; Tests und Assertions bleiben im Quellbestand. Coverage wurde vom Nutzer später aus Sicherheits- und Merge-Abnahme entfernt. `sonar.coverage.exclusions=**` ändert nur Coverage-Anwendbarkeit; Sicherheits-, Zuverlässigkeits-, Wartbarkeits- und Duplikationsanalyse bleiben erhalten.
 
-Der vorbereitete lokale Scope schließt ausschließlich root `modules/**` und root `reports/**` aus MAIN und TEST aus. Alle anderen Parent-Verzeichnisse bleiben enthalten, einschließlich `ci/evidence/reports/`, Connector-Buildskripten und YAML-Fixtures. `sonar.scm.exclusions.disabled=true` verhindert eine stille Scope-Reduktion durch SCM-Ignorierungen. Python-/Go-TEST-Zuordnung und sämtliche CFamily-MAIN-Zuordnungen bleiben erhalten. Die getrackte Aufteilung beträgt 1651 MAIN + 498 TEST + 361 Root-Report-Einträge + einen Framework-Gitlink = 2511 Einträge; 25 verschachtelte Reportgeneratoren bleiben MAIN. Dies belegt konfigurierten Quellumfang, keine semantische Analyzer-Unterstützung oder Ausführung für jedes Format; lokale Scope-Änderungen benötigen weiterhin einen Scan am neuen veröffentlichten Head.
-
-Die aktuelle Inventardatei umfasst 1,539,830 Bytes am aktuellen Freeze `8a3ee8e8e852b5dc0b2eff8001bd011b0c9ed488c1936d96625abd3e29e13211`; 601 Quelleinträge und E2E 26 bleiben unverändert. Gezielte Validierung am früheren Freeze `1880b9138581021106f8d8864a2f3fe00ce17c539ac8907c35cc9c0809d8577c` bestand 113 Ausführungen / 142 Fälle ohne Skips; vollständiger Rohdaten-Erhaltungsnachweis bleibt eine historische Evidence-Grenze, als Akzeptanzkriterium abgelöst. Unabhängige Kandidatenprüfung fand keinen konkreten verbleibenden Bypass und keine Kompatibilitätsregression; die Fremd-Owner-Kontrolle nutzt einen FD-begrenzten UID-Mock, Quell-/Archivkontrollen ordnen Repository-Wurzeln getrennt neu zu, Hostqualifikation ist nicht belegt. Vor der Abwahl importierte der c924-Produzent echte Reports, seine New-Code-Coverage betrug 26.409132606258282% und das Gate ist `ERROR`, wie im zentralen Status gebunden.
-
-Der aktuelle Freeze nach der Coverage-Abwahl ist `8a3ee8e8e852b5dc0b2eff8001bd011b0c9ed488c1936d96625abd3e29e13211`: 1,539,830 Bytes, 601 Quelleinträge, unverändert 1757 Fälle / 874 Ausführungen. Nach der Konfigurationsänderung bestanden zwei Scope-Ausführungen / sieben expandierte Fälle ohne Skips sowie vollständige Zulassungs-/Archivprüfung; dies überträgt die frühere 113/142-Ausführung nicht auf den neuen Freeze.
-
-<code>make check-active-inventory</code> meldet die tatsächliche expandierte
-Fallzahl ohne Fallausführung. <code>make test</code> / <code>make test-active</code>
-führen das zugelassene Inventar aus. Normale zuständige Gruppen und exakte
-Fall-/Modulfilter wählen Teilmengen nach globaler Zulassung. Funktionale Checks
-hinter <code>make lint</code>, <code>make quick-check</code>, Builds und CI
-verwenden dieselbe Auswahl. Reine Builds, Formatierung, statische Analyse und
-Security-Scans bleiben eigene Operationen; dahinter versteckte funktionale
-Tests sind nicht von der Fallzählung ausgenommen. Die Wiederholung einer ID bei
-begründeter Nachprüfung, Race-Lauf oder Hosted-CI kostet eine weitere Ausführung,
-keinen weiteren verschiedenen aktiven Fall.
-
-Erhaltene Spezialprüfungen benötigen einen aktuellen Auftrag für die zusätzliche
-Prüfung und explizit <code>ON_DEMAND_TESTS=1</code>. Das Flag nicht global
-exportieren oder normalen automatischen Defaults hinzufügen. Es ändert die
-Auswahl erhaltener Spezialprüfungen; es erteilt keine Privilegien, Framework-/
-MRTS-Schreibrechte, Merge-, Release- oder I12-Qualifikationsbefugnis. Historische
-I12-Matrix-/Oracle-/Hostkampagnen bleiben geschlossen: Archivierung plant keine
-Wiederholung und belegt kein <code>I12_COMPLETE</code>.
-
-Die generierte [Archivdisposition](../reports/testing/test-selection-archive.generated.json)
-verzeichnet erhaltene Python-Methoden und Go-Test-/Fuzz-Definitionen und bindet
-ihre Quell-/Inventardigests. Nur <code>ci/tools/update-test-archive.py</code>
-erzeugt sie neu. Ihre Definitionszahl ist keine vollständig expandierte
-Verhaltensfallzahl, wird nicht zur aktiven Fallzahl addiert und behauptet nicht,
-dass jede archivierte Assertion noch besteht. Nicht ausgewählte Parameter einer
-teilweise ausgewählten Definition bleiben auf Abruf verfügbar; Native-/Skript-
-Collectoren und Framework-Kataloge bleiben in ihren zuständigen Quellen.
-Kein Archiveintrag ist ein ausführbarer Selektor oder ein neuer PASS.
-
-| Erhaltener Bereich auf Abruf | Nicht mehr behauptete automatische Abdeckung |
-| --- | --- |
-| Vollständige Python-Vertrags-/Validator-/Installer-/Updater-Mutationssuiten | Vollständige Permutationen, Tabellen ungültiger Eingaben und historische erwartete Workflow-Layouts außerhalb benannter aktiver Kontrollen. |
-| Vollständige Go-Pakete und zufällige C-/Go-Fuzz-Kampagnen | Nicht ausgewählte Tabellen-/Subtestvarianten und generierte Fuzz-Eingaben; aktive exakte Tests, ausgewählte Race-Wiederholungen und substantielle Security-Analyse bleiben. |
-| Native Common-/Connector- und Runtime-Pfad-Spezialcollectoren | Vollständige Fehler-/Parametertabellen und der frühere Pfadkatalog mit 35 Szenarien; die vier gewählten echten Pfadeingaben qualifizieren nicht jede alte Pfadbedingung. |
-| Vollständige NGINX-Hostkampagnen | Inheritance/Override, Mode-Repair, unsichere Ziele, USR1/Reload/Overlap, Error-Page-/Body-Buffer- und archivierte negative Konfigurationskampagnen; die gewählten Callback-Fälle On/Off belegen diese nicht. |
-| Breite Smoke-, Full-Matrix-, MRTS-, H2-/H3- und historische I12-Werkzeuge | Vollständige Katalog-, Protokoll-, Oracle-, Ledger- und Hostqualifikation. Enge ausgewählte Runtime-/CRS-Ergebnisse behalten ihre eigenen Profilgrenzen. |
-
-Das Entfernen eines Verhaltens aus der automatischen Auswahl dokumentiert
-verlorene automatische Abdeckung; es löst keinen bekannten Defekt und erfindet
-keinen historischen Erfolg. Archivierte Quellen und ihre ursprünglichen
-Ergebnisse/Revisionen bleiben erhalten. Neue aktive Kernfälle an der Obergrenze
-benötigen einen benannten Ersatz oder echte Konsolidierung mit dokumentierter
-betroffener Anforderung und Risiko.
-
-Profilnachweise bleiben getrennt: HAProxy HTX qualifiziert kein SPOE/SPOP mit
-Response-Companion; Envoy ext_proc qualifiziert kein ext_authz mit Observer;
-Traefik Native-UDS qualifiziert kein forwardAuth mit Observer; lighttpd Stock,
-Patched-Native und Beobachtungen des alten Header-Kompatibilitätspfads
-qualifizieren einander nicht. Jedes Ergebnis bleibt an sein tatsächlich
-ausgewähltes Profil gebunden.
+Der Quellscope schließt nur Root-`modules/**` und `reports/**` aus, bewahrt Python-/Go-TEST- und vollständige CFamily-MAIN-Zuordnung und enthält verschachtelte Reportgeneratoren sowie YAML-Fixtures. SCM-Ignores verkleinern ihn nicht still. Konfigurierter Scope, tatsächliche Analyzer-Unterstützung, Build, Host-Ausführung und terminale Serverabnahme sind getrennte Evidence-Ebenen. Aktuelle begrenzte Abschlussnachweise und frühere revisionsgebundene Ergebnisse stehen im [PR-#382-Status](pr-382-merge-readiness.de.md).
 
 ## Testebenen
 

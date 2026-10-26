@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Produce genuine, revision-bound Parent coverage in a fresh external directory.
 
-This is a selected Sonar assessment, not a hosted-runtime qualification or a
+This is an explicitly on-demand Sonar assessment, not a hosted-runtime qualification or a
 claim that every existing test executes. Test ownership and coverage are separate.
 """
 
@@ -151,7 +151,7 @@ def admitted_offline_inventory():
         inventory = module.load_inventory(ROOT)
         if not inventory.offline_case_ids:
             raise ValueError("coverage requires explicitly admitted offline Python cases")
-        selected = module.select_executions(inventory, case_ids=inventory.offline_case_ids)
+        selected = module.select_executions(inventory, case_ids=inventory.offline_case_ids, on_demand=True)
         return inventory, selected
     finally:
         if previous is None:
@@ -187,7 +187,7 @@ def offline_command(selected: tuple[dict, ...], output: Path, env: dict[str, str
         command.extend(["-m", "coverage", "run", f"--rcfile={RCFILE}", "--parallel-mode"])
     else:
         child_env.pop("COVERAGE_FILE", None)
-    command.extend(["ci/tools/run-active-tests.py", "--strict-skips", "--output-root", str(output)])
+    command.extend(["ci/tools/run-active-tests.py", "--on-demand", "--strict-skips", "--output-root", str(output)])
     for execution in selected:
         command.extend(["--execution", execution["id"]])
     return command, child_env
@@ -302,7 +302,7 @@ def run_offline_partition(inventory, selected: tuple[dict, ...], output: Path,
 
 
 def offline_python_coverage(output: Path, env: dict[str, str]) -> dict:
-    """Extend the existing Master assessment with the same admitted offline IDs."""
+    """Run the retained specialist assessment with its admitted on-demand IDs."""
     inventory, selected = admitted_offline_inventory()
     measured, timing = offline_partitions(selected)
     result = {"inventory_sha256": inventory.digest, "measured": None, "unmeasured_timing": None}
@@ -332,8 +332,8 @@ def python_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
     coverage = [sys.executable, "-m", "coverage"]
     run([*coverage, "run", f"--rcfile={RCFILE}", "--parallel-mode",
          "ci/checks/analysis/check-sonar-scope.py"], env=env)
-    # This fixed Master assessment is explicitly authorized independently of
-    # Parent's default inventory. Scope the opt-in to this unittest child only;
+    # The caller explicitly opted into this specialist assessment. Scope its
+    # module-discovery opt-in to this unittest child only;
     # the scope CLI, report writers and other producers retain the original env.
     test_env = dict(env, ON_DEMAND_TESTS="1")
     run([*coverage, "run", f"--rcfile={RCFILE}", "--parallel-mode", "-m",
@@ -439,8 +439,12 @@ def main() -> int:
                         help="external temporary parent with a short path for Unix sockets")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="local development only; mark reports as uncommitted evidence")
+    parser.add_argument("--on-demand", action="store_true",
+                        help="explicitly run this specialist coverage assessment outside the default suite")
     args = parser.parse_args()
     try:
+        if not args.on_demand:
+            raise ValueError("specialist coverage requires explicit --on-demand; automatic CI uses the default inventory")
         if not args.output_root.is_absolute():
             raise ValueError("output root must be absolute")
         output_root = args.output_root.resolve()

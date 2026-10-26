@@ -55,12 +55,24 @@ class SonarCoverageTests(unittest.TestCase):
             stale = Path(directory) / "python/python.xml"
             stale.write_text("old revision\n", encoding="utf-8")
             arguments = ["coverage", "--language", "python", "--output-root", directory,
-                         "--temp-root", directory]
+                         "--temp-root", directory, "--on-demand"]
             with (mock.patch("sys.argv", arguments), mock.patch.object(COVERAGE, "run") as run,
                   redirect_stderr(io.StringIO())):
                 self.assertEqual(COVERAGE.main(), 1)
             run.assert_not_called()
             self.assertEqual(stale.read_text(encoding="utf-8"), "old revision\n")
+
+    def test_specialist_collection_requires_explicit_on_demand_before_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "not-created"
+            arguments = ["coverage", "--language", "python", "--output-root", str(output),
+                         "--temp-root", directory]
+            with (mock.patch("sys.argv", arguments), mock.patch.object(COVERAGE, "run") as run,
+                  redirect_stderr(io.StringIO()) as error):
+                self.assertEqual(COVERAGE.main(), 1)
+            self.assertIn("explicit --on-demand", error.getvalue())
+            run.assert_not_called()
+            self.assertFalse(output.exists())
 
     def test_native_notes_without_execution_counters_are_not_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

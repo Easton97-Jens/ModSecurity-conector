@@ -2,14 +2,7 @@
 
 **Language:** English | [Deutsch](sonarqube-native-security.de.md)
 
-The SDK preparation and twelve-target matrix declare `ubuntu-26.04`.
-The caller pins the verified master broker `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`
-from the user-approved [PR #422](https://github.com/Easton97-Jens/ModSecurity-conector/pull/422).
-Protected manual runtime and Hosted native12 proof remain pending. See the
-[current readiness](pr-382-merge-readiness.md) and
-[Ubuntu migration record](../reports/audits/change-records/CR-20261026-ubuntu26-workflow-migration.md)
-for separate PR/master gate results and source-bound validation.
-
+SDK preparation and all twelve targets use `ubuntu-26.04`; [current readiness](pr-382-merge-readiness.md) binds delivery and outstanding dispositions.
 ## Scope and current status
 
 The existing [broad Parent analysis](sonarqube-analysis.md) remains authoritative
@@ -19,12 +12,7 @@ Its CFamily AutoConfig scan remains in place; it cannot establish C/C++ taint
 analysis. The separate [native workflow](../.github/workflows/sonar-native-security.yml)
 adds a compilation database for each of twelve real build targets.
 
-The twelve development captures use product revision
-`542a98bc20a16f885f114375bfa5225a9364dcf2` and development helper revisions.
-They are explicitly `import_eligible=false`: successful compilation and export
-are build-context evidence. Hosted scanner execution, CFamily taint/CTU,
-parse quality, actual indexed inputs, server processing and terminal target
-gates remain unverified. The current native security assessment is incomplete.
+At published Parent `011cb197`, [run 40392396874](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40392396874) completed SDK preparation and all twelve native build/capture/index/CTU/taint analyses: 611 aggregate compilation units, zero partial units and 100% indexing in each target. Before individual triage, three native gates passed and nine failed. Twenty of 22 workflows passed; the broad C++17/20/23 gates failed. Source review validated 12 Python security issues and 39 native issue instances as false positives; all 36 main/advisory Python instances and 39 native instances are individually resolved as false positive with fresh readback. Original job conclusions remain unchanged. This analysis predates the finite closure commit and is not final-head acceptance. See [central status](pr-382-merge-readiness.md).
 
 Coverage is outside the user's security and merge criteria.
 `sonar.coverage.exclusions=**` changes coverage only. Security rules, source
@@ -38,7 +26,7 @@ Each target has its own project in organization `easton97-jens`. Its key is
 hyphens replaced by underscores. Independent executables and modules never
 share a combined database: CFamily taint and CTU assume one linked target.
 
-The table records development capture expectations, including Parent include
+The table retains historical development capture expectations, including Parent include
 inputs derived from actual compiler dependencies. These are not server-indexed
 counts. The twelve targets contain **611 Parent TU compilations in aggregate**;
 Common files recur across targets, so this is not a unique-file count.
@@ -116,11 +104,7 @@ The scanner runs from the verified checkout root. The configuration requests:
   preflight based on captured units;
 - terminal Quality Gate waiting with a `600` second server timeout.
 
-These settings request analysis depth; logs must still prove that taint was not
-skipped, CTU context was retained and the required source parsed and indexed.
-A successful upload alone is insufficient. New projects may require a genuine
-default-branch baseline and project-scoped token authorization; a missing
-prerequisite must remain a failure, without relabelling PR source as master.
+The published run above proved actual CTU/taint and indexing for all twelve targets. A successful upload alone remains insufficient; later revisions require their own analyzer/server results. The first native PR analysis completed successfully; no baseline prerequisite blocked it.
 
 ## Remaining depth and evidence limits
 
@@ -134,11 +118,11 @@ Historical I12 host, matrix and Oracle campaigns stay closed. Connector E2E
 selection remains `26`; no `I12_COMPLETE` or runtime promotion is produced.
 Framework CLI/updater work is separate in
 [Framework PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138).
-Parent's Framework gitlink stays unchanged; MRTS remains read-only. Framework revision `5ef4dc3c815c97121578cd34382b80088b9c61ec` completed actual SDK/native/scanner analysis, including one C TU with eight taint rules and Python with 32 taint rules. CE task `AaF5sxOo8Px5fiPcdsNi` completed `SUCCESS`; its gate remains `ERROR` solely for Security Rating 3. Four CLI-flow claims are under triage; this is separate from Parent native12 closure.
+Framework revision `03da9353561bf632a1f7bfc71b0a2671ec7aa257` passed all twelve CI workflows and Sonar and is Ready; no Framework merge was performed. Parent Framework gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf` and MRTS remain unchanged. Broker #422 is already authorized and merged at `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`; no further master merge is authorized.
 
-The post-master integrated selection passed **94 executions / 342 expanded cases, zero skips**, at inventory `e13c73b981fd1399fbe0c161a8abd753d6cbc4d429957caa86d7c33e1f59bf7c`. The inventory declares 1992 cases / 918 executions: 97 core cases / 77 executions plus 1895 authorized offline cases / 841 executions, with 614 source bindings and 1,672,802 bytes. The selection includes eight inventory controls including overflow rejection and seven broker selectors / 36 cases, as well as the corrected helper capture-path and isolated NGINX archived-contract controls. The earlier 79/298 pass at `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be` is a pre-merge checkpoint. Local green results do not prove Hosted native12 analysis.
+The automatic selection is now 100 expanded cases / 80 executions, including three guard controls. A further 1893 cases / 839 executions are available only through explicit on-demand selection. Automatic coverage catalogue commands were removed; the retained collector requires `--on-demand`. Coverage is irrelevant to merge by user instruction. Broad source/scanner/gate analysis remains enabled, with only root `modules/**` and root `reports/**` excluded.
 
-New published-head CI, analyzer logs, server tasks, gate/readback and source-based finding dispositions remain required for the Parent native12/Ubuntu changes.
+Individual false-positive disposition readback and final-head acceptance remain in [central status](pr-382-merge-readiness.md); the observed run is not transferred to unpublished changes.
 
 ## References
 

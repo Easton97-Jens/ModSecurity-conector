@@ -2,19 +2,19 @@
 
 **Sprache:** [English](sonarqube-analysis.md) | Deutsch
 
-Breite und native Workflows deklarieren `ubuntu-26.04`, mit 64 Hosted-Runner-Feldern und zwei geschützten Self-hosted-Feldern. Die aktuelle Integration erhält diesen Runner-Umfang. Der benutzerfreigegebene Broker-[PR #422](https://github.com/Easton97-Jens/ModSecurity-conector/pull/422) wurde regulär vom erwarteten Head `3d633ee27b48b64b940042e278c157f1aa629679` nach Master-Revision `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` gesquasht; Provider-Readback bestätigte den Merge. Unabhängiges finales Review aller sieben Dateien fand keinen konkreten Befund. Alle sechs PR-Ruleset-Prüfungen und terminalen C++17/20/23-Sonar-Ergebnisse bestanden an genau diesem PR-Head. Der Parent-Aufrufer pinnt jetzt Broker `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` und dessen tatsächliches Framework `99a7985c1be92a2297b1b59208f64df6768f2cbf`; der Parent-Gitlink bleibt unverändert. Geschützte Self-hosted-Labels und Masters einheitlicher Runner-Validator bleiben erhalten; die doppelte Coverage-Ausschlussproperty wurde auf eine Deklaration reduziert. Kein geschützter manueller Broker-Lauf oder erweiterter Connector-E2E wurde gestartet. Die Autorisierung umfasste nur #422 und den anschließenden Aufrufer-Pin, keinen #382-Merge.
+Am veröffentlichten Parent `011cb197` schloss [Lauf 40392396874](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40392396874) SDK-Vorbereitung und alle zwölf nativen Build-/Capture-/Index-/CTU-/Taint-Analysen ab: insgesamt 611 Compilation Units, keine partiellen Units und 100 % Indexierung je Ziel. Vor Einzeltriage bestanden drei native Gates, neun scheiterten. Zwanzig von 22 Workflows bestanden; die breiten C++17/20/23-Gates scheiterten. Die Quellprüfung bestätigte zwölf Python-Security-Issues und 39 native Issue-Instanzen als False Positives; alle 36 Main-/Advisory-Python-Instanzen und 39 nativen Instanzen sind einzeln als False Positive aufgelöst und frisch zurückgelesen. Ursprüngliche Job-Ergebnisse bleiben unverändert. Diese Analyse liegt vor dem endlichen Abschlusscommit und ist keine Abnahme des finalen Heads. Siehe [zentralen Status](pr-382-merge-readiness.de.md).
 
-Alle sechs Master-Ruleset-Prüfungen bestanden bei `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`. Masters C++17-Sonar scheiterte tatsächlich mit Security E / Reliability E gegen eine `previous_version`-Baseline vom 14. Mai; die schreibgeschützte Prüfung fand 20 bereits bestehende Security-/Reliability-Befunde, keinen durch #422 eingeführten; fünf native Auslöser sind in #382 bereits entfernt. Kein bestandenes Master-Sonar-Gate wird behauptet. Diese Master-Ergebnisse bleiben von der erfolgreichen Analyse des exakten PR-Heads getrennt. Der PR-Liefernachweis muss den exakten Parent-Native12-/Ubuntu-Commit und frische CI binden, ohne ältere Erfolge zu übertragen.
+Framework-Revision `03da9353561bf632a1f7bfc71b0a2671ec7aa257` bestand alle zwölf CI-Workflows und Sonar und ist Ready; kein Framework-Merge wurde durchgeführt. Parent behält Framework-Gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf`; MRTS bleibt unverändert. Broker-PR #422 ist bereits benutzerautorisiert bei `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` integriert; kein weiterer Master-Merge ist autorisiert. Geschützter manueller Lauf, Connector-E2E-Erweiterung und historische I12-Kampagnen wurden nicht ausgeführt.
 
 ## Integration in PR #382
 
 Der [Leitfaden zur nativen zielbezogenen Sicherheitsanalyse](sonarqube-native-security.de.md)
 beschreibt den separaten Compilation-Database-Workflow mit zwölf Zielen,
-aktuelle Entwicklungsnachweise und offene Hosted-Taint-/CTU-Evidence. Er ergänzt
+beobachtete Hosted-Analyse und revisionsgebundene Entwicklungsevidence. Er ergänzt
 den breiten Scan; historische PR-#421-Aufzeichnungen unten validieren den neuen
 nativen Workflow nicht.
 
-Master `7a44f18edac729291d6551d068da64fa3fec4e1e` (PR #421) bleibt maßgeblich. Seine feste `PYTHON_TESTS`-Auswahl mit 13 Einträgen, 37 Go-Selektoren und die native Common-Prüfung bleiben erhalten. Python misst zusätzlich zugelassene exakte Offline-IDs mit tatsächlichem Branch-Tracing in geschützten Kindern; nur ausgewählte Kinder erhalten `ON_DEMAND_TESTS=1`. Prozess-/Netzwerksperren bleiben erhalten; historische I12-Kampagnen werden nicht eröffnet und der entfernte PR-eigene Collector/eigene Gates nicht wiederhergestellt. Alle CFamily-Eingaben bleiben MAIN; 16 tatsächliche CI-Python-Unittest-Module sind TEST, wobei Scope-Guard-Nachweis und Analyzer-Ausführung getrennt bleiben. Das Workflow-Budget steigt auf 60 Minuten, nachdem das gemessene Offline-Erfassungs-/Berichtsintervall allein mindestens 1216.9 Sekunden benötigte.
+Die automatische Auswahl umfasst jetzt 100 expandierte Fälle / 80 Ausführungen einschließlich dreier Schutzkontrollen. Weitere 1893 Fälle / 839 Ausführungen sind ausschließlich ausdrücklich auf Abruf verfügbar. Automatische Coverage-Katalogbefehle wurden entfernt; der erhaltene Collector verlangt `--on-demand`. Coverage ist laut Benutzeranweisung für den Merge irrelevant. Breite Quell-/Scanner-/Gate-Analyse bleibt aktiv; nur root `modules/**` und root `reports/**` sind ausgeschlossen.
 
 Die neueste Nutzeranweisung nimmt Coverage auch aus Merge-Entscheidungen: `sonar.coverage.exclusions=**` betrifft nur Coverage, nicht Source-, Security- oder Duplikationsanalyse. Das aktive eingebaute Gate `Sonar way` (ID `9`) und die Master-Gate-Warteprüfung bleiben unverändert; ein neuer Head-Scan muss nicht anwendbare Coverage und die fünf erhaltenen Bedingungen sowie verbindliche CI belegen. Die gescheiterte Zuordnung einer eigenen Gate-Kopie und vollständige Grenzen stehen im [PR-#382-Status](pr-382-merge-readiness.de.md); vollständige Coverage-/Rohdaten-Erhaltungsmessung ist als Abnahmekriterium abgelöst. [Coverage-Ausschlussparameter](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/project-analysis/setting-analysis-scope/exclude-from-coverage-duplication).
 
@@ -194,6 +194,8 @@ Jobs sind entfernt.
 
 ## CI, Tests und Coverage
 
+Die folgenden Collector-Details beschreiben den erhaltenen ausdrücklichen `--on-demand`-Pfad, keine automatische CI-Katalogausführung. Quellanalyse und Gate-Warten laufen unabhängig weiter.
+
 Der Workflow checkt `${{ github.event.pull_request.head.sha || github.sha }}`
 mit vollständiger Historie aus und verwendet diese Revision für
 `sonar.scm.revision`. Das bestehende `SONAR_TOKEN` steht nur dem Scanner-Schritt
@@ -201,7 +203,7 @@ zur Verfügung. Fork-PRs erhalten es nicht; es wird keine privilegierte
 `pull_request_target`-Ausführung eingeführt.
 
 Testklassifikation, Testausführung, Coverage-Erzeugung und Analyzer-Import
-bleiben getrennte Vorgänge. `ci/checks/analysis/run-sonar-coverage.py` erzeugt
+bleiben getrennte Vorgänge. Mit ausdrücklichem `--on-demand` erzeugt `ci/checks/analysis/run-sonar-coverage.py`
 echte Reports in frischen Sprachverzeichnissen unter einer externen
 `--output-root`. Das Werkzeug erfasst den SHA, prüft die Stabilität des Checkouts
 und verlangt für CI einen sauberen Checkout. `--allow-dirty` dient nur der

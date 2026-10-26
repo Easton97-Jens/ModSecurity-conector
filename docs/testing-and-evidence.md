@@ -20,66 +20,15 @@ aggregate nor a successful sibling profile supplies an unobserved host result.
 
 ## Active cases, admission and archived specialists
 
-The schema-3 [active inventory](../config/testing/active-cases.json) declares 1757 expanded cases / 874 executions: 97 core cases / 77 executions and 1660 explicitly authorized source-bound Python offline cases / 797 executions. The core ceiling remains 100; the file limit remains 2 MiB. A shared table deduplicates 601 source-digest records while retaining full maps, selectors, case identities and validation. Schema 1/2 remain readable. Complete unknown/unused/duplicate/type/path/hash reference validation occurs before children. Source updates preserve publisher proof and unchanged no-op behavior. Existing IDs and scenarios remain retained. Offline children deny process creation and network access before imports; package discovery defers offline imports to those children. Raw `unittest discover -s tests` first imports hooks in the parent; reviewed module top levels have no eager host/process activity. These are selection counts, not acceptance evidence; native/Go/connector scenarios do not qualify for the offline exception.
+All automatic functional paths share **100 expanded standard cases / 80 executions** in the schema-3 [inventory](../config/testing/active-cases.json). This includes harness/validator controls and the existing eight offline I12 cases. Connector E2E remains 26. No historical I12 host/matrix/oracle campaign or new qualification is opened.
 
-Sonar retains the authoritative master #421 pipeline, fixed 13-entry `PYTHON_TESTS`, 37 Go selectors and native Common assessment. The historical 80-method PR #421 selection is not a current expanded case count. Master Python execution additionally measures admitted offline exact IDs in guarded children, using real branch tracing and raw child witnesses. Only selected children receive `ON_DEMAND_TESTS=1`; no global bypass is enabled. Python collection, Go/native coverage, report import and server Quality Gate are separate evidence layers. The removed PR-specific collector and custom gates remain removed. Historical I12 host/matrix/oracle campaigns remain closed and E2E remains 26. Current code-defect remediation, historical coverage/retention evidence and exact-head gate status are recorded centrally in [PR #382 status](pr-382-merge-readiness.md).
+The inventory also retains **1893 on-demand cases / 839 executions**, excluded before default group/module/case/execution filtering and Python discovery. They are not an automatic budget exception. Explicit `--on-demand` plus a group/case/execution selector is required for these runner entries. Module-wide specialist interfaces retain `ON_DEMAND_TESTS=1` for a separately requested assessment. Useful sources and original evidence remain preserved; omission from standards is not a PASS or proof of retained automatic coverage.
 
+Full source-digest, schema, duplicate/reference, exact-selector and expanded-case validation remains before execution. The shared source pool, 2 MiB inventory limit and Python process/network guard remain. A standard inventory above 100 is rejected rather than truncated. The generated [archive](../reports/testing/test-selection-archive.generated.json) now classifies only the standard section as automatically selected. Its definition counts are not expanded case counts.
 
-The latest user instruction excludes Sonar coverage evaluation entirely, including merge decisions, and prioritizes genuine code/security defects, targeted regressions and current-head CI. The prepared `sonar.coverage.exclusions=**` affects coverage only; it does not exclude source from security, reliability, maintainability or duplication analysis. Coverage percentages and a full coverage/raw-retention measurement are superseded acceptance criteria, not further work. The active built-in gate is unchanged; the next scan must prove coverage non-applicability and the retained five conditions plus required CI, as detailed in [PR #382 status](pr-382-merge-readiness.md).
+Sonar retains the authoritative source/scanner/security pipeline and real Quality Gate wait. The earlier separate automatic Python/Go/Common coverage catalogs are now explicitly on demand and absent from automatic workflows. This closes the shared-budget bypass; tests and their assertions remain in source. Coverage was later removed from security and merge acceptance by the user. `sonar.coverage.exclusions=**` changes coverage applicability only; security, reliability, maintainability and duplication analysis remain.
 
-The prepared local scope excludes only root `modules/**` and root `reports/**` from both MAIN and TEST. All other Parent directories remain included, including `ci/evidence/reports/`, connector build scripts and YAML fixtures. `sonar.scm.exclusions.disabled=true` prevents SCM ignore rules from silently reducing this scope. Python/Go TEST classification and all CFamily MAIN classification are preserved. The tracked partition is 1651 MAIN + 498 TEST + 361 root-report entries + one Framework gitlink = 2511 entries; 25 nested report generators remain MAIN. This proves configured source scope, not semantic analyzer support or execution for every format; local scope changes still require a new published-head scan.
-
-The current inventory file is 1,539,830 bytes at current freeze `8a3ee8e8e852b5dc0b2eff8001bd011b0c9ed488c1936d96625abd3e29e13211`; the 601 source records and E2E 26 remain unchanged. Focused validation at earlier freeze `1880b9138581021106f8d8864a2f3fe00ce17c539ac8907c35cc9c0809d8577c` passed 113 executions / 142 cases with zero skips; full raw-retention proof remains a historical evidence limit, superseded as an acceptance criterion. Independent candidate review found no concrete surviving bypass or compatibility regression; the foreign-owner control uses an FD-scoped UID mock, source/archive controls separately remap repository roots, and no hosted qualification is established. Before the opt-out, the c924 producer imported real reports and its New-Code coverage was 26.409132606258282% and gate `ERROR`, as bound in the central status.
-
-The current post-opt-out freeze is `8a3ee8e8e852b5dc0b2eff8001bd011b0c9ed488c1936d96625abd3e29e13211`: 1,539,830 bytes, 601 source records, unchanged 1757 cases / 874 executions. After the configuration change, two scope executions / seven expanded cases passed with zero skips, and full admission/archive validation passed; this does not transfer the earlier 113/142 execution to the new freeze.
-
-<code>make check-active-inventory</code> reports the actual expanded count
-without executing cases. <code>make test</code> / <code>make test-active</code>
-run the admitted inventory. Standard owning groups and exact case/module
-filters select subsets after global admission. Functional checks behind
-<code>make lint</code>, <code>make quick-check</code>, builds and CI use the same
-selection. Pure build, formatting, static analysis and security scans remain
-separate operations; hiding functional tests behind them does not exempt those
-cases. Repeating an ID during a justified retest, race run or Hosted CI costs
-another execution, not another distinct active case.
-
-Retained specialists require a current request for the additional assessment and
-explicit <code>ON_DEMAND_TESTS=1</code>. Do not export that flag globally or add
-it to ordinary automated defaults. The flag changes retained specialist
-selection; it grants no privilege, Framework/MRTS write, merge, release or I12
-qualification authority. Historical I12 matrix/oracle/host campaigns remain
-closed: archiving them does not schedule a repeat or establish
-<code>I12_COMPLETE</code>.
-
-The generated [archive disposition](../reports/testing/test-selection-archive.generated.json)
-indexes retained Python methods and Go Test/Fuzz definitions and binds their
-source/inventory digests. Only
-<code>ci/tools/update-test-archive.py</code> regenerates it. Its definition count
-is not a count of fully expanded behaviors, is not added to the active count
-and does not assert that every archived assertion still passes. Unselected
-parameters of a partly selected definition remain on demand; native/script
-collectors and Framework catalogs remain available in their owning sources.
-No archive entry is an executable selector or a new PASS.
-
-| Retained on-demand area | Automatic coverage no longer claimed |
-| --- | --- |
-| Complete Python contract/validator/installer/updater mutation suites | Exhaustive permutations, malformed-input tables and historical expected workflow layouts beyond the named active controls. |
-| Complete Go packages and randomized C/Go fuzz campaigns | Unselected table/subtest variants and generated fuzz inputs; active exact tests, selected race repeats and substantive security analysis remain. |
-| Native Common/connector and runtime-path specialist collectors | Full error/parameter tables and the former 35-scenario path-policy catalog; the four selected real path inputs do not qualify every old path condition. |
-| Full NGINX host campaigns | Inheritance/override, mode repair, unsafe targets, USR1/reload/overlap, error-page/body-buffer and archived configuration-negative campaigns; the selected callback On/Off cases do not prove these. |
-| Broad smoke, full matrix, MRTS, H2/H3 and historical I12 tooling | Full catalog, protocol, oracle, ledger and host qualification. Narrow selected runtime/CRS results keep their own profile boundaries. |
-
-Removing a behavior from automatic selection records lost automatic coverage;
-it does not resolve a known defect or fabricate a historical success. Archived
-sources and their original results/revisions remain retained. New active cases
-at the core ceiling require a named replacement or genuine consolidation with the
-affected requirement and risk recorded.
-
-Profile proof is separate: HAProxy HTX does not qualify SPOE/SPOP with a response
-companion; Envoy ext_proc does not qualify ext_authz with an observer; Traefik
-native UDS does not qualify forwardAuth with an observer; lighttpd Stock,
-patched-native and legacy header-compatibility observations do not qualify one
-another. Bind every result to the actual selected profile.
+Source scope excludes only root `modules/**` and `reports/**`, preserves Python/Go TEST and all CFamily MAIN classification, and includes nested report generators and YAML fixtures. SCM ignores do not silently reduce it. Configured scope, actual analyzer support, a build, host execution and terminal server acceptance are distinct evidence layers. Current bounded closure evidence and earlier revision-bound results are recorded in [PR #382 status](pr-382-merge-readiness.md).
 
 ## Test layers
 

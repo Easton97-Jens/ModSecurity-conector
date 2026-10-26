@@ -2782,6 +2782,13 @@ jobs:
         self.assertIn("-Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}", args)
         self.assertNotRegex(args, r"-D(?:sonar\.(?:sources|tests|inclusions|exclusions)|project\.settings)=")
         self.assertNotIn("projectBaseDir", scanner["with"])
+        self.assertNotIn("run-sonar-coverage.py", text)
+        self.assertNotIn("ON_DEMAND_TESTS", text)
+        self.assertNotIn("unittest", text)
+        self.assertNotIn("go test", text)
+        self.assertNotIn("check-common-helpers.sh", text)
+        self.assertIn("ci/checks/analysis/check-sonar-scope.py", text)
+        self.assertIn("-Dsonar.qualitygate.wait=true", args)
 
     def test_sonar_standard_matrix_rejects_decisive_higher_standards(self) -> None:
         text = self.workflow("sonarqube.yml")

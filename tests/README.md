@@ -16,30 +16,15 @@ complete matrix, or strict verification for all connectors.
 
 ## One automatic active inventory
 
-[config/testing/active-cases.json](../config/testing/active-cases.json) remains the only selector authority for normal local, CI and scheduled checks.
+[config/testing/active-cases.json](../config/testing/active-cases.json) selects **100 expanded standard cases / 80 executions** across all automatic local, CI and scheduled functional checks. The earlier additional-offline authorization is superseded for automatic selection by the user's final scope stop. Connector E2E remains 26 cases; historical I12 host/matrix/oracle campaigns remain closed.
 
-The user explicitly authorized additional offline Python units outside the 100-case core ceiling. Schema 2 of the same inventory now declares **938 expanded cases across 541 executions**: 89 core cases / 69 executions (including the original eight offline cases) plus 849 explicitly source-bound `offline_unit_exceptions` / 472 executions. Every independent variant is counted. The runner validates both sections and enforces the core ceiling before every child; 101 core cases still fail. Exception selectors are Python-only, and their isolated child installs a guard against process creation and network access before importing tests. Package-level `tests.load_tests` defers offline test imports to that child. Raw `unittest discover -s tests` first imports each module in the parent to find its hook; those top levels were reviewed for absence of eager process/host activity, and test execution then occurs only in the guarded child. These counts describe the current selection, not final acceptance. This exception does not authorize native/Go/host scenarios outside the core budget.
+The same schema-3 inventory retains **1893 on-demand cases / 839 executions** outside every default path. `make test`, the no-argument inventory runner, Python discovery and automatic group filters use only the standard section. A shared group cannot activate archived rows. Full schema/source/selector admission remains mandatory; an expanded standard inventory above 100 fails before a child starts. Selection is never silently truncated.
 
-Sonar uses the mandatory workflow from master #421 (`7a44f18e`) and its own Python, Go and native Common assessment. PR #421 records 80 Python methods and 37 named Go scenarios; methods are not expanded case counts. Matrix repetition adds execution cost, not new case identities. The fixed 13-entry `PYTHON_TESTS` selection receives child-only `ON_DEMAND_TESTS=1`; default inventory hooks remain guarded and no global bypass is enabled. Process/Go/native assessment is not a Python offline exception or a reopened I12 campaign. The removed PR-specific coverage pipeline and custom gates stay removed. The inventory ceiling applies to the remaining Parent selection; no global ceiling including master Sonar is claimed. PR #421 results remain bound to their original revisions and do not prove the PR #382 merge head.
+`make check-active-inventory` admits without executing. For an explicitly requested specialist assessment use an exact selector, for example `python3 ci/tools/run-active-tests.py --on-demand --execution <archived-execution-id> --output-root <existing-external-parent>`. The opt-in alone without a group/case/execution selector fails. Retained module-wide commands require explicit `ON_DEMAND_TESTS=1`; keep it unset in defaults and schedules. Neither mechanism authorizes a historical I12 campaign, elevation or cross-repository work.
 
+Sonar keeps exact-head source analysis, native context, the required/advisory matrix, secret isolation and real gate waiting. Its specialist Python/Go/Common coverage collections no longer execute automatically. The retained collector requires explicit `--on-demand` before any output or test command. Coverage is irrelevant to security and merge decisions by the user's later instruction; no security rule, remaining gate condition or functional assertion is removed.
 
-`make check-active-inventory` checks the complete inventory without starting tests; `make test` and `make test-active` execute its admitted selection. Group/case/module filters apply only after full admission. Unknown or empty selections and changed source bindings fail; selection is never truncated. Functional build/lint callers use this same authority. Static compilation, CodeQL, actionlint, zizmor, OSV and secret scanning retain substantive independent gates.
-
-Retained specialist definitions are listed in the generated
-[archive disposition](../reports/testing/test-selection-archive.generated.json).
-Its Python/Go definition count is **not** an expanded active-case count;
-unselected parameters of partly selected definitions remain on demand.
-Native/script and Framework specialist sources remain in their owning trees.
-Regenerate the disposition through <code>ci/tools/update-test-archive.py</code>,
-never by editing its output. Archive entries are non-executable and establish
-neither a current PASS nor preserved automatic coverage.
-
-<code>ON_DEMAND_TESTS=1</code> is an explicit opt-in for a separately requested
-specialist assessment. Keep it unset for standard validation; do not persist it
-in shell initialization, default CI or schedules. It does not authorize a new
-I12 campaign, elevated privileges, cross-repository writes or relaxed checks.
-The concrete lost-coverage categories and profile boundaries are recorded in
-[Testing and evidence](../docs/testing-and-evidence.md).
+The generated [archive disposition](../reports/testing/test-selection-archive.generated.json) lists retained definitions outside standard selection. Definition counts are not expanded case counts and do not establish a PASS. Regenerate it through `ci/tools/update-test-archive.py`. Static compilation, CodeQL, actionlint, zizmor, OSV and secret scanning retain their independent controls. See [testing and evidence](../docs/testing-and-evidence.md) and [PR #382 status](../docs/pr-382-merge-readiness.md).
 
 ## Structure and source of truth
 

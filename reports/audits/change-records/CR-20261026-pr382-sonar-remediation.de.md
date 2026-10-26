@@ -10,6 +10,16 @@
 | Datum (UTC) | 2026-10-26 |
 | Basis-Revision | `67e363d44d5f6be7119eb6d76ade11ac75e95f42` |
 
+## Ergänzung zum abschließenden Umfangsstopp (ersetzt folgende Statusstände)
+
+Die letzte Nutzeranweisung schließt den Umfang und ersetzt die frühere automatische Offline-Ausnahme. Alle Standardpfade teilen jetzt 100 expandierte Fälle/80 Ausführungen; 1893 Fälle/839 Ausführungen bleiben ausdrücklich On-demand. Der zentrale [Abschlussrecord](../../../docs/pr-382-merge-readiness.de.md) enthält die aktuelle Abnahmevereinbarung. Folgende Abschnitte bewahren frühere revisionsgebundene Untersuchung einschließlich damaliger Statussprache, keine weiteren Befugnisse oder aktuellen Lieferbehauptungen.
+
+Runner ohne Selektor, gemeinsame CI-Gruppen, beide Python-Discovery-Hooks und API-Guard vor Kindprozessstart verwenden denselben Standardabschnitt. Der aufbewahrte Spezial-Coverage-Collector verlangt ausdrücklich --on-demand; seine Python-/Go-/Common-Kataloge laufen nicht mehr hinter automatischen Sonar-Jobs. Quellscope, nativer Kontext, exakter Checkout, Secret-Grenze, Scanner und echtes Gate-Warten bleiben erhalten. Coverage wurde gesondert durch spätere Nutzeranweisung aus Merge-Kriterien entfernt, ohne verbleibende eingebaute Bedingungen zu schwächen.
+
+Neuer begrenzter Nachweis: 11 Inventar-/Auswahl-/Collector-Guardfälle ohne Skips bestanden, echte Discovery zählte 44 Methoden, 37 Standardgruppen blieben innerhalb 100, und make-test-Dry-run wählt den kanonischen Runner. Beide ausdrücklich abgesicherten C-Einheiten bestanden strikte C17-Syntaxkompilierung; dem ersten HAProxy-Befehl fehlte der Repository-Include-Root, mit dem -I.-Kontext aus dem nativen Makefile bestand er. Kein vollständiger Offlinekatalog und keine historische I12-Kampagne wurde wiederholt. E2E 26, Framework-Gitlink 99a und MRTS bleiben unverändert.
+
+Veröffentlichter Zwischenstand 011cb197 hat 20/22 erfolgreiche automatische Workflows; beide Fehler sind breite/native Server-Gates, keine Build-/Collectorfehler. Alle 12 echten nativen Builds/Index-/CTU-/Taint-Läufe endeten mit 611 aggregierten CUs/keiner teilweisen. 12 Python-Sicherheitsmeldungen und 39 native Issue-Instanzen wurden einzeln quellenbezogen geprüft; individuelle Kommentare und neue Readbacks bleiben in aufgabeneigenen externen Receipts erhalten. Zwei breite C-Null-Propagationsmeldungen erhalten ausdrückliche Guards bei Erhalt der vorherigen hilfsfunktionsbasierten Abweisung. Finale CI/Sonar am veröffentlichten Head und Review-Status stehen im verlinkten PR; nur normaler Aufgabenbranch-Commit/Push ist vorgesehen. Kein weiterer Master-Merge, Framework-/MRTS-Auftrag, Release oder Deployment ist autorisiert.
+
 ## Motivation und Problemstellung
 
 An der Basis-Revision scheiterte das verbindliche Sonar mit 118 neuen Findings und 0.81499% New-Code-Coverage gegen 80%; Analyse `e407faad-955f-49f0-9c6e-443e0629cd1c`, CE `AaF2y9jpF1KaAz-cccYD`. Der Nutzer verlangte ausdrücklich gezielte Findings-/Coverage-Korrektur bei Erhalt der integrierten Master-Pipeline und unveränderter Gates. Zwanzig andere Workflows und manueller No-CRS-Lauf `40277060029` bestanden nur an diesem historischen Head.

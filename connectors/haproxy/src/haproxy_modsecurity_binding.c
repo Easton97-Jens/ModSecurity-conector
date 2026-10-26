@@ -879,7 +879,7 @@ static int load_rules_dir(
     char **paths = 0;
     size_t count = 0;
 
-    if (!dir_exists(rules_dir)) {
+    if (rules_dir == 0 || !dir_exists(rules_dir)) {
         return 0;
     }
     dir = opendir(rules_dir);

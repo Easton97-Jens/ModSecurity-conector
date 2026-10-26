@@ -77,6 +77,12 @@ class Inventory:
         exceptions = frozenset(self.offline_case_ids)
         return tuple(identifier for identifier in self.case_ids if identifier not in exceptions)
 
+    @property
+    def default_executions(self) -> tuple[dict[str, Any], ...]:
+        on_demand = frozenset(self.offline_case_ids)
+        return tuple(item for item in self.executions
+                     if not any(case["id"] in on_demand for case in item["cases"]))
+
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
@@ -399,7 +405,7 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
         _validate_execution(execution)
     core_count = sum(len(item["cases"]) for item in core)
     if core_count > HARD_CASE_LIMIT:
-        raise InventoryError(f"expanded core active inventory has {core_count} cases; hard limit is 100")
+        raise InventoryError(f"expanded default active inventory has {core_count} cases; hard limit is 100")
     _validate_offline_exceptions(exceptions)
     case_ids = tuple(case["id"] for item in executions for case in item["cases"])
     if len(case_ids) != len(set(case_ids)):
@@ -438,20 +444,24 @@ def _recheck_bindings(inventory: Inventory) -> None:
 
 def select_executions(inventory: Inventory, groups: tuple[str, ...] = (),
                       case_ids: tuple[str, ...] = (), module: str | None = None,
-                      execution_ids: tuple[str, ...] = ()
+                      execution_ids: tuple[str, ...] = (), *, on_demand: bool = False
                       ) -> tuple[dict[str, Any], ...]:
     """Select executions with closure over every explicitly expanded variant."""
-    available = {group for item in inventory.executions for group in item["groups"]}
+    if on_demand and not (groups or case_ids or execution_ids):
+        raise InventoryError("on-demand execution requires an explicit group, case or execution selector")
+    candidates = inventory.executions if on_demand else inventory.default_executions
+    available = {group for item in candidates for group in item["groups"]}
     if any(group not in available for group in groups):
         raise InventoryError("unknown or empty requested group")
-    if any(case not in inventory.case_ids for case in case_ids):
+    available_cases = {case["id"] for item in candidates for case in item["cases"]}
+    if any(case not in available_cases for case in case_ids):
         raise InventoryError("unknown requested case ID")
     if module is not None and module not in GO_MODULES:
         raise InventoryError("module filter must name a fixed Parent Go module")
-    available_executions = {item["id"] for item in inventory.executions}
+    available_executions = {item["id"] for item in candidates}
     if any(identifier not in available_executions for identifier in execution_ids):
         raise InventoryError("unknown requested execution ID")
-    selected = tuple(item for item in inventory.executions if (
+    selected = tuple(item for item in candidates if (
         (not groups and not case_ids and not execution_ids or
          set(groups).intersection(item["groups"]) or item["id"] in execution_ids or
          set(case_ids).intersection(case["id"] for case in item["cases"])) and
@@ -465,8 +475,10 @@ def selection_summary(inventory: Inventory, selected: tuple[dict[str, Any], ...]
     exceptions = frozenset(inventory.offline_case_ids)
     selected_ids = [case["id"] for item in selected for case in item["cases"]]
     return {"schema_version": 1, "inventory_sha256": inventory.digest,
-            "active_case_count": len(inventory.case_ids), "hard_limit": HARD_CASE_LIMIT,
-            "budget_scope": "core cases; additional reviewed offline units are separately counted",
+            "active_case_count": len(inventory.core_case_ids), "hard_limit": HARD_CASE_LIMIT,
+            "budget_scope": "all automatic default paths; extra cases require explicit on-demand selection",
+            "catalog_case_count": len(inventory.case_ids),
+            "on_demand_case_count": len(exceptions),
             "core_case_count": len(inventory.core_case_ids),
             "offline_exception_case_count": len(exceptions),
             "selected_core_case_ids": [case for case in selected_ids if case not in exceptions],
@@ -695,7 +707,15 @@ def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
 
 
 def execute_selected(inventory: Inventory, selected: tuple[dict[str, Any], ...], output_root: Path,
-                     race: bool = False, strict_skips: bool = False) -> dict[str, Any]:
+                     race: bool = False, strict_skips: bool = False, *,
+                     on_demand: bool = False) -> dict[str, Any]:
+    # Re-admit even API callers before creating output or starting a child.
+    admitted = select_executions(inventory, execution_ids=tuple(item["id"] for item in selected),
+                                 on_demand=on_demand)
+    if not selected or admitted != selected:
+        raise InventoryError("execution selection differs from the admitted inventory")
+    if not on_demand and sum(len(item["cases"]) for item in selected) > HARD_CASE_LIMIT:
+        raise InventoryError("expanded default selection exceeds the hard limit of 100")
     output = _output_directory(inventory.root, output_root)
     summary = selection_summary(inventory, selected)
     summary["output_directory"] = str(output)
@@ -761,7 +781,7 @@ def _offline_execution(execution: dict[str, Any]) -> bool:
 def python_discovery_suite(inventory: Inventory, loader: Any):
     """Load core cases normally and defer offline imports to their guarded child."""
     suite = unittest.TestSuite()
-    for execution in inventory.executions:
+    for execution in inventory.default_executions:
         if execution["selector"]["kind"] != "python":
             continue
         if _offline_execution(execution):
@@ -789,7 +809,7 @@ def module_load_tests(_loader: Any, standard_tests: Any, pattern: Any):
         return standard_tests
     root = Path(__file__).resolve().parents[2]
     inventory = load_inventory(root)
-    allowed = {execution["selector"]["target"]: execution for execution in inventory.executions
+    allowed = {execution["selector"]["target"]: execution for execution in inventory.default_executions
                if execution["selector"]["kind"] == "python"}
     selected = {}
     for test in _suite_cases(standard_tests):
@@ -816,6 +836,8 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     parser.add_argument("--race", action="store_true")
     parser.add_argument("--strict-skips", action="store_true")
     parser.add_argument("--output-root", type=Path)
+    parser.add_argument("--on-demand", action="store_true",
+                        help="explicitly select additional archived/specialist cases; never a default opt-in")
     arguments = parser.parse_args(argv)
     try:
         inventory = load_inventory(root or Path(__file__).resolve().parents[2], arguments.inventory)
@@ -823,13 +845,13 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
                 inventory.path.absolute() != inventory.root / INVENTORY_PATH):
             raise InventoryError("alternate inventories are admission-only fixtures; execution requires the canonical inventory")
         selected = select_executions(inventory, tuple(arguments.group), tuple(arguments.case),
-                                     arguments.module, tuple(arguments.execution))
+                                     arguments.module, tuple(arguments.execution), on_demand=arguments.on_demand)
         if arguments.check:
             summary = selection_summary(inventory, selected)
         else:
             output_root = arguments.output_root if arguments.output_root is not None else _default_output_root()
             summary = execute_selected(inventory, selected, output_root,
-                                       arguments.race, arguments.strict_skips)
+                                       arguments.race, arguments.strict_skips, on_demand=arguments.on_demand)
         print(json.dumps(summary, indent=2))
         return 0
     except (InventoryError, OSError, subprocess.TimeoutExpired) as exc:

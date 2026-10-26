@@ -3351,6 +3351,93 @@
         }
       ],
       "expected_subtests": 0
+    },
+    {
+      "id": "offline.inventory.offline-exception-counts-are-reported-separately",
+      "groups": [
+        "inventory"
+      ],
+      "sources": [
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_active_test_inventory.py"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_active_test_inventory.ActiveTestInventoryTests.test_offline_exception_counts_are_reported_separately"
+      },
+      "cases": [
+        {
+          "id": "offline.inventory.offline-exception-counts-are-reported-separately.case",
+          "requirement": "Offline exception boundary: offline exception counts are reported separately",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "offline.sonar-merged-contract.sonar-standard-matrix-keeps-full-parent-scope",
+      "groups": [
+        "inventory"
+      ],
+      "sources": [
+        ".github/workflows/sonarqube.yml",
+        ".python-version",
+        "ci/checks/analysis/check-sonar-scope.py",
+        "ci/checks/common/check-python-version-contract.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/lib/workflow_action_pins.py",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "sonar-project.properties",
+        "tests/test_ci_security_workflows.py"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_standard_matrix_keeps_full_parent_scope"
+      },
+      "cases": [
+        {
+          "id": "offline.sonar-merged-contract.sonar-standard-matrix-keeps-full-parent-scope.required-cpp17-producer",
+          "requirement": "Master Sonar workflow: test_sonar_standard_matrix_keeps_full_parent_scope",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ],
+      "expected_subtests": 0
+    },
+    {
+      "id": "inventory.specialist-coverage-explicit-opt-in",
+      "groups": [
+        "inventory"
+      ],
+      "sources": [
+        ".python-version",
+        "ci/checks/analysis/check-sonar-scope.py",
+        "ci/checks/analysis/run-sonar-coverage.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/sonar-coverage.ini",
+        "sonar-project.properties",
+        "tests/__init__.py",
+        "tests/test_sonar_coverage.py"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_coverage.SonarCoverageTests.test_specialist_collection_requires_explicit_on_demand_before_effects"
+      },
+      "expected_subtests": 0,
+      "cases": [
+        {
+          "id": "inventory.specialist-coverage-explicit-opt-in",
+          "requirement": "Specialist coverage refuses a non-opted-in collection before commands or output creation.",
+          "profiles": [
+            "parent"
+          ]
+        }
+      ]
     }
   ],
   "offline_unit_exceptions": [
@@ -22352,31 +22439,6 @@
       "expected_subtests": 0
     },
     {
-      "id": "offline.inventory.offline-exception-counts-are-reported-separately",
-      "groups": [
-        "offline-unit"
-      ],
-      "sources": [
-        "ci/lib/active_test_inventory.py",
-        "tests/__init__.py",
-        "tests/test_active_test_inventory.py"
-      ],
-      "selector": {
-        "kind": "python",
-        "target": "tests.test_active_test_inventory.ActiveTestInventoryTests.test_offline_exception_counts_are_reported_separately"
-      },
-      "cases": [
-        {
-          "id": "offline.inventory.offline-exception-counts-are-reported-separately.case",
-          "requirement": "Offline exception boundary: offline exception counts are reported separately",
-          "profiles": [
-            "parent-infrastructure"
-          ]
-        }
-      ],
-      "expected_subtests": 0
-    },
-    {
       "id": "offline.inventory.offline-exception-rejects-native-selector-before-child",
       "groups": [
         "offline-unit"
@@ -22629,38 +22691,6 @@
         {
           "id": "offline.sonar-merged-contract.sonar-secret-contract-rejects-other-action.single-input",
           "requirement": "sonar-secret-contract-rejects-other-action / single-input",
-          "profiles": [
-            "parent-infrastructure"
-          ]
-        }
-      ],
-      "expected_subtests": 0
-    },
-    {
-      "id": "offline.sonar-merged-contract.sonar-standard-matrix-keeps-full-parent-scope",
-      "groups": [
-        "offline-unit"
-      ],
-      "sources": [
-        ".github/workflows/sonarqube.yml",
-        ".python-version",
-        "ci/checks/analysis/check-sonar-scope.py",
-        "ci/checks/common/check-python-version-contract.py",
-        "ci/lib/framework_revision_pins.py",
-        "ci/lib/workflow_action_pins.py",
-        "ci/tooling/project-versions.lock.json",
-        "ci/tooling/security-tools.lock.yml",
-        "sonar-project.properties",
-        "tests/test_ci_security_workflows.py"
-      ],
-      "selector": {
-        "kind": "python",
-        "target": "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_standard_matrix_keeps_full_parent_scope"
-      },
-      "cases": [
-        {
-          "id": "offline.sonar-merged-contract.sonar-standard-matrix-keeps-full-parent-scope.required-cpp17-producer",
-          "requirement": "Master Sonar workflow: test_sonar_standard_matrix_keeps_full_parent_scope",
           "profiles": [
             "parent-infrastructure"
           ]
@@ -39315,7 +39345,7 @@
     },
     {
       "path": ".github/workflows/sonarqube.yml",
-      "sha256": "ac2424f41e2db94bce7e7a535b0353983952f6e3887780f3e3af2c13b07a15c3"
+      "sha256": "341e28f5397cbbaf6cda3f58d8acf9afd2f37dad8f5fbcd0e439574ce3c55245"
     },
     {
       "path": ".github/workflows/test-apache.yml",
@@ -39407,7 +39437,7 @@
     },
     {
       "path": "ci/checks/analysis/run-sonar-coverage.py",
-      "sha256": "4712078ea4c87e0d482120f8f9d46d2c792baeecf145e4cb9f0c294fbaffcf89"
+      "sha256": "b2c5fc103fd5b4e3d316ded1a0d57a5486f81341b01a3f790a10d7c53802d56d"
     },
     {
       "path": "ci/checks/analysis/sonar-native-security/build-target.py",
@@ -39515,7 +39545,7 @@
     },
     {
       "path": "ci/lib/active_test_inventory.py",
-      "sha256": "623e9e57b1b587308b2c28952e303eca8cd3b5f02ed8939944c6f9214e7ce959"
+      "sha256": "75bd2e40313eedefc46d0a77a58c0e73b50bf4d06d71d399deee6832e46e4c0a"
     },
     {
       "path": "ci/lib/evidence_inputs.py",
@@ -41363,7 +41393,7 @@
     },
     {
       "path": "tests/test_active_test_inventory.py",
-      "sha256": "41c5646925e9aa9e6c881f531e6864f165ad8e598a5998f27683d30fc758dcd3"
+      "sha256": "38476a9d5debe07d48282007df314fdad40e26e9aab806b9bb529423def93170"
     },
     {
       "path": "tests/test_apache_i12_acceptance_cases.py",
@@ -41411,7 +41441,7 @@
     },
     {
       "path": "tests/test_ci_security_workflows.py",
-      "sha256": "5d773c8b3ae538011f90feecfc6ae01edba79f05c57fadb5fd13b93b46d9bcb2"
+      "sha256": "dfff28472364078b62e0edad04a3ebd91b72b86d6dfac95f080e17f2f3ad218e"
     },
     {
       "path": "tests/test_compiler_guides.py",
@@ -41607,7 +41637,7 @@
     },
     {
       "path": "tests/test_sonar_coverage.py",
-      "sha256": "c487cdc3876ae1e41a6f150a8b55599b01b018792edf43734a2d0e2f8bc7bb62"
+      "sha256": "de40b98c6a4af07a9028ef1a7a7eea764153b9fe9a020ae35c9b94bb1a145c62"
     },
     {
       "path": "tests/test_sonar_native_ci.py",

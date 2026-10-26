@@ -2,13 +2,7 @@
 
 **Sprache:** [English](sonarqube-native-security.md) | Deutsch
 
-SDK-Vorbereitung und Matrix mit zwölf Zielen verwenden `ubuntu-26.04`.
-Der Aufrufer pinnt den geprüften Master-Broker `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`
-aus dem nutzerfreigegebenen [PR #422](https://github.com/Easton97-Jens/ModSecurity-conector/pull/422).
-Geschützte manuelle Laufzeitprüfung und Hosted-Native12-Nachweis stehen aus.
-[Aktuelle Readiness](pr-382-merge-readiness.de.md) und
-[Ubuntu-Migrationsrecord](../reports/audits/change-records/CR-20261026-ubuntu26-workflow-migration.de.md)
-trennen PR-/Master-Gate-Ergebnisse und quellgebundene Prüfungen.
+SDK-Vorbereitung und alle zwölf Ziele verwenden `ubuntu-26.04`; [aktuelle Readiness](pr-382-merge-readiness.de.md) bindet finale Lieferung und individuelle Dispositionsnachweise.
 
 ## Umfang und aktueller Status
 
@@ -19,13 +13,7 @@ ausgeschlossen. Ihr CFamily-AutoConfig-Scan bleibt erhalten; er belegt keine
 C/C++-Taintanalyse. Der separate [native Workflow](../.github/workflows/sonar-native-security.yml)
 ergänzt eine Kompilierungsdatenbank je echtem Buildziel, insgesamt zwölf.
 
-Die zwölf Entwicklungserfassungen verwenden Produktrevision
-`542a98bc20a16f885f114375bfa5225a9364dcf2` und Entwicklungsstände der Hilfswerkzeuge.
-Sie sind ausdrücklich `import_eligible=false`: erfolgreiche Kompilierung und
-Export belegen den Buildkontext. Hosted-Scanner-Ausführung, CFamily-Taint/CTU,
-Parsequalität, tatsächlich indexierte Eingaben, Serververarbeitung und
-abschließende Ziel-Gates sind unbestätigt. Die aktuelle native
-Sicherheitsprüfung ist unvollständig.
+Am veröffentlichten Parent `011cb197` schloss [Lauf 40392396874](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40392396874) SDK-Vorbereitung und alle zwölf nativen Build-/Capture-/Index-/CTU-/Taint-Analysen ab: insgesamt 611 Compilation Units, keine partiellen Units und 100 % Indexierung je Ziel. Vor Einzeltriage bestanden drei native Gates, neun scheiterten. Zwanzig von 22 Workflows bestanden; die breiten C++17/20/23-Gates scheiterten. Die Quellprüfung bestätigte zwölf Python-Security-Issues und 39 native Issue-Instanzen als False Positives; alle 36 Main-/Advisory-Python-Instanzen und 39 nativen Instanzen sind einzeln als False Positive aufgelöst und frisch zurückgelesen. Ursprüngliche Job-Ergebnisse bleiben unverändert. Diese Analyse liegt vor dem endlichen Abschlusscommit und ist keine Abnahme des finalen Heads. Siehe [zentralen Status](pr-382-merge-readiness.de.md).
 
 Coverage liegt außerhalb der Security- und Merge-Kriterien des Nutzers.
 `sonar.coverage.exclusions=**` ändert ausschließlich Coverage. Sicherheitsregeln,
@@ -124,12 +112,7 @@ Die Konfiguration fordert:
   Platten-/RAM-Vorprüfung anhand der erfassten Units;
 - Warten auf das abschließende Quality Gate mit `600` Sekunden Server-Timeout.
 
-Diese Einstellungen fordern Analysetiefe an; Logs müssen weiterhin belegen,
-dass Taint nicht übersprungen, CTU-Kontext beibehalten und der erforderliche
-Quellumfang geparst und indexiert wurde. Ein erfolgreicher Upload genügt nicht.
-Neue Projekte können eine echte Default-Branch-Baseline und projektbezogene
-Token-Autorisierung benötigen; fehlende Voraussetzungen bleiben Fehler, ohne
-PR-Quellen als Master umzubenennen.
+Der oben genannte veröffentlichte Lauf belegte tatsächliches CTU/Taint und Indexierung aller zwölf Ziele. Ein erfolgreicher Upload allein bleibt unzureichend; spätere Revisionen benötigen eigene Analyzer-/Serverergebnisse. Die erste native PR-Analyse wurde erfolgreich abgeschlossen; keine Baseline-Voraussetzung blockierte sie.
 
 ## Verbleibende Tiefen- und Nachweisgrenzen
 
@@ -144,11 +127,11 @@ Historische I12-Host-, Matrix- und Oracle-Kampagnen bleiben geschlossen. Die
 Connector-E2E-Auswahl bleibt `26`; es entsteht kein `I12_COMPLETE` oder
 Runtime-Promotion. Framework-CLI-/Updater-Arbeit bleibt getrennt in
 [Framework PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138).
-Der Parent-Framework-Gitlink bleibt unverändert; MRTS bleibt read-only. Framework-Revision `5ef4dc3c815c97121578cd34382b80088b9c61ec` schloss tatsächliche SDK-/Native-/Scanner-Analyse ab, einschließlich einer C-TU mit acht Taint-Regeln und Python mit 32 Taint-Regeln. CE-Task `AaF5sxOo8Px5fiPcdsNi` endete mit `SUCCESS`; sein Gate bleibt ausschließlich wegen Security-Rating 3 `ERROR`. Vier CLI-Flow-Behauptungen werden triagiert; dies bleibt vom Parent-Native12-Abschluss getrennt.
+Framework-Revision `03da9353561bf632a1f7bfc71b0a2671ec7aa257` bestand alle zwölf CI-Workflows und Sonar und ist Ready; kein Framework-Merge wurde durchgeführt. Parent-Framework-Gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf` und MRTS bleiben unverändert. Broker #422 ist bereits autorisiert bei `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` integriert; kein weiterer Master-Merge ist autorisiert.
 
-Die integrierte Auswahl nach Master-Übernahme bestand **94 Ausführungen / 342 expandierte Fälle ohne Skips**, beim Inventar `e13c73b981fd1399fbe0c161a8abd753d6cbc4d429957caa86d7c33e1f59bf7c`. Das Inventar deklariert 1992 Fälle / 918 Ausführungen: 97 Kernfälle / 77 Ausführungen plus 1895 autorisierte Offline-Fälle / 841 Ausführungen, mit 614 Quellbindungen und 1.672.802 Bytes. Die Auswahl enthält acht Inventarkontrollen einschließlich Überlauf-Abweisung und sieben Broker-Selektoren / 36 Fälle sowie korrigierte Helper-Capture-Pfad- und isolierte NGINX-Archivvertragskontrollen. Das frühere PASS 79/298 bei `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be` ist ein Vor-Merge-Zwischenstand. Lokale grüne Ergebnisse belegen keine Hosted-Native12-Analyse.
+Die automatische Auswahl umfasst jetzt 100 expandierte Fälle / 80 Ausführungen einschließlich dreier Schutzkontrollen. Weitere 1893 Fälle / 839 Ausführungen sind ausschließlich ausdrücklich auf Abruf verfügbar. Automatische Coverage-Katalogbefehle wurden entfernt; der erhaltene Collector verlangt `--on-demand`. Coverage ist laut Benutzeranweisung für den Merge irrelevant. Breite Quell-/Scanner-/Gate-Analyse bleibt aktiv; nur root `modules/**` und root `reports/**` sind ausgeschlossen.
 
-Neue CI am veröffentlichten Head, Analyzer-Logs, Server-Tasks, Gate-/Readback und quellbasierte Finding-Dispositionen bleiben für die Parent-Native12-/Ubuntu-Änderungen erforderlich.
+Readback der einzelnen False-positive-Dispositionen und Abnahme des finalen Heads bleiben im [zentralen Status](pr-382-merge-readiness.de.md); der beobachtete Lauf wird nicht auf unveröffentlichte Änderungen übertragen.
 
 ## Referenzen
 

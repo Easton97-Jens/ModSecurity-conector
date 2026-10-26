@@ -26,7 +26,7 @@ static int safe_root(const char *root) {
 }
 static int private_path(const char *path) {
     const char *root=getenv("I12_SINK_ROOT");
-    if (!safe_root(root) || path == NULL) return 0;
+    if (root == NULL || !safe_root(root) || path == NULL) return 0;
     size_t length=strlen(root);
     return strncmp(path,root,length) == 0 && path[length] == '/' &&
         strstr(path,"/../") == NULL && strstr(path,"/./") == NULL;

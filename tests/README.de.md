@@ -17,32 +17,15 @@ Verifikation, vollständige Matrix oder Strict-Verifikation für alle Connectore
 
 ## Ein automatisches Aktivinventar
 
-[config/testing/active-cases.json](../config/testing/active-cases.json) bleibt die einzige Selektorautorität für normale lokale, CI- und geplante Prüfungen.
+[config/testing/active-cases.json](../config/testing/active-cases.json) wählt **100 expandierte Standardfälle / 80 Ausführungen** für alle automatischen lokalen, CI- und geplanten funktionalen Prüfungen gemeinsam. Die frühere zusätzliche Offline-Freigabe ist für die automatische Auswahl durch den abschließenden Umfangsstopp des Nutzers ersetzt. Connector-E2E bleibt bei 26 Fällen; historische I12-Host-/Matrix-/Oraclekampagnen bleiben geschlossen.
 
-Der Nutzer autorisierte zusätzliche Offline-Python-Unitfälle ausdrücklich außerhalb der Kerngrenze von 100 Fällen. Schema 2 desselben Inventars deklariert nun **938 expandierte Fälle in 541 Ausführungen**: 89 Kernfälle / 69 Ausführungen (einschließlich der ursprünglichen acht Offline-Fälle) plus 849 ausdrücklich quellgebundene `offline_unit_exceptions` / 472 Ausführungen. Jede unabhängige Variante wird gezählt. Der Runner validiert beide Abschnitte und erzwingt die Kerngrenze vor jedem Kindprozess; 101 Kernfälle scheitern weiterhin. Ausnahmeselektoren sind ausschließlich Python; ihr isoliertes Kind installiert vor dem Testimport einen Guard gegen Prozessstart und Netzwerkzugriff. Das paketweite `tests.load_tests` verschiebt Offline-Testimports in dieses Kind. Rohes `unittest discover -s tests` importiert jedes Modul zunächst im Elternprozess, um seinen Hook zu finden; diese Top-Level wurden auf fehlende sofortige Prozess-/Hostaktivität geprüft, die Testausführung erfolgt anschließend ausschließlich im geschützten Kind. Die Zahlen beschreiben die aktuelle Auswahl, keine finale Abnahme. Die Ausnahme autorisiert keine Native-/Go-/Host-Szenarien außerhalb des Kernbudgets.
+Dasselbe Schema-3-Inventar bewahrt **1893 On-demand-Fälle / 839 Ausführungen** außerhalb sämtlicher Standardpfade. `make test`, der Inventar-Runner ohne Selektor, Python-Discovery und automatische Gruppenfilter verwenden nur den Standardabschnitt. Eine gemeinsame Gruppe aktiviert keine archivierten Zeilen. Vollständige Schema-/Quell-/Selektorzulassung bleibt Pflicht; mehr als 100 expandierte Standardfälle werden vor dem ersten Kindprozess abgewiesen. Die Auswahl wird nie still gekürzt.
 
-Sonar verwendet verbindlich den Workflow aus master #421 (`7a44f18e`) mit eigener Python-/Go-/Native-Common-Prüfung. PR #421 dokumentiert 80 Python-Methoden und 37 benannte Go-Szenarien; Methoden sind keine expandierten Fallzahlen. Matrixwiederholung erhöht Ausführungskosten, schafft aber keine neuen Fallidentitäten. Die feste `PYTHON_TESTS`-Auswahl mit 13 Einträgen erhält ausschließlich im Kind `ON_DEMAND_TESTS=1`; Standard-Inventarhooks bleiben geschützt, ohne globalen Bypass. Die Prozess-/Go-/Native-Prüfung ist keine Python-Offline-Ausnahme und keine wiedereröffnete I12-Kampagne. Entfernte PR-eigene Coverage-Pipeline und eigene Gates bleiben entfernt. Die Inventargrenze gilt für die übrige Parent-Auswahl; eine globale Höchstzahl einschließlich Master-Sonar wird nicht behauptet. PR-#421-Ergebnisse bleiben an ihre ursprünglichen Revisionen gebunden und belegen nicht den PR-#382-Merge-Head.
+`make check-active-inventory` prüft ohne Ausführung. Für eine ausdrücklich beauftragte Spezialprüfung ist ein genauer Selektor erforderlich, etwa `python3 ci/tools/run-active-tests.py --on-demand --execution <archived-execution-id> --output-root <existing-external-parent>`. Die Freigabe ohne Gruppen-/Fall-/Ausführungsselektor scheitert. Aufbewahrte modulweite Befehle verlangen ausdrücklich `ON_DEMAND_TESTS=1`; in Standards und Zeitplänen bleibt es ungesetzt. Keiner der Wege erlaubt historische I12-Kampagnen, erhöhte Rechte oder Arbeit über Repository-Grenzen hinweg.
 
+Sonar behält Quellanalyse am exakten Head, nativen Kontext, Required-/Advisory-Matrix, Secret-Isolation und echtes Warten auf das Gate. Seine speziellen Python-/Go-/Common-Coverage-Sammlungen laufen nicht mehr automatisch. Der aufbewahrte Collector verlangt vor Ausgabe oder Testbefehl ausdrücklich `--on-demand`. Coverage ist nach späterer Nutzerentscheidung für Sicherheit und Merge irrelevant; keine Sicherheitsregel, verbleibende Gate-Bedingung oder fachliche Assertion entfällt.
 
-`make check-active-inventory` prüft das gesamte Inventar ohne Teststart; `make test` und `make test-active` führen seine zugelassene Auswahl aus. Gruppen-/Fall-/Modulfilter greifen erst nach vollständiger Zulassung. Unbekannte/leere Auswahl und geänderte Quellbindungen scheitern; die Auswahl wird nie gekürzt. Funktionale Build-/Lint-Aufrufer verwenden dieselbe Autorität. Statische Kompilierung, CodeQL, actionlint, zizmor, OSV und Secret-Scanning behalten inhaltliche unabhängige Gates.
-
-Erhaltene Spezialdefinitionen stehen in der generierten
-[Archivdisposition](../reports/testing/test-selection-archive.generated.json).
-Ihre Anzahl von Python-/Go-Definitionen ist **keine** expandierte aktive Fallzahl;
-nicht ausgewählte Parameter teilweise ausgewählter Definitionen bleiben auf
-Abruf verfügbar. Native-/Skript- und Framework-Spezialquellen bleiben in ihren
-zuständigen Bäumen. Die Disposition entsteht durch
-<code>ci/tools/update-test-archive.py</code>, niemals durch Bearbeitung der Ausgabe.
-Archiveinträge sind nicht ausführbar und belegen weder einen aktuellen PASS
-noch erhaltene automatische Abdeckung.
-
-<code>ON_DEMAND_TESTS=1</code> ist ein ausdrückliches Opt-in für eine separat
-beauftragte Spezialprüfung. Für Standardvalidierung bleibt es ungesetzt;
-es gehört weder dauerhaft in Shell-Initialisierung noch in normale CI oder
-Zeitpläne. Es autorisiert keine neue I12-Kampagne, erhöhte Privilegien,
-repository-übergreifende Schreibzugriffe oder gelockerte Prüfungen. Konkrete
-verlorene Abdeckung und Profilgrenzen stehen unter
-[Tests und Nachweise](../docs/testing-and-evidence.de.md).
+Die generierte [Archivdisposition](../reports/testing/test-selection-archive.generated.json) nennt aufbewahrte Definitionen außerhalb der Standardauswahl. Definitionszahlen sind keine expandierten Fallzahlen und kein PASS. Erzeugung erfolgt über `ci/tools/update-test-archive.py`. Statische Kompilierung, CodeQL, actionlint, zizmor, OSV und Secret-Scanning behalten ihre unabhängigen Kontrollen. Siehe [Tests und Evidence](../docs/testing-and-evidence.de.md) und [PR-#382-Status](../docs/pr-382-merge-readiness.de.md).
 
 ## Struktur und Source of Truth
 

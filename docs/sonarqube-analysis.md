@@ -2,18 +2,15 @@
 
 **Language:** English | [Deutsch](sonarqube-analysis.de.md)
 
-The broad and native workflows declare `ubuntu-26.04`, with 64 hosted runner fields and two protected self-hosted fields. The current integration retains this runner scope. The user-approved broker [PR #422](https://github.com/Easton97-Jens/ModSecurity-conector/pull/422) was normally squashed at expected head `3d633ee27b48b64b940042e278c157f1aa629679` into master revision `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`; provider readback verified the merge. Independent final review of all seven files found no concrete finding. All six PR ruleset checks and terminal C++17/20/23 Sonar results passed at that exact PR head. The Parent caller now pins broker `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` and its actual Framework `99a7985c1be92a2297b1b59208f64df6768f2cbf`; the Parent gitlink is unchanged. Protected self-hosted labels and the master uniform-runner validator remain intact; the duplicate coverage exclusion property was reduced to one declaration. No protected broker manual runtime or expanded connector E2E was run. Authorization covered only #422 and the caller-pin follow-up, not a #382 merge.
+At published Parent `011cb197`, [run 40392396874](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40392396874) completed SDK preparation and all twelve native build/capture/index/CTU/taint analyses: 611 aggregate compilation units, zero partial units and 100% indexing in each target. Before individual triage, three native gates passed and nine failed. Twenty of 22 workflows passed; the broad C++17/20/23 gates failed. Source review validated 12 Python security issues and 39 native issue instances as false positives; all 36 main/advisory Python instances and 39 native instances are individually resolved as false positive with fresh readback. Original job conclusions remain unchanged. This analysis predates the finite closure commit and is not final-head acceptance. See [central status](pr-382-merge-readiness.md).
 
-All six master ruleset checks passed at `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`. Master C++17 Sonar actually failed with Security E / Reliability E against a `previous_version` baseline from May 14; read-only review found 20 pre-existing security/reliability issues, none introduced by #422; five native triggers are already removed in #382. No passing master Sonar gate is claimed. These master results are separate from the successful exact PR-head analysis. The PR delivery record must bind the exact Parent native12/Ubuntu commit and fresh CI without transferring older successes.
+Framework revision `03da9353561bf632a1f7bfc71b0a2671ec7aa257` passed all twelve CI workflows and Sonar and is Ready; no Framework merge was performed. Parent keeps Framework gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf`; MRTS is unchanged. Broker PR #422 is already user-authorized and merged at `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`; no further master merge is authorized. Protected manual runtime, connector E2E expansion and historical I12 campaigns were not run.
 
 ## Integration into PR #382
 
-The [native target security guide](sonarqube-native-security.md) describes the
-separate twelve-target Compilation Database workflow, current development
-proofs and remaining Hosted taint/CTU evidence. It supplements the broad scan;
-the historical PR #421 records below do not validate the new native workflow.
+The [native target security guide](sonarqube-native-security.md) describes the twelve-target Compilation Database workflow and its observed Hosted analysis. It supplements the broad scan; historical PR #421 records below remain revision-bound.
 
-Master `7a44f18edac729291d6551d068da64fa3fec4e1e` (PR #421) remains authoritative. Its fixed 13-entry `PYTHON_TESTS`, 37 Go selectors and native Common assessment are retained. Python additionally measures admitted offline exact IDs with actual branch tracing in guarded children; only selected children receive `ON_DEMAND_TESTS=1`. This preserves process/network guards and does not reopen historical I12 campaigns or restore the removed PR-specific collector/custom gates. All CFamily inputs remain MAIN; 16 actual CI Python unittest modules are TEST, with scope-guard evidence separate from analyzer execution. The workflow budget increases to 60 minutes after the measured offline collection/reporting interval alone was at least 1216.9 seconds.
+The automatic selection is now 100 expanded cases / 80 executions, including three guard controls. A further 1893 cases / 839 executions are available only through explicit on-demand selection. Automatic coverage catalogue commands were removed; the retained collector requires `--on-demand`. Coverage is irrelevant to merge by user instruction. Broad source/scanner/gate analysis remains enabled, with only root `modules/**` and root `reports/**` excluded.
 
 The latest user instruction excludes coverage even from merge decisions: `sonar.coverage.exclusions=**` affects coverage only, leaving source, security and duplication analysis intact. The active built-in `Sonar way` gate (ID `9`) and master gate wait remain unchanged; a new-head scan must prove coverage non-applicability, the five retained conditions and required CI. The rejected custom-gate association and full limits are recorded in [PR #382 status](pr-382-merge-readiness.md); full coverage/raw-retention measurement is superseded as an acceptance criterion. [Coverage exclusion parameter](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/project-analysis/setting-analysis-scope/exclude-from-coverage-duplication).
 
@@ -180,13 +177,15 @@ compiler jobs are removed.
 
 ## CI, tests, and coverage
 
+The collector details below describe the retained explicit `--on-demand` path, not automatic CI catalogue execution. Source analysis and gate waiting continue independently.
+
 The workflow checks out `${{ github.event.pull_request.head.sha || github.sha }}`
 with full history and uses that revision for `sonar.scm.revision`. The existing
 `SONAR_TOKEN` is exposed only to the scanner step. Fork pull requests cannot
 receive it; no privileged `pull_request_target` execution is introduced.
 
 Test classification, test execution, coverage generation and analyzer import
-remain separate operations. `ci/checks/analysis/run-sonar-coverage.py` produces
+remain separate operations. With explicit `--on-demand`, `ci/checks/analysis/run-sonar-coverage.py` produces
 real reports in fresh per-language directories below an external `--output-root`.
 It records the SHA, checks checkout stability and requires a clean checkout for
 CI. `--allow-dirty` is only for local development and marks reports as containing

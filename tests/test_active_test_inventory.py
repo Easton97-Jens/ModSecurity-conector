@@ -173,10 +173,29 @@ class ActiveTestInventoryTests(unittest.TestCase):
         }])
         inventory = self.load()
         summary = active.selection_summary(inventory, inventory.executions)
-        self.assertEqual(summary["active_case_count"], 101)
+        self.assertEqual(summary["active_case_count"], 100)
+        self.assertEqual(summary["catalog_case_count"], 101)
         self.assertEqual(summary["core_case_count"], 100)
         self.assertEqual(summary["offline_exception_case_count"], 1)
         self.assertEqual(summary["selected_offline_exception_case_ids"], ["offline.fixture.case"])
+        # The same expanded boundary fixture must remain capped through both
+        # no-argument and shared-group selection, not merely the core counter.
+        self.data["offline_unit_exceptions"][0]["groups"].append("control")
+        inventory = self.load()
+        default = active.select_executions(inventory)
+        self.assertEqual(default, inventory.default_executions)
+        self.assertEqual(active.select_executions(inventory, groups=("control",)), default)
+        self.assertEqual(len(active.selection_summary(inventory, default)["selected_case_ids"]), 100)
+        with patch.object(active.subprocess, "Popen") as child:
+            with self.assertRaises(active.InventoryError):
+                active.execute_selected(inventory, inventory.executions, self.output)
+            with self.assertRaises(active.InventoryError):
+                active.select_executions(inventory, execution_ids=("offline.fixture",))
+            with self.assertRaisesRegex(active.InventoryError, "explicit"):
+                active.select_executions(inventory, on_demand=True)
+        child.assert_not_called()
+        selected = active.select_executions(inventory, execution_ids=("offline.fixture",), on_demand=True)
+        self.assertEqual([item["id"] for item in selected], ["offline.fixture"])
 
     def test_offline_exception_rejects_native_selector_before_child(self):
         script = self.root / "ci/checks/security/check-workflow-fixture.sh"
@@ -218,7 +237,7 @@ class ActiveTestInventoryTests(unittest.TestCase):
 
         repository = Path(__file__).resolve().parents[1]
         inventory = active.load_inventory(repository)
-        expected = {execution["selector"]["target"] for execution in inventory.executions
+        expected = {execution["selector"]["target"] for execution in inventory.default_executions
                     if execution["selector"]["kind"] == "python"}
         selected = tests.load_tests(unittest.TestLoader(), unittest.TestSuite(), None)
 
@@ -236,7 +255,7 @@ class ActiveTestInventoryTests(unittest.TestCase):
     def test_start_directory_discovery_uses_authoritative_inventory(self):
         repository = Path(__file__).resolve().parents[1]
         inventory = active.load_inventory(repository)
-        expected = {execution["selector"]["target"] for execution in inventory.executions
+        expected = {execution["selector"]["target"] for execution in inventory.default_executions
                     if execution["selector"]["kind"] == "python" and
                     execution["selector"]["target"].startswith("tests.test_active_test_inventory.")}
         loader = unittest.TestLoader()

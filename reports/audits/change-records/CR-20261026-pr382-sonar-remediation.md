@@ -10,6 +10,16 @@
 | Date (UTC) | 2026-10-26 |
 | Base revision | `67e363d44d5f6be7119eb6d76ade11ac75e95f42` |
 
+## Final scope-stop addendum (supersedes status snapshots below)
+
+The final user instruction closes scope and replaces the former automatic offline exception. All default paths now share 100 expanded cases / 80 executions; 1893 cases / 839 executions remain explicitly on demand. The central [closure record](../../../docs/pr-382-merge-readiness.md) is the current acceptance contract. The sections below retain earlier revision-bound investigation history, including then-current language, not additional permissions or current delivery claims.
+
+The no-argument runner, shared CI groups, both Python discovery hooks and API pre-child guard use the same standard section. The retained specialist coverage collector requires explicit --on-demand; its Python/Go/Common catalogs no longer run behind automatic Sonar jobs. Source scope, native context, exact checkout, secret boundary, scanner and real gate wait remain. Coverage was separately removed from merge criteria by the user's later instruction, without weakening the remaining built-in conditions.
+
+Fresh bounded proof: 11 inventory/selection/collector guard cases passed with zero skips, real discovery enumerated 44 methods, 37 standard groups stayed inside 100, and make test dry-run selects the canonical runner. Both explicitly guarded C units passed strict C17 syntax compilation; the first HAProxy command lacked the repository include root and passed after adding the native Makefile's -I. context. No full offline or historical I12 campaign was rerun. Existing E2E 26, Framework gitlink 99a and MRTS are unchanged.
+
+Published checkpoint 011cb197 has 20/22 automatic workflows successful; the two failures are broad/native server gates, not build/collector failure. All 12 real native builds/index/CTU/taint completed 611 aggregate CUs/zero partial. 12 Python security findings and 39 native issue instances were individually source-reviewed; per-instance comments and fresh readbacks remain in task-owned external receipts. Two broad C null-propagation reports are addressed by explicit guards preserving the prior helper-based rejection. Final published-head CI/Sonar and review state belong to the linked PR, with normal task-branch commit/push only. No further master merge, Framework/MRTS task, release or deployment is authorized.
+
 ## Motivation and problem statement
 
 At the base revision, required Sonar failed with 118 new findings and 0.81499% New-Code coverage against 80%; analysis `e407faad-955f-49f0-9c6e-443e0629cd1c`, CE `AaF2y9jpF1KaAz-cccYD`. The user explicitly requested targeted findings/coverage remediation while preserving the integrated master pipeline and unchanged gates. Twenty other workflows and manual No-CRS run `40277060029` passed only at that historical head.

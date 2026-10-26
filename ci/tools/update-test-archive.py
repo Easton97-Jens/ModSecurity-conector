@@ -56,7 +56,7 @@ def source_definitions(path: Path, name: str, python_targets: set[str],
 def archive() -> dict:
     inventory_bytes = (ROOT / "config/testing/active-cases.json").read_bytes()
     inventory = json.loads(inventory_bytes)
-    executions = inventory["executions"] + inventory.get("offline_unit_exceptions", [])
+    executions = inventory["executions"]
     python_targets = {item["selector"]["target"] for item in executions
                       if item["selector"]["kind"] == "python"}
     go_targets = {(item["selector"]["module"], item["selector"]["package"], item["selector"]["test"].split("/")[0])
@@ -73,10 +73,10 @@ def archive() -> dict:
             retained.append({"source": name, "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                              "on_demand_definitions": definitions, "contains_selected_definitions": selected})
     return {"schema_version": 1, "generator": "ci/tools/update-test-archive.py",
-            "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects Parent cases. The mandatory master Sonar assessment declares its own separate selection.",
+            "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
             "inventory_sha256": hashlib.sha256(inventory_bytes).hexdigest(),
             "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
-            "disposition": "Retained source outside Parent default selection; no new PASS. The mandatory master Sonar assessment may separately select some definitions. Original historical evidence retains its original revision.",
+            "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
             "on_demand_definition_count": sum(len(item["on_demand_definitions"]) for item in retained),
             "sources": retained}
 
