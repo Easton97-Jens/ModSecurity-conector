@@ -22,7 +22,7 @@ class SonarScopeTests(unittest.TestCase):
         self.files = [
             "common/src/core.c", "connectors/apache/build/build.sh", "ci/check.py",
             "scripts/tool.py", "tests/helper.py", "tests/regression.c",
-            ".github/workflows/lint.yml", "examples/host.conf", "config/runtime.json",
+            ".github/workflows/lint.yml", "examples/envoy/service.yaml", "config/runtime.json",
             "fuzz/http.c", "connectors/envoy/test_peer.py",
             "connectors/envoy/ext_proc/main_test.go",
             "connectors/envoy/ext_proc/go.mod",
@@ -51,6 +51,75 @@ class SonarScopeTests(unittest.TestCase):
         self.config["sonar.exclusions"] += ",**/build/**"
         with self.assertRaisesRegex(ValueError, "maintained source excluded"):
             SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_rejects_real_workflow_exclusion_even_with_github_readme(self) -> None:
+        self.files.append(".github/README.md")
+        self.config["sonar.exclusions"] += ",.github/workflows/**"
+        with self.assertRaisesRegex(ValueError, r"maintained source excluded: \.github/workflows/lint.yml"):
+            SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_rejects_maintained_json_config_exclusion_even_with_config_readme(self) -> None:
+        self.files.append("config/README.md")
+        self.config["sonar.exclusions"] += ",config/**/*.json"
+        with self.assertRaisesRegex(ValueError, "maintained source excluded: config/runtime.json"):
+            SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_rejects_maintained_yaml_example_exclusion_even_with_examples_readme(self) -> None:
+        self.files.append("examples/README.md")
+        self.config["sonar.exclusions"] += ",examples/**/*.yaml"
+        with self.assertRaisesRegex(ValueError, "maintained source excluded: examples/envoy/service.yaml"):
+            SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_keeps_negative_workflow_fixtures_separate_from_real_workflows(self) -> None:
+        fixtures = [
+            "ci/fixtures/workflow-permission-contract/unsafe.yml",
+            "ci/fixtures/zizmor/insecure.yml",
+            "tests/fixtures/python-version-contract/missing-setup.yml",
+            "tests/fixtures/python-version-contract/valid-control.yaml",
+        ]
+        self.files.extend(fixtures)
+        result = SCOPE.validate(self.config, "3.15.1", self.files)
+        self.assertEqual(result["excluded_tracked_files"], fixtures)
+        self.assertIn(".github/workflows/lint.yml", result["source_paths"])
+
+    def test_fixture_directory_does_not_exempt_python(self) -> None:
+        self.files.append("ci/fixtures/zizmor/verify.py")
+        self.config["sonar.exclusions"] += ",ci/fixtures/zizmor/**"
+        with self.assertRaisesRegex(ValueError, "maintained source excluded: ci/fixtures/zizmor/verify.py"):
+            SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_fixture_directory_does_not_exempt_nested_yaml(self) -> None:
+        self.files.append("ci/fixtures/zizmor/tooling/config.yaml")
+        self.config["sonar.exclusions"] += ",ci/fixtures/zizmor/**"
+        with self.assertRaisesRegex(ValueError, "maintained source excluded: ci/fixtures/zizmor/tooling/config.yaml"):
+            SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_preserves_explicit_generated_json_boundary(self) -> None:
+        self.files.append("reports/testing/generated/canonical/full-runtime-matrix.generated.json")
+        result = SCOPE.validate(self.config, "3.15.1", self.files)
+        self.assertEqual(result["excluded_tracked_files"], [self.files[-1]])
+
+    def test_config_cannot_be_hidden_in_test_scope(self) -> None:
+        self.config["sonar.test.inclusions"] += ",config/**/*.json"
+        with self.assertRaisesRegex(ValueError, "incorrect test classification: config/runtime.json"):
+            SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_readme_alone_does_not_count_as_analyzed_component(self) -> None:
+        self.files.remove("examples/envoy/service.yaml")
+        self.files.append("examples/README.md")
+        with self.assertRaisesRegex(ValueError, "component missing analyzable code/config: examples"):
+            SCOPE.validate(self.config, "3.15.1", self.files)
+
+    def test_preserves_distributed_python_go_test_classification(self) -> None:
+        paths = [
+            "connectors/haproxy/harness/test_response.py",
+            "connectors/lighttpd/harness/response_test.py",
+            "connectors/traefik/native_middleware/middleware_test.go",
+        ]
+        self.files.extend(paths)
+        result = SCOPE.validate(self.config, "3.15.1", self.files)
+        self.assertTrue(set(paths).issubset(result["test_paths"]))
+        self.assertFalse(set(paths).intersection(result["source_paths"]))
 
     def test_rejects_ambiguous_property_files(self) -> None:
         cases = (
@@ -86,6 +155,14 @@ class SonarScopeTests(unittest.TestCase):
         self.files.append("connectors/new_connector/go.mod")
         with self.assertRaisesRegex(ValueError, "review Go module inventory"):
             SCOPE.validate(self.config, "3.15.1", self.files)
+
+
+# Parent discovery remains inventory-bound; only an explicit selected Master
+# assessment may opt into the complete module without importing helpers eagerly.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 
 if __name__ == "__main__":

@@ -17,10 +17,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any, Callable
 
-from best_effort_evidence_readers import (
-    read_json_object as read_json,
-    read_jsonl_objects as read_jsonl,
-)
+from evidence_inputs import EvidenceInputs
 from generated_report_utils import (
     DATA_SOURCE_POLICY,
     GENERATED_REPORTS,
@@ -29,11 +26,32 @@ from generated_report_utils import (
     generated_json_text,
     generated_markdown_text,
     report_path,
-    sha256_file,
     utc_now,
 )
 from runtime_path_utils import verified_runtime_paths
 from verified_run_id import VerifiedRunIdError, validate_verified_run_id
+
+
+INPUTS = EvidenceInputs(())
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    return INPUTS.json(path)
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return INPUTS.jsonl(path)
+
+
+def evidence_text(path: Path) -> str:
+    try:
+        return INPUTS.read_text(path)
+    except (OSError, ValueError):
+        return ""
+
+
+def sha256_file(path: Path) -> str:
+    return INPUTS.file_proof(path)[0]
 
 
 CRITICAL_CATEGORIES = {
@@ -166,19 +184,18 @@ def progress(message: str) -> None:
 
 
 def is_regular_file(path: Path) -> bool:
-    try:
-        return stat.S_ISREG(path.stat(follow_symlinks=False).st_mode)
-    except OSError:
-        return False
+    return INPUTS.is_file(path)
 
 
 def directory_fingerprint(path: Path) -> str:
+    if not INPUTS.is_dir(path):
+        return "rejected"
     digest = hashlib.sha256()
     seen = False
     for item in sorted(path.rglob("*")):
         try:
-            item_stat = item.stat(follow_symlinks=False)
-        except OSError:
+            item_stat = INPUTS.stat(item)
+        except (OSError, ValueError):
             continue
         seen = True
         digest.update(str(item.relative_to(path)).encode("utf-8", errors="replace"))
@@ -192,7 +209,7 @@ def directory_fingerprint(path: Path) -> str:
 
 
 def input_record(path: Path, label: str) -> dict[str, Any]:
-    if not path.exists():
+    if not INPUTS.is_file(path) and not INPUTS.is_dir(path):
         return {"path": str(path), "label": label, "status": "missing", "sha256": "missing"}
     if is_regular_file(path):
         return {
@@ -200,9 +217,9 @@ def input_record(path: Path, label: str) -> dict[str, Any]:
             "label": label,
             "status": "present",
             "sha256": sha256_file(path),
-            "bytes": path.stat().st_size,
+            "bytes": INPUTS.stat(path).st_size,
         }
-    if path.is_dir():
+    if INPUTS.is_dir(path):
         return {
             "path": str(path),
             "label": label,
@@ -237,16 +254,16 @@ def resolve_recorded_path(value: str, *, connector_root: Path, build_root: Path)
     if not value or value == "-":
         return None
     path = Path(value)
-    if path.is_absolute():
-        return path
-    build_candidate = build_root / path
-    if build_candidate.exists():
-        return build_candidate
-    connector_candidate = connector_root / path
-    if connector_candidate.exists():
-        return connector_candidate
-    return build_candidate
-
+    candidates = (path,) if path.is_absolute() else (build_root / path, connector_root / path)
+    approved = []
+    for candidate in candidates:
+        try:
+            approved.append(INPUTS.path(candidate))
+        except ValueError:
+            continue
+        if INPUTS.is_file(candidate) or INPUTS.is_dir(candidate):
+            return candidate
+    return approved[0] if approved else None
 
 def input_records_for_sources(
     *,
@@ -291,7 +308,7 @@ def command_for(commands: list[dict[str, Any]], target: str) -> dict[str, Any]:
 
 
 def load_commands(path: Path | None) -> list[dict[str, Any]]:
-    if path is None or not path.is_file():
+    if path is None or not INPUTS.is_file(path):
         return []
     data = read_json(path)
     commands = data.get("commands")
@@ -299,7 +316,7 @@ def load_commands(path: Path | None) -> list[dict[str, Any]]:
 
 
 def load_commands_payload(path: Path | None) -> dict[str, Any]:
-    if path is None or not path.is_file():
+    if path is None or not INPUTS.is_file(path):
         return {}
     return read_json(path)
 
@@ -317,7 +334,7 @@ def new_enough(path: Path, min_mtime: float | None) -> bool:
     if min_mtime is None:
         return True
     try:
-        return path.stat().st_mtime >= min_mtime
+        return INPUTS.stat(path).st_mtime >= min_mtime
     except OSError:
         return False
 
@@ -413,7 +430,7 @@ def runtime_failure_mode(case: dict[str, Any], case_name: str) -> str:
     log_text = ""
     if log_path is not None:
         try:
-            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+            log_text = evidence_text(log_path)
         except OSError:
             log_text = ""
     combined = f"{reason}\n{log_text}"
@@ -427,23 +444,19 @@ def runtime_failure_mode(case: dict[str, Any], case_name: str) -> str:
 def full_matrix_refresh_needed_for_case(case: dict[str, Any], evidence: str) -> bool:
     case_path = Path(str(case.get("path") or ""))
     evidence_path = Path(evidence)
-    if not case_path.is_file() or not evidence_path.is_file():
+    if not INPUTS.is_file(case_path) or not INPUTS.is_file(evidence_path):
         return False
     try:
-        return case_path.stat().st_mtime > evidence_path.stat().st_mtime
+        return INPUTS.stat(case_path).st_mtime > INPUTS.stat(evidence_path).st_mtime
     except OSError:
         return False
 
 
 def resolve_evidence_file(value: str, *, connector_root: Path, build_root: Path) -> Path:
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    build_candidate = build_root / path
-    if build_candidate.exists():
-        return build_candidate
-    return connector_root / path
-
+    path = resolve_recorded_path(value, connector_root=connector_root, build_root=build_root)
+    if path is None:
+        raise ValueError("recorded evidence path is outside configured input roots")
+    return path
 
 def result_error_log_path(result_path: Path, result: dict[str, Any]) -> Path:
     for key in ("nginx_error_log_path", "apache_error_log_path", "haproxy_error_log_path", "error_log_path"):
@@ -463,7 +476,7 @@ def result_decision_log_path(result_path: Path, result: dict[str, Any]) -> Path:
 
 def rule_ids_from_text_log(path: Path) -> set[str]:
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = evidence_text(path)
     except OSError:
         return set()
     return set(MODSECURITY_RULE_ID_RE.findall(text))
@@ -481,8 +494,8 @@ def rule_ids_from_decision_log(path: Path) -> set[str]:
 
 def read_text_or_none(path: Path) -> str | None:
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+        return INPUTS.read_text(path)
+    except (OSError, ValueError):
         return None
 
 
@@ -533,12 +546,12 @@ def secaction_smoke_rules_file(
     if not old or old not in result_text:
         return None
     candidate = Path(result_text.replace(old, new)).parent / "conf" / "modsecurity-smoke.conf"
-    return candidate if candidate.is_file() else None
+    return candidate if INPUTS.is_file(candidate) else None
 
 
 def secaction_rule_loaded(smoke_rules_file: Path) -> bool:
     try:
-        smoke_text = smoke_rules_file.read_text(encoding="utf-8", errors="replace")
+        smoke_text = evidence_text(smoke_rules_file)
     except OSError:
         return False
     compact = smoke_text.replace(" ", "")
@@ -603,7 +616,7 @@ def passing_no_mrts_control(
         return None
     crs, control_root = identity
     result_path = no_mrts_control_result_path(control_root, connector, case_name)
-    if result_path is None or not result_path.is_file():
+    if result_path is None or not INPUTS.is_file(result_path):
         return None
     result = read_json(result_path)
     actual = str(result.get("actual_status", result.get("observed_status")) or "")
@@ -757,7 +770,7 @@ def nginx_phase4_log_control_evidence(
     if str(item.get("status") or "").lower() != "pass":
         return None
     evidence_path = Path(str(item.get("evidence_path") or ""))
-    if not evidence_path.is_file():
+    if not INPUTS.is_file(evidence_path):
         return None
     result = read_json(evidence_path)
     phase4_log_path = Path(str(result.get("connector_phase4_log_path") or evidence_path.parent / "phase4.log"))
@@ -908,7 +921,7 @@ def haproxy_with_mrts_detection_only_overlay(
         return None
     spoa_runtime_log_path = result_path.parent / SPOA_RUNTIME_STDERR_LOG
     try:
-        spoa_runtime_text = spoa_runtime_log_path.read_text(encoding="utf-8", errors="replace")
+        spoa_runtime_text = evidence_text(spoa_runtime_log_path)
     except OSError:
         return None
     if "ModSecurity:" not in spoa_runtime_text:
@@ -922,7 +935,7 @@ def haproxy_with_mrts_detection_only_overlay(
         return None
     spoa_log_path = Path(str(result.get("spoa_log_path") or result_path.parent / "spoa-agent.log"))
     try:
-        spoa_log_text = spoa_log_path.read_text(encoding="utf-8", errors="replace")
+        spoa_log_text = evidence_text(spoa_log_path)
     except OSError:
         return None
     if f"rules_file={smoke_rules_file}" not in spoa_log_text:
@@ -959,7 +972,7 @@ def with_mrts_detection_only_overlay(
         return haproxy_with_mrts_detection_only_overlay(result_path, result, build_root=build_root)
     error_log_path = result_error_log_path(result_path, result)
     try:
-        error_text = error_log_path.read_text(encoding="utf-8", errors="replace")
+        error_text = evidence_text(error_log_path)
     except OSError:
         return None
     if "ModSecurity:" not in error_text:
@@ -1088,7 +1101,7 @@ def crs_sqli_with_mrts_detection_only_overlay(
         "full_matrix_refresh_needed": "false",
         "note": CRS_SQLI_WITH_MRTS_DETECTION_ONLY_NOTE,
     }
-    if row["connector"] == "haproxy" and decision_log_path.is_file():
+    if row["connector"] == "haproxy" and INPUTS.is_file(decision_log_path):
         evidence_out["decision_log"] = rel(decision_log_path, build_root)
     else:
         evidence_out["error_log"] = rel(log_paths[0], build_root)
@@ -2381,7 +2394,7 @@ def collect_incomplete_jobs(root: Path, build_root: Path, min_mtime: float | Non
         summary_path = Path(str(job.get("summary_path") or ""))
         return_code = job.get("return_code")
         job_status = str(job.get("status") or "")
-        if summary_path.is_file() and (return_code == 0 or job_status == "completed_with_mismatches"):
+        if INPUTS.is_file(summary_path) and (return_code == 0 or job_status == "completed_with_mismatches"):
             continue
         case = {
             "name": "__job__",
@@ -2556,11 +2569,13 @@ def parse_arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
 
 
 def analysis_configuration(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[str, Path | str]:
+    global INPUTS
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     default_paths = verified_runtime_paths(os.environ)
     build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     verified_run_root = Path(default_paths["VERIFIED_RUN_ROOT"]).resolve()
+    INPUTS = EvidenceInputs((connector_root, framework_root, build_root, verified_run_root))
     try:
         verified_run_id = validate_verified_run_id(args.verified_run_id or current_verified_run_id(connector_root))
     except VerifiedRunIdError as exc:
@@ -2658,19 +2673,19 @@ def full_matrix_search_roots(
     completed_completeness_jobs: list[dict[str, Any]],
     manifest_rows: list[dict[str, Any]],
 ) -> list[Path]:
-    from_completeness = [
-        Path(str(job.get("result_path") or job.get("summary_path") or "")).resolve().parent
-        for job in completed_completeness_jobs
-        if job.get("result_path") or job.get("summary_path")
-    ]
+    from_completeness = []
+    for job in completed_completeness_jobs:
+        value = job.get("result_path") or job.get("summary_path")
+        if value and INPUTS.is_file(Path(str(value))):
+            from_completeness.append(INPUTS.path(Path(str(value))).parent)
     if from_completeness:
         return from_completeness
     return [
-        Path(str(item.get("results_dir"))).resolve()
+        INPUTS.path(Path(str(item["results_dir"])))
         for item in manifest_rows
         if isinstance(item, dict) and item.get("results_dir")
+        and INPUTS.is_dir(Path(str(item["results_dir"])))
     ]
-
 
 def collected_runtime_rows(
     *,
@@ -2840,7 +2855,7 @@ def main() -> int:
             "report_refresh_status": command_state.get("report_refresh_status", "not_recorded"),
             "completeness": f"{command_state['full_matrix_completed_jobs']}/{command_state['full_matrix_expected_jobs']}",
             "manifest_path": str(manifest_path),
-            "manifest_present": manifest_path.is_file(),
+            "manifest_present": INPUTS.is_file(manifest_path),
             "manifest_recorded_jobs": completeness.get("manifest_recorded_jobs", len(manifest_rows)),
             "missing_jobs": completeness_missing_jobs,
             "job_completeness_report": str(completeness_path),
@@ -2853,7 +2868,7 @@ def main() -> int:
         "mismatches": mismatches,
         "no_invented_values_statement": "All rows are parsed from runtime result files, job files, or verified command records; missing producer evidence is reported as timeout_or_incomplete.",
     }
-    metadata = build_metadata(
+    metadata = INPUTS.build_metadata(build_metadata,
         generated_by=GENERATED_REPORTS["verified_runtime_mismatch_analysis"].generator,
         make_target=GENERATED_REPORTS["verified_runtime_mismatch_analysis"].make_target,
         connector_root=connector_root,

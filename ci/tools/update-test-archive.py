@@ -73,10 +73,10 @@ def archive() -> dict:
             retained.append({"source": name, "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                              "on_demand_definitions": definitions, "contains_selected_definitions": selected})
     return {"schema_version": 1, "generator": "ci/tools/update-test-archive.py",
-            "purpose": "Non-executable archive disposition; only config/testing/active-cases.json selects active cases.",
+            "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects Parent cases. The mandatory master Sonar assessment declares its own separate selection.",
             "inventory_sha256": hashlib.sha256(inventory_bytes).hexdigest(),
             "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
-            "disposition": "Retained source; no automatic execution and no new PASS. Original historical evidence retains its original revision.",
+            "disposition": "Retained source outside Parent default selection; no new PASS. The mandatory master Sonar assessment may separately select some definitions. Original historical evidence retains its original revision.",
             "on_demand_definition_count": sum(len(item["on_demand_definitions"]) for item in retained),
             "sources": retained}
 

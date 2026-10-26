@@ -1019,3 +1019,8 @@ ffa18b314323f141e296f4aa26cea0743b0b0f07:connectors/haproxy/harness/fixtures/i12
 ffa18b314323f141e296f4aa26cea0743b0b0f07:connectors/haproxy/harness/fixtures/i12-oracles-20261015.json:generic-api-key:9884
 ffa18b314323f141e296f4aa26cea0743b0b0f07:connectors/haproxy/harness/fixtures/i12-oracles-20261015.json:generic-api-key:9885
 ffa18b314323f141e296f4aa26cea0743b0b0f07:connectors/haproxy/harness/fixtures/i12-oracles-20261015.json:generic-api-key:9886
+
+# Public Sonar issue identifiers, verified against the authenticated issue API.
+# Only these two historical documentation findings are ignored; retain all rules.
+8f632bdd45f117ba7e8b025c1fbfac37cdad8cef:reports/audits/change-records/CR-20261025-sonar-setup-remediation.md:generic-api-key:202
+8f632bdd45f117ba7e8b025c1fbfac37cdad8cef:reports/audits/change-records/CR-20261025-sonar-setup-remediation.de.md:generic-api-key:217

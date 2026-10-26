@@ -1,0 +1,415 @@
+{
+  "model": {
+    "perspectives": [
+      {
+        "constraints": [],
+        "description": "",
+        "groups": [
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "tests",
+            "patternId": null,
+            "patterns": [
+              "tests/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "scripts",
+            "patternId": null,
+            "patterns": [
+              "scripts/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_traefik_scripts",
+            "patternId": null,
+            "patterns": [
+              "connectors/traefik/scripts/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_traefik_harness",
+            "patternId": null,
+            "patterns": [
+              "connectors/traefik/harness/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_nginx_harness",
+            "patternId": null,
+            "patterns": [
+              "connectors/nginx/harness/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_lighttpd_tests",
+            "patternId": null,
+            "patterns": [
+              "connectors/lighttpd/tests/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_lighttpd_harness",
+            "patternId": null,
+            "patterns": [
+              "connectors/lighttpd/harness/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_haproxy_htx-overlay",
+            "patternId": null,
+            "patterns": [
+              "connectors/haproxy/htx-overlay/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_haproxy_harness",
+            "patternId": null,
+            "patterns": [
+              "connectors/haproxy/harness/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_envoy_harness",
+            "patternId": null,
+            "patterns": [
+              "connectors/envoy/harness/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_composite_harness",
+            "patternId": null,
+            "patterns": [
+              "connectors/composite_harness/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [
+              {
+                "description": null,
+                "groups": [],
+                "interface": true,
+                "interfaceAccess": null,
+                "label": "apache_process_guard.py",
+                "patternId": null,
+                "patterns": [
+                  "connectors/apache/harness/apache_process_guard.py"
+                ]
+              }
+            ],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "connectors_apache_harness",
+            "patternId": null,
+            "patterns": [
+              "connectors/apache/harness/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "common_scripts",
+            "patternId": null,
+            "patterns": [
+              "common/scripts/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_tools",
+            "patternId": null,
+            "patterns": [
+              "ci/tools/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_runtime_lifecycle",
+            "patternId": null,
+            "patterns": [
+              "ci/runtime/lifecycle/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_runtime_contracts",
+            "patternId": null,
+            "patterns": [
+              "ci/runtime/contracts/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_runtime_common",
+            "patternId": null,
+            "patterns": [
+              "ci/runtime/common/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_runtime_broker",
+            "patternId": null,
+            "patterns": [
+              "ci/runtime/broker/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [
+              {
+                "description": null,
+                "groups": [],
+                "interface": true,
+                "interfaceAccess": null,
+                "label": "detect-c-standard.py",
+                "patternId": null,
+                "patterns": [
+                  "ci/provisioning/toolchains/detect-c-standard.py"
+                ]
+              }
+            ],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_provisioning_toolchains",
+            "patternId": null,
+            "patterns": [
+              "ci/provisioning/toolchains/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_provisioning_components",
+            "patternId": null,
+            "patterns": [
+              "ci/provisioning/components/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_lib",
+            "patternId": null,
+            "patterns": [
+              "ci/lib/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_evidence_reports",
+            "patternId": null,
+            "patterns": [
+              "ci/evidence/reports/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [
+              {
+                "description": null,
+                "groups": [],
+                "interface": true,
+                "interfaceAccess": null,
+                "label": "connector_capabilities.py",
+                "patternId": null,
+                "patterns": [
+                  "ci/evidence/collectors/connector_capabilities.py"
+                ]
+              }
+            ],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_evidence_collectors",
+            "patternId": null,
+            "patterns": [
+              "ci/evidence/collectors/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_analysis",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/analysis/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_common",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/common/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_connectors_all",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/connectors/all/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_connectors_apache",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/connectors/apache/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_connectors_haproxy",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/connectors/haproxy/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_connectors_nginx",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/connectors/nginx/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_documentation",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/documentation/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_evidence",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/evidence/**"
+            ]
+          },
+          {
+            "description": null,
+            "groups": [
+              {
+                "description": null,
+                "groups": [],
+                "interface": true,
+                "interfaceAccess": null,
+                "label": "check-runtime-path-policy.py",
+                "patternId": null,
+                "patterns": [
+                  "ci/checks/security/check-runtime-path-policy.py"
+                ]
+              }
+            ],
+            "interface": true,
+            "interfaceAccess": null,
+            "label": "ci_checks_security",
+            "patternId": null,
+            "patterns": [
+              "ci/checks/security/**"
+            ]
+          }
+        ],
+        "label": "py Intended Model",
+        "language": "py",
+        "qualifiers": "file"
+      }
+    ]
+  }
+}

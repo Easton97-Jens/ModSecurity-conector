@@ -103,6 +103,9 @@ jobs:
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
+          cache-dependency-path: |
+            connectors/envoy/ext_proc/go.mod
+            connectors/envoy/ext_proc/go.sum
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: go
@@ -126,6 +129,7 @@ jobs:
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
           check-latest: false
+          cache-dependency-path: connectors/traefik/native_middleware/go.mod
       - name: Set up canonical Python for active selection
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0

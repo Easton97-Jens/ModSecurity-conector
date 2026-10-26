@@ -1,5 +1,5 @@
 # Parent behavioral defaults use this inventory. The mandatory master-owned
-# Sonar workflow retains its own explicit scope and Go selections.
+# Sonar workflow retains its own Python, Go and Common native assessment.
 # Specialist commands require an explicit on-demand invocation; they are not a
 # second automatic catalogue. Static compilation/analysis gates stay independent.
 ACTIVE_TEST_RUNNER = $(PYTHON) ci/tools/run-active-tests.py

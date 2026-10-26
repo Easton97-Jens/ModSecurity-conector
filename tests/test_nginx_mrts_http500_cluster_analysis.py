@@ -4,6 +4,7 @@ import importlib.util
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -53,6 +54,7 @@ class NginxMrtsHttp500ClusterAnalysisTest(unittest.TestCase):
         )
         warning_line = "2026/06/16 12:00:02 ModSecurity: Warning. matched test rule"
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(GENERATOR, "INPUTS", GENERATOR.EvidenceInputs((Path(temporary),))))
             error_log = Path(temporary) / "error.log"
             error_log.write_text(
                 "\n".join(
@@ -77,6 +79,7 @@ class NginxMrtsHttp500ClusterAnalysisTest(unittest.TestCase):
 
     def test_permissions_probe_keeps_relative_docroot_path_segments(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
+            self.enterContext(mock.patch.object(GENERATOR, "INPUTS", GENERATOR.EvidenceInputs((Path(temporary),))))
             harness_root = Path(temporary) / "harness"
             evidence_path = harness_root / "logs" / "nginx" / "result.json"
             index_path = harness_root / "runtime" / "case-1" / "htdocs" / "index.html"
