@@ -5,7 +5,7 @@ on:
 
 jobs:
   fixture-job:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Use python3.14 too soon
         run: python3.14 -c 'print("unsafe")'

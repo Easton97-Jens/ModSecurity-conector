@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside Parent default selection; no new PASS. The mandatory master Sonar assessment may separately select some definitions. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "8a3ee8e8e852b5dc0b2eff8001bd011b0c9ed488c1936d96625abd3e29e13211",
-  "on_demand_definition_count": 5360,
+  "inventory_sha256": "06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be",
+  "on_demand_definition_count": 5356,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects Parent cases. The mandatory master Sonar assessment declares its own separate selection.",
   "schema_version": 1,
   "sources": [
@@ -1583,6 +1583,7 @@
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_resolve_github_output_binds_payload_digest_and_update_state",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_restores_all_approved_files_after_a_later_failure",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_all_locked_action_references_are_in_the_publisher_allowlist",
+        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_unallowlisted_locked_action_use_and_forbidden_yaml_fail_closed",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_scope_verification_rejects_the_unallowlisted_source_of_a_rename"
       ],
       "on_demand_definitions": [
@@ -1594,7 +1595,6 @@
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_apply_preserves_reviewed_codeql_subaction_suffixes",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_native_baseline_uses_nonrecursive_updater_inventory_regression",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_connector_lock_adapter_preserves_the_on_disk_schema",
-        "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_unallowlisted_locked_action_use_and_forbidden_yaml_fail_closed",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_remote_action_identity_and_pin_must_match_the_central_lock",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_tool_candidate_requires_the_reviewed_asset_naming_rule",
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_candidate_groups_reject_cross_group_fields_and_bad_tool_tuples",
@@ -1616,7 +1616,7 @@
         "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterIntegrationTests.test_proposed_tree_validation_runs_the_real_ci_security_contract"
       ],
       "source": "tests/ci_security/test_update_workflow_tools.py",
-      "source_sha256": "cf6529f1c37accc7ea4d0ad56d384233ba4939dc5086834c1fc6ac793de10c09"
+      "source_sha256": "d4a8f0a2208c68b4eb94e00d02b2f163d477de1faec57d5fa750473e278e2b66"
     },
     {
       "contains_selected_definitions": [],
@@ -2909,7 +2909,12 @@
     },
     {
       "contains_selected_definitions": [
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_untrusted_pull_request_model",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_fork_guard_bypass",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_workflow_meets_closed_contract",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_workflow_rejects_contract_mutations",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_action_updates_require_matching_canonical_lock",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_retry_reuses_successful_sdk_identity",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_global_token",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_secret_in_shell",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_other_action",
@@ -2940,7 +2945,6 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_pr_apr_util_provenance_job_is_unconditional_and_read_only",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_trusted_nginx_root_broker_has_no_pr_code_at_root_boundary",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_protected_master_caller_is_exactly_pinned_and_fail_closed",
-        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_untrusted_pull_request_model",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_cleanup_jobs_do_not_checkout_or_execute_project_code",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_ci_security_contracts_run_the_local_submodule_git_regressions",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_update_submodules_separates_validation_from_publishing",
@@ -2954,7 +2958,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "0ae712a3d73e24ae958a093d214c5b3cbb03ac21a062a1db8139691d5c9e90c0"
+      "source_sha256": "79a87b132b9fb75ff9495e8c3e3ca39f06159d46b2589e28600867f91c9ccbce"
     },
     {
       "contains_selected_definitions": [],
@@ -3780,7 +3784,7 @@
         "tests.test_go_version_contract.GoVersionContractTests.test_symlink_version_file_is_rejected"
       ],
       "source": "tests/test_go_version_contract.py",
-      "source_sha256": "24d29a127c92473f361c8016f783b811a4258f315a673d4902559e0c1e4d2bbb"
+      "source_sha256": "4571d88d92eaf88cab5a6b940870278fff1cd370e33d7ec83a91081c9fd1b7ff"
     },
     {
       "contains_selected_definitions": [],
@@ -6101,16 +6105,17 @@
       "source_sha256": "edb89504d9c3317ceb79180e4b8bd1411781ce13b9a6c6d22b3ca03d7f1c0d28"
     },
     {
-      "contains_selected_definitions": [],
+      "contains_selected_definitions": [
+        "tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_workflow_pins_nginx_and_runs_gate"
+      ],
       "on_demand_definitions": [
-        "tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_workflow_pins_nginx_and_runs_gate",
         "tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_gate_has_two_real_runtime_cells_and_fail_closed_markers",
         "tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_each_hosted_case_uses_one_private_materialization_root",
         "tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_hosted_worker_uses_a_dedicated_non_enumerable_functional_parent",
         "tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_existing_template_renders_directive"
       ],
       "source": "tests/test_nginx_exact_head_gate_contract.py",
-      "source_sha256": "4761b87e9c33d6f934cb200c3d704e8c9857ebdb95f28c0f5ffb2c09234aecb2"
+      "source_sha256": "3f24740d247f33fc676d67e7f6d67e38f9b1a49d5a53e20f0737e2cb7d7edcee"
     },
     {
       "contains_selected_definitions": [
@@ -7833,7 +7838,7 @@
         "tests.test_python_version_contract.WorkflowActionPinsTest.test_missing_action_is_rejected"
       ],
       "source": "tests/test_python_version_contract.py",
-      "source_sha256": "e0db06518bcf5cf3107f9116e1685ff127b86bb4dae86c0deffda7f87bdb014e"
+      "source_sha256": "cb8cc8c51516e144157ca59e93654e1f2b150ad0a3f97a2574713666bb2617cd"
     },
     {
       "contains_selected_definitions": [],
@@ -8540,6 +8545,24 @@
       "source_sha256": "711c632e3e5f026fbe47f6cf602522142dd9f0c23d25a049a5b53614e2987eb3"
     },
     {
+      "contains_selected_definitions": [
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_analyze_exports_actual_producer_capture_directory",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_project_inventory_matches_real_native_producer_targets",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_preserve_parent_headers_and_full_security_depth",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_reject_missing_parent_header",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_reject_false_pr_identity",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_external_root_rejects_checkout",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_external_root_rejects_shared_ancestor_without_chmod",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_preserves_real_relative_library_link",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_rejects_wrong_revision_source_or_digest",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_rejects_archive_escape",
+        "tests.test_sonar_native_ci.SonarNativeCiTests.test_ctu_limits_reject_insufficient_resources"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_sonar_native_ci.py",
+      "source_sha256": "fc93f64f7257e967c139990b1eac2f18d8047870a4fe38c60f9e18d04239c053"
+    },
+    {
       "contains_selected_definitions": [],
       "on_demand_definitions": [
         "tests.test_sonar_native_context.SonarNativeContextTests.test_contract_versions_remain_ascii_after_concise_regex_change",
@@ -8556,6 +8579,52 @@
       ],
       "source": "tests/test_sonar_native_context.py",
       "source_sha256": "f98cf32f91409cba6cef90c16daccf0b734b1ea12eba60107602f5859ef2ce48"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_target_export_integrity",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_changed_header_rejected",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_missing_declared_source_rejected",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_unlinked_translation_unit_excluded",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_dirty_checkout_rejected",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_checkout_output_rejected_without_mutation",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_unknown_link_producer_rejected",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_authorized_external_generated_context",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_unadmitted_external_generated_source_rejected",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_bounded_internal_lto_context_preserves_parent_membership",
+        "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_internal_lto_limit_rejects_unknown_parent_object"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_sonar_native_security.py",
+      "source_sha256": "8c83e8c3e36e286405a993f5c6af25db5ae6ba84d5c995806d61432d8c99566d"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_sonar_native_security_capture.NativeCompilerEnvironmentTest.test_implicit_environment_rejected_before_compiler",
+        "tests.test_sonar_native_security_capture.NativeCompilerEnvironmentTest.test_clang_override_environment_rejected_before_compiler"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_sonar_native_security_capture.py",
+      "source_sha256": "ac2fb2e22aafbd2af2040b6e41e165c8004fd02326d069ae7ee7ce77d80b5999"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_sonar_native_security_go.GoNativeProducerChainTest.test_approved_producer_chain_receipt",
+        "tests.test_sonar_native_security_go.GoNativeProducerChainTest.test_unexpected_postlink_mutation_rejected"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_sonar_native_security_go.py",
+      "source_sha256": "4a4a7a62b5e3b7ff8428131ff803de448c88df95a4b40d3fbf3041b3c49cca0c"
+    },
+    {
+      "contains_selected_definitions": [
+        "tests.test_sonar_native_security_mapping.NativeSourceMappingTest.test_original_source_and_header_context_admitted",
+        "tests.test_sonar_native_security_mapping.NativeSourceMappingTest.test_altered_copied_header_rejected",
+        "tests.test_sonar_native_security_mapping.NativeSourceMappingTest.test_shared_writable_ancestor_rejected"
+      ],
+      "on_demand_definitions": [],
+      "source": "tests/test_sonar_native_security_mapping.py",
+      "source_sha256": "491929761ca6666dda105fb2d724aea2aff66a59ee3d95fd4a35866b4cffa4a0"
     },
     {
       "contains_selected_definitions": [],
@@ -9258,13 +9327,14 @@
       "source_sha256": "8ae5d166b2d2d33b247b92ace4ce05efd118472240e92e672dd2266db620be24"
     },
     {
-      "contains_selected_definitions": [],
-      "on_demand_definitions": [
-        "tests.test_trusted_lighttpd_namespace_dispatch_workflow.TrustedLighttpdNamespaceDispatchWorkflowTest.test_dispatcher_preserves_the_complete_trust_contract",
+      "contains_selected_definitions": [
         "tests.test_trusted_lighttpd_namespace_dispatch_workflow.TrustedLighttpdNamespaceDispatchWorkflowTest.test_representative_boundary_mutations_fail_closed"
       ],
+      "on_demand_definitions": [
+        "tests.test_trusted_lighttpd_namespace_dispatch_workflow.TrustedLighttpdNamespaceDispatchWorkflowTest.test_dispatcher_preserves_the_complete_trust_contract"
+      ],
       "source": "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py",
-      "source_sha256": "81f7f39b1a919bbbb2c4e780c1c619739a5968d669a9cd1065db635584856a69"
+      "source_sha256": "8c655d69101148e3d1f17d404c0641389a9fdbc7e851a9aa56b2e872d15654a4"
     },
     {
       "contains_selected_definitions": [],

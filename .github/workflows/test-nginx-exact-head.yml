@@ -10,7 +10,7 @@ jobs:
   nginx-exact-head:
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}

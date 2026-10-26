@@ -5,7 +5,7 @@ on:
 
 jobs:
   fixture-job:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Use Python in command substitution too soon
         run: status=$(python3 -c 'print("unsafe")')

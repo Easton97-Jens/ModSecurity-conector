@@ -53,7 +53,8 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "510b20d55b4d4293c7e78c826035d1c695a12216de280c59d6f36122112ff708"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "e5430e380eb92f98060835cef70f0552506e2ffc149c513d629cb6f15d1422f5"
+SONAR_NATIVE_WORKFLOW_NORMALIZED_SHA256 = "12cac10473c7c8ba2366289d92009de69608e4fe63e4cb69fbe98f8d877173f5"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
     "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
@@ -1472,6 +1473,42 @@ def sonar_pr_secret_errors(text: str) -> list[str]:
     return [message for message, valid in checks.items() if not valid]
 
 
+def sonar_native_pr_secret_errors(text: str) -> list[str]:
+    """Admit only the complete reviewed twelve-project native scanner workflow.
+
+    The structural digest closes every source-changing step, script, argument,
+    default, environment and matrix field. Only exact canonical Action identity
+    and release updates are normalized; arbitrary pinned actions are rejected.
+    """
+    try:
+        workflow = yaml.load(text, Loader=yaml.BaseLoader)
+        sdk, native = workflow["jobs"]["sdk"], workflow["jobs"]["native"]
+        scanner = next(step for step in native["steps"] if step.get("id") == "scan")
+        allowed_actions = {"actions/checkout", "actions/setup-python", "actions/setup-go",
+                           "actions/upload-artifact", "actions/download-artifact",
+                           "SonarSource/sonarqube-scan-action"}
+        for match in LOCKED_ACTION_USE.finditer(text):
+            action = match.group("prefix").split("uses:", 1)[1].strip().removesuffix("@")
+            if (action not in allowed_actions
+                    or match.group(0) != "uses: " + locked_action_reference_with_version(action)):
+                return ["native workflow Action differs from its exact canonical source/lock identity"]
+        guard = ("github.repository == 'Easton97-Jens/ModSecurity-conector' && "
+                 "(github.event_name == 'push' || "
+                 "github.event.pull_request.head.repo.full_name == github.repository)")
+        if any(" ".join(job.get("if", "").split()) != guard for job in (sdk, native)):
+            return ["native workflow must restrict both jobs to the exact same-repository guard"]
+        if (scanner["env"] != {"SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}", "SONAR_SCANNER_JAVA_OPTS": "-Xmx2g",
+                               "SONAR_USER_HOME": "${{ runner.temp }}/native-sonar-cache"}
+                or text.count("${{ secrets.SONAR_TOKEN }}") != 1
+                or re.search(r"\bsecrets\b", text.replace("${{ secrets.SONAR_TOKEN }}", ""), re.IGNORECASE)):
+            return ["native workflow credentials must exist only on the exact pinned scanner step"]
+        if sha256(normalize_locked_action_pins(text).encode()).hexdigest() != SONAR_NATIVE_WORKFLOW_NORMALIZED_SHA256:
+            return ["native workflow differs from its closed reviewed source/steps/env/matrix/SCM contract"]
+    except (KeyError, StopIteration, TypeError, AssertionError, yaml.YAMLError):
+        return ["native workflow is missing its closed reviewed structure"]
+    return []
+
+
 class CiSecurityWorkflowTest(unittest.TestCase):
     def workflow(self, name: str) -> str:
         return (WORKFLOWS / name).read_text(encoding="utf-8")
@@ -2622,6 +2659,8 @@ jobs:
                 continue
             if path.name == "sonarqube.yml":
                 self.assertEqual(sonar_pr_secret_errors(text), [], path.name)
+            elif path.name == "sonar-native-security.yml":
+                self.assertEqual(sonar_native_pr_secret_errors(text), [], path.name)
             else:
                 self.assertNotIn("secrets.", text, path.name)
             for job_name, job in job_blocks(text).items():
@@ -2645,6 +2684,78 @@ jobs:
             1,
         )
         self.assertNotEqual(sonar_pr_secret_errors(unsafe), [])
+
+    def test_native_sonar_workflow_meets_closed_contract(self) -> None:
+        self.assertEqual(sonar_native_pr_secret_errors(self.workflow("sonar-native-security.yml")), [])
+
+    def test_native_sonar_workflow_rejects_contract_mutations(self) -> None:
+        text = self.workflow("sonar-native-security.yml")
+        mutations = [
+            ("fork guard", "github.repository == 'Easton97-Jens/ModSecurity-conector' &&", "true || github.repository == 'Easton97-Jens/ModSecurity-conector' &&"),
+            ("second checkout", "      - name: Set up canonical Python", "      - uses: " + locked_action_reference_with_version("actions/checkout") + "\n        with:\n          ref: master\n          persist-credentials: false\n      - name: Set up canonical Python"),
+            ("inserted git checkout", "          set -euo pipefail", "          set -euo pipefail\n          git checkout master"),
+            ("different preparation wrapper", "prepare-sonar-native-ci.py analyze", "unreviewed-native-wrapper.py analyze"),
+            ("global token", "permissions: {}", "env:\n  SONAR_TOKEN: '${{ secrets.SONAR_TOKEN }}'\npermissions: {}"),
+            ("global source environment", "env:\n  NATIVE_CI_ROOT:", "env:\n  BASH_ENV: /unreviewed.sh\n  NATIVE_CI_ROOT:"),
+            ("write permission", "      contents: read", "      contents: write"),
+            ("wrong source revision", "ref: ${{ github.event.pull_request.head.sha || github.sha }}", "ref: master"),
+            ("persisted credentials", "persist-credentials: false", "persist-credentials: true"),
+            ("unexpected recursive submodules", "submodules: false", "submodules: recursive"),
+            ("different project", "project: Easton97-Jens_ModSecurity-conector_native_haproxy_htx", "project: Easton97-Jens_ModSecurity-conector"),
+            ("different target", "target: haproxy-htx", "target: apache-native-module"),
+            ("different concurrency", "max-parallel: 2", "max-parallel: 11"),
+            ("masked native failure", "    needs: sdk", "    continue-on-error: true\n    needs: sdk"),
+            ("scanner argument injection", "-Dsonar.projectKey=${{ matrix.project }}", "-Dsonar.projectKey=${{ matrix.project }} -Dsonar.cfamily.taintAnalysis=false"),
+            ("wrong SCM identity", "-Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}", "-Dsonar.scm.revision=master"),
+            ("token in shell", "          umask 077", "          umask 077\n          echo '${{ secrets.SONAR_TOKEN }}'"),
+            ("different scanner Action", "uses: SonarSource/sonarqube-scan-action@", "uses: other/scanner@"),
+            ("source-controlled shell default", "    shell: bash", "    shell: python"),
+            ("privileged event", "  pull_request:", "  pull_request_target:"),
+        ]
+        for name, original, replacement in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, text)
+                self.assertNotEqual(sonar_native_pr_secret_errors(text.replace(original, replacement, 1)), [])
+
+    def test_native_sonar_action_updates_require_matching_canonical_lock(self) -> None:
+        text = self.workflow("sonar-native-security.yml")
+        original = locked_action_reference_with_version("SonarSource/sonarqube-scan-action")
+        replacement = "SonarSource/sonarqube-scan-action@" + "a" * 40 + " # v99.0.0"
+        self.assertNotEqual(sonar_native_pr_secret_errors(text.replace(original, replacement)), [])
+        with tempfile.TemporaryDirectory() as temporary:
+            lock = Path(temporary) / "security-tools.lock.yml"
+            value = yaml.safe_load(LOCK_PATH.read_text())
+            value["pinned_actions"]["SonarSource/sonarqube-scan-action"].update({"commit_sha": "a" * 40, "version": "v99.0.0"})
+            lock.write_text(yaml.safe_dump(value))
+            from unittest.mock import patch
+            with patch.dict(globals(), LOCK_PATH=lock):
+                self.assertEqual(sonar_native_pr_secret_errors(text.replace(original, replacement)), [])
+                self.assertNotEqual(sonar_native_pr_secret_errors(text), [])
+
+    def test_native_sonar_retry_reuses_successful_sdk_identity(self) -> None:
+        text = self.workflow("sonar-native-security.yml")
+        workflow = yaml.load(text, Loader=yaml.BaseLoader)
+        sdk, native = workflow["jobs"]["sdk"], workflow["jobs"]["native"]
+        self.assertEqual(sdk["outputs"], {
+            "artifact_id": "${{ steps.upload-sdk.outputs.artifact-id }}",
+            "producer_root": "${{ steps.prepare-sdk.outputs.producer_root }}",
+        })
+        prepare = next(step for step in sdk["steps"] if step.get("id") == "prepare-sdk")
+        self.assertIn('printf \'producer_root=%s\\n\' "$NATIVE_CI_ROOT" >> "$GITHUB_OUTPUT"', prepare["run"])
+        root_template = workflow["env"]["NATIVE_CI_ROOT"].replace("${{ github.run_id }}", "123")
+        successful_sdk = {"producer_root": root_template.replace("${{ github.run_attempt }}", "1"),
+                          "artifact_id": "456"}
+        retry_global_root = root_template.replace("${{ github.run_attempt }}", "2")
+        download = next(step for step in native["steps"] if str(step.get("uses", "")).startswith("actions/download-artifact@"))
+        references = {"root": native["env"]["NATIVE_CI_ROOT"], "artifact": download["with"]["artifact-ids"]}
+        resolved = {name: successful_sdk[expression.removeprefix("${{ needs.sdk.outputs.").removesuffix(" }}")]
+                    for name, expression in references.items()}
+        self.assertEqual(resolved, {"root": successful_sdk["producer_root"], "artifact": "456"})
+        self.assertNotEqual(resolved["root"], retry_global_root)
+        self.assertEqual(download["with"]["merge-multiple"], "true")
+        self.assertNotIn("name", download["with"])
+        self.assertNotIn("run-id", download["with"])
+        self.assertEqual(sonar_native_pr_secret_errors(text), [])
 
     def test_sonar_secret_contract_rejects_global_token(self) -> None:
         text = self.workflow("sonarqube.yml")
@@ -3273,8 +3384,8 @@ sudo -n chmod 0750 "$namespace_parent"
                 "    permissions:\n      contents: write",
             ),
             "resolver receives publisher credential": (
-                "    runs-on: ubuntu-latest",
-                "    env:\n      GH_TOKEN: ${{ github.token }}\n    runs-on: ubuntu-latest",
+                "    runs-on: ubuntu-26.04",
+                "    env:\n      GH_TOKEN: ${{ github.token }}\n    runs-on: ubuntu-26.04",
             ),
             "publisher enables auto-merge": (
                 "--draft",

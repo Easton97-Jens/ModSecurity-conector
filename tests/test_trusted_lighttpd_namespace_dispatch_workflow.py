@@ -123,7 +123,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "github.ref_protected == true",
             "github.actor == 'Easton97-Jens'",
             "github.triggering_actor == 'Easton97-Jens'",
-            "runs-on: ubuntu-24.04",
+            "runs-on: ubuntu-26.04",
             "permissions:\n      contents: read",
             "timeout-minutes: 45",
             "cancel-in-progress: false",
@@ -460,7 +460,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "always() &&",
             "needs.trusted-lighttpd-namespace.outputs.target_sha != ''",
             "permissions:\n      statuses: write",
-            "runs-on: ubuntu-24.04",
+            "runs-on: ubuntu-26.04",
             "timeout-minutes: 5",
             "TARGET_SHA: ${{ needs.trusted-lighttpd-namespace.outputs.target_sha }}",
             "TRUSTED_TEST_RESULT: ${{ needs.trusted-lighttpd-namespace.result }}",
@@ -1081,8 +1081,8 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
                 "cancel-in-progress: false\n    continue-on-error: true",
             ),
             "trusted test gains write permission": (
-                "    permissions:\n      contents: read\n    runs-on: ubuntu-24.04",
-                "    permissions:\n      statuses: write\n    runs-on: ubuntu-24.04",
+                "    permissions:\n      contents: read\n    runs-on: ubuntu-26.04",
+                "    permissions:\n      statuses: write\n    runs-on: ubuntu-26.04",
             ),
             "write token reaches PR-code job": (
                 "    outputs:\n      target_sha: ${{ steps.resolve-target.outputs.target_sha }}",

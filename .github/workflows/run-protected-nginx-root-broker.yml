@@ -24,7 +24,7 @@ jobs:
       github.event.repository.default_branch == 'master'
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Check out protected master caller source
@@ -150,7 +150,7 @@ jobs:
           needs.run-with-crs-broker.result == 'success' }}
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - name: Check out protected master caller source
@@ -212,7 +212,7 @@ jobs:
           github.event.repository.default_branch == 'master' }}
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Report the fail-closed broker lifecycle result

@@ -5,7 +5,7 @@ on:
 
 jobs:
   fixture-job:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Use pip too soon
         run: python3 -m pip --version

@@ -181,6 +181,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/reusable-five-connectors-profile.yml",
         ".github/workflows/run-protected-nginx-exact-head.yml",
         ".github/workflows/sonarqube.yml",
+        ".github/workflows/sonar-native-security.yml",
         ".github/workflows/run-protected-nginx-root-broker.yml",
         ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
         ".github/workflows/test-apache.yml",

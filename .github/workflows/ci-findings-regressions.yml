@@ -19,7 +19,7 @@ jobs:
   nginx-b09-regression:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
       PYTHONDONTWRITEBYTECODE: "1"

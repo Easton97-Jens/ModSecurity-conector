@@ -47,7 +47,7 @@ jobs:
     permissions:
       contents: read
     name: Runtime with CRS / no MRTS / ${{ matrix.connector }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -1375,7 +1375,7 @@ jobs:
     name: Aggregate exact five with-CRS / no MRTS cells
     needs: connector-mode
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - name: Checkout exact Parent head with pinned submodules

@@ -2,7 +2,15 @@
 
 **Sprache:** [English](sonarqube-analysis.md) | Deutsch
 
+Die breiten und nativen Analyseworkflows deklarieren jetzt `ubuntu-26.04`. Die Parent-Migration enthält 64 Hosted-Runner-Felder im aktuellen Workflow-Bestand; zwei ausdrücklich geschützte Self-hosted-Runner-Felder bleiben getrennt. Das ist eine Quellkonfigurationszählung und kein Hosted-Ausführungsnachweis. Der unveränderliche alte NGINX-Broker lehnt die migrierten Runner-Werte des Aufrufers weiterhin ab; seine getrennte Kompatibilitätsvorbereitung benötigt eine geprüfte Master-Integration, bevor der Aufrufer-Pin aktualisiert werden kann. Frische Ubuntu-26.04-CI- und terminale Sonar-Nachweise stehen aus. Siehe [Migrationsrecord](../reports/audits/change-records/CR-20261026-ubuntu26-workflow-migration.de.md).
+
 ## Integration in PR #382
+
+Der [Leitfaden zur nativen zielbezogenen Sicherheitsanalyse](sonarqube-native-security.de.md)
+beschreibt den separaten Compilation-Database-Workflow mit zwölf Zielen,
+aktuelle Entwicklungsnachweise und offene Hosted-Taint-/CTU-Evidence. Er ergänzt
+den breiten Scan; historische PR-#421-Aufzeichnungen unten validieren den neuen
+nativen Workflow nicht.
 
 Master `7a44f18edac729291d6551d068da64fa3fec4e1e` (PR #421) bleibt maßgeblich. Seine feste `PYTHON_TESTS`-Auswahl mit 13 Einträgen, 37 Go-Selektoren und die native Common-Prüfung bleiben erhalten. Python misst zusätzlich zugelassene exakte Offline-IDs mit tatsächlichem Branch-Tracing in geschützten Kindern; nur ausgewählte Kinder erhalten `ON_DEMAND_TESTS=1`. Prozess-/Netzwerksperren bleiben erhalten; historische I12-Kampagnen werden nicht eröffnet und der entfernte PR-eigene Collector/eigene Gates nicht wiederhergestellt. Alle CFamily-Eingaben bleiben MAIN; 16 tatsächliche CI-Python-Unittest-Module sind TEST, wobei Scope-Guard-Nachweis und Analyzer-Ausführung getrennt bleiben. Das Workflow-Budget steigt auf 60 Minuten, nachdem das gemessene Offline-Erfassungs-/Berichtsintervall allein mindestens 1216.9 Sekunden benötigte.
 
@@ -18,12 +26,14 @@ Nachfolgende PR-#421-Quell-/Server-/Runtime-Aufzeichnungen, einschließlich als 
 
 Die [offiziellen Deprecation-Ankündigungen](https://docs.sonarsource.com/sonarqube-cloud/deprecations-and-removals#deprecation-announcements) sind gegen den tatsächlichen Einsatz zu prüfen: Das c924-Scannerlog zeigt CLI `8.2.0.6438`, JRE-Provisioning und Java `21.0.12.1`, nicht Java 17. Im getrackten Code wurden weder veraltete Active-User-/Role-APIs noch Legacy-Type-/Severity-Abfragen oder die veraltete Build-Wrapper-Property gefunden; daraus folgt keine erforderliche Repository-Migration oder AI-Gate-Änderung.
 
-Der moderne impactbasierte Readback für `SECURITY` mit `issueStatuses=OPEN,CONFIRMED` liefert ein neues `S5443`-Finding mit Impact `HIGH` und Tag `former-hotspot`. Dies entspricht der angekündigten Überführung von Hotspots in Security-Issues: Eine leere Hotspotliste belegt deshalb keine Abwesenheit von Security-Findings. Triage verwendet Impacts und Issue-Status statt Legacy-Type/Severity und validiert den konkreten Codepfad; neue Auflösung benötigt weiterhin einen neuen Head-Scan.
+Der historische impactbasierte c924-Readback für `SECURITY` mit `issueStatuses=OPEN,CONFIRMED` lieferte ein neues `S5443`-Finding mit Impact `HIGH` und Tag `former-hotspot`. Dies entspricht der angekündigten Überführung von Hotspots in Security-Issues: Eine leere Hotspotliste belegt deshalb keine Abwesenheit von Security-Findings. Triage verwendet Impacts und Issue-Status statt Legacy-Type/Severity und validiert den konkreten Codepfad; aktuelle Dispositionen und Ergebnisse der exakten Head-SHA stehen im [PR-#382-Status](pr-382-merge-readiness.de.md).
 
 ## Projekt und Analysemethode
 
-Das Parent-Repository verwendet ein SonarQube-Cloud-Projekt,
-`Easton97-Jens_ModSecurity-conector`, in der Organisation `easton97-jens`. Der
+Die breite Parent-Analyse verwendet das SonarQube-Cloud-Hauptprojekt
+`Easton97-Jens_ModSecurity-conector` und zwei Standard-Advisory-Projekte in der
+Organisation `easton97-jens`. Separate [native Zielprojekte](sonarqube-native-security.de.md)
+bewahren ihre eigenen Buildkontexte und Analysehistorien. Der
 Organization-Key wurde aus der authentifizierten Projekt-API gelesen und nicht
 aus dem GitHub-Kontonamen abgeleitet. Jede Standardvariante analysiert dieselben gepflegten
 Parent-Komponenten. Framework und MRTS bleiben eigenständige Repositories und
@@ -36,7 +46,7 @@ Diese vier ähnlich benannten Mechanismen unterscheiden sich:
 | Cloud Automatic Analysis | Läuft auf Sonars Infrastruktur; liest `.sonarcloud.properties`, ignoriert `sonar-project.properties` und kann keine Coverage importieren. Für dieses Projekt deaktiviert lassen. |
 | CI-basierte SonarScanner-CLI-Analyse | Gewählte Methode: `.github/workflows/sonarqube.yml` führt drei vollständige Parent-Scans mit derselben `sonar-project.properties` aus. |
 | Automatische CLI-Konfiguration | `sonar.scanner.autoconfig.enabled=false` erhält die explizite Source-/Testzuordnung. Aktivierung würde die manuellen Source-/Testeinstellungen ignorieren und Warnungen erzeugen. |
-| CFamily AutoConfig / Compilation Database | C/C++-Analyzermodi innerhalb des CI-Scans. AutoConfig leitet Compileroptionen ab; Compilation Database liest echte Buildbefehle über `sonar.cfamily.compile-commands`. Dieses Projekt wählt AutoConfig. |
+| CFamily AutoConfig / Compilation Database | C/C++-Analyzermodi innerhalb des CI-Scans. AutoConfig leitet Compileroptionen ab; Compilation Database liest echte Buildbefehle über `sonar.cfamily.compile-commands`. Breite Parent-Projekte behalten AutoConfig; separate native Projekte verwenden Datenbanken je Ziel. |
 
 Der Workflow pinnt die offizielle Scan-Action auf
 `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` (`v8.3.0`) und wählt explizit
@@ -80,11 +90,11 @@ zu übernehmen.
 
 ## Scope-Ausschlüsse und Standards
 
-Der vorbereitete lokale Scope schließt ausschließlich root `modules/**` und root `reports/**` aus MAIN und TEST aus. Alle anderen Parent-Verzeichnisse bleiben enthalten, einschließlich `ci/evidence/reports/`, Connector-Buildskripten und YAML-Fixtures. `sonar.scm.exclusions.disabled=true` verhindert eine stille Scope-Reduktion durch SCM-Ignorierungen. Python-/Go-TEST-Zuordnung und sämtliche CFamily-MAIN-Zuordnungen bleiben erhalten. Die getrackte Aufteilung beträgt 1651 MAIN + 498 TEST + 361 Root-Report-Einträge + einen Framework-Gitlink = 2511 Einträge; 25 verschachtelte Reportgeneratoren bleiben MAIN. Dies belegt konfigurierten Quellumfang, keine semantische Analyzer-Unterstützung oder Ausführung für jedes Format; lokale Scope-Änderungen benötigen weiterhin einen Scan am neuen veröffentlichten Head.
+Der vorbereitete lokale Scope schließt ausschließlich root `modules/**` und root `reports/**` aus MAIN und TEST aus. Alle anderen Parent-Verzeichnisse bleiben enthalten, einschließlich `ci/evidence/reports/`, Connector-Buildskripten und YAML-Fixtures. `sonar.scm.exclusions.disabled=true` verhindert eine stille Scope-Reduktion durch SCM-Ignorierungen. Python-/Go-TEST-Zuordnung und sämtliche CFamily-MAIN-Zuordnungen bleiben erhalten. Nach dem Staging der Native-/Ubuntu-Änderungen beträgt die getrackte Aufteilung 1662 MAIN + 503 TEST + 365 Root-Report-Einträge + einen Framework-Gitlink = 2531 Einträge; 25 verschachtelte Reportgeneratoren bleiben MAIN. Dies belegt konfigurierten Quellumfang, keine semantische Analyzer-Unterstützung oder Ausführung für jedes Format; lokale Scope-Änderungen benötigen weiterhin einen Scan am neuen veröffentlichten Head.
 
 ## CFamily-Buildtreue
 
-Der aktuelle c924-Scan nutzte AutoConfig mit 185 Translation Units: Funktionsqualität 98.01% bei Fehlern in 61/3067 Funktionen, Statementqualität 98.27% bei Fehlern in 810/46710 Statements. C/C++-Taintanalyse war ausdrücklich `DISABLED`; dies ist kein vollständiger C/C++-Security-Nachweis. Die offiziellen [Analysemodi](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/analysis-modes) empfehlen Compilation Database für höchste Analysequalität; die [Taint-Anforderungen](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis) bleiben gesondert zu erfüllen. Eine Migration ist bisher weder umgesetzt noch autorisiert; eine begrenzte Machbarkeitsprüfung ersetzt keine Ausführung. AI-Gate-/MISRA-Änderungen sind daraus nicht abgeleitet.
+Der historische c924-Scan nutzte AutoConfig mit 185 Translation Units: Funktionsqualität 98.01% bei Fehlern in 61/3067 Funktionen, Statementqualität 98.27% bei Fehlern in 810/46710 Statements. C/C++-Taintanalyse war ausdrücklich `DISABLED`; dies ist kein vollständiger C/C++-Security-Nachweis. Die offiziellen [Analysemodi](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/analysis-modes) empfehlen Compilation Database für höchste Analysequalität; die [Taint-Anforderungen](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis) bleiben gesondert zu erfüllen. Der später autorisierte [native Workflow](sonarqube-native-security.de.md) ergänzt diesen breiten Scan mit zwölf unabhängigen Zielkontexten; Entwicklungsbuilds belegen keine Hosted-Analyse. AI-Gate-/MISRA-Änderungen sind daraus nicht abgeleitet.
 
 Der getrackte Parent-Bestand bei `9f44647593bac7947113558c6ad183ab118e80af`
 enthält 136 native Translation Units: 135 C und eine C++. Dazu gehören native
@@ -92,8 +102,9 @@ Tests, Fixtures, Fuzz-Code und CI-Probes. Die bestehenden Targets
 `make compile-db-nginx-c17` und `make compile-db-cpp17` erfassen nur die
 NGINX-/Common-Deklaration und den gezielten Evaluator. Diese unvollständigen
 Datenbanken würden andere Parent-Units aus der CFamily-Analyse entfernen.
-AutoConfig und die Datenbankbeschränkung des Scope-Guards bleiben deshalb bis
-zum Nachweis eines echten vollständigen Parent-Buildvertrags bestehen.
+AutoConfig und die Datenbankbeschränkung des Scope-Guards bleiben deshalb für
+den breiten Parent-Scan bestehen. Unabhängig abgegrenzte native Projekte ergänzen
+ihn, ohne unabhängige Ziele zusammenzufassen oder den breiten Quellumfang zu entfernen.
 
 | Komponente | Realer Buildkontext, den eine vollständige Datenbank erhalten muss |
 | --- | --- |

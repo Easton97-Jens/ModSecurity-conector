@@ -17,7 +17,7 @@ defaults:
 
 jobs:
   resolver:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -63,7 +63,7 @@ jobs:
 
   validator:
     needs: resolver
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -137,7 +137,7 @@ jobs:
       github.event.repository.default_branch == 'master' &&
       github.ref == 'refs/heads/master' &&
       needs.resolver.outputs.has_updates == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     permissions:
       contents: read
@@ -402,6 +402,7 @@ jobs:
             .github/workflows/test-nginx.yml \
             .github/workflows/test-traefik.yml \
             .github/workflows/sonarqube.yml \
+            .github/workflows/sonar-native-security.yml \
             .github/workflows/update-go-version.yml \
             .github/workflows/update-python-version.yml \
             .github/workflows/update-submodules.yml \
@@ -505,7 +506,7 @@ jobs:
       - validator
       - publisher
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
     env:

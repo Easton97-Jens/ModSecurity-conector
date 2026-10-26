@@ -51,7 +51,7 @@ def go_job(
     cache_lines = "".join(f"          {line}\n" for line in cache_with_lines)
     return f'''  {name}:
     needs: trusted-go-version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: {reference}
         with:
@@ -75,7 +75,7 @@ class GoVersionContractTests(unittest.TestCase):
 
     def valid_workflow(self) -> str:
         trusted = '''  trusted-go-version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:

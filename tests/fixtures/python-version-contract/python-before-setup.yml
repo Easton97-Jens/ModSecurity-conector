@@ -5,7 +5,7 @@ on:
 
 jobs:
   fixture-job:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Use Python too soon
         run: python3 -c 'print("unsafe")'

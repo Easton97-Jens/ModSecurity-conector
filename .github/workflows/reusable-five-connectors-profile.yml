@@ -15,7 +15,7 @@ jobs:
     permissions:
       contents: read
     name: Resolve closed No-CRS profile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.profile.outputs.matrix }}
@@ -61,7 +61,7 @@ jobs:
     name: No-CRS / ${{ matrix.connector }} / ${{ inputs.profile }} / ${{ matrix.protocol }} / ${{ matrix.phase4_mode }}
     needs:
       - resolve-profile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -329,7 +329,7 @@ jobs:
     if: always()
     needs:
       - no-crs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       FIVE_CONNECTOR_PROFILE: ${{ inputs.profile }}

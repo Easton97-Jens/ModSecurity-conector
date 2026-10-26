@@ -89,7 +89,7 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def normal_job_block(self, job_name: str) -> str:
         return f'''  {job_name}:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Set up toolchain
         id: setup-python
@@ -107,7 +107,7 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def candidate_job_block(self) -> str:
         return '''  validate-python-patch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Set up candidate Python
         id: setup-python

@@ -733,7 +733,7 @@ def validate_caller_unprivileged_job(
     permissions = required_yaml_mapping(mapping["permissions"], f"job {job_name} permissions")
     if permissions != {"contents": "read"}:
         fail(f"caller workflow job {job_name} must have exactly contents: read")
-    if mapping["runs-on"] != "ubuntu-latest":
+    if mapping["runs-on"] != "ubuntu-26.04":
         fail(f"caller workflow job {job_name} has an unexpected runner")
     if mapping["timeout-minutes"] != expected_timeout_minutes:
         fail(f"caller workflow job {job_name} has an unexpected timeout")

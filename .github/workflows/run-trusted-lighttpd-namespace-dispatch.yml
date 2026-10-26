@@ -36,7 +36,7 @@ jobs:
       github.triggering_actor == 'Easton97-Jens'
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     outputs:
       target_sha: ${{ steps.resolve-target.outputs.target_sha }}
@@ -729,7 +729,7 @@ jobs:
       needs.trusted-lighttpd-namespace.outputs.target_sha != ''
     permissions:
       statuses: write
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Publish the fixed trusted namespace status without checkout

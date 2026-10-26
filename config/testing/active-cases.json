@@ -20913,6 +20913,7 @@
         ".github/workflows/run-protected-nginx-exact-head.yml",
         ".github/workflows/run-protected-nginx-root-broker.yml",
         ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
+        ".github/workflows/sonar-native-security.yml",
         ".github/workflows/test-apache.yml",
         ".github/workflows/test-common.yml",
         ".github/workflows/test-connectors-with-crs-no-mrts.yml",
@@ -36496,6 +36497,2333 @@
         "kind": "python",
         "target": "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_independent_archive_receipt_needs_no_configured_runtime_root"
       }
+    },
+    {
+      "id": "offline.sonar-native-validator-target-export-integrity",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_target_export_integrity"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-target-export-integrity.case",
+          "requirement": "Native single-target compiler provenance validator: target export integrity. Physical unit fixtures; external Git identity boundary mocked, no processes.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-changed-header-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_changed_header_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-changed-header-rejected.case",
+          "requirement": "Native single-target compiler provenance validator: changed header rejected. Physical unit fixtures; external Git identity boundary mocked, no processes.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-missing-declared-source-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_missing_declared_source_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-missing-declared-source-rejected.case",
+          "requirement": "Native single-target compiler provenance validator: missing declared source rejected. Physical unit fixtures; external Git identity boundary mocked, no processes.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-unlinked-tu-excluded",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_unlinked_translation_unit_excluded"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-unlinked-tu-excluded.case",
+          "requirement": "Native single-target compiler provenance validator: unlinked tu excluded. Physical unit fixtures; external Git identity boundary mocked, no processes.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-dirty-checkout-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_dirty_checkout_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-dirty-checkout-rejected.case",
+          "requirement": "Native single-target compiler provenance validator: dirty checkout rejected. Physical unit fixtures; external Git identity boundary mocked, no processes.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-unknown-producer-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_unknown_link_producer_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-unknown-producer-rejected.case",
+          "requirement": "Native single-target compiler provenance validator: unknown producer rejected. Physical unit fixtures; external Git identity boundary mocked, no processes.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-authorized-external-context",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_authorized_external_generated_context"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-authorized-external-context.case",
+          "requirement": "Native external generated context provenance and explicit Parent-only scanner indexing boundary: authorized-external-context. Physical fixtures with mocked external Git identity only; no subprocesses.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-unadmitted-external-source-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_unadmitted_external_generated_source_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-unadmitted-external-source-rejected.case",
+          "requirement": "Native external generated context provenance and explicit Parent-only scanner indexing boundary: unadmitted-external-source-rejected. Physical fixtures with mocked external Git identity only; no subprocesses.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-bounded-lto-context",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_bounded_internal_lto_context_preserves_parent_membership"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-bounded-lto-context.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-validator-bounded-lto-context. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-lto-unknown-parent-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_internal_lto_limit_rejects_unknown_parent_object"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-lto-unknown-parent-rejected.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-validator-lto-unknown-parent-rejected. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-capture-implicit-environment-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security_capture.NativeCompilerEnvironmentTest.test_implicit_environment_rejected_before_compiler"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/capture.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security_capture.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-capture-implicit-environment-rejected.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-capture-implicit-environment-rejected. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-go-approved-producer-chain",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security_go.GoNativeProducerChainTest.test_approved_producer_chain_receipt"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security_go.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-go-approved-producer-chain.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-go-approved-producer-chain. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-go-unexpected-postlink-mutation-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security_go.GoNativeProducerChainTest.test_unexpected_postlink_mutation_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security_go.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-go-unexpected-postlink-mutation-rejected.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-go-unexpected-postlink-mutation-rejected. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-map-original-context",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security_mapping.NativeSourceMappingTest.test_original_source_and_header_context_admitted"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security_mapping.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-map-original-context.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-map-original-context. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-map-altered-copied-header-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security_mapping.NativeSourceMappingTest.test_altered_copied_header_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security_mapping.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-map-altered-copied-header-rejected.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-map-altered-copied-header-rejected. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-validator-checkout-output-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security.NativeSecurityCaptureTest.test_checkout_output_rejected_without_mutation"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-validator-checkout-output-rejected.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-validator-checkout-output-rejected. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-capture-clang-override-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security_capture.NativeCompilerEnvironmentTest.test_clang_override_environment_rejected_before_compiler"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/capture.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security_capture.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-capture-clang-override-rejected.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-capture-clang-override-rejected. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-map-shared-ancestor-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_security_mapping.NativeSourceMappingTest.test_shared_writable_ancestor_rejected"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_security_mapping.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-map-shared-ancestor-rejected.case",
+          "requirement": "Native security compiler-context boundary: sonar-native-map-shared-ancestor-rejected. Zero-process physical/controlled fixtures; no runtime campaign.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.workflow-control",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_workflow_meets_closed_contract"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/workflows/sonar-native-security.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "tests/__init__.py",
+        "tests/test_ci_security_workflows.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.workflow-control.reviewed-workflow-accepted",
+          "requirement": "Closed same-repository native scanner workflow is accepted without running Actions or scanner Case: reviewed-workflow-accepted.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.workflow-negative",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_workflow_rejects_contract_mutations"
+      },
+      "expected_subtests": 20,
+      "sources": [
+        ".github/workflows/sonar-native-security.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "tests/__init__.py",
+        "tests/test_ci_security_workflows.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.fork-guard",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: fork guard.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.second-checkout",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: second checkout.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.inserted-git-checkout",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: inserted git checkout.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.different-preparation-wrapper",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: different preparation wrapper.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.global-token",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: global token.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.global-source-environment",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: global source environment.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.write-permission",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: write permission.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.wrong-source-revision",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: wrong source revision.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.persisted-credentials",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: persisted credentials.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.unexpected-recursive-submodules",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: unexpected recursive submodules.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.different-project",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: different project.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.different-target",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: different target.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.different-concurrency",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: different concurrency.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.masked-native-failure",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: masked native failure.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.scanner-argument-injection",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: scanner argument injection.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.wrong-scm-identity",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: wrong SCM identity.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.token-in-shell",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: token in shell.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.different-scanner-action",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: different scanner Action.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.source-controlled-shell-default",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: source-controlled shell default.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.workflow-negative.privileged-event",
+          "requirement": "Reject an independently mutated workflow credential/source/step/environment/matrix/SCM boundary Case: privileged event.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.canonical-action-update",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_action_updates_require_matching_canonical_lock"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/workflows/sonar-native-security.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "tests/__init__.py",
+        "tests/test_ci_security_workflows.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.canonical-action-update.unmatched-new-reference-rejected",
+          "requirement": "Canonical immutable Action updates preserve the closed workflow contract while source/lock mismatch fails Case: unmatched-new-reference-rejected.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.canonical-action-update.matched-canonical-update-accepted",
+          "requirement": "Canonical immutable Action updates preserve the closed workflow contract while source/lock mismatch fails Case: matched-canonical-update-accepted.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.canonical-action-update.obsolete-reference-under-new-lock-rejected",
+          "requirement": "Canonical immutable Action updates preserve the closed workflow contract while source/lock mismatch fails Case: obsolete-reference-under-new-lock-rejected.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.retry-sdk-identity",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_native_sonar_retry_reuses_successful_sdk_identity"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/workflows/sonar-native-security.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "tests/__init__.py",
+        "tests/test_ci_security_workflows.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.retry-sdk-identity.native-attempt2-reuses-successful-sdk-attempt1-root-and-artifact-id",
+          "requirement": "A failed-native-only retry consumes the exact successful SDK producer outputs, not the current retry attempt identity Case: native-attempt2-reuses-successful-sdk-attempt1-root-and-artifact-id.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.target-inventory",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_project_inventory_matches_real_native_producer_targets"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.target-inventory.eleven-real-targets-and-fast-first-two",
+          "requirement": "Hosted target/project inventory matches the actual producer TARGETS; pilot ordering remains first Case: eleven-real-targets-and-fast-first-two.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.settings-control",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_preserve_parent_headers_and_full_security_depth"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.settings-control.eligible-parent-tu-header-scope-and-taint-ctu-gate-retained",
+          "requirement": "Retain exported Parent source/header closure, coverage-only opt-out, taint, CTU and terminal gate settings Case: eligible-parent-tu-header-scope-and-taint-ctu-gate-retained.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.settings-header-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_reject_missing_parent_header"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.settings-header-rejected.missing-parent-header-rejected",
+          "requirement": "A scanner source scope omitting a producer-observed Parent header is rejected Case: missing-parent-header-rejected.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.pr-context-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_reject_false_pr_identity"
+      },
+      "expected_subtests": 3,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.pr-context-rejected.revision",
+          "requirement": "PR settings reject an independent exact-head, repository-origin or PR-number identity violation Case: revision.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.pr-context-rejected.fork",
+          "requirement": "PR settings reject an independent exact-head, repository-origin or PR-number identity violation Case: fork.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.pr-context-rejected.number",
+          "requirement": "PR settings reject an independent exact-head, repository-origin or PR-number identity violation Case: number.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.checkout-root-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_external_root_rejects_checkout"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.checkout-root-rejected.checkout-root-rejected",
+          "requirement": "Orchestration output cannot be placed inside the checkout Case: checkout-root-rejected.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.shared-root-rejected",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_external_root_rejects_shared_ancestor_without_chmod"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.shared-root-rejected.shared-0777-ancestor-rejected-without-permission-laundering",
+          "requirement": "Reject pre-existing shared writable output ancestry before mkdir/chmod; preserve its original permissions Case: shared-0777-ancestor-rejected-without-permission-laundering.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.sdk-transfer-control",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_preserves_real_relative_library_link"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.sdk-transfer-control.real-relative-sdk-library-symlink-preserved",
+          "requirement": "Restore the exact revision-bound SDK archive while preserving legitimate relative development-library links Case: real-relative-sdk-library-symlink-preserved.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.sdk-transfer-identity",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_rejects_wrong_revision_source_or_digest"
+      },
+      "expected_subtests": 3,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.sdk-transfer-identity.revision",
+          "requirement": "SDK transfer rejects independent revision, source-contract and archive-digest mismatches Case: revision.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.sdk-transfer-identity.source",
+          "requirement": "SDK transfer rejects independent revision, source-contract and archive-digest mismatches Case: source.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.sdk-transfer-identity.bundle-sha256",
+          "requirement": "SDK transfer rejects independent revision, source-contract and archive-digest mismatches Case: bundle-sha256.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.sdk-transfer-escape",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_rejects_archive_escape"
+      },
+      "expected_subtests": 3,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.sdk-transfer-escape.absolute",
+          "requirement": "SDK extraction rejects independent absolute-path, parent-traversal and symlink escapes from the fixed prefix subtree Case: absolute.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.sdk-transfer-escape.traversal",
+          "requirement": "SDK extraction rejects independent absolute-path, parent-traversal and symlink escapes from the fixed prefix subtree Case: traversal.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.sdk-transfer-escape.symlink",
+          "requirement": "SDK extraction rejects independent absolute-path, parent-traversal and symlink escapes from the fixed prefix subtree Case: symlink.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.ctu-resources",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_ctu_limits_reject_insufficient_resources"
+      },
+      "expected_subtests": 3,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.ctu-resources.sufficient-resource-positive-control",
+          "requirement": "Full CTU resource allocation accepts a legitimate bounded configuration and rejects each independent inadequate prerequisite Case: sufficient-resource-positive-control.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.ctu-resources.invalid-unit-count",
+          "requirement": "Full CTU resource allocation accepts a legitimate bounded configuration and rejects each independent inadequate prerequisite Case: invalid-unit-count.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.ctu-resources.insufficient-disk",
+          "requirement": "Full CTU resource allocation accepts a legitimate bounded configuration and rejects each independent inadequate prerequisite Case: insufficient-disk.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.ctu-resources.insufficient-memory",
+          "requirement": "Full CTU resource allocation accepts a legitimate bounded configuration and rejects each independent inadequate prerequisite Case: insufficient-memory.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.untrusted-pr-model",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_untrusted_pull_request_model"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/workflows/all-connectors-no-crs.yml",
+        ".github/workflows/ci-findings-regressions.yml",
+        ".github/workflows/ci-security-codeql.yml",
+        ".github/workflows/ci-security-osv.yml",
+        ".github/workflows/ci-security-scorecard.yml",
+        ".github/workflows/ci-security-secrets.yml",
+        ".github/workflows/ci-security-workflow-lint.yml",
+        ".github/workflows/cleanup-artifacts.yml",
+        ".github/workflows/lint.yml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/open-connectors-smoke.yml",
+        ".github/workflows/protocol-contract.yml",
+        ".github/workflows/quick-framework-check.yml",
+        ".github/workflows/reusable-five-connectors-profile.yml",
+        ".github/workflows/run-protected-nginx-exact-head.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
+        ".github/workflows/sonar-native-security.yml",
+        ".github/workflows/sonarqube.yml",
+        ".github/workflows/test-apache.yml",
+        ".github/workflows/test-common.yml",
+        ".github/workflows/test-connectors-with-crs-no-mrts.yml",
+        ".github/workflows/test-envoy.yml",
+        ".github/workflows/test-full-smoke-sequential.yml",
+        ".github/workflows/test-haproxy.yml",
+        ".github/workflows/test-lighttpd.yml",
+        ".github/workflows/test-nginx-exact-head.yml",
+        ".github/workflows/test-nginx.yml",
+        ".github/workflows/test-traefik.yml",
+        ".github/workflows/update-go-version.yml",
+        ".github/workflows/update-python-version.yml",
+        ".github/workflows/update-submodules.yml",
+        ".github/workflows/update-workflow-tools.yml",
+        ".github/workflows/validate-go-candidate.yml",
+        ".github/workflows/verified-report-governance.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "tests/__init__.py",
+        "tests/test_ci_security_workflows.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.all-connectors-no-crs",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for all-connectors-no-crs.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.ci-findings-regressions",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for ci-findings-regressions.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.ci-security-codeql",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for ci-security-codeql.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.ci-security-osv",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for ci-security-osv.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.ci-security-scorecard",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for ci-security-scorecard.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.ci-security-secrets",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for ci-security-secrets.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.ci-security-workflow-lint",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for ci-security-workflow-lint.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.cleanup-artifacts",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for cleanup-artifacts.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.lint",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for lint.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.nginx-root-broker",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for nginx-root-broker.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.open-connectors-smoke",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for open-connectors-smoke.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.protocol-contract",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for protocol-contract.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.quick-framework-check",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for quick-framework-check.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.reusable-five-connectors-profile",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for reusable-five-connectors-profile.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.run-protected-nginx-exact-head",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for run-protected-nginx-exact-head.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.run-protected-nginx-root-broker",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for run-protected-nginx-root-broker.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.run-trusted-lighttpd-namespace-dispatch",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for run-trusted-lighttpd-namespace-dispatch.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.sonar-native-security",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for sonar-native-security.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.sonarqube",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for sonarqube.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-apache",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-apache.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-common",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-common.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-connectors-with-crs-no-mrts",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-connectors-with-crs-no-mrts.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-envoy",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-envoy.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-full-smoke-sequential",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-full-smoke-sequential.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-haproxy",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-haproxy.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-lighttpd",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-lighttpd.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-nginx-exact-head",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-nginx-exact-head.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-nginx",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-nginx.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.test-traefik",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for test-traefik.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.update-go-version",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for update-go-version.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.update-python-version",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for update-python-version.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.update-submodules",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for update-submodules.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.update-workflow-tools",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for update-workflow-tools.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.validate-go-candidate",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for validate-go-candidate.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.sonar-native-ci.untrusted-pr-model.verified-report-governance",
+          "requirement": "Reject privileged triggers and enforce the applicable PR trust model for verified-report-governance.yml",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.updater-rejects-unallowlisted-action-yaml",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_unallowlisted_locked_action_use_and_forbidden_yaml_fail_closed"
+      },
+      "expected_subtests": 3,
+      "sources": [
+        ".github/dependabot.yml",
+        ".github/workflows/all-connectors-no-crs.yml",
+        ".github/workflows/ci-findings-regressions.yml",
+        ".github/workflows/ci-security-codeql.yml",
+        ".github/workflows/ci-security-osv.yml",
+        ".github/workflows/ci-security-scorecard.yml",
+        ".github/workflows/ci-security-secrets.yml",
+        ".github/workflows/ci-security-workflow-lint.yml",
+        ".github/workflows/cleanup-artifacts.yml",
+        ".github/workflows/lint.yml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/open-connectors-smoke.yml",
+        ".github/workflows/protocol-contract.yml",
+        ".github/workflows/quick-framework-check.yml",
+        ".github/workflows/reusable-five-connectors-profile.yml",
+        ".github/workflows/run-protected-nginx-exact-head.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
+        ".github/workflows/sonar-native-security.yml",
+        ".github/workflows/sonarqube.yml",
+        ".github/workflows/test-apache.yml",
+        ".github/workflows/test-common.yml",
+        ".github/workflows/test-connectors-with-crs-no-mrts.yml",
+        ".github/workflows/test-envoy.yml",
+        ".github/workflows/test-full-smoke-sequential.yml",
+        ".github/workflows/test-haproxy.yml",
+        ".github/workflows/test-lighttpd.yml",
+        ".github/workflows/test-nginx-exact-head.yml",
+        ".github/workflows/test-nginx.yml",
+        ".github/workflows/test-traefik.yml",
+        ".github/workflows/update-go-version.yml",
+        ".github/workflows/update-python-version.yml",
+        ".github/workflows/update-submodules.yml",
+        ".github/workflows/update-workflow-tools.yml",
+        ".github/workflows/validate-go-candidate.yml",
+        ".github/workflows/verified-report-governance.yml",
+        ".go-version",
+        ".python-version",
+        "Makefile",
+        "ci/checks/common/check-python-version-contract.py",
+        "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "ci/fixtures/workflow-permission-contract/safe.yml",
+        "ci/fixtures/workflow-permission-contract/unsafe.yml",
+        "ci/fixtures/zizmor/insecure.yml",
+        "ci/fixtures/zizmor/safe.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/lib/workflow_action_pins.py",
+        "ci/provisioning/components/prepare-runtime-components.py",
+        "ci/requirements/update-submodules-validation-linux-x86_64.txt",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "ci/runtime/broker/protected_nginx_broker_caller.py",
+        "ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py",
+        "ci/runtime/lifecycle/run-verified-report-run.py",
+        "ci/runtime/lifecycle/run-with-crs-no-mrts.sh",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "ci/tools/fetch_security_tool.py",
+        "ci/tools/install-ci-dependencies.py",
+        "ci/tools/lint_installed_workflows.py",
+        "ci/tools/lint_workflows.py",
+        "ci/tools/prepare-readonly-submodule-validation-sandbox.py",
+        "ci/tools/read-framework-revisions.py",
+        "ci/tools/run-readonly-submodule-validation-namespace.py",
+        "ci/tools/sync-framework-component-versions.py",
+        "ci/tools/sync-project-versions.py",
+        "ci/tools/update-workflow-tools.py",
+        "ci/tools/validate-submodule-candidate-state.py",
+        "ci/tools/verify-framework-candidate-contract.py",
+        "connectors/envoy/config/envoy-ext-proc-versions.env",
+        "connectors/envoy/ext_proc/go.mod",
+        "connectors/haproxy/htx-overlay/version-contract.json",
+        "connectors/lighttpd/SOURCE_MAP.json",
+        "connectors/lighttpd/lighttpd-version.contract",
+        "connectors/nginx/harness/nginx_smoke.conf",
+        "connectors/nginx/harness/run_exact_head_use_error_log.sh",
+        "connectors/nginx/harness/run_github_hosted_functional_a.py",
+        "connectors/nginx/harness/run_nginx_smoke.sh",
+        "connectors/traefik/composite_middleware/go.mod",
+        "connectors/traefik/native_middleware/go.mod",
+        "connectors/traefik/response_observer/go.mod",
+        "docs/security/ci-security-tooling.de.md",
+        "docs/security/ci-security-tooling.md",
+        "requirements-ci-build.lock",
+        "requirements-ci.lock",
+        "requirements-dev.txt",
+        "scripts/generate_compiler_guides.py",
+        "scripts/update-go-version.py",
+        "scripts/update-python-version.py",
+        "scripts/version_updater_common.py",
+        "tests/__init__.py",
+        "tests/ci_security/test_update_workflow_tools.py",
+        "tests/framework_component_fixture.py",
+        "tests/framework_sha_fixture.py",
+        "tests/test_ci_security_workflows.py",
+        "tests/test_compiler_guides.py",
+        "tests/test_framework_revision_pins.py",
+        "tests/test_install_ci_dependencies.py",
+        "tests/test_lint_workflows.py",
+        "tests/test_nginx_exact_head_gate_contract.py",
+        "tests/test_prepare_readonly_submodule_validation_sandbox.py",
+        "tests/test_prepare_runtime_components.py",
+        "tests/test_project_toolchain_pins.py",
+        "tests/test_python_version_contract.py",
+        "tests/test_run_readonly_submodule_validation_namespace.py",
+        "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py",
+        "tests/test_update_framework_versions.py",
+        "tests/test_update_submodules_local_git.py",
+        "tests/test_validate_submodule_candidate_state.py",
+        "tests/test_verify_framework_candidate_contract.py",
+        "tests/version_updater_test_support.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.updater-rejects-unallowlisted-action-yaml.case-1",
+          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969\u20131003); no independent baseline assertion. Ordered scenario 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.updater-rejects-unallowlisted-action-yaml.case-2",
+          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969\u20131003); no independent baseline assertion. Ordered scenario 2.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.updater-rejects-unallowlisted-action-yaml.case-3",
+          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969\u20131003); no independent baseline assertion. Ordered scenario 3.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.nginx-workflow-pins-and-gate",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_workflow_pins_nginx_and_runs_gate"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/workflows/test-nginx-exact-head.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "ci/runtime/lifecycle/write-nginx-functional-a-evidence.py",
+        "ci/tooling/project-versions.lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "ci/tools/run-active-tests.py",
+        "connectors/nginx/harness/run-active-functional-a.sh",
+        "connectors/nginx/harness/run_exact_head_use_error_log.sh",
+        "connectors/nginx/harness/run_github_hosted_functional_a.py",
+        "tests/__init__.py",
+        "tests/test_ci_security_workflows.py",
+        "tests/test_nginx_exact_head_gate_contract.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.nginx-workflow-pins-and-gate.case-1",
+          "requirement": "One fixed positive static workflow input, no subTest or independently mutated scenario. Loops assert multiple markers on the same workflow. Ordered scenario 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_trusted_lighttpd_namespace_dispatch_workflow.TrustedLighttpdNamespaceDispatchWorkflowTest.test_representative_boundary_mutations_fail_closed"
+      },
+      "expected_subtests": 96,
+      "sources": [
+        ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
+        "ci/lib/active_test_inventory.py",
+        "tests/__init__.py",
+        "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-1",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-2",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 2.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-3",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 3.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-4",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 4.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-5",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 5.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-6",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 6.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-7",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 7.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-8",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 8.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-9",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 9.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-10",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 10.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-11",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 11.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-12",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 12.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-13",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 13.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-14",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 14.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-15",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 15.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-16",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 16.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-17",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 17.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-18",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 18.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-19",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 19.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-20",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 20.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-21",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 21.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-22",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 22.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-23",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 23.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-24",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 24.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-25",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 25.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-26",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 26.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-27",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 27.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-28",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 28.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-29",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 29.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-30",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 30.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-31",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 31.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-32",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 32.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-33",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 33.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-34",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 34.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-35",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 35.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-36",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 36.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-37",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 37.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-38",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 38.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-39",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 39.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-40",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 40.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-41",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 41.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-42",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 42.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-43",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 43.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-44",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 44.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-45",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 45.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-46",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 46.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-47",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 47.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-48",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 48.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-49",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 49.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-50",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 50.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-51",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 51.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-52",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 52.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-53",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 53.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-54",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 54.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-55",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 55.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-56",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 56.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-57",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 57.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-58",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 58.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-59",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 59.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-60",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 60.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-61",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 61.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-62",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 62.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-63",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 63.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-64",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 64.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-65",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 65.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-66",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 66.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-67",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 67.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-68",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 68.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-69",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 69.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-70",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 70.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-71",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 71.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-72",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 72.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-73",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 73.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-74",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 74.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-75",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 75.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-76",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 76.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-77",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 77.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-78",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 78.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-79",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 79.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-80",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 80.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-81",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 81.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-82",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 82.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-83",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 83.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-84",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 84.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-85",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 85.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-86",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 86.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-87",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 87.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-88",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 88.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-89",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 89.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-90",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 90.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-91",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 91.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-92",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 92.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-93",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 93.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-94",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 94.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-95",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 95.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-96",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 96.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.lighttpd-dispatch-boundary-mutations.case-97",
+          "requirement": "One positive baseline assertion before mutations + 88 mutations dictionary entries + 8 finalizer_mutations entries = 97 expanded cases; exactly96 subTest outcomes. Counts obtained from AST dictionaries, without importing/executing tests. Ordered scenario 97.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.sonar-native-ci.analyze-real-capture-directory",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_sonar_native_ci.SonarNativeCiTests.test_analyze_exports_actual_producer_capture_directory"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        "ci/checks/analysis/prepare-sonar-native-ci.py",
+        "ci/checks/analysis/sonar-native-security/build-target.py",
+        "ci/checks/analysis/sonar-native-security/go_provenance.py",
+        "ci/checks/analysis/sonar-native-security/source_mapping.py",
+        "ci/checks/analysis/sonar-native-security/validate.py",
+        "ci/lib/active_test_inventory.py",
+        "ci/lib/framework_revision_pins.py",
+        "tests/__init__.py",
+        "tests/test_sonar_native_ci.py",
+        "tests/test_sonar_native_security.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.sonar-native-ci.analyze-real-capture-directory.case",
+          "requirement": "Analyze must send actual producer compiler records to the real validator and generate the scanner compilation database and Parent source scope.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
     }
   ],
   "source_bindings": [
@@ -36509,135 +38837,139 @@
     },
     {
       "path": ".github/workflows/ci-findings-regressions.yml",
-      "sha256": "66fbce1154ff8b95ca400fc05dfb329c268b64ab905749ff9f798fb4addc53f7"
+      "sha256": "a3a32312917a4d12602982594b56019faeee67e971ea566ad558026946dec275"
     },
     {
       "path": ".github/workflows/ci-security-codeql.yml",
-      "sha256": "c876b4f7dc6554e3c764a36bd2ecfd464067b4bfb1702408bbedc7b0f941836d"
+      "sha256": "226c2092456829aaf18f9599ca7c2a4f5f5c1d3a32691facf8770936614dd54d"
     },
     {
       "path": ".github/workflows/ci-security-osv.yml",
-      "sha256": "f33fdd3aee2de1fe3b7c1a7689c01e5c60653da031e808087f35ed5373a70557"
+      "sha256": "3e1f044a01440a11ed2f911e0bdf5f79034b2d0e78c9679f94362c1c2fb4630c"
     },
     {
       "path": ".github/workflows/ci-security-scorecard.yml",
-      "sha256": "9076f368a8edbcf0b5635c332cf9d8ebe62bee04e46fbe44a7b0273a308abc40"
+      "sha256": "d92dd15b9874507f7896232ba954c714dea8f7dc6e8033b9a8b7915db70fd80d"
     },
     {
       "path": ".github/workflows/ci-security-secrets.yml",
-      "sha256": "087507938833969c82cde724c0127bb10944ddfb95f8a4988bde879952243337"
+      "sha256": "20e4811a7af2246c44a3d6b03305263b82a2fbf4678f02ff54cfcb1eab6b44f9"
     },
     {
       "path": ".github/workflows/ci-security-workflow-lint.yml",
-      "sha256": "c1f51d1e90fd2c9f593ac56f7641e8f8cee283c720a991ea33a94ebf5da9e7dc"
+      "sha256": "430025315db033b6ab545fd917f2d32bbff7308eeb4d34db3d318dc2c24997ff"
     },
     {
       "path": ".github/workflows/cleanup-artifacts.yml",
-      "sha256": "11aceeca0566587a65f01b27134dfecf3238be3b42c51f2220e9058ba4bc143c"
+      "sha256": "d900a6cedbf0511e98d51182ddd2cacfcc8a2a439c3f1348b6a5f7cfe1110e39"
     },
     {
       "path": ".github/workflows/lint.yml",
-      "sha256": "e24091283c6afde555ba04ccf5254d1a9228b3c640dbdd1c931bdc79ea197eb2"
+      "sha256": "7238bce8bae31d6c56b4f4a2d46c588c366d6443e67f4711b94591dc3332faaa"
     },
     {
       "path": ".github/workflows/nginx-root-broker.yml",
-      "sha256": "2c5c6a1274eeaf779e079efbd9c7ca739d53cc6df1d51a7fe4ced3ab9c1f62c6"
+      "sha256": "53fe9a46038eaa244146f77df24946e5aa05c63cd51ff8fbdde7415b16a30217"
     },
     {
       "path": ".github/workflows/open-connectors-smoke.yml",
-      "sha256": "1e748e95b385aef66f6bb683b45ffe08d951d420cc9346be5c11bd999f5802a7"
+      "sha256": "3f41430e32ecc5c3e39cf9c07604351ac954fb1b05b7a7561efc6fc6b3e57b5c"
     },
     {
       "path": ".github/workflows/protocol-contract.yml",
-      "sha256": "2a9241b33fd46dc5e085657abfeb901360a4dcdd97c112c95902a5dbb31811a9"
+      "sha256": "5aaddf9b315e728d7c575b149608d57e101161bd19fac45754826dd6be0ae73e"
     },
     {
       "path": ".github/workflows/quick-framework-check.yml",
-      "sha256": "4e9a2067d832e7ac8d665b8f12791032f0d9bcd40eb109156ba03c27094f621b"
+      "sha256": "4b2b86d88c9f2f300d3357ae4d9ec092cfb26b58f9248c307a20f1b2b1c80636"
     },
     {
       "path": ".github/workflows/reusable-five-connectors-profile.yml",
-      "sha256": "3b9927fafaa60453c14223c10d418e6d7a9764cb679b81feee3428835fe2388e"
+      "sha256": "e555afd7ce2e0ccedd8afb1a5ad70ca12a5ac5c10350c94d0e1511f6bd6b6f80"
     },
     {
       "path": ".github/workflows/run-protected-nginx-exact-head.yml",
-      "sha256": "50806f16806931cebff0319638a1bdef8683fba1084d191730abcbcf9e96a7ff"
+      "sha256": "4679f927b0bd6554c185b82aba499edb6d449eb887796f25ef12f5d20309b4c0"
     },
     {
       "path": ".github/workflows/run-protected-nginx-root-broker.yml",
-      "sha256": "e783bfa458608f6ceda246af7d484e5db3f4913d6945e34d0c135dfd2de29b85"
+      "sha256": "005db81bf57fda170389dc80473370ab6a8d11aeabdf09a0f9566a61fcb114f5"
     },
     {
       "path": ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
-      "sha256": "fdf678e477c10203b1e6707852267c478cfbf9b47a02e5f22efaff00ef2a14d6"
+      "sha256": "5b10ac324433d7a219fe8ebb7cef8f54d3d20cddfc9adde9c50e5459d0584141"
+    },
+    {
+      "path": ".github/workflows/sonar-native-security.yml",
+      "sha256": "425c15bd2d98c5d33a0d1fac7d1947f45633c296b4a2ed6131744657062fc711"
     },
     {
       "path": ".github/workflows/sonarqube.yml",
-      "sha256": "b845e4aa16eb633c8a5109d80682bfa1f8cd5c94221bb097f4327515899f76c9"
+      "sha256": "ac2424f41e2db94bce7e7a535b0353983952f6e3887780f3e3af2c13b07a15c3"
     },
     {
       "path": ".github/workflows/test-apache.yml",
-      "sha256": "cda1afbaccaf968b281870b2e7692116a6cea56f7fa27b5f7e5ac6a49b5ba81c"
+      "sha256": "63653e60911cf1639ac53919e7de4e5aadd6382ce36689d77aa65cc2d652b63e"
     },
     {
       "path": ".github/workflows/test-common.yml",
-      "sha256": "8d9b230a5b618a696097744a80a8e52e38348ef7d9c80e08501a8963163d7977"
+      "sha256": "d0c81071a137fca37c565357513d62cacd5ba8f7ad419f7f5c191903e5606976"
     },
     {
       "path": ".github/workflows/test-connectors-with-crs-no-mrts.yml",
-      "sha256": "96adac82c9383c2c0047dd5836e03e9f9c38338d7af134a321928878e8c6124b"
+      "sha256": "0417ba1a3e64c2ad9fa91e6f5777b9e2f574a7551b2b68683ed22387ebbffe19"
     },
     {
       "path": ".github/workflows/test-envoy.yml",
-      "sha256": "974574e21de36b0d6942a25022899f2c22077e930139e42a1e3201668530e7a0"
+      "sha256": "fd96036b7b2301cef8aa60da7f2bff0b0b664786968c2e7051c0098af5005b64"
     },
     {
       "path": ".github/workflows/test-full-smoke-sequential.yml",
-      "sha256": "eed583fcc1ee45fe6e54a0685aca2981f2e6e32656e5ab98010da6b70a6069b1"
+      "sha256": "f472fee64694f9bbc140cb6db018c075ae865c2526b1867e7f96be6755a256a0"
     },
     {
       "path": ".github/workflows/test-haproxy.yml",
-      "sha256": "631cd2e7e183088c2f87e4fe1e4351852cfeb3c2aea737e50486ce94803260c5"
+      "sha256": "beec84e8d762a1cc4a3a5e1b2c4df1f203feae051a9ca44f02edce030fa7566c"
     },
     {
       "path": ".github/workflows/test-lighttpd.yml",
-      "sha256": "6fc9d2f95b4ffd9cb55aa31d393b50851f6bd7c8eeac7f1e85999e6fac4d34a9"
+      "sha256": "459b6b58338c272a0d489486dc4d94d767aa9fcc49758631f61660b7d5ed9169"
     },
     {
       "path": ".github/workflows/test-nginx-exact-head.yml",
-      "sha256": "d53100896d7b24f232f8882a74f8eb8d9c934754cf2eed8c126e37c2d9031c13"
+      "sha256": "6a8b12bde1a674636e13866605cfab53b948e909ae00c1c75dc4e38e8be1d2b3"
     },
     {
       "path": ".github/workflows/test-nginx.yml",
-      "sha256": "45639e7bce008c60f698bca1d38a60dc836974555452a9fac91ff944f43fb820"
+      "sha256": "193a10bcb6e65bed8297ad1bbd9e29c12c6bc8bdb50a3d07cbf554ca661f3fdf"
     },
     {
       "path": ".github/workflows/test-traefik.yml",
-      "sha256": "060d344670e6ed6da85347ae2608d3f6ad4ba24c10801a74df60c0f1ee974004"
+      "sha256": "c93aa7e45543e8e846739ddaafdd31ccf1e462cd82d05ed58701db97bedaafdc"
     },
     {
       "path": ".github/workflows/update-go-version.yml",
-      "sha256": "0b7ccc808e34b2c527ec22652875a51e7fa5965199e280b55116c5eda5d20a93"
+      "sha256": "54f604e591d027d3ed3b415f3a3f43f3ad3256d6a32a1ce5ee881476f44e8c75"
     },
     {
       "path": ".github/workflows/update-python-version.yml",
-      "sha256": "c0d79c10dbb869a415ab093454b4246161628111adfde5e9f49b96acd3d318c4"
+      "sha256": "5975c317eda288559cc7882971adf3df3c5fc51c03afadf1fed8f140f011117d"
     },
     {
       "path": ".github/workflows/update-submodules.yml",
-      "sha256": "6c790b27bbefd68a9534d4c91fb686094c9dc214791a70821608f1dd717d42cb"
+      "sha256": "80b40c8182a7637443694b482d8c171115171bdc736473ba46c6ba2e0bc03042"
     },
     {
       "path": ".github/workflows/update-workflow-tools.yml",
-      "sha256": "9224a291fce499973173a9adb3ece2f1acaa3f2f31c0112180ab547f1048ee63"
+      "sha256": "80fe7136ca4b403a236c3cc11138d53c23a3fe5190eb580fc37d24c90270bd5c"
     },
     {
       "path": ".github/workflows/validate-go-candidate.yml",
-      "sha256": "881ec5e3557e834aec0ec951379d7adb4728ac1fb93c43f846552d25a5af9f23"
+      "sha256": "350552ce2a526880636d1781a3ddb45aea66bf3269cdd266613b3613f7b5c016"
     },
     {
       "path": ".github/workflows/verified-report-governance.yml",
-      "sha256": "9bc7ab87706da320657e3842d346cf32e100c5d6179ec370ec6a3f0562beb696"
+      "sha256": "4c24d73a1a5d4e86fce21ef9c164157294c9204c38b665ddbf740ee25bf52f63"
     },
     {
       "path": ".go-version",
@@ -36660,8 +38992,32 @@
       "sha256": "0a39b7bc288eea8ee39764694e7fe5b21335761675590ca093e3d73585f1a6d3"
     },
     {
+      "path": "ci/checks/analysis/prepare-sonar-native-ci.py",
+      "sha256": "0b8bf72ad3e879981e1f1b55c22a8ac3ddb704ab8594b41fdc32e397828a79c4"
+    },
+    {
       "path": "ci/checks/analysis/run-sonar-coverage.py",
       "sha256": "4712078ea4c87e0d482120f8f9d46d2c792baeecf145e4cb9f0c294fbaffcf89"
+    },
+    {
+      "path": "ci/checks/analysis/sonar-native-security/build-target.py",
+      "sha256": "d32e0ac211818bc9d1ffb3895f6a7a2493ec49ae0d7c8c73be93a081438866d4"
+    },
+    {
+      "path": "ci/checks/analysis/sonar-native-security/capture.py",
+      "sha256": "b56fb8b6b76e05f8967e174bad292bd0bdd5ca3e765d71f0dd4a03795b984896"
+    },
+    {
+      "path": "ci/checks/analysis/sonar-native-security/go_provenance.py",
+      "sha256": "bb6482a69407cae63edfd2659729f3a43ddc7399a3eb681ffe94d9a98fbccbe0"
+    },
+    {
+      "path": "ci/checks/analysis/sonar-native-security/source_mapping.py",
+      "sha256": "82cd1639e58a2fdd5950b1c879827eaff708a5f324678a2d25c92a8cde91772e"
+    },
+    {
+      "path": "ci/checks/analysis/sonar-native-security/validate.py",
+      "sha256": "4ad95829a3ea99d8807b2332cf77627439d6e2bbfbb002ad6231d72b769a3ad7"
     },
     {
       "path": "ci/checks/common/check-common-memory-safety.sh",
@@ -36729,19 +39085,19 @@
     },
     {
       "path": "ci/fixtures/workflow-permission-contract/safe.yml",
-      "sha256": "951e2fff9506f8e8ef831a1ced55afdd80c2c0cfe3166ab6e33700244c157c8e"
+      "sha256": "196fb20f63fe0b5b990ae2a2e9a2acf8fdfc0cd778cffe75fe4b1500fad8d7ee"
     },
     {
       "path": "ci/fixtures/workflow-permission-contract/unsafe.yml",
-      "sha256": "2cf99ccf59d32cc9acb225b219eaa0bcf01d1906e2c6ea90b27400d6f1584aef"
+      "sha256": "382797422a4d1ff1e85a8ec4f22a2e86d96169c5811e46dbb5b4ddea35f070d3"
     },
     {
       "path": "ci/fixtures/zizmor/insecure.yml",
-      "sha256": "9ef900c87588b39cf8b36105edcda6adaa52e83df02b6f0cd7f2b499e66b1ff5"
+      "sha256": "56191e3b7d2869afb9e0b6d7035722d25a36013adaf9abfc33d809a55447192e"
     },
     {
       "path": "ci/fixtures/zizmor/safe.yml",
-      "sha256": "a8be5a5f79e264da767788c7aafa20e7576203a7af0943ce8e507a4c175904a0"
+      "sha256": "ade00312a202b472485e543efc5874fdf6b560f622a87ef902f3d60737226399"
     },
     {
       "path": "ci/lib/active_inventory_updates.py",
@@ -36809,7 +39165,7 @@
     },
     {
       "path": "ci/runtime/broker/nginx_root_broker.py",
-      "sha256": "10424462046d5d4a6df664562313830f8c8dbceeed6b4f914759d99f285af8a5"
+      "sha256": "20ade70d60a3660280b3b4006ff4621963f88be9f62fcb9715c9a3959277d472"
     },
     {
       "path": "ci/runtime/broker/protected_nginx_broker_caller.py",
@@ -37205,7 +39561,7 @@
     },
     {
       "path": "ci/tools/update-workflow-tools.py",
-      "sha256": "054af0c257f47daadae2086ab93f64f810b476a478fcf65e2f3bbf00b8bc21e5"
+      "sha256": "4f7ab758d1dade67f633a3217b89349df67fb3b603ab449d45206c8d9b5d1f0c"
     },
     {
       "path": "ci/tools/validate-submodule-candidate-state.py",
@@ -38577,7 +40933,7 @@
     },
     {
       "path": "tests/ci_security/test_update_workflow_tools.py",
-      "sha256": "cf6529f1c37accc7ea4d0ad56d384233ba4939dc5086834c1fc6ac793de10c09"
+      "sha256": "d4a8f0a2208c68b4eb94e00d02b2f163d477de1faec57d5fa750473e278e2b66"
     },
     {
       "path": "tests/fixtures/http_authorization_runtime_lifecycle_stubs.h",
@@ -38645,7 +41001,7 @@
     },
     {
       "path": "tests/test_ci_security_workflows.py",
-      "sha256": "0ae712a3d73e24ae958a093d214c5b3cbb03ac21a062a1db8139691d5c9e90c0"
+      "sha256": "79a87b132b9fb75ff9495e8c3e3ca39f06159d46b2589e28600867f91c9ccbce"
     },
     {
       "path": "tests/test_compiler_guides.py",
@@ -38669,7 +41025,7 @@
     },
     {
       "path": "tests/test_go_version_contract.py",
-      "sha256": "24d29a127c92473f361c8016f783b811a4258f315a673d4902559e0c1e4d2bbb"
+      "sha256": "4571d88d92eaf88cab5a6b940870278fff1cd370e33d7ec83a91081c9fd1b7ff"
     },
     {
       "path": "tests/test_haproxy_binding_refactor.py",
@@ -38777,7 +41133,7 @@
     },
     {
       "path": "tests/test_nginx_exact_head_gate_contract.py",
-      "sha256": "4761b87e9c33d6f934cb200c3d704e8c9857ebdb95f28c0f5ffb2c09234aecb2"
+      "sha256": "3f24740d247f33fc676d67e7f6d67e38f9b1a49d5a53e20f0737e2cb7d7edcee"
     },
     {
       "path": "tests/test_nginx_exact_head_result_collector.py",
@@ -38829,7 +41185,7 @@
     },
     {
       "path": "tests/test_python_version_contract.py",
-      "sha256": "e0db06518bcf5cf3107f9116e1685ff127b86bb4dae86c0deffda7f87bdb014e"
+      "sha256": "cb8cc8c51516e144157ca59e93654e1f2b150ad0a3f97a2574713666bb2617cd"
     },
     {
       "path": "tests/test_run_readonly_submodule_validation_namespace.py",
@@ -38842,6 +41198,26 @@
     {
       "path": "tests/test_sonar_coverage.py",
       "sha256": "c487cdc3876ae1e41a6f150a8b55599b01b018792edf43734a2d0e2f8bc7bb62"
+    },
+    {
+      "path": "tests/test_sonar_native_ci.py",
+      "sha256": "fc93f64f7257e967c139990b1eac2f18d8047870a4fe38c60f9e18d04239c053"
+    },
+    {
+      "path": "tests/test_sonar_native_security.py",
+      "sha256": "8c83e8c3e36e286405a993f5c6af25db5ae6ba84d5c995806d61432d8c99566d"
+    },
+    {
+      "path": "tests/test_sonar_native_security_capture.py",
+      "sha256": "ac2fb2e22aafbd2af2040b6e41e165c8004fd02326d069ae7ee7ce77d80b5999"
+    },
+    {
+      "path": "tests/test_sonar_native_security_go.py",
+      "sha256": "4a4a7a62b5e3b7ff8428131ff803de448c88df95a4b40d3fbf3041b3c49cca0c"
+    },
+    {
+      "path": "tests/test_sonar_native_security_mapping.py",
+      "sha256": "491929761ca6666dda105fb2d724aea2aff66a59ee3d95fd4a35866b4cffa4a0"
     },
     {
       "path": "tests/test_sonar_scope.py",
@@ -38873,7 +41249,7 @@
     },
     {
       "path": "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py",
-      "sha256": "81f7f39b1a919bbbb2c4e780c1c619739a5968d669a9cd1065db635584856a69"
+      "sha256": "8c655d69101148e3d1f17d404c0641389a9fdbc7e851a9aa56b2e872d15654a4"
     },
     {
       "path": "tests/test_update_framework_versions.py",
