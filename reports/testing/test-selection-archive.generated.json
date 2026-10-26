@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside Parent default selection; no new PASS. The mandatory master Sonar assessment may separately select some definitions. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "defb9a275b69ec28822e56bf8c200e3862d734590ec7433c28aa01894079a0e5",
+  "inventory_sha256": "99ea8c2f38f380b508bf978270c3c34f66a1f5bfa18cdcd772ba971ba4f40474",
   "on_demand_definition_count": 5428,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects Parent cases. The mandatory master Sonar assessment declares its own separate selection.",
   "schema_version": 1,
