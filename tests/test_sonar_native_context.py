@@ -62,6 +62,8 @@ class SonarNativeContextTests(unittest.TestCase):
             identity.replace("1925753989ccce977cdaae417b55c9726c7cf02c", "main"),
             identity.replace("v3.0.17", "v3.٠.17"),
             identity.replace("v3.0.17", "v3.0.$(touch sentinel)"),
+            identity.replace('"v3.0.17"', 'str("v3.0.17")'),
+            identity.replace('"v3.0.17"', '"unterminated'),
             identity + 'MODSECURITY_V3_RELEASE_TAG="v3.0.18"\n',
             identity.replace('MODSECURITY_V3_RELEASE_TAG="v3.0.17"\n', ""),
         )

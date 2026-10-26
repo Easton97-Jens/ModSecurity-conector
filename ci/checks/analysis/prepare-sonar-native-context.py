@@ -58,6 +58,14 @@ def pinned_git_repository(destination: Path, url: str, revision: str, logs: Path
     return records
 
 
+def modsecurity_literal(value: str) -> object:
+    """Decode one declaration without evaluating Framework source as code."""
+    try:
+        return ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        raise ValueError("Framework ModSecurity identity must contain literal values") from None
+
+
 def modsecurity_contract(common: bytes) -> dict[str, str]:
     """Read the Framework's three immutable V3 declarations as passive data."""
     fields = {"MODSECURITY_V3_APPROVED_REPO_URL", "MODSECURITY_V3_APPROVED_COMMIT",
@@ -68,10 +76,7 @@ def modsecurity_contract(common: bytes) -> dict[str, str]:
         if separator and name in fields:
             if name in values:
                 raise ValueError("Framework declares a duplicate ModSecurity identity")
-            try:
-                values[name] = ast.literal_eval(value)
-            except (ValueError, SyntaxError):
-                raise ValueError("Framework ModSecurity identity must contain literal values") from None
+            values[name] = modsecurity_literal(value)
     if set(values) != fields:
         raise ValueError("Framework ModSecurity identity is incomplete")
     origin = values["MODSECURITY_V3_APPROVED_REPO_URL"]
