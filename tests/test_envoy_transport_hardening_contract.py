@@ -1040,20 +1040,22 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             expected_private_key = str(private_key).replace("\\", "\\\\").replace('"', '\\"')
             self.assertIn(f'filename: "{expected_private_key}"', rendered)
 
-            newline_output = root / "newline-generated.yaml"
-            environment["TLS_CERTIFICATE"] = f"{root}/certificate\nwith-newline.crt"
-            environment["OUTPUT_CONFIG"] = str(newline_output)
-            rejected = subprocess.run(
-                ["sh", str(EXT_PROC_CONFIG_MATERIALIZER)],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(rejected.returncode, 2, rejected.stderr)
-            self.assertIn("TLS certificate path contains an unsupported control character", rejected.stderr)
-            self.assertFalse(newline_output.exists())
+            for label, control in (("newline", "\n"), ("carriage-return", "\r")):
+                with self.subTest(control=label):
+                    rejected_output = root / f"{label}-generated.yaml"
+                    environment["TLS_CERTIFICATE"] = f"{root}/certificate{control}with-control.crt"
+                    environment["OUTPUT_CONFIG"] = str(rejected_output)
+                    rejected = subprocess.run(
+                        ["sh", str(EXT_PROC_CONFIG_MATERIALIZER)],
+                        cwd=ROOT,
+                        env=environment,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(rejected.returncode, 2, rejected.stderr)
+                    self.assertIn("TLS certificate path contains an unsupported control character", rejected.stderr)
+                    self.assertFalse(rejected_output.exists())
 
     def test_ext_proc_materializer_selects_fail_closed_downstream_protocols(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
