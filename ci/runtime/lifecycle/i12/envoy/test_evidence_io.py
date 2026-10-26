@@ -6,13 +6,25 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import evidence_io
+if __package__:
+    from . import evidence_io
+else:
+    import evidence_io
+
+
+def _private_fixture_root() -> Path:
+    from ci.lib.active_test_inventory import validate_output_root
+
+    declared = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+    if not declared:
+        raise RuntimeError("I12_TEST_ROOT or RUNNER_TEMP must name existing private storage")
+    return validate_output_root(Path(__file__).resolve().parents[5], Path(declared))
 
 
 class EvidenceIOControls(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(
-            prefix='envoy-io-controls-', dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
+            prefix='envoy-io-controls-', dir=_private_fixture_root())
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.roots = (self.root,)
@@ -38,16 +50,20 @@ class EvidenceIOControls(unittest.TestCase):
 
     def test_configured_writable_root_is_rejected(self):
         self.root.chmod(0o777)
-        with patch.dict(os.environ, {'CODEX_PROJECT_STATE': str(self.root)}):
-            with self.assertRaisesRegex(ValueError, 'not group/other writable'):
-                evidence_io.configured_storage()
+        with (
+            patch.dict(os.environ, {'CODEX_PROJECT_STATE': str(self.root)}),
+            self.assertRaisesRegex(ValueError, 'not group/other writable'),
+        ):
+            evidence_io.configured_storage()
 
     def test_configured_symlink_is_rejected(self):
         alias = self.root / 'alias'
         alias.symlink_to(self.root, target_is_directory=True)
-        with patch.dict(os.environ, {'CODEX_PROJECT_STATE': str(alias)}):
-            with self.assertRaises(OSError):
-                evidence_io.configured_storage()
+        with (
+            patch.dict(os.environ, {'CODEX_PROJECT_STATE': str(alias)}),
+            self.assertRaises(OSError),
+        ):
+            evidence_io.configured_storage()
 
     def test_outside_path_is_rejected_before_any_filesystem_probe(self):
         with patch.object(evidence_io.os, 'open') as opened:

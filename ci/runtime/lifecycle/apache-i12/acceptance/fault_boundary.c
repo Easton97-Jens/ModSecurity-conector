@@ -92,7 +92,7 @@ static int loopback(const apr_sockaddr_t *address) {
     if (!address || address->family!=APR_INET || !address->ipaddr_ptr || address->ipaddr_len!=4) return 0;
     memcpy(&value,address->ipaddr_ptr,sizeof(value)); return (ntohl(value)>>24)==127;
 }
-static int selected(request_rec *r,const char *kind) {
+static int selected(const request_rec *r,const char *kind) {
     if (!state || !principal[0] || strcmp(kind,mode) || !r || r->main || r->prev ||
         !r->connection || !loopback(r->connection->client_addr) ||
         !loopback(r->connection->local_addr) || !r->headers_in || !marker_valid() || !output_valid()) return 0;

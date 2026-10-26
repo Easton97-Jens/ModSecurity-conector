@@ -75,8 +75,8 @@ def retake_fixture(root):
         'runtime/host-lifecycle.jsonl': [{'pid': 10, 'allocation_scope_call': 2} for _ in range(7)],
         'runtime/adapter-events.jsonl': [
             {'event': 'ext_proc_stream_complete', 'close_reason': 'grpc_context_canceled_unattributed',
-             **{name: 0 for name in ('request_header_count', 'response_header_count',
-                'request_body_chunks', 'response_body_chunks', 'request_body_bytes', 'response_body_bytes')}},
+             **dict.fromkeys(('request_header_count', 'response_header_count',
+                'request_body_chunks', 'response_body_chunks', 'request_body_bytes', 'response_body_bytes'), 0)},
             {'event': 'ext_proc_stream_complete', 'close_reason': 'response_end_of_stream',
              'transaction_id': 'neighbor', 'request_body_bytes': 6, 'response_body_bytes': 7}]}
     for name, payload in payloads.items():
@@ -214,8 +214,12 @@ class CurrentBaseControls(unittest.TestCase):
             for label in sorted(labels - {'composite-build'}) + ['composite-build']:
                 check = {'label': label, 'exit_code': int(label == 'composite-build')}
                 for channel in ('stdout', 'stderr'):
-                    data = (diagnostic if label == 'composite-build' and channel == 'stderr' else
-                            b'go version go1.27.2 linux/amd64\n' if label == 'go-version' and channel == 'stdout' else b'')
+                    if label == 'composite-build' and channel == 'stderr':
+                        data = diagnostic
+                    elif label == 'go-version' and channel == 'stdout':
+                        data = b'go version go1.27.2 linux/amd64\n'
+                    else:
+                        data = b''
                     log = root / (label + '.' + channel)
                     log.write_bytes(data)
                     check[channel + '_sha256'] = current.evidence_io.reference(log)['sha256']
@@ -411,9 +415,8 @@ class CurrentBaseControls(unittest.TestCase):
 
     def test_v2_validation_requires_retake_and_v1_rejects_extra_input(self):
         ref = {'path': '/input', 'sha256': 'sha', 'bytes': 1}
-        supplement = {'schema': 'i12.envoy.current-base-evidence.v2', 'inputs': {
-            key: ref for key in ('native', 'admission_review', 'review', 'superseded_native',
-                                'superseded_review', 'rejected_native')}}
+        supplement = {'schema': 'i12.envoy.current-base-evidence.v2', 'inputs': dict.fromkeys(('native', 'admission_review', 'review', 'superseded_native',
+                                'superseded_review', 'rejected_native'), ref)}
         with patch.object(current.evidence_io, 'read_json', return_value=supplement):
             with self.assertRaisesRegex(ValueError, 'v2 requires retake review input'):
                 current.validate(Path('/supplement'))
@@ -448,8 +451,11 @@ class CurrentBaseControls(unittest.TestCase):
                 current.runner_log_path(snapshot, 'route', 'stdout')
 
     def test_supplement_requires_admission_input(self):
-        with self.assertRaises(TypeError):
-            current.produce(Path('/native'), review=Path('/review'))
+        inputs = dict(native=Path('/native'), review=Path('/review'),
+                      superseded_native=Path('/superseded-native'),
+                      superseded_review=Path('/superseded-review'), rejected_native=Path('/rejected-native'))
+        with self.assertRaisesRegex(TypeError, "missing 1 required positional argument: 'admission_review'"):
+            current.produce(**inputs)
 
     def test_validation_replays_and_rejects_supplement_mutation(self):
         ref = {'path': '/native', 'sha256': 'native', 'bytes': 1}

@@ -53,6 +53,16 @@ EXPECTED_SETUP_GO_BODY = "\n".join(
         "          check-latest: false",
     )
 )
+EXPECTED_CACHE_BODY = {
+    "envoy-go": "\n".join(
+        (
+            "          cache-dependency-path: |",
+            "            connectors/envoy/ext_proc/go.mod",
+            "            connectors/envoy/ext_proc/go.sum",
+        )
+    ),
+    "traefik-go": "          cache-dependency-path: connectors/traefik/native_middleware/go.mod",
+}
 
 
 class ContractError(ValueError):
@@ -178,7 +188,10 @@ def job_violations(job_name: str, job: str) -> list[str]:
     if reference != SETUP_GO_REFERENCE:
         violations.append(f"{job_name} must use exactly {SETUP_GO_REFERENCE}")
     body = setup.body
-    if body != EXPECTED_SETUP_GO_BODY:
+    expected_bodies = {EXPECTED_SETUP_GO_BODY}
+    if job_name in EXPECTED_CACHE_BODY:
+        expected_bodies.add(EXPECTED_SETUP_GO_BODY + "\n" + EXPECTED_CACHE_BODY[job_name])
+    if body not in expected_bodies:
         violations.append(
             f"{job_name} must use only the trusted-base Go version output"
         )

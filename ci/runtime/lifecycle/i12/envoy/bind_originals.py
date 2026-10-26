@@ -5,15 +5,20 @@ Preparation does not execute a host, resolve the canonical ledger, or qualify PA
 """
 import argparse
 import copy
+import hashlib
 import json
 import importlib.util
 from pathlib import Path
 import re
 import shutil
 
-import host_scenarios as host
-import reconcile as baseline_producer
-import source_inventory
+if __package__:
+    from . import host_scenarios as host, evidence_io, reconcile as baseline_producer, source_inventory
+else:
+    import host_scenarios as host
+    import evidence_io
+    import reconcile as baseline_producer
+    import source_inventory
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
@@ -30,25 +35,34 @@ def physical(path, directory=False):
     return path
 
 
+def evidence_roots():
+    """Use independently configured roots, never a reference-selected parent."""
+    return (ROOT, evidence_io.ARCHIVES) + ((STORAGE,) if STORAGE is not None else ())
+
+
 def reference(path):
-    path = physical(path)
-    return {"path": str(path), "sha256": host.sha(path), "bytes": path.stat().st_size}
+    return evidence_io.reference(Path(path).absolute(), roots=evidence_roots())
+
+
+def checked_reference_bytes(ref):
+    path = Path(ref["path"])
+    path = path if path.is_absolute() else ROOT / path
+    content = evidence_io.read_bytes(path, roots=evidence_roots())
+    if (hashlib.sha256(content).hexdigest() != ref["sha256"]
+            or ("bytes" in ref and len(content) != ref["bytes"])):
+        raise ValueError("Reviewed source or fixture hash changed: " + str(path))
+    return path, content
 
 
 def check_reference(ref):
-    path = Path(ref["path"])
-    path = path if path.is_absolute() else ROOT / path
-    observed = reference(path)
-    if observed["sha256"] != ref["sha256"] or ("bytes" in ref and observed["bytes"] != ref["bytes"]):
-        raise ValueError("Reviewed source or fixture hash changed: " + str(path))
-    return path
+    return checked_reference_bytes(ref)[0]
 
 
 def validate_baseline(path):
-    baseline = json.loads(physical(path).read_text())
+    baseline = evidence_io.read_json(Path(path).absolute(), roots=evidence_roots())
     refs = baseline["input_evidence"]
-    ledger = json.loads(check_reference(refs["ledger"]).read_text())
-    oracles = json.loads(check_reference(refs["oracles"]).read_text())
+    ledger = json.loads(checked_reference_bytes(refs["ledger"])[1])
+    oracles = json.loads(checked_reference_bytes(refs["oracles"])[1])
     expected = baseline_producer.reconcile(ledger, oracles)
     actual = {key: value for key, value in baseline.items() if key != "input_evidence"}
     if actual != expected:
@@ -104,7 +118,7 @@ def selected_reviews(documents, baseline, baseline_ref):
     seen, selected, skipped = set(), [], []
     for path in documents:
         review_ref = reference(path)
-        document = json.loads(Path(review_ref["path"]).read_text())
+        document = evidence_io.read_json(review_ref["path"], roots=evidence_roots())
         input_ref = document.get("input_evidence")
         if input_ref is not None and (input_ref.get("sha256") != baseline_ref["sha256"]
                                      or check_reference(input_ref) != Path(baseline_ref["path"])):

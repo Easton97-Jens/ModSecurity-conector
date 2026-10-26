@@ -604,7 +604,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--repository-root",
-        type=Path,
         help="repository root for --check, --validate-candidate, or --validate-component-files",
     )
     parser.add_argument("--expected-go-mod-sha256")
@@ -644,12 +643,17 @@ def candidate_inputs(root: Path, source: BinaryIO) -> tuple[bytes, bytes, bytes,
 
 
 def _select_repository_root(args: argparse.Namespace, root: Path | None) -> Path:
-    """Select an injected root before the CLI value and script-derived default."""
+    """Retain injected library roots; confine CLI values to this source tree."""
 
-    selected_root = root if root is not None else args.repository_root
-    if selected_root is None:
-        selected_root = repository_root()
-    return Path(selected_root)
+    if root is not None:
+        return Path(root)
+    trusted = repository_root()
+    if args.repository_root is None:
+        return trusted
+    text = os.fspath(args.repository_root)
+    if text != str(trusted) or Path(text).resolve(strict=True) != trusted:
+        raise ComponentError("component CLI repository root must be exactly its canonical source repository")
+    return trusted
 
 
 def _validate_candidate_mode(

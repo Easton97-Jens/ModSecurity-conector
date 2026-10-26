@@ -22,11 +22,11 @@ PREFIX = "I12::nginx-native::"
 
 class NginxAcceptanceTests(unittest.TestCase):
     def setUp(self):
-        scratch = Path(os.environ.get(
-            "I12_NGINX_ACCEPTANCE_TEST_ROOT",
-            "/var/tmp/codex/ModSecurity-conector/runs/i12-nginx-410-20261015/acceptance-tests",
-        ))
-        scratch.mkdir(parents=True, exist_ok=True)
+        from ci.lib.active_test_inventory import validate_output_root
+        configured = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+        if not configured:
+            raise ValueError("NGINX acceptance tests require a private I12_TEST_ROOT or RUNNER_TEMP")
+        scratch = validate_output_root(ROOT, Path(configured))
         self.temp = tempfile.TemporaryDirectory(dir=scratch)
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name)

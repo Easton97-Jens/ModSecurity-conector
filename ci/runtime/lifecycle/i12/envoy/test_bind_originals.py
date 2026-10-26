@@ -3,6 +3,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import tarfile
 import tempfile
@@ -10,7 +11,135 @@ import types
 import unittest
 from unittest import mock
 
-import bind_originals as BIND
+if __package__:
+    from . import bind_originals as BIND
+else:
+    import bind_originals as BIND
+
+
+class BaselinePathControls(unittest.TestCase):
+    """Inert path controls; the reconciler is substituted, never a host run."""
+
+    def setUp(self):
+        if BIND.STORAGE is None or not BIND.STORAGE.is_dir():
+            raise RuntimeError("configured external evidence storage is required")
+        temp = tempfile.TemporaryDirectory(prefix="envoy-baseline-path-", dir=BIND.STORAGE)
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.storage, self.repository, self.archives = (
+            self.root / name for name in ("storage", "repository", "archives"))
+        self.storage.mkdir()
+        self.repository.mkdir()
+        self.archives.mkdir()
+        for owner, name, value in ((BIND, "STORAGE", self.storage),
+                                   (BIND, "ROOT", self.repository),
+                                   (BIND.evidence_io, "ARCHIVES", self.archives)):
+            patch = mock.patch.object(owner, name, value)
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.ledger = self.write(self.storage / "ledger.json", {"ledger": "inert"})
+        self.oracles = self.write(self.storage / "oracles.json", {"oracles": "inert"})
+        self.expected = {"rows": [], "new_host_runs": 0}
+        self.baseline = self.write(self.storage / "baseline.json", self.expected | {
+            "input_evidence": {"ledger": self.ref(self.ledger), "oracles": self.ref(self.oracles)}})
+
+    def write(self, path, value):
+        path.write_text(json.dumps(value))
+        return path
+
+    def ref(self, path):
+        content = path.read_bytes()
+        return {"path": str(path), "sha256": hashlib.sha256(content).hexdigest(), "bytes": len(content)}
+
+    def replace_reference(self, name, ref):
+        baseline = json.loads(self.baseline.read_text())
+        baseline["input_evidence"][name] = ref
+        self.write(self.baseline, baseline)
+
+    def test_storage_baseline_preserves_exact_reconciliation_inputs(self):
+        with mock.patch.object(BIND.baseline_producer, "reconcile", return_value=self.expected) as reconcile:
+            result = BIND.validate_baseline(self.baseline)
+        reconcile.assert_called_once_with({"ledger": "inert"}, {"oracles": "inert"})
+        self.assertEqual({key: value for key, value in result.items() if key != "input_evidence"}, self.expected)
+
+    def test_repository_reference_remains_supported(self):
+        path = self.write(self.repository / "source.json", {"source": "inert"})
+        self.assertEqual(BIND.reference(path), self.ref(path))
+        self.assertEqual(BIND.check_reference(self.ref(path)), path)
+
+    def test_archive_reference_remains_supported(self):
+        path = self.write(self.archives / "retained.json", {"history": "inert"})
+        self.assertEqual(BIND.reference(path), self.ref(path))
+        self.assertEqual(BIND.check_reference(self.ref(path)), path)
+
+    def test_relative_reference_is_anchored_to_executed_repository(self):
+        path = self.write(self.repository / "relative.json", {"source": "inert"})
+        self.assertEqual(BIND.check_reference(self.ref(path) | {"path": path.name}), path)
+
+    def test_legacy_reference_without_optional_size_remains_supported(self):
+        ref = self.ref(self.ledger)
+        ref.pop("bytes")
+        self.assertEqual(BIND.check_reference(ref), self.ledger)
+
+    def test_changed_reference_hash_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "hash changed"):
+            BIND.check_reference(self.ref(self.ledger) | {"sha256": "0" * 64})
+
+    def test_changed_reference_size_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "hash changed"):
+            BIND.check_reference(self.ref(self.ledger) | {"bytes": 1})
+
+    def test_baseline_semantic_mismatch_is_rejected(self):
+        with mock.patch.object(BIND.baseline_producer, "reconcile", return_value={"rows": ["changed"]}), \
+                self.assertRaisesRegex(ValueError, "Baseline differs"):
+            BIND.validate_baseline(self.baseline)
+
+    def reject_outside_baseline_reference(self, name):
+        path = self.write(self.root / ("outside-" + name + ".json"), {"outside": "inert"})
+        self.replace_reference(name, self.ref(path))
+        real_open = os.open
+
+        def checked_open(value, *args, **kwargs):
+            self.assertNotEqual(os.fspath(value), path.name, "outside evidence was opened")
+            return real_open(value, *args, **kwargs)
+
+        with mock.patch.object(BIND.evidence_io.os, "open", side_effect=checked_open), \
+                mock.patch.object(BIND.baseline_producer, "reconcile") as reconcile, \
+                self.assertRaisesRegex(ValueError, "outside approved"):
+            BIND.validate_baseline(self.baseline)
+        reconcile.assert_not_called()
+
+    def test_baseline_ledger_cannot_select_outside_evidence(self):
+        self.reject_outside_baseline_reference("ledger")
+
+    def test_baseline_oracles_cannot_select_outside_evidence(self):
+        self.reject_outside_baseline_reference("oracles")
+
+    def test_reference_traversal_is_rejected_before_open(self):
+        ref = self.ref(self.ledger) | {"path": str(self.storage / ".." / "storage" / self.ledger.name)}
+        with mock.patch.object(BIND.evidence_io.os, "open") as opened, \
+                self.assertRaisesRegex(ValueError, "without traversal"):
+            BIND.check_reference(ref)
+        opened.assert_not_called()
+
+    def test_reference_symlink_leaf_is_rejected(self):
+        link = self.storage / "ledger-link.json"
+        link.symlink_to(self.ledger)
+        with self.assertRaises(OSError):
+            BIND.check_reference(self.ref(self.ledger) | {"path": str(link)})
+
+    def test_reference_symlink_parent_is_rejected(self):
+        link = self.storage / "linked-parent"
+        link.symlink_to(self.storage, target_is_directory=True)
+        with self.assertRaises(OSError):
+            BIND.check_reference(self.ref(self.ledger) | {"path": str(link / self.ledger.name)})
+
+    def test_private_metadata_is_rejected_before_open(self):
+        ref = self.ref(self.ledger) | {"path": str(self.repository / ".git" / "config")}
+        with mock.patch.object(BIND.evidence_io.os, "open") as opened, \
+                self.assertRaisesRegex(ValueError, "private configuration"):
+            BIND.check_reference(ref)
+        opened.assert_not_called()
 
 
 class OriginalBindingControls(unittest.TestCase):

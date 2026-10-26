@@ -170,7 +170,7 @@ ngx_http_modsecurity_account_response_body(
 
 static ngx_int_t
 ngx_http_modsecurity_phase4_observation_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, msconnector_event *event,
+    const ngx_http_modsecurity_ctx_t *ctx, msconnector_event *event,
     char *content_type, size_t content_type_size)
 {
     ngx_http_modsecurity_event_request_metadata_t metadata;

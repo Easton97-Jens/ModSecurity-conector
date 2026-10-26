@@ -20,11 +20,10 @@ SPEC.loader.exec_module(CASES)
 
 class AcceptanceCasesTest(unittest.TestCase):
     def setUp(self):
-        temporary_root = Path(os.environ.get("CODEX_TEST_TMP_ROOT") or
-                              os.environ.get("RUNNER_TEMP") or
-                              "/var/tmp/codex/ModSecurity-conector/acceptance-case-tests")
-        temporary_root.mkdir(parents=True, exist_ok=True)
-        self.temp = tempfile.TemporaryDirectory(dir=temporary_root)
+        from ci.lib.active_test_inventory import validate_output_root
+        selected = os.environ.get("I12_TEST_ROOT") or os.environ["RUNNER_TEMP"]
+        temporary_root = validate_output_root(ROOT, Path(selected))
+        self.temp = tempfile.TemporaryDirectory(prefix="apache-acceptance-cases-", dir=temporary_root)
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.framework = self.root / "framework"

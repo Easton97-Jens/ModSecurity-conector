@@ -438,7 +438,7 @@ static int apache_record_failure(msc_t *msr, request_rec *r,
 }
 
 static int apache_store_native_intervention(msc_t *msr, request_rec *r,
-    ModSecurityIntervention *intervention)
+    const ModSecurityIntervention *intervention)
 {
     msconnector_intervention common_intervention;
     msc_conf_t *config = NULL;

@@ -23,6 +23,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef MSCONNECTOR_ACTIVE_GCOV
+extern void __gcov_dump(void);
+#endif
+
 #define TEST_CONNECTION_TIMEOUT_MS 250UL
 #define TEST_DEFAULT_SLOT_TIMEOUT_MS 1000UL
 #define TEST_START_TIMEOUT_MS 2000L
@@ -473,7 +477,6 @@ static pid_t start_service_with_profile_options(
 #ifdef MSCONNECTOR_ACTIVE_GCOV
     /* This fixture intentionally uses _exit, which skips GCC's exit hook.
      * Persist only the real counters from the completed service execution. */
-    extern void __gcov_dump(void);
     __gcov_dump();
 #endif
     _exit(result);
@@ -1442,6 +1445,20 @@ static int rejects_unknown_or_invalid_option_values(void) {
         max_connections_option_has_result("", 2);
 }
 
+static int run_selected_active_case(int argc, char **argv,
+        const char *incomplete_headers, const char *incomplete_body) {
+    if (argc == 3 && strcmp(argv[1], "--active-case") == 0) {
+        if (strcmp(argv[2], "incomplete-headers") == 0) {
+            return run_stalled_request_case("incomplete_headers", incomplete_headers) ? 0 : 1;
+        }
+        if (strcmp(argv[2], "incomplete-body") == 0) {
+            return run_stalled_request_case("incomplete_body", incomplete_body) ? 0 : 1;
+        }
+    }
+    (void)fprintf(stderr, "expected --active-case incomplete-headers|incomplete-body\n");
+    return 2;
+}
+
 int main(int argc, char **argv) {
     const char incomplete_headers[] =
         "GET /stall HTTP/1.1\r\nHost: slow.example\r\n";
@@ -1450,16 +1467,7 @@ int main(int argc, char **argv) {
 
     (void)signal(SIGPIPE, SIG_IGN);
     if (argc != 1) {
-        if (argc == 3 && strcmp(argv[1], "--active-case") == 0) {
-            if (strcmp(argv[2], "incomplete-headers") == 0) {
-                return run_stalled_request_case("incomplete_headers", incomplete_headers) ? 0 : 1;
-            }
-            if (strcmp(argv[2], "incomplete-body") == 0) {
-                return run_stalled_request_case("incomplete_body", incomplete_body) ? 0 : 1;
-            }
-        }
-        (void)fprintf(stderr, "expected --active-case incomplete-headers|incomplete-body\n");
-        return 2;
+        return run_selected_active_case(argc, argv, incomplete_headers, incomplete_body);
     }
     msconnector_test_request_stream_stubs_smoke();
     if (!rejects_unbounded_timeout_override()) {

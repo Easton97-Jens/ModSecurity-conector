@@ -87,9 +87,8 @@ def expected_test(path: str) -> bool:
         file.suffix == ".go" and file.name.endswith("_test.go")
         or file.suffix == ".py" and (
             path.startswith("tests/")
-            or path.startswith("connectors/") and (
-                file.name.startswith("test_") or file.name.endswith("_test.py")
-            )
+            or file.name.startswith("test_")
+            or file.name.endswith("_test.py")
         )
     )
 

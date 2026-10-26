@@ -420,7 +420,7 @@ int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
 int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase);
 ngx_int_t ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
+    const ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
     msconnector_transaction_error_class cause, ngx_int_t http_status);
 
 typedef ngx_http_modsecurity_engine_call_budget
@@ -502,7 +502,7 @@ ngx_http_modsecurity_event_token_valid(const char *value)
 }
 
 static ngx_inline int
-ngx_http_modsecurity_apply_event_provenance(ngx_http_request_t *r,
+ngx_http_modsecurity_apply_event_provenance(const ngx_http_request_t *r,
     msconnector_event *event, char *connection_id, size_t capacity)
 {
     const char *run_id = getenv("MSCONNECTOR_NGINX_EVENT_RUN_ID");

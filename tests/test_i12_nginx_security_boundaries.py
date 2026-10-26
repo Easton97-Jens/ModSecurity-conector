@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "ci/runtime/lifecycle/i12/nginx"
-RUN_ROOT = Path("/var/tmp/codex/ModSecurity-conector/runs")
 
 
 def load(name):
@@ -34,16 +33,18 @@ CONFIG = load("config_controls")
 
 class EvidenceBoundaryTests(unittest.TestCase):
     def setUp(self):
-        # Use the same protected external storage as the harness; /tmp fixtures
-        # would hide the real ancestry policy these tests need to exercise.
-        RUN_ROOT.mkdir(parents=True, exist_ok=True)
+        from ci.lib.active_test_inventory import validate_output_root
+        configured = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+        if not configured:
+            raise ValueError("NGINX boundary tests require a private I12_TEST_ROOT or RUNNER_TEMP")
+        run_root = validate_output_root(ROOT, Path(configured))
         configured_roots = patch.dict(os.environ, {
-            "CODEX_TEMP_ROOT": str(RUN_ROOT.parent),
-            "CODEX_RUN_ROOT": str(RUN_ROOT),
+            "CODEX_TEMP_ROOT": str(run_root),
+            "CODEX_RUN_ROOT": str(run_root),
         })
         configured_roots.start()
         self.addCleanup(configured_roots.stop)
-        scratch = tempfile.TemporaryDirectory(prefix="nginx-boundary-", dir=RUN_ROOT)
+        scratch = tempfile.TemporaryDirectory(prefix="nginx-boundary-", dir=run_root)
         self.addCleanup(scratch.cleanup)
         self.scratch = Path(scratch.name)
         self.image = self.scratch / "nginx"
@@ -388,10 +389,12 @@ class EvidenceBoundaryTests(unittest.TestCase):
         admission = {"bindings": [{"target": "/mnt/artifacts", "source": str(self.scratch / "artifacts")},
                                    {"target": "/mnt", "source": str(self.scratch / "generic")}]}
         attempt = self.scratch / "attempt"
-        self.assertEqual(REVIEW.physical("/var/tmp/codex/ModSecurity-nginx-i12/nginx-i12-x/payload.txt",
+        namespace_root = Path(os.environ["CODEX_TEMP_ROOT"])
+        worker_root = namespace_root.with_name("ModSecurity-nginx-i12")
+        self.assertEqual(REVIEW.physical(str(worker_root / "nginx-i12-x/payload.txt"),
                                         attempt, admission),
                          attempt / "data/nginx-worker-runtime/nginx-i12-x/payload.txt")
-        self.assertEqual(REVIEW.physical("/var/tmp/codex/ModSecurity-conector/results/receipt.json",
+        self.assertEqual(REVIEW.physical(str(namespace_root / "results/receipt.json"),
                                         attempt, admission), attempt / "data/results/receipt.json")
         self.assertEqual(REVIEW.physical("/mnt/artifacts/native/nginx", attempt, admission),
                          self.scratch / "artifacts/native/nginx")

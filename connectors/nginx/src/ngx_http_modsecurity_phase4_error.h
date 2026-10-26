@@ -6,7 +6,7 @@
 /* NGX_DECLINED permits only the synchronous core error response. A later
  * callback, including a NULL-input flush, cannot release the failed chain. */
 static ngx_inline ngx_int_t
-ngx_http_modsecurity_phase4_error_gate(ngx_http_request_t *r,
+ngx_http_modsecurity_phase4_error_gate(const ngx_http_request_t *r,
     const ngx_http_modsecurity_ctx_t *ctx)
 {
     if (ctx->phase4_strict_abort) {

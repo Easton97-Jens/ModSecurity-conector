@@ -25,27 +25,42 @@ HOST_CONFIG = 'haproxy.cfg'
 RULES_FILE = 'rules.conf'
 
 
+def read_bytes(path):
+    """Admit metadata independently of its referenced filename, then pin the read."""
+    path = Path(path)
+    roots = (_i12_library.parent.parent,
+             Path('/var/tmp/codex/ModSecurity-conector'),
+             Path('/root/git/codex-storage-archives'),
+             *i12_paths._configured_roots())
+    if (not path.is_absolute() or '..' in path.parts
+            or any(part in {'.git', '.codex', '.aws', '.ssh', '.gnupg'} for part in path.parts)
+            or not any(path != root and path.is_relative_to(root) for root in roots)):
+        raise ValueError('sealed input outside approved evidence/source roots')
+    try:
+        return i12_paths._read_admitted(path, i12_paths.MAXIMUM_BYTES)
+    except OSError as error:
+        raise ValueError('sealed input must be a physical absolute regular file') from error
+
+
+def read_text(path):
+    return read_bytes(path).decode('utf-8')
+
+
 def sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(read_bytes(path)).hexdigest()
 
 
 def reference(path, role):
-    return {"path": str(path), "sha256": sha(path), "bytes": path.stat().st_size, "role": role}
+    data = read_bytes(path)
+    return {"path": str(path), "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data), "role": role}
 
 
 def load(path):
-    return json.loads(path.read_text())
+    return json.loads(read_bytes(path))
 
 
 def require_hash(path, expected):
-    path = Path(path)
-    try:
-        physical = path.is_absolute() and path.resolve(strict=True) == path and path.is_file()
-    except OSError:
-        physical = False
-    if not physical:
-        raise ValueError("sealed input must be a physical absolute regular file: " + str(path))
-    if sha(path) != expected:
+    if sha(Path(path)) != expected:
         raise ValueError("sealed input hash differs: " + str(path))
 
 
@@ -236,7 +251,7 @@ def select_main_allocation(allocated, client, contract):
 
 
 def common_sink_rows(path, native_id, common_id):
-    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    rows = [json.loads(line) for line in read_text(path).splitlines()]
     identities = {identity for identity in (native_id, common_id) if identity is not None}
     return {"all_physical_rows": rows,
             "exact_main_transaction_rows": [row for row in rows if row.get("transaction_id") in identities],
@@ -278,7 +293,7 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
     contract = load(fixture / CASE_CONTRACT_FILE)
     client = load(data / "main-client.json")
     neighbor = load(data / "neighbor-client.json")
-    raw = [json.loads(line) for line in (data / "native-api.jsonl").read_text().splitlines()]
+    raw = [json.loads(line) for line in read_text(data / "native-api.jsonl").splitlines()]
     allocated = [row for row in raw if row["function"] == "host_allocation" and row["edge"] == "return" and row["result"] == 1]
     main_allocated = select_main_allocation(allocated, client, contract)
     scope = main_allocated["allocation_scope_call"] if main_allocated else None
@@ -287,12 +302,12 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
     def calls(function, edge="return"):
         return [row for row in native if row["function"] == function and row["edge"] == edge]
 
-    callbacks = [json.loads(line.split(" ", 1)[1]) for line in (data / "haproxy.stderr").read_text().splitlines() if line.startswith("HAPROXY_")]
+    callbacks = [json.loads(line.split(" ", 1)[1]) for line in read_text(data / "haproxy.stderr").splitlines() if line.startswith("HAPROXY_")]
     eos = [row for row in callbacks if row.get("scope_call") == scope and row.get("kind", "").startswith("htx_")]
     writes = [row for row in callbacks if row.get("function") == "SSL_write" and client["started_wall_ns"] <= row["before_wall_ns"] <= client["completed_wall_ns"]]
-    wire = (data / "main-wire.bin").read_bytes()
+    wire = read_bytes(data / "main-wire.bin")
     segments, wire_count_matches = match_wire_segments(writes, wire)
-    backend = [json.loads(line) for line in (data / "backend.jsonl").read_text().splitlines()]
+    backend = [json.loads(line) for line in read_text(data / "backend.jsonl").splitlines()]
     backend_requests = [row for row in backend if "method" in row]
     request_path = contract.get("request_path", "/i12-main")
     request_method = contract.get("request_method", "POST")
@@ -301,7 +316,7 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
     common_init = calls("common_init")
     native_id = native_new[0]["transaction_id"] if native_new else None
     common_id = common_init[0]["canonical_transaction_id"] if common_init else None
-    audit = (data / "native-audit.log").read_text()
+    audit = read_text(data / "native-audit.log")
     native_lines = [line for line in audit.splitlines() if f'[unique_id "{native_id}"]' in line]
     blocks = re.findall(r'^---([A-Za-z0-9]+)---A--\n([^\n]+)\n(.*?)^---\1---Z--', audit, re.M | re.S)
     request_line = f"{request_method} {request_path} HTTP/1.1"
@@ -316,7 +331,7 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
     before = load(data / "before-main.fds.json")
     after = load(data / "after-main.fds.json")
     after_neighbor = load(data / "after-neighbor.fds.json")
-    maps = (data / "before-main.maps").read_text()
+    maps = read_text(data / "before-main.maps")
     loaded_sdk = sorted({line.split()[-1] for line in maps.splitlines() if "libmodsecurity.so" in line})
     sdk_images = [resolve_sdk_image(path, attempt_binding) for path in loaded_sdk]
     refs = {
@@ -346,7 +361,7 @@ def observe(attempt, fixture, binary, source_receipt, spec_path):
         return {"applicable": True, "value": value, "evidence": [refs[key] for key in proof]}
 
     observations = {
-        "product_host_identity": known({"host_binary_sha256": sha(binary), "actual_loaded_SDK_images": sdk_images, "loaded_maps": maps, "identity": (data / "identity.stdout").read_text()}, "maps", "identity", "controller"),
+        "product_host_identity": known({"host_binary_sha256": sha(binary), "actual_loaded_SDK_images": sdk_images, "loaded_maps": maps, "identity": read_text(data / "identity.stdout")}, "maps", "identity", "controller"),
         "source_config_binding": known({"source_receipt_sha256": sha(source_receipt), "attempt_input_binding": attempt_binding, "effective_rules_sha256": sha(data / RULES_FILE), "effective_config_sha256": sha(data / HOST_CONFIG)}, "source", "spec", "provenance", "artifact_ledger", "fixture_ledger", "config", "rules"),
         "capability": known(contract, "contract", "host"),
         "client_exit": known(command["exit"], "client_commands"),

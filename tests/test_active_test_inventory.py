@@ -302,6 +302,154 @@ time.sleep(30)
 
 
 
+
+class SharedSourceInventoryTests(unittest.TestCase):
+    setUp = ActiveTestInventoryTests.setUp
+    load = ActiveTestInventoryTests.load
+
+    def shared(self):
+        binding = self.data["executions"][0]["sources"][0]
+        self.data.update(schema_version=3, source_bindings=[binding], offline_unit_exceptions=[])
+        self.data["executions"][0]["sources"] = [binding["path"]]
+
+    def offline(self):
+        self.source.write_text(self.source.read_text() + "    def test_offline(self): pass\n")
+        self.shared()
+        self.data["source_bindings"][0]["sha256"] = hashlib.sha256(self.source.read_bytes()).hexdigest()
+        row = copy.deepcopy(self.data["executions"][0])
+        row.update(id="offline.fixture", groups=["offline-unit"], expected_subtests=0)
+        row["selector"]["target"] = "tests.fixture_active.ControlTests.test_offline"
+        row["cases"][0]["id"] = "offline.fixture.case"
+        self.data["offline_unit_exceptions"] = [row]
+
+    def rejected_before_child(self):
+        self.inventory_path.write_text(json.dumps(self.data))
+        with patch.object(active.subprocess, "Popen") as child, redirect_stderr(io.StringIO()):
+            self.assertEqual(active.main(["--check", "--inventory", str(self.inventory_path), "--group", "control"],
+                                         root=self.root), 2)
+        child.assert_not_called()
+
+    def test_schema_versions_preserve_core_execution_maps(self):
+        original = copy.deepcopy(self.data)
+        expected = self.load().executions
+        for version in (1, 2, 3):
+            with self.subTest(version=version):
+                self.data = copy.deepcopy(original)
+                if version == 2:
+                    self.data.update(schema_version=2, offline_unit_exceptions=[])
+                elif version == 3:
+                    self.shared()
+                self.assertEqual(self.load().executions, expected)
+
+    def test_shared_sources_preserve_both_budget_partitions(self):
+        self.offline()
+        shared = self.load()
+        binding = self.data.pop("source_bindings")[0]
+        self.data["schema_version"] = 2
+        for rows in (self.data["executions"], self.data["offline_unit_exceptions"]):
+            rows[0]["sources"] = [copy.deepcopy(binding)]
+        legacy = self.load()
+        self.assertEqual(shared.executions, legacy.executions)
+        self.assertEqual(shared.core_case_ids, legacy.core_case_ids)
+        self.assertEqual(shared.offline_case_ids, legacy.offline_case_ids)
+
+    def test_unknown_unselected_reference_rejects_before_child(self):
+        self.offline()
+        self.data["offline_unit_exceptions"][0]["sources"].append("unknown.py")
+        self.rejected_before_child()
+
+    def test_duplicate_unselected_reference_rejects_before_child(self):
+        self.offline()
+        row = self.data["offline_unit_exceptions"][0]
+        row["sources"] *= 2
+        self.rejected_before_child()
+
+    def test_inline_unselected_override_rejects_before_child(self):
+        self.offline()
+        self.data["offline_unit_exceptions"][0]["sources"] = [self.data["source_bindings"][0]]
+        self.rejected_before_child()
+
+    def test_empty_unselected_references_reject_before_child(self):
+        self.offline()
+        self.data["offline_unit_exceptions"][0]["sources"] = []
+        self.rejected_before_child()
+
+    def test_duplicate_pool_path_rejects_before_child(self):
+        self.shared()
+        self.data["source_bindings"] *= 2
+        self.rejected_before_child()
+
+    def test_unused_pool_record_rejects_before_child(self):
+        self.shared()
+        self.data["source_bindings"].append({"path": "unused.py", "sha256": "a" * 64})
+        self.rejected_before_child()
+
+    def test_extra_pool_field_rejects_before_child(self):
+        self.shared()
+        self.data["source_bindings"][0]["override"] = True
+        self.rejected_before_child()
+
+    def test_boolean_pool_digest_rejects_before_child(self):
+        self.shared()
+        self.data["source_bindings"][0]["sha256"] = True
+        self.rejected_before_child()
+
+    def test_noncanonical_pool_path_rejects_before_child(self):
+        self.shared()
+        self.data["source_bindings"][0]["path"] = "tests/../fixture_active.py"
+        self.rejected_before_child()
+
+    def test_pool_digest_mismatch_rejects_before_child(self):
+        self.shared()
+        self.data["source_bindings"][0]["sha256"] = "0" * 64
+        self.rejected_before_child()
+
+    def test_pool_symlink_rejects_before_child(self):
+        self.shared()
+        original = self.root / "original.py"
+        self.source.rename(original)
+        self.source.symlink_to(original)
+        self.rejected_before_child()
+
+    def test_shared_source_drift_rejects_before_execution(self):
+        self.shared()
+        admitted = self.load()
+        self.source.write_text(self.source.read_text() + "# drift\n")
+        with patch.object(active.subprocess, "Popen") as child:
+            with self.assertRaisesRegex(active.InventoryError, "digest mismatch before execution"):
+                active.execute_selected(admitted, admitted.executions, self.output)
+        child.assert_not_called()
+
+    def test_shared_inventory_drift_rejects_before_execution(self):
+        self.shared()
+        admitted = self.load()
+        self.inventory_path.write_text(self.inventory_path.read_text() + " ")
+        with patch.object(active.subprocess, "Popen") as child:
+            with self.assertRaisesRegex(active.InventoryError, "inventory changed after admission"):
+                active.execute_selected(admitted, admitted.executions, self.output)
+        child.assert_not_called()
+
+    def test_shared_core_cap_accepts_100_plus_offline(self):
+        self.offline()
+        self.data["executions"][0]["cases"] = [
+            {"id": f"core.case-{index}", "requirement": "Explicit core admission boundary.",
+             "profiles": ["parent"]} for index in range(100)]
+        admitted = self.load()
+        self.assertEqual(len(admitted.core_case_ids), 100)
+        self.assertEqual(len(admitted.offline_case_ids), 1)
+
+    def test_shared_core_cap_rejects_101_before_child(self):
+        self.shared()
+        self.data["executions"][0]["cases"] = [
+            {"id": f"core.case-{index}", "requirement": "Explicit core overflow boundary.",
+             "profiles": ["parent"]} for index in range(101)]
+        self.rejected_before_child()
+
+    def test_shared_offline_selector_restrictions_remain_binding(self):
+        self.offline()
+        self.data["offline_unit_exceptions"][0]["groups"] = ["control"]
+        self.rejected_before_child()
+
 # Parent default discovery uses the one admitted active-case inventory.
 if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
     def load_tests(loader, standard_tests, pattern):

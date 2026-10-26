@@ -4,20 +4,11 @@
 
 ## Integration in PR #382
 
-Die Implementierung aus master `7a44f18edac729291d6551d068da64fa3fec4e1e`
-(PR #421) ist für den regulären Merge in PR #382 maßgeblich. Dessen Toolchain
-behält Python `3.15.1`, Go `1.27.3`, Modul-Sprachversion `1.26.9` und
-setup-python `7.1.0`. Nachfolgende PR-#421-Source-/Server-/Runtime-Aufzeichnungen
-bleiben historische Nachweise ihrer ausdrücklich genannten Revisionen,
-insbesondere `d5450cd3`; sie sind kein Gatestatus für PR #382 oder den Merge-Head.
-Die 80 Python-Methoden des PR-#421-Nachweises sind keine expandierte Fallzahl.
-Master wählt zusätzlich 37 Go-Szenarien und native Common-Tests außerhalb des
-Parent-Inventars. Matrixwiederholung verursacht wiederholte Ausführungskosten.
-Standard-Inventarhooks bleiben geschützt; nur die feste `PYTHON_TESTS`-Auswahl
-mit 13 Einträgen erhält im Kind explizit `ON_DEMAND_TESTS=1`, ohne globalen
-Bypass. Dies eröffnet keine historische I12-Host-/Matrix-/Oracle-Kampagne und
-stellt die entfernte PR-eigene Coverage-/Quellrollen-/Null-Gate-Pipeline nicht
-wieder her. Aktueller Integrationsstatus: [PR-#382-Status](pr-382-merge-readiness.de.md).
+Master `7a44f18edac729291d6551d068da64fa3fec4e1e` (PR #421) bleibt maßgeblich. Seine feste `PYTHON_TESTS`-Auswahl mit 13 Einträgen, 37 Go-Selektoren und die native Common-Prüfung bleiben erhalten. Python misst zusätzlich zugelassene exakte Offline-IDs mit tatsächlichem Branch-Tracing in geschützten Kindern; nur ausgewählte Kinder erhalten `ON_DEMAND_TESTS=1`. Prozess-/Netzwerksperren bleiben erhalten; historische I12-Kampagnen werden nicht eröffnet und der entfernte PR-eigene Collector/eigene Gates nicht wiederhergestellt. Alle CFamily-Eingaben bleiben MAIN; 16 tatsächliche CI-Python-Unittest-Module sind TEST, wobei Scope-Guard-Nachweis und Analyzer-Ausführung getrennt bleiben. Das Workflow-Budget steigt auf 60 Minuten, nachdem das gemessene Offline-Erfassungs-/Berichtsintervall allein mindestens 1216.9 Sekunden benötigte.
+
+Der [aktuelle PR-#382-Status](pr-382-merge-readiness.de.md) führt aktuelle Zahlen, Messungen, ausstehende Rohdaten-Erhaltungsnachprüfung und Delivery-Grenzen. Veröffentlichter Head `67e363d44d5f6be7119eb6d76ade11ac75e95f42` scheiterte am verbindlichen Sonar mit 118 neuen Findings und 0.81499% New-Code-Coverage gegen 80%; lokale Korrekturen haben keinen neuen Gate-Nachweis am veröffentlichten Head. Ein erstes echtes lokales Python-XML erfasst 374 Dateien; lokale Changed-Python-Coverage beträgt 24.791%, kein Sonar-Ergebnis. `xml --keep-combined` und unabhängige SHA-/größengebundene rohe Kind-Nachweiskopien korrigieren Löschung durch implizites Combine; eine frische vollständige Erhaltungsmessung bleibt erforderlich. Keine Ausnahme, Baseline, Schwelle oder Gate-Bedingung wird abgeschwächt.
+
+Nachfolgende PR-#421-Quell-/Server-/Runtime-Aufzeichnungen, einschließlich als aktueller gemessener Abschluss bezeichneter Abschnitte, sind historisch für ihre ausdrücklich genannten Revisionen, insbesondere `d5450cd3`; ihre 80 Python-Methoden sind keine aktuellen expandierten Fallzahlen und ihre erfolgreichen Gates qualifizieren PR #382 nicht. Die Toolchain bleibt Python `3.15.1`, Go `1.27.3`, Modul-Sprachversion `1.26.9`, setup-python `7.1.0` und Scanner CLI `8.2.0.6438`.
 
 ## Projekt und Analysemethode
 

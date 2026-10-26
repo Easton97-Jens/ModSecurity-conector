@@ -8,8 +8,12 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
-import prepare_native as prepare
-import source_inventory as inventory
+if __package__:
+    from . import prepare_native as prepare
+    from . import source_inventory as inventory
+else:
+    import prepare_native as prepare
+    import source_inventory as inventory
 
 
 class ObserverHashControls(unittest.TestCase):
@@ -375,10 +379,17 @@ class E4RegistryAdapterControls(unittest.TestCase):
 
 class GoProvenanceControls(unittest.TestCase):
     def setUp(self):
-        manifest = Path(__file__).resolve().parents[1] / 'manifest.json'
-        storage = json.loads(manifest.read_text())['authorized_storage_root']
-        self.temporary = tempfile.TemporaryDirectory(dir=storage)
+        import os
+        from unittest.mock import patch
+        from ci.lib.active_test_inventory import validate_output_root
+        selected = os.environ.get('I12_TEST_ROOT') or os.environ['RUNNER_TEMP']
+        storage = validate_output_root(prepare.evidence_io.REPOSITORY, Path(selected))
+        self.temporary = tempfile.TemporaryDirectory(prefix='envoy-go-provenance-', dir=storage)
+        self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        roots = patch.object(prepare.evidence_io, 'DEFAULT_ROOTS', (self.root,))
+        roots.start()
+        self.addCleanup(roots.stop)
         (self.root / 'bin').mkdir()
         self.go = self.root / 'bin/go'
         self.go.write_bytes(b'physical test executable identity')
@@ -408,7 +419,7 @@ class GoProvenanceControls(unittest.TestCase):
                 return self.output
 
             def save(_runner):
-                pass
+                pass  # This command recorder retains calls in memory; it intentionally writes no receipt.
 
         self.run = Runner()
 
@@ -555,6 +566,155 @@ class GoProvenanceControls(unittest.TestCase):
             self.capture()
         self.assertEqual([label for label, _argv in self.calls], ['go-version', 'go-environment'])
 
+
+
+
+class HashBoundaryControls(unittest.TestCase):
+    """Inert source/installed-image hashing; never invoke a SDK or Go tool."""
+    def setUp(self):
+        import os
+        from unittest.mock import patch
+        from ci.lib.active_test_inventory import validate_output_root
+        storage = validate_output_root(prepare.evidence_io.REPOSITORY, Path(os.environ['RUNNER_TEMP']))
+        temporary = tempfile.TemporaryDirectory(prefix='envoy-hash-boundary-', dir=storage)
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.evidence = self.root / 'evidence'
+        self.installed = self.root / 'public-install'
+        self.evidence.mkdir(mode=0o700)
+        self.installed.mkdir(mode=0o700)
+        self.production_install_roots = prepare.PUBLIC_INSTALL_ROOTS
+        # Only this trusted unit fixture supplies an alternate policy. No CLI,
+        # receipt metadata or candidate parent directory becomes an allowlist.
+        roots = patch.object(prepare.evidence_io, 'DEFAULT_ROOTS', (self.evidence,))
+        public = patch.object(prepare, 'PUBLIC_INSTALL_ROOTS', (self.installed,))
+        roots.start()
+        self.addCleanup(roots.stop)
+        public.start()
+        self.addCleanup(public.stop)
+
+    def _file(self, relative, data=b'inert hash-bound input', *, public=False):
+        path = (self.installed if public else self.evidence) / relative
+        path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        path.write_bytes(data)
+        path.chmod(0o600)
+        return path
+
+    def _expected(self, data):
+        import hashlib
+        return hashlib.sha256(data).hexdigest()
+
+    def test_public_install_roots_are_fixed_independent_policy(self):
+        self.assertEqual(self.production_install_roots, tuple(map(Path, (
+            '/usr/include', '/usr/lib', '/usr/local/lib', '/usr/bin', '/usr/local/go'))))
+
+    def test_physical_evidence_hashes_real_bytes(self):
+        data = b'independent evidence digest input'
+        self.assertEqual(prepare.sha(self._file('input.json', data)), self._expected(data))
+
+    def test_outside_path_rejects_before_resolve_or_open(self):
+        from unittest.mock import patch
+        path = self.root / 'outside' / 'unread'
+        with patch.object(Path, 'resolve', side_effect=AssertionError('unchecked resolve')) as resolve, \
+                patch.object(prepare.evidence_io, 'open_evidence') as opened:
+            with self.assertRaisesRegex(ValueError, 'outside approved'):
+                prepare.sha(path)
+        resolve.assert_not_called()
+        opened.assert_not_called()
+
+    def test_private_configuration_rejects_before_resolve_or_open(self):
+        from unittest.mock import patch
+        path = self.evidence / '.aws' / 'credentials'
+        with patch.object(Path, 'resolve', side_effect=AssertionError('unchecked resolve')) as resolve, \
+                patch.object(prepare.evidence_io, 'open_evidence') as opened:
+            with self.assertRaisesRegex(ValueError, 'private configuration'):
+                prepare.sha(path)
+        resolve.assert_not_called()
+        opened.assert_not_called()
+
+    def test_traversal_rejects_before_resolve_or_open(self):
+        from unittest.mock import patch
+        path = self.evidence / '..' / 'evidence' / 'input'
+        with patch.object(Path, 'resolve', side_effect=AssertionError('unchecked resolve')) as resolve, \
+                patch.object(prepare.evidence_io, 'open_evidence') as opened:
+            with self.assertRaisesRegex(ValueError, 'without traversal'):
+                prepare.sha(path)
+        resolve.assert_not_called()
+        opened.assert_not_called()
+
+    def test_evidence_final_symlink_is_rejected_without_resolving(self):
+        from unittest.mock import patch
+        target = self._file('physical')
+        alias = self.evidence / 'alias'
+        alias.symlink_to(target)
+        with patch.object(Path, 'resolve', side_effect=AssertionError('evidence link resolved')):
+            with self.assertRaises((OSError, ValueError)):
+                prepare.sha(alias)
+
+    def test_evidence_ancestor_symlink_is_rejected_without_resolving(self):
+        from unittest.mock import patch
+        self._file('physical/input')
+        alias = self.evidence / 'alias'
+        alias.symlink_to(self.evidence / 'physical', target_is_directory=True)
+        with patch.object(Path, 'resolve', side_effect=AssertionError('evidence link resolved')):
+            with self.assertRaises((OSError, ValueError)):
+                prepare.sha(alias / 'input')
+
+    def test_installed_sdk_library_symlink_hashes_approved_target(self):
+        data = b'inert public SDK image; never loaded'
+        target = self._file('lib/libmodsecurity.so.3', data, public=True)
+        alias = self.installed / 'lib/libmodsecurity.so'
+        alias.symlink_to(target.name)
+        self.assertEqual(prepare.sha(alias), self._expected(data))
+
+    def test_installed_sdk_header_hashes_approved_bytes(self):
+        data = b'/* inert SDK header input */'
+        path = self._file('include/modsecurity/transaction.h', data, public=True)
+        self.assertEqual(prepare.sha(path), self._expected(data))
+
+    def test_installed_symlink_escape_rejects_before_descriptor_open(self):
+        from unittest.mock import patch
+        target = self.root / 'outside-image'
+        target.write_bytes(b'outside approved image roots')
+        alias = self.installed / 'escape.so'
+        alias.symlink_to(target)
+        with patch.object(prepare.evidence_io, 'open_evidence') as opened:
+            with self.assertRaisesRegex(ValueError, 'outside approved'):
+                prepare.sha(alias)
+        opened.assert_not_called()
+
+    def test_installed_symlink_cannot_escape_into_approved_evidence(self):
+        from unittest.mock import patch
+        target = self._file('evidence-is-not-an-installed-image')
+        alias = self.installed / 'escape-into-evidence.so'
+        alias.symlink_to(target)
+        with patch.object(prepare.evidence_io, 'open_evidence') as opened:
+            with self.assertRaisesRegex(ValueError, 'outside approved'):
+                prepare.sha(alias)
+        opened.assert_not_called()
+
+    def test_configured_external_go_driver_hashes_physical_bytes(self):
+        data = b'inert configured Go driver; never executed'
+        path = self._file('go/bin/go', data)
+        self.assertEqual(prepare.sha(path), self._expected(data))
+
+    def test_configured_external_go_compile_tool_hashes_physical_bytes(self):
+        data = b'inert configured Go compile tool; never executed'
+        path = self._file('go/pkg/tool/linux_amd64/compile', data)
+        self.assertEqual(prepare.sha(path), self._expected(data))
+
+    def test_configured_external_go_link_tool_hashes_physical_bytes(self):
+        data = b'inert configured Go link tool; never executed'
+        path = self._file('go/pkg/tool/linux_amd64/link', data)
+        self.assertEqual(prepare.sha(path), self._expected(data))
+
+    def test_installed_go_driver_symlink_hashes_approved_target(self):
+        data = b'inert public Go driver; never executed'
+        target = self._file('go/bin/go', data, public=True)
+        alias = self.installed / 'bin/go'
+        alias.parent.mkdir(mode=0o700)
+        alias.symlink_to(target)
+        self.assertEqual(prepare.sha(alias), self._expected(data))
 
 
 # Parent default discovery uses the one admitted active-case inventory.

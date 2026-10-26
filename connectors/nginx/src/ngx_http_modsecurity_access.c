@@ -284,10 +284,13 @@ ngx_http_modsecurity_request_result(ngx_http_request_t *r,
         (void)msconnector_transaction_contract_fail(&ctx->contract, cause, 0U);
     }
     ctx->intervention_triggered = 1;
-    ctx->request_error_status = cause == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT
-        ? NGX_HTTP_GATEWAY_TIME_OUT
-        : (result >= NGX_HTTP_BAD_REQUEST && result <= 599
-            ? result : NGX_HTTP_INTERNAL_SERVER_ERROR);
+    if (cause == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT) {
+        ctx->request_error_status = NGX_HTTP_GATEWAY_TIME_OUT;
+    } else if (result >= NGX_HTTP_BAD_REQUEST && result <= 599) {
+        ctx->request_error_status = result;
+    } else {
+        ctx->request_error_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ctx->request_error_status = ngx_http_modsecurity_request_terminal_status(
         r, ctx->request_error_status);
     ngx_http_modsecurity_request_error_log_event(r, mcf, ctx, phase, cause);
@@ -530,7 +533,7 @@ ngx_http_modsecurity_request_header_metrics(ngx_http_request_t *r,
  * Request-event sink failure remains warning-only, as with existing metadata. */
 static void
 ngx_http_modsecurity_request_completion_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
+    const ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
     int native_result)
 {
     msconnector_event event;
@@ -769,7 +772,7 @@ ngx_http_modsecurity_append_request_chunk(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_chain_t *chain = r->request_body != NULL ? r->request_body->bufs : NULL;
     ngx_int_t rc;

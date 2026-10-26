@@ -15,8 +15,11 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import source_inventory
-import evidence_io
+if __package__:
+    from . import source_inventory, evidence_io
+else:
+    import source_inventory
+    import evidence_io
 
 HERE = Path(__file__).resolve().parent
 STORAGE = evidence_io.STORAGE

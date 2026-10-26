@@ -135,7 +135,7 @@ class ReviewControls(unittest.TestCase):
         self.assertIsNone(incomplete['entity_bytes'])
 
     def test_payload_and_opaque_metadata_are_not_emitted(self):
-        secret = 'opaque-lease-value-do-not-emit'
+        secret = '<inert synthetic lease placeholder>'
         self.write('client/target.body.raw', b'body')
         self.write('client/target.request.raw', b'POST / HTTP/1.1\r\n\r\nrequest')
         self.write('client/target.response.raw', b'HTTP/1.1 403 Blocked\r\n\r\nbody')

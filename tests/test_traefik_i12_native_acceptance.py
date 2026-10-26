@@ -366,8 +366,12 @@ class NativePrivateToolchainControls(unittest.TestCase):
 class NativeAcceptanceControls(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        EXTERNAL.mkdir(parents=True, exist_ok=True, mode=0o700)
-        cls.temporary = tempfile.TemporaryDirectory(prefix='controls-', dir=EXTERNAL)
+        from ci.lib.active_test_inventory import validate_output_root
+
+        storage = validate_output_root(REPO, Path(
+            os.environ.get('I12_TEST_ROOT') or os.environ['RUNNER_TEMP']))
+        cls.temporary = tempfile.TemporaryDirectory(prefix='controls-', dir=storage)
+        cls.addClassCleanup(cls.temporary.cleanup)
         cls.root = Path(cls.temporary.name)
         cls.plan = load('acceptance_plan')
         cls.client = load('acceptance_client')

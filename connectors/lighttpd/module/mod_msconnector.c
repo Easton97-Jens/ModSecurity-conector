@@ -433,11 +433,10 @@ static handler_t mod_msconnector_fail_request(
     if (r->write_queue.bytes_out > 0 ||
         (ctx != NULL && ctx->host_response_attempted)) return HANDLER_ERROR;
     result = mod_msconnector_error_response(r, runtime, code);
-    if (result != HANDLER_ERROR && ctx != NULL && ctx->transaction != NULL) {
-        if (msconnector_runtime_transaction_record_failure_host_action(
-                ctx->transaction, r->http_status, 0, &error) != 1)
-            return HANDLER_ERROR;
-    }
+    if (result != HANDLER_ERROR && ctx != NULL && ctx->transaction != NULL &&
+        msconnector_runtime_transaction_record_failure_host_action(
+            ctx->transaction, r->http_status, 0, &error) != 1)
+        return HANDLER_ERROR;
     if (result != HANDLER_ERROR && ctx != NULL)
         ctx->failure_response_selected = 1;
     return result;
@@ -622,6 +621,7 @@ static handler_t mod_msconnector_finish_request_body(
     msconnector_decision decision;
     msconnector_error runtime_error;
 
+    if (ctx == NULL) return HANDLER_ERROR;
     if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
     if (ctx->request_body_finished) {
         return HANDLER_GO_ON;
@@ -665,6 +665,7 @@ static handler_t mod_msconnector_prepare_request_body(
         handler_ctx *ctx) {
     handler_t rc;
 
+    if (ctx == NULL) return HANDLER_ERROR;
     if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return HANDLER_ERROR;
     if (ctx != NULL && ctx->request_body_gate_rejected) return HANDLER_FINISHED;
     if (!p->request_body_hooks_enabled || ctx->request_body_finished) {
@@ -807,6 +808,7 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
     const enum msconnector_phase4_mode phase4_mode =
         msconnector_runtime_phase4_mode(p->runtime);
 
+    if (ctx == NULL) return PLUGIN_BODY_HOOK_ERROR;
     if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return PLUGIN_BODY_HOOK_ERROR;
     if (ctx->response_body_finished) {
         return PLUGIN_BODY_HOOK_CONTINUE;
@@ -1328,27 +1330,22 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
 #endif
         if (!defer_transaction_finish) {
             msconnector_error_init(&runtime_error);
-            if (ctx->request_body_gate_rejected) {
-                if (msconnector_runtime_transaction_finish_host_rejected_request_body(
-                        ctx->transaction,
-                        &runtime_error) != 1) {
-                    result = HANDLER_ERROR;
-                    log_error(
-                        r->conf.errh,
-                        __FILE__,
-                        __LINE__,
-                        "msconnector rejected request-body gate logging finalization failed: %s",
-                        msconnector_error_code_name(runtime_error.code));
-                }
-            } else if (msconnector_runtime_transaction_finish(
-                    ctx->transaction,
-                    &runtime_error) != 1) {
+            const int finish_result = ctx->request_body_gate_rejected
+                ? msconnector_runtime_transaction_finish_host_rejected_request_body(
+                    ctx->transaction, &runtime_error)
+                : msconnector_runtime_transaction_finish(
+                    ctx->transaction, &runtime_error);
+            if (finish_result != 1) {
+                const char *operation = ctx->request_body_gate_rejected
+                    ? "rejected request-body gate logging finalization"
+                    : "transaction finish";
                 result = HANDLER_ERROR;
                 log_error(
                     r->conf.errh,
                     __FILE__,
                     __LINE__,
-                    "msconnector transaction finish failed: %s",
+                    "msconnector %s failed: %s",
+                    operation,
                     msconnector_error_code_name(runtime_error.code));
             }
         }

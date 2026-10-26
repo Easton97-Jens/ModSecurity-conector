@@ -62,6 +62,47 @@ class InventoryMaintenanceTests(unittest.TestCase):
         self.assertEqual(json.loads(outputs[updates.ARCHIVE]), expected_archive)
         updates.verify_companions(inventory, archive, self.before, self.after, self.approved, outputs)
 
+    def test_cli_root_accepts_only_actual_canonical_repository(self):
+        self.assertEqual(updates._cli_root(str(updates.ROOT)), updates.ROOT)
+
+    def test_copied_script_cli_root_accepts_its_private_source_tree(self):
+        # This measures CLI-root admission, not Git execution or publication.
+        # The ordinary import retains the private copy's real co_filename.
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            copied = private / "ci/lib/active_inventory_updates.py"
+            copied.parent.mkdir(parents=True)
+            original = Path(updates.__file__).read_bytes()
+            copied.write_bytes(original)
+            self.assertEqual(copied.read_bytes(), original)
+            spec = importlib.util.spec_from_file_location("private_maintenance_cli", copied)
+            module = importlib.util.module_from_spec(spec)
+            with mock.patch.dict(sys.modules):
+                sys.modules[spec.name] = module
+                spec.loader.exec_module(module)
+                self.assertEqual(module._cli_root(str(private)), private)
+                self.assertEqual(module.ROOT, private)
+                self.assertEqual(module._cli_root.__code__.co_filename, str(copied))
+
+    def test_cli_root_rejects_sibling_before_git_or_file_operations(self):
+        sibling = str(updates.ROOT.parent / (updates.ROOT.name + "-foreign"))
+        with mock.patch.object(updates, "language_companions") as derive:
+            status = updates.main(["verify", "--kind", "python", "--base", "HEAD", "--root", sibling])
+        self.assertEqual(status, 2)
+        derive.assert_not_called()
+
+    def test_cli_root_rejects_traversal_alias(self):
+        alias = str(updates.ROOT) + "/../" + updates.ROOT.name
+        with self.assertRaisesRegex(updates.InventoryUpdateError, "canonical source repository"):
+            updates._cli_root(alias)
+
+    def test_cli_root_rejects_symlink_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            alias = Path(directory) / "repository-alias"
+            alias.symlink_to(updates.ROOT, target_is_directory=True)
+            with self.assertRaisesRegex(updates.InventoryUpdateError, "canonical source repository"):
+                updates._cli_root(alias)
+
     def test_noop_preserves_original_bytes(self):
         inventory, archive = self.baseline()
         compact = json.dumps(json.loads(inventory), separators=(",", ":")).encode()
@@ -81,8 +122,9 @@ class InventoryMaintenanceTests(unittest.TestCase):
 
     def test_stale_archive_binding_is_rejected(self):
         inventory, _archive = self.baseline()
+        stale_archive = encoded({"inventory_sha256": "0" * 64})
         with self.assertRaises(updates.InventoryUpdateError):
-            updates.derive_companions(inventory, encoded({"inventory_sha256": "0" * 64}),
+            updates.derive_companions(inventory, stale_archive,
                                       self.before, self.after, self.approved)
 
     def test_control_fields_cannot_be_smuggled_into_companions(self):
@@ -235,6 +277,93 @@ class InventoryMaintenanceTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), b"trusted primary\n")
         self.assertEqual((root / updates.INVENTORY).read_bytes(), foreign)
         self.assertEqual((root / updates.ARCHIVE).read_bytes(), old_archive)
+
+
+
+class SharedSourceMaintenanceTests(unittest.TestCase):
+    baseline = InventoryMaintenanceTests.baseline
+    derive = InventoryMaintenanceTests.derive
+    repository = InventoryMaintenanceTests.repository
+    # Only the explicitly selected methods below are new reviewed executions.
+    def setUp(self):
+        InventoryMaintenanceTests.setUp(self)
+        self.inventory["schema_version"] = 3
+        self.inventory["source_bindings"] = copy.deepcopy(self.inventory["executions"][0]["sources"])
+        for key in ("executions", "offline_unit_exceptions"):
+            self.inventory[key][0]["sources"] = [source["path"] for source in self.inventory["source_bindings"]]
+
+    def test_shared_sha_update_preserves_references_and_selection(self):
+        outputs = self.derive()
+        expected = copy.deepcopy(self.inventory)
+        expected["source_bindings"][1]["sha256"] = updates.digest(self.after[".go-version"])
+        self.assertEqual(json.loads(outputs[updates.INVENTORY]), expected)
+        self.assertEqual(len(list(updates._records(expected))), 2)
+
+    def test_shared_noop_preserves_noncanonical_format_bytes(self):
+        inventory, _ = self.baseline()
+        inventory = json.dumps(json.loads(inventory), separators=(",", ":")).encode()
+        archive = encoded({"inventory_sha256": updates.digest(inventory)})
+        self.assertEqual(updates.derive_companions(inventory, archive, self.before, self.before, self.approved),
+                         {updates.INVENTORY: inventory, updates.ARCHIVE: archive})
+
+    def test_shared_publish_rejects_reference_change(self):
+        inventory, archive = self.baseline()
+        outputs = self.derive()
+        forged = json.loads(outputs[updates.INVENTORY])
+        forged["offline_unit_exceptions"][0]["sources"].reverse()
+        outputs[updates.INVENTORY] = encoded(forged)
+        forged_archive = json.loads(outputs[updates.ARCHIVE])
+        forged_archive["inventory_sha256"] = updates.digest(outputs[updates.INVENTORY])
+        outputs[updates.ARCHIVE] = encoded(forged_archive)
+        with self.assertRaises(updates.InventoryUpdateError):
+            updates.verify_companions(inventory, archive, self.before, self.after, self.approved, outputs)
+
+    def test_shared_unknown_unselected_reference_rejects_derivation(self):
+        self.inventory["offline_unit_exceptions"][0]["sources"].append("unknown.py")
+        with self.assertRaises(updates.InventoryUpdateError):
+            self.derive()
+
+    def test_shared_duplicate_pool_rejects_derivation(self):
+        self.inventory["source_bindings"].append(copy.deepcopy(self.inventory["source_bindings"][0]))
+        with self.assertRaises(updates.InventoryUpdateError):
+            self.derive()
+
+    def test_shared_unused_pool_rejects_derivation(self):
+        self.inventory["source_bindings"].append({"path": "unused.py", "sha256": "a" * 64})
+        with self.assertRaises(updates.InventoryUpdateError):
+            self.derive()
+
+    def test_shared_inline_override_rejects_derivation(self):
+        self.inventory["offline_unit_exceptions"][0]["sources"][0] = self.inventory["source_bindings"][0]
+        with self.assertRaises(updates.InventoryUpdateError):
+            self.derive()
+
+    def test_shared_noncanonical_pool_path_rejects_derivation(self):
+        self.inventory["source_bindings"][0]["path"] = "tests/../fixture.py"
+        with self.assertRaises(updates.InventoryUpdateError):
+            self.derive()
+
+    def test_shared_boolean_digest_rejects_derivation(self):
+        self.inventory["source_bindings"][0]["sha256"] = True
+        with self.assertRaises(updates.InventoryUpdateError):
+            self.derive()
+
+    def test_shared_explicit_library_root_readmits_update(self):
+        root = self.repository()
+        self.assertNotEqual(root, updates.ROOT)
+        snapshot = updates.capture_update(root, self.approved)
+        (root / ".go-version").write_bytes(self.after[".go-version"])
+        self.assertEqual(set(updates.finish_update(root, snapshot)), updates.COMPANIONS)
+        self.assertEqual({name: (root / name).read_bytes() for name in updates.COMPANIONS}, self.derive())
+
+    def test_shared_source_drift_prevents_companion_write(self):
+        root = self.repository()
+        original = {name: (root / name).read_bytes() for name in updates.COMPANIONS}
+        snapshot = updates.capture_update(root, self.approved)
+        (root / "tests/fixture.py").write_bytes(self.test_source + b"# foreign drift\n")
+        with self.assertRaises(updates.InventoryUpdateError):
+            updates.finish_update(root, snapshot)
+        self.assertEqual({name: (root / name).read_bytes() for name in updates.COMPANIONS}, original)
 
 
 def load_tests(loader, standard_tests, pattern):

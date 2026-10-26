@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -17,11 +18,33 @@ ORACLES = MODULE.ORACLES
 HOST = MODULE.CURRENT.HOST_LEDGER
 
 
+def _private_fixture_root() -> Path:
+    from ci.lib.active_test_inventory import validate_output_root
+
+    declared = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+    if not declared:
+        raise RuntimeError("I12_TEST_ROOT or RUNNER_TEMP must name existing private storage")
+    return validate_output_root(Path(__file__).resolve().parents[5], Path(declared))
+
+
+def _requirement_row(route: str, number: int, unknown: int) -> dict:
+    identity = f"I12::{route}::control-{number}"
+    oracle = {"visible_status": 200, "native_result": "allow", "phase": 2,
+              "physical_evidence_not_projection": True,
+              "unresolved_expected_value_reason": "Control missing oracle" if number < unknown else None}
+    config = route == "envoy-ext-authz-request" and 40 <= number < 48
+    return {"run_scoped_case_id": identity, "leg_id": route,
+                 "required_leg": route != "diagnostic", "status": "PASS" if config else "PLANNED",
+                 "execution_observed": config,
+                 "selected_requirement": {"run_scoped_case_id": identity,
+                                          "case_id": "control-" + str(number),
+                                          "origin": "control", "expected_oracle": oracle}}
+
+
 class ReconciliationTests(unittest.TestCase):
     def setUp(self):
-        external = Path("/var/tmp/codex/ModSecurity-conector")
         temp = tempfile.TemporaryDirectory(prefix="envoy-reconciliation-control-",
-                                           dir=external if external.is_dir() else None)
+                                           dir=_private_fixture_root())
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve()
         rows = []
@@ -31,17 +54,7 @@ class ReconciliationTests(unittest.TestCase):
         groups += [("diagnostic", 78, 0)]
         for route, count, unknown in groups:
             for n in range(count):
-                identity = f"I12::{route}::control-{n}"
-                oracle = {"visible_status": 200, "native_result": "allow", "phase": 2,
-                          "physical_evidence_not_projection": True,
-                          "unresolved_expected_value_reason": "Control missing oracle" if n < unknown else None}
-                config = route == "envoy-ext-authz-request" and 40 <= n < 48
-                rows.append({"run_scoped_case_id": identity, "leg_id": route,
-                             "required_leg": route != "diagnostic", "status": "PASS" if config else "PLANNED",
-                             "execution_observed": config,
-                             "selected_requirement": {"run_scoped_case_id": identity,
-                                                      "case_id": "control-" + str(n),
-                                                      "origin": "control", "expected_oracle": oracle}})
+                rows.append(_requirement_row(route, n, unknown))
         self.requirements = {"rows": rows}
         self.selection = {"legs": [{"leg_id": row["leg_id"], "required_leg": row["required_leg"],
                                     "required_cases": [row["selected_requirement"]]} for row in rows],

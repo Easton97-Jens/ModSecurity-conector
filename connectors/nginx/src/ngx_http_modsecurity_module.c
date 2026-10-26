@@ -90,7 +90,7 @@ int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
  * Nothing here interrupts an Engine call or claims a hard deadline. */
 static ngx_int_t
 ngx_http_modsecurity_engine_call_log_budget(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
+    ngx_http_modsecurity_conf_t *mcf, const ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase,
     const ngx_http_modsecurity_engine_call_measurement *measurement,
     int native_result)
@@ -150,7 +150,7 @@ ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r,
     ngx_http_modsecurity_engine_call_measurement *measurement)
 {
     ngx_http_modsecurity_ctx_t *ctx;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     struct timespec start;
 
     if (r == NULL || measurement == NULL ||
@@ -364,10 +364,9 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
     ngx_str_t location_value;
     ngx_table_elt_t *location;
     ngx_table_elt_t *headers;
-    ngx_list_part_t *part;
     const u_char *redirect_url;
+    u_char location_name[] = "Location";
     size_t i;
-    ngx_uint_t j;
 
     if (r->header_sent) {
         dd("Headers are already sent. Cannot perform the redirection at this point.");
@@ -412,13 +411,13 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
      * indexing it at headers_out.location.  Replace every old active
      * Location only for this connector-owned redirect, including entries
      * in chained list parts; the newly pushed entry is not initialized yet. */
-    for (part = &r->headers_out.headers.part; part != NULL;
+    for (ngx_list_part_t *part = &r->headers_out.headers.part; part != NULL;
             part = part->next) {
         headers = part->elts;
-        for (j = 0; j < part->nelts; j++) {
+        for (ngx_uint_t j = 0; j < part->nelts; j++) {
             if (&headers[j] != location && headers[j].hash != 0 &&
                 headers[j].key.len == sizeof("Location") - 1U &&
-                ngx_strncasecmp(headers[j].key.data, (u_char *) "Location",
+                ngx_strncasecmp(headers[j].key.data, location_name,
                     sizeof("Location") - 1U) == 0) {
                 headers[j].hash = 0;
             }
@@ -520,7 +519,7 @@ ngx_http_modsecurity_collect_native_intervention(Transaction *transaction,
  * not be converted to a technical error by trying to replace committed HTTP
  * headers first. Off retains the legacy native host-dispatch path. */
 static int
-ngx_http_modsecurity_defer_late_phase4_intervention(ngx_http_request_t *r,
+ngx_http_modsecurity_defer_late_phase4_intervention(const ngx_http_request_t *r,
     const ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
     return r->header_sent && ctx->contract.last_completed_phase ==
@@ -702,7 +701,7 @@ cleanup:
 
 ngx_int_t
 ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
+    const ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
     msconnector_transaction_error_class cause, ngx_int_t http_status)
 {
     msconnector_event event;
@@ -771,13 +770,12 @@ ngx_http_modsecurity_snapshot_cleanup_metadata(ngx_http_modsecurity_ctx_t *ctx)
     ngx_http_request_t *r = ctx->r;
     ngx_str_t values[2];
     const char **outputs[2] = { &ctx->cleanup_method, &ctx->cleanup_uri };
-    size_t index;
-    char *value;
+    const char *value;
 
     if (r == NULL || r->pool == NULL) return NGX_ERROR;
     values[0] = r->method_name;
     values[1] = r->unparsed_uri;
-    for (index = 0U; index < 2U; ++index) {
+    for (size_t index = 0U; index < 2U; ++index) {
         *outputs[index] = "";
         if (values[index].len == 0U) continue;
         if (values[index].data == NULL || values[index].len == (size_t)-1) {

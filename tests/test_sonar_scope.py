@@ -121,6 +121,24 @@ class SonarScopeTests(unittest.TestCase):
         self.assertTrue(set(paths).issubset(result["test_paths"]))
         self.assertFalse(set(paths).intersection(result["source_paths"]))
 
+    def test_ci_prefixed_python_unittest_is_classified_as_test(self) -> None:
+        suite = "ci/runtime/lifecycle/i12/envoy/test_qualify_originals.py"
+        self.files.extend([suite, "common/include/core.h"])
+        result = SCOPE.validate(self.config, "3.15.1", self.files)
+        self.assertIn(suite, result["test_paths"])
+        self.assertNotIn(suite, result["source_paths"])
+        self.assertIn("common/include/core.h", result["source_paths"])
+        self.assertIn("ci/check.py", result["source_paths"])
+        self.assertIn("tests/regression.c", result["source_paths"])
+
+    def test_ci_suffixed_python_unittest_is_classified_as_test(self) -> None:
+        suite = "ci/runtime/lifecycle/i12/envoy/qualification_test.py"
+        self.files.append(suite)
+        result = SCOPE.validate(self.config, "3.15.1", self.files)
+        self.assertIn(suite, result["test_paths"])
+        self.assertNotIn(suite, result["source_paths"])
+        self.assertIn("common/src/core.c", result["source_paths"])
+
     def test_rejects_ambiguous_property_files(self) -> None:
         cases = (
             ("sonar.sources\n", "unsupported property syntax"),

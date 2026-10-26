@@ -42,7 +42,7 @@ static int safe_root(const char *root)
 static int private_path(const char *path)
 {
     const char *root = getenv("I12_SINK_ROOT");
-    if (!safe_root(root) || path == NULL) return 0;
+    if (root == NULL || path == NULL || !safe_root(root)) return 0;
     size_t length = strlen(root);
     return strncmp(path, root, length) == 0 && path[length] == '/' &&
         strstr(path, "/../") == NULL && strstr(path, "/./") == NULL;
@@ -111,7 +111,7 @@ static void remember(apr_file_t *file, int fd)
     (void)pthread_mutex_unlock(&lock);
 }
 
-static int lookup(apr_file_t *file, int remove)
+static int lookup(const apr_file_t *file, int remove)
 {
     int fd = -1;
     (void)pthread_mutex_lock(&lock);
@@ -249,7 +249,7 @@ apr_status_t apr_file_write_full(apr_file_t *file, const void *buffer,
         struct stat st;
         int private = fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
             st.st_uid == geteuid() && (st.st_mode & 0777) == 0600;
-        if (private && strcmp(mode, "observe") != 0 && atomic_exchange(&fired, 1) == 0) {
+        if (private && mode != NULL && strcmp(mode, "observe") != 0 && atomic_exchange(&fired, 1) == 0) {
             action = mode;
             apply_fault(fd, mode, &operation_result, &operation_errno);
         }

@@ -15,11 +15,20 @@ validator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validator)
 
 
+def _private_fixture_root() -> Path:
+    from ci.lib.active_test_inventory import validate_output_root
+
+    declared = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+    if not declared:
+        raise RuntimeError("I12_TEST_ROOT or RUNNER_TEMP must name existing private storage")
+    return validate_output_root(Path(__file__).resolve().parents[5], Path(declared))
+
+
 class OracleValidationControls(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(
             prefix='envoy-oracle-controls-',
-            dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
+            dir=_private_fixture_root())
         self.root = Path(self.temporary.name)
         storage = patch.object(validator, 'STORAGE_ROOTS', (self.root,))
         storage.start()

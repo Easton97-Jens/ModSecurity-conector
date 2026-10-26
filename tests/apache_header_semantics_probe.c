@@ -58,7 +58,7 @@ static int report_observation(ModSecurity *engine, const apr_table_t *headers,
     Dl_info sdk_image = {0};
     Dl_info apr_image = {0};
     if (!dladdr((const void *)&msc_init, &sdk_image) ||
-        !dladdr((const void *)apr_table_compress, &apr_image)) return 0;
+        !dladdr((const void *)&apr_table_compress, &apr_image)) return 0;
     printf("sdk_image=%s\napr_image=%s\n", sdk_image.dli_fname, apr_image.dli_fname);
     for (int i = 0; i < array->nelts; ++i) {
         printf("header=%s\t%s\n", entries[i].key, entries[i].val);

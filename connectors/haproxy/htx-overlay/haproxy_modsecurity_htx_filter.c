@@ -1104,12 +1104,11 @@ static int haproxy_modsecurity_htx_begin_request(
     }
     haproxy_modsecurity_htx_report_decision("request", ctx, &decision);
     if (ctx->lifecycle.fail_closed) { return -1; }
-    if (decision.disruptive) {
-        /* P1 is precommit. Translate validated deny and redirect decisions;
-         * unsupported disruptive shapes fail closed. */
-        if (!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
-                &decision, "request disruptive decision")) { return -1; }
-    }
+    /* P1 is precommit. Translate validated deny and redirect decisions;
+     * unsupported disruptive shapes fail closed. */
+    if (decision.disruptive &&
+        !haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
+            &decision, "request disruptive decision")) { return -1; }
     return 0;
 }
 
@@ -1245,12 +1244,11 @@ static int haproxy_modsecurity_htx_process_response_headers(
     ctx->response.original_status = response.status;
     haproxy_modsecurity_htx_report_decision("response-header", ctx, &decision);
     if (ctx->lifecycle.fail_closed) { return -1; }
-    if (decision.disruptive) {
-        /* P3 remains precommit: translate validated deny or redirect replies,
-         * and fail closed for unsupported disruptive shapes. */
-        if (!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
-                &decision, "response-header disruptive decision")) { return -1; }
-    }
+    /* P3 remains precommit: translate validated deny or redirect replies,
+     * and fail closed for unsupported disruptive shapes. */
+    if (decision.disruptive &&
+        !haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed(s, ctx,
+            &decision, "response-header disruptive decision")) { return -1; }
     return 0;
 }
 
@@ -1918,7 +1916,7 @@ static int haproxy_modsecurity_htx_handle_request_headers(
 static int haproxy_modsecurity_htx_filter_http_headers(
     struct stream *s, struct filter *filter, struct http_msg *msg)
 {
-    struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
+    const struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
 
     if (!ctx || !msg || !msg->chn) {
         return -1;

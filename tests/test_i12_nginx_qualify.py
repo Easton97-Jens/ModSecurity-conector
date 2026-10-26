@@ -29,7 +29,8 @@ class QualificationTests(unittest.TestCase):
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         self.fixture = fixture
-        run_root = fixture.path.parents[2]
+        from ci.lib.active_test_inventory import validate_output_root
+        run_root = validate_output_root(ROOT, fixture.path)
         configured_root = mock.patch.dict(os.environ, {"CODEX_RUN_ROOT": str(run_root)})
         configured_root.start()
         self.addCleanup(configured_root.stop)

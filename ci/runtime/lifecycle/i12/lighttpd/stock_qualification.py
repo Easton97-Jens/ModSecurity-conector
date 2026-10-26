@@ -15,6 +15,11 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
+
+_I12_LIBRARY = Path(__file__).resolve().parents[4] / 'lib'
+sys.path.insert(0, str(_I12_LIBRARY))
+import i12_path_safety as i12_paths
 try:
     from qualification import EXTERNAL_ROOT, storage_root
 except ModuleNotFoundError:
@@ -87,25 +92,38 @@ CANONICAL_SEQUENCE_CASES = frozenset({'single_request_cleanup', 'multiple_sequen
     'clean_shutdown', 'transport_http11_content_length', 'transport_sequential_requests'})
 
 
-def sha(path):
-    path = regular(Path(path).absolute())
-    if not any(path.is_relative_to(root) for root in (REPO, EXTERNAL, Path('/usr/lib/x86_64-linux-gnu'))):
-        raise ValueError('hash input outside declared capture/source/library roots')
+def _read_root(path, *, image=False):
+    path = Path(path).absolute()
+    roots = (REPO, EXTERNAL)
+    if image:
+        roots += (Path('/usr/lib/x86_64-linux-gnu'),)
+    if ('..' in path.parts
+            or any(part in {'.git', '.codex', '.aws', '.ssh', '.gnupg'} for part in path.parts)
+            or not any(path != root and path.is_relative_to(root) for root in roots)):
+        raise ValueError('input outside declared capture/source/library roots')
     if path.is_relative_to(EXTERNAL):
         storage_root(EXTERNAL)
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return path
 
 
-def regular(path):
-    path = Path(path)
-    if '..' in path.parts:
-        raise ValueError('source traversal forbidden')
+def sha(path):
+    path = regular(path, image=True)
+    return hashlib.sha256(i12_paths._read_admitted(path, i12_paths.MAXIMUM_BYTES)).hexdigest()
+
+
+def regular(path, *, image=False):
+    # Authorize the lexical root before any filesystem probe of the input.
+    path = _read_root(path, image=image)
     if any(part.is_symlink() for part in (*path.parents, path)):
         raise ValueError('source alias forbidden')
     detail = path.stat()
     if not stat.S_ISREG(detail.st_mode) or detail.st_nlink != 1:
         raise ValueError('source requires one regular file link')
     return path
+
+
+def read_text(path):
+    return i12_paths._read_admitted(regular(path), i12_paths.MAXIMUM_BYTES).decode('utf-8')
 
 
 def save(path, value):
@@ -937,7 +955,7 @@ def prepare(output, case, inherited, controller_run, observed_sidecar=None, obse
     contract['checkout_head_scope'] = 'Git preparation metadata; compiled product identity is exclusively the separately hashed build input/object/image binding, including dirty source bytes.'
     contract['checkout_head_command'] = head_command
     if observer_binding:
-        binding = json.loads(regular(observer_binding).read_text())
+        binding = json.loads(read_text(observer_binding))
         if binding.get('binary_sha256') != sha(observed_sidecar) or binding.get('exit') != 0:
             raise ValueError('new observed sidecar image/build receipt mismatch')
         contract['observer_extension_build_binding'] = binding

@@ -151,15 +151,24 @@ std::string files(int root, const std::string &directory, const std::vector<std:
 }
 std::string names(const modsecurity::AnchoredSetVariable &collection) {
     std::ostringstream out; out << '['; std::size_t count = 0;
-    for (const auto &entry : collection) {
+    for (const auto &[name, value] : collection) {
         if (count == max_files) break;
         if (count) out << ',';
         ++count;
-        out << R"({"key_fingerprint_fnv1a64":)" << json_quoted(fingerprint(entry.first))
+        out << R"({"key_fingerprint_fnv1a64":)" << json_quoted(fingerprint(name))
             << R"(,"value_fingerprint_fnv1a64":)";
-        out << (entry.second ? json_quoted(fingerprint(entry.second->getValue())) : "null") << '}';
+        out << (value ? json_quoted(fingerprint(value->getValue())) : "null") << '}';
     }
     return out.str() + ']';
+}
+Saved snapshot_paths(const modsecurity::Transaction &transaction) {
+    Saved snapshot{transaction.m_id, {}, transaction.m_variableFilesTmpNames.size() <= max_files};
+    for (const auto &[name, value] : transaction.m_variableFilesTmpNames) {
+        if (snapshot.paths.size() == max_files) break;
+        if (value) snapshot.paths.push_back(value->getValue());
+        else snapshot.complete = false;
+    }
+    return snapshot;
 }
 void reset_process(ObserverState &state) {
     if (state.owner != getpid()) { state.saved.clear(); state.records = 0; state.owner = getpid(); }
@@ -182,13 +191,8 @@ extern "C" void i12_apache_observe_multipart(void *opaque) noexcept {
         if (root.get() >= 0) {
             auto found = state.saved.find(opaque);
             if (opaque && (found != state.saved.end() || state.saved.size() < max_transactions)) {
-                auto *transaction = static_cast<modsecurity::Transaction *>(opaque);
-                Saved snapshot{transaction->m_id, {}, transaction->m_variableFilesTmpNames.size() <= max_files};
-                for (const auto &entry : transaction->m_variableFilesTmpNames) {
-                    if (snapshot.paths.size() == max_files) break;
-                    if (entry.second) snapshot.paths.push_back(entry.second->getValue());
-                    else snapshot.complete = false;
-                }
+                const auto *transaction = static_cast<const modsecurity::Transaction *>(opaque);
+                Saved snapshot = snapshot_paths(*transaction);
                 std::ostringstream row;
                 row << common(transaction, snapshot.id, "native_multipart_after_request_body")
                     << R"(,"files_count":)" << transaction->m_variableFiles.size()

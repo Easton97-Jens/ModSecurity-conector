@@ -251,9 +251,12 @@ class TimeoutRecordControls(unittest.TestCase):
         matrix['scenarios'][0]['label'] = '../foreign'
         self.matrix.write_text(json.dumps(matrix))
         argv = ['run-host-control', '--matrix', str(self.matrix), '--output', str(self.output)]
-        with mock.patch('sys.argv', argv), mock.patch.object(HOST.subprocess, 'Popen') as launch:
-            with self.assertRaisesRegex(ValueError, 'one bounded filename'):
-                HOST.main()
+        with (
+            mock.patch('sys.argv', argv),
+            mock.patch.object(HOST.subprocess, 'Popen') as launch,
+            self.assertRaisesRegex(ValueError, 'one bounded filename'),
+        ):
+            HOST.main()
         launch.assert_not_called()
         self.assertFalse(self.output.exists())
 

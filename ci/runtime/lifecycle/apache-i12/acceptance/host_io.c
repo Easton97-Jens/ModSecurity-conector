@@ -521,7 +521,7 @@ Transaction *msc_new_transaction_with_id(ModSecurity *engine,RulesSet *rules,nat
     errno=initial; Transaction *transaction=real_call(engine,rules,id,data); int saved=errno;
     created(transaction,engine,id); errno=saved; return transaction;
 }
-static void native_phase(Transaction *key,int phase) {
+static void native_phase(const Transaction *key,int phase) {
     if (output_fd<0) return;
     (void)pthread_mutex_lock(&lock); struct native *entry=native_entry(key);
     if (entry) entry->phase=phase;
@@ -582,7 +582,7 @@ int msc_process_request_body(Transaction *transaction) {
     int initial=errno; int (*real_call)(Transaction *)=symbol("msc_process_request_body");
     native_phase(transaction,2); errno=initial;
     int result=real_call(transaction); int saved=errno;
-    if (!internal && transaction && i12_apache_observe_multipart) {
+    if (!internal && transaction && &i12_apache_observe_multipart != NULL) {
         ++internal; i12_apache_observe_multipart(transaction); --internal;
     }
     errno=saved; return result;
@@ -636,7 +636,7 @@ int msc_intervention(Transaction *transaction,ModSecurityIntervention *intervent
 void msc_transaction_cleanup(Transaction *transaction) {
     int initial=errno; void (*real_call)(Transaction *)=symbol("msc_transaction_cleanup");
     errno=initial; real_call(transaction); int saved=errno;
-    if (!internal && transaction && i12_apache_observe_multipart_cleanup) {
+    if (!internal && transaction && &i12_apache_observe_multipart_cleanup != NULL) {
         ++internal; i12_apache_observe_multipart_cleanup(transaction); --internal;
     }
     if (output_fd>=0) { (void)pthread_mutex_lock(&lock); struct native *entry=native_entry(transaction);

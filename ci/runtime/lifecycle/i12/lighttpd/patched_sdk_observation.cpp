@@ -61,8 +61,7 @@ static int observe_transaction(const modsecurity::Transaction& native, char* out
     types += ']';
     std::string qmime;
     std::string qresponse;
-    std::string qrequest;
-    if (quoted_metadata(mime, qmime) && quoted_metadata(raw_response, qresponse)
+    if (std::string qrequest; quoted_metadata(mime, qmime) && quoted_metadata(raw_response, qresponse)
             && quoted_metadata(raw_request, qrequest)) {
         const bool selected = policy.m_value.find(mime) != policy.m_value.end();
         std::ostringstream json;

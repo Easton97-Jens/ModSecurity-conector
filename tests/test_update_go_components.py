@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -9,6 +10,8 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 from pathlib import Path
 
 from tests.version_updater_test_support import load_updater
@@ -127,6 +130,69 @@ def target_go_mod(grpc_version: str = "v1.83.2") -> str:
 
 
 class UpdateGoComponentsTests(unittest.TestCase):
+    def test_cli_root_accepts_only_actual_canonical_repository(self):
+        trusted = updater.repository_root()
+        arguments = SimpleNamespace(repository_root=str(trusted))
+        self.assertEqual(updater._select_repository_root(arguments, None), trusted)
+
+    def test_copied_script_cli_default_selects_its_private_source_tree(self):
+        # Copy/import the real scripts without executing any component action.
+        # Private-copy frames keep their actual filenames; no coverage relabeling.
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            scripts = private / "scripts"
+            scripts.mkdir()
+            for name in ("update-go-components.py", "version_updater_common.py"):
+                original = (SCRIPT.parent / name).read_bytes()
+                copied = scripts / name
+                copied.write_bytes(original)
+                self.assertEqual(copied.read_bytes(), original)
+            copied = scripts / "update-go-components.py"
+            spec = importlib.util.spec_from_file_location("private_component_cli", copied)
+            module = importlib.util.module_from_spec(spec)
+            previous_path = list(sys.path)
+            try:
+                with mock.patch.dict(sys.modules):
+                    sys.modules.pop("version_updater_common", None)
+                    sys.modules[spec.name] = module
+                    spec.loader.exec_module(module)
+                    arguments = module.build_arg_parser().parse_args(["--check"])
+                    self.assertEqual(module._select_repository_root(arguments, None), private)
+                    self.assertEqual(module._select_repository_root.__code__.co_filename, str(copied))
+                    self.assertEqual(Path(sys.modules["version_updater_common"].__file__), scripts / "version_updater_common.py")
+            finally:
+                sys.path[:] = previous_path
+
+    def test_cli_root_rejects_sibling_before_component_actions(self):
+        trusted = updater.repository_root()
+        sibling = str(trusted.parent / (trusted.name + "-foreign"))
+        output = io.StringIO()
+        with mock.patch.object(updater, "apply_component_requirements") as apply:
+            status = updater.main(["--apply-requirements", "--repository-root", sibling, "--json"], output=output)
+        self.assertEqual(status, 1)
+        self.assertEqual(json.loads(output.getvalue())["status"], "error")
+        apply.assert_not_called()
+
+    def test_cli_root_rejects_traversal_alias(self):
+        trusted = updater.repository_root()
+        arguments = SimpleNamespace(repository_root=str(trusted) + "/../" + trusted.name)
+        with self.assertRaisesRegex(updater.ComponentError, "canonical source repository"):
+            updater._select_repository_root(arguments, None)
+
+    def test_cli_root_rejects_symlink_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            alias = Path(directory) / "repository-alias"
+            alias.symlink_to(updater.repository_root(), target_is_directory=True)
+            arguments = SimpleNamespace(repository_root=str(alias))
+            with self.assertRaisesRegex(updater.ComponentError, "canonical source repository"):
+                updater._select_repository_root(arguments, None)
+
+    def test_injected_library_root_remains_separate_from_cli_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            arguments = SimpleNamespace(repository_root="/foreign-untrusted-cli")
+            self.assertEqual(updater._select_repository_root(arguments, private), private)
+
     def root_with_module(
         self,
         root: Path,

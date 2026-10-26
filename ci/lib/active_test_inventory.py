@@ -203,16 +203,7 @@ def _validate_selector(selector: Any, sources: dict[str, str]) -> None:
     validator(selector, sources)
 
 
-def _validate_execution(execution: Any) -> None:
-    required = {"id", "groups", "sources", "selector", "cases"}
-    if isinstance(execution, dict) and "expected_subtests" in execution:
-        required.add("expected_subtests")
-    _keys(execution, required, "execution")
-    _identifier(execution["id"], "execution ID")
-    _identifiers(execution["groups"], "execution groups")
-    sources = execution["sources"]
-    if not isinstance(sources, list) or not sources:
-        raise InventoryError("execution requires reviewed source SHA-256 bindings")
+def _source_bindings(sources: list[Any]) -> dict[str, str]:
     bindings = {}
     for source in sources:
         _keys(source, {"path", "sha256"}, "source binding")
@@ -223,6 +214,45 @@ def _validate_execution(execution: Any) -> None:
         if not isinstance(digest, str) or re.fullmatch(r"[a-f0-9]{64}", digest) is None:
             raise InventoryError("source SHA-256 must be an exact lowercase digest")
         bindings[path] = digest
+    return bindings
+
+
+def _expand_shared_sources(value: dict[str, Any], executions: list[Any]) -> None:
+    """Validate the complete schema-3 pool/reference graph before expansion."""
+    pool = value["source_bindings"]
+    if not isinstance(pool, list) or not pool:
+        raise InventoryError("shared source bindings must be a nonempty array")
+    bindings = _source_bindings(pool)
+    used = set()
+    for execution in executions:
+        references = execution.get("sources") if isinstance(execution, dict) else None
+        if not isinstance(references, list) or not references:
+            raise InventoryError("execution requires shared source references")
+        local = set()
+        for relative in references:
+            _relative_path(relative)
+            if relative not in bindings or relative in local:
+                raise InventoryError("shared source references must be unique known paths")
+            local.add(relative)
+        used.update(local)
+    if used != set(bindings):
+        raise InventoryError("shared source bindings must not contain unused paths")
+    for execution in executions:
+        execution["sources"] = [{"path": relative, "sha256": bindings[relative]}
+                                for relative in execution["sources"]]
+
+
+def _validate_execution(execution: Any) -> None:
+    required = {"id", "groups", "sources", "selector", "cases"}
+    if isinstance(execution, dict) and "expected_subtests" in execution:
+        required.add("expected_subtests")
+    _keys(execution, required, "execution")
+    _identifier(execution["id"], "execution ID")
+    _identifiers(execution["groups"], "execution groups")
+    sources = execution["sources"]
+    if not isinstance(sources, list) or not sources:
+        raise InventoryError("execution requires reviewed source SHA-256 bindings")
+    bindings = _source_bindings(sources)
     # Keep a lookup map internally; the serialized contract explicitly names
     # the path and digest instead of treating source filenames as field names.
     execution["sources"] = bindings
@@ -258,24 +288,28 @@ def _read_inventory(path: Path) -> tuple[dict[str, Any], str]:
     return value, hashlib.sha256(data).hexdigest()
 
 
+def _python_definitions(relative: str, data: bytes) -> dict[tuple[str, str], int]:
+    try:
+        module = ast.parse(data, filename=relative)
+    except (SyntaxError, UnicodeError) as exc:
+        raise InventoryError("selected Python test source cannot be parsed") from exc
+    definitions: dict[tuple[str, str], int] = {}
+    for owner in module.body:
+        if not isinstance(owner, ast.ClassDef):
+            continue
+        for method in owner.body:
+            if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                key = (owner.name, method.name)
+                definitions[key] = definitions.get(key, 0) + 1
+    return definitions
+
+
 def _python_test_definition(selector: dict[str, Any], source_bytes: dict[str, bytes],
                             definitions_cache: dict[str, dict[tuple[str, str], int]]) -> None:
     parts = selector["target"].split(".")
     relative = "/".join(parts[:-2]) + ".py"
     if relative not in definitions_cache:
-        try:
-            module = ast.parse(source_bytes[relative], filename=relative)
-        except (SyntaxError, UnicodeError) as exc:
-            raise InventoryError("selected Python test source cannot be parsed") from exc
-        definitions: dict[tuple[str, str], int] = {}
-        for owner in module.body:
-            if not isinstance(owner, ast.ClassDef):
-                continue
-            for method in owner.body:
-                if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    key = (owner.name, method.name)
-                    definitions[key] = definitions.get(key, 0) + 1
-        definitions_cache[relative] = definitions
+        definitions_cache[relative] = _python_definitions(relative, source_bytes[relative])
     if definitions_cache[relative].get((parts[-2], parts[-1]), 0) != 1:
         raise InventoryError("Python selector must resolve to one source-defined test method")
 
@@ -327,34 +361,42 @@ def _validate_source_definitions(root: Path, executions: list[dict[str, Any]]) -
         _validate_test_definition(root, execution, source_bytes, definitions_cache)
 
 
-def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
-    """Admit the entire expanded inventory, including unrequested groups."""
-    root = root.resolve(strict=True)
-    path = inventory_path or root / INVENTORY_PATH
-    value, digest = _read_inventory(path)
-    version = value.get("schema_version") if isinstance(value, dict) else None
-    if type(version) is not int or version not in {1, 2}:
-        raise InventoryError("unsupported active-inventory schema version")
-    keys = {"schema_version", "executions"}
-    if version == 2:
-        keys.add("offline_unit_exceptions")
-    _keys(value, keys, "inventory")
-    core = value["executions"]
-    exceptions = value.get("offline_unit_exceptions", [])
-    if not isinstance(core, list) or not core or not isinstance(exceptions, list):
-        raise InventoryError("inventory must contain active executions")
-    executions = core + exceptions
-    for execution in executions:
-        _validate_execution(execution)
-    core_count = sum(len(item["cases"]) for item in core)
-    if core_count > HARD_CASE_LIMIT:
-        raise InventoryError(f"expanded core active inventory has {core_count} cases; hard limit is 100")
+def _validate_offline_exceptions(exceptions: list[dict[str, Any]]) -> None:
     for execution in exceptions:
         if (execution["selector"]["kind"] != "python" or
                 "offline-unit" not in execution["groups"] or
                 not execution["id"].startswith("offline.") or
                 "expected_subtests" not in execution):
             raise InventoryError("offline exceptions require explicit source-bound Python unit selectors")
+
+
+def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
+    """Admit the entire expanded inventory, including unrequested groups."""
+    root = root.resolve(strict=True)
+    path = inventory_path or root / INVENTORY_PATH
+    value, digest = _read_inventory(path)
+    version = value.get("schema_version") if isinstance(value, dict) else None
+    if type(version) is not int or version not in {1, 2, 3}:
+        raise InventoryError("unsupported active-inventory schema version")
+    keys = {"schema_version", "executions"}
+    if version >= 2:
+        keys.add("offline_unit_exceptions")
+    if version == 3:
+        keys.add("source_bindings")
+    _keys(value, keys, "inventory")
+    core = value["executions"]
+    exceptions = value.get("offline_unit_exceptions", [])
+    if not isinstance(core, list) or not core or not isinstance(exceptions, list):
+        raise InventoryError("inventory must contain active executions")
+    executions = core + exceptions
+    if version == 3:
+        _expand_shared_sources(value, executions)
+    for execution in executions:
+        _validate_execution(execution)
+    core_count = sum(len(item["cases"]) for item in core)
+    if core_count > HARD_CASE_LIMIT:
+        raise InventoryError(f"expanded core active inventory has {core_count} cases; hard limit is 100")
+    _validate_offline_exceptions(exceptions)
     case_ids = tuple(case["id"] for item in executions for case in item["cases"])
     if len(case_ids) != len(set(case_ids)):
         raise InventoryError("duplicate expanded case ID")
@@ -697,14 +739,14 @@ class OfflineInventoryCase(unittest.TestCase):
     """Keep offline discovery in the same guarded child as direct/CI selection."""
 
     def __init__(self, inventory: Inventory, execution: dict[str, Any]):
-        super().__init__("runTest")
+        super().__init__("test_admitted_execution")
         self.inventory = inventory
         self.execution = execution
 
     def id(self) -> str:
         return self.execution["selector"]["target"]
 
-    def runTest(self) -> None:
+    def test_admitted_execution(self) -> None:
         execute_selected(self.inventory, (self.execution,), _default_output_root(), strict_skips=True)
 
 

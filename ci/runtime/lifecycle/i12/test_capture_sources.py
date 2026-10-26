@@ -13,12 +13,18 @@ import unittest
 SPEC = importlib.util.spec_from_file_location("capture_sources", Path(__file__).with_name("capture_sources.py"))
 CAPTURE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CAPTURE)
-TEST_ROOT = Path(os.environ.get("I12_TEST_ROOT", "/var/tmp/codex/ModSecurity-conector"))
+def _private_fixture_root() -> Path:
+    from ci.lib.active_test_inventory import validate_output_root
+
+    declared = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+    if not declared:
+        raise RuntimeError("I12_TEST_ROOT or RUNNER_TEMP must name existing private storage")
+    return validate_output_root(Path(__file__).resolve().parents[4], Path(declared))
 
 
 class CaptureSourceControls(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="unit-", dir=TEST_ROOT)
+        self.temp = tempfile.TemporaryDirectory(prefix="unit-", dir=_private_fixture_root())
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.bundle, self.repo, self.copy = (self.root / name for name in ("bundle", "repository", "copy"))
@@ -163,7 +169,7 @@ class CaptureSourceControls(unittest.TestCase):
 
 class ArchiveStorageControls(unittest.TestCase):
     def test_executable_source_objects_require_inert_line_storage(self):
-        with tempfile.TemporaryDirectory(prefix="archive-data-", dir=TEST_ROOT) as temporary:
+        with tempfile.TemporaryDirectory(prefix="archive-data-", dir=_private_fixture_root()) as temporary:
             root = Path(temporary)
             identity = "0" * 64
             (root / "manifest.json").write_text(json.dumps({"objects": {
@@ -374,7 +380,7 @@ class CurrentSourceCopyControls(CaptureSourceControls):
 class CurrentApacheProfileControls(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        temporary = tempfile.TemporaryDirectory(prefix="apache-export-contract-", dir=TEST_ROOT)
+        temporary = tempfile.TemporaryDirectory(prefix="apache-export-contract-", dir=_private_fixture_root())
         cls.addClassCleanup(temporary.cleanup)
         cls.work = Path(temporary.name)
         cls.revision = subprocess.run(["git", "rev-parse", "HEAD"],

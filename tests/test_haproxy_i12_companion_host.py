@@ -63,7 +63,15 @@ def serve_component_tls(listener, root, errors):
 
 class CompanionCaptureTests(unittest.TestCase):
     def setUp(self):
-        runner.ROOT.mkdir(parents=True, exist_ok=True)
+        from ci.lib.active_test_inventory import validate_output_root
+
+        storage = validate_output_root(SOURCE.parents[3], Path(
+            os.environ.get("I12_TEST_ROOT") or os.environ["RUNNER_TEMP"]))
+        self.temporary = tempfile.TemporaryDirectory(prefix="companion-", dir=storage)
+        self.addCleanup(self.temporary.cleanup)
+        selected_root = patch.object(runner, "ROOT", Path(self.temporary.name))
+        selected_root.start()
+        self.addCleanup(selected_root.stop)
 
     def test_source_oracle_rejects_mixed_parallel_responses(self):
         fixture = runner.cases.fixture_profile(runner.cases.PREFIX + "HIST-SPOP-HTX-CORRELATION-CLEANUP")

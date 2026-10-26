@@ -17,8 +17,11 @@ import shutil
 import subprocess
 import tarfile
 import time
-import source_inventory
-import evidence_io
+if __package__:
+    from . import source_inventory, evidence_io
+else:
+    import source_inventory
+    import evidence_io
 
 MODULE_PATH = 'connectors/envoy/ext_proc'
 GO_MOD = 'go.mod'
@@ -29,8 +32,24 @@ ALL_PACKAGES = './...'
 SYSTEM_INCLUDE = '/usr/include'
 
 
+# These installed image roots are policy, independent of CLI/receipt paths.
+# Evidence roots keep their descriptor/no-follow policy; only public installed
+# images may use the SDK/Go symlinks supplied by the operating system.
+PUBLIC_INSTALL_ROOTS = tuple(map(Path, (
+    "/usr/include", "/usr/lib", "/usr/local/lib", "/usr/bin", "/usr/local/go")))
+
+
 def sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    evidence_roots = evidence_io.DEFAULT_ROOTS
+    path, root = evidence_io.approved_path(path, (*evidence_roots, *PUBLIC_INSTALL_ROOTS))
+    roots = evidence_roots
+    if root in PUBLIC_INSTALL_ROOTS:
+        # Approve the lexical input before resolve can inspect any filesystem
+        # object, then approve the resolved image under installed roots again.
+        path = path.resolve(strict=True)
+        evidence_io.approved_path(path, PUBLIC_INSTALL_ROOTS)
+        roots = PUBLIC_INSTALL_ROOTS
+    return evidence_io.reference(path, roots)["sha256"]
 
 
 def load(path, name):

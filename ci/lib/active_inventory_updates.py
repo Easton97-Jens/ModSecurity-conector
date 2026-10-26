@@ -55,28 +55,78 @@ def _json(raw: bytes):
     return json.loads(raw.decode("utf-8"), object_pairs_hook=_object)
 
 
+def _source_records(rows):
+    for row in rows:
+        sources = row.get("sources") if isinstance(row, dict) else None
+        if not isinstance(sources, list) or not sources:
+            raise InventoryUpdateError("inventory source bindings must remain nonempty arrays")
+        for source in sources:
+            _validate_source_record(source)
+            yield source
+
+
+def _validate_source_record(source) -> None:
+    if (not isinstance(source, dict) or set(source) != {"path", "sha256"}
+            or not isinstance(source["path"], str)
+            or not isinstance(source["sha256"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", source["sha256"]) is None):
+        raise InventoryUpdateError("malformed maintenance source binding")
+    _source_path(source["path"])
+
+
+def _source_path(value) -> None:
+    if (not isinstance(value, str) or not value or value.startswith("/") or "\\" in value
+            or any(part in {"", ".", ".."} for part in value.split("/"))
+            or any(ord(character) < 32 or ord(character) == 127 for character in value)):
+        raise InventoryUpdateError("maintenance source path must be canonical relative POSIX")
+
+
+def _shared_records(value, rows):
+    pool = value["source_bindings"]
+    if not isinstance(pool, list) or not pool:
+        raise InventoryUpdateError("shared source bindings must be a nonempty array")
+    paths = set()
+    for source in pool:
+        _validate_source_record(source)
+        if source["path"] in paths:
+            raise InventoryUpdateError("duplicate shared maintenance source path")
+        paths.add(source["path"])
+    used = set()
+    for row in rows:
+        references = row.get("sources") if isinstance(row, dict) else None
+        if not isinstance(references, list) or not references:
+            raise InventoryUpdateError("inventory shared source references must be nonempty arrays")
+        local = set()
+        for relative in references:
+            _source_path(relative)
+            if relative not in paths or relative in local:
+                raise InventoryUpdateError("shared maintenance references must be unique known paths")
+            local.add(relative)
+        used.update(local)
+    if used != paths:
+        raise InventoryUpdateError("unused shared maintenance source binding")
+    return pool
+
+
 def _records(value):
     version = value.get("schema_version") if isinstance(value, dict) else None
     schemas = {1: {"schema_version", "executions"},
-               2: {"schema_version", "executions", "offline_unit_exceptions"}}
+               2: {"schema_version", "executions", "offline_unit_exceptions"},
+               3: {"schema_version", "executions", "offline_unit_exceptions", "source_bindings"}}
     if type(version) is not int or version not in schemas:
         raise InventoryUpdateError("unsupported maintenance inventory schema")
     if set(value) != schemas[version]:
         raise InventoryUpdateError("maintenance requires the closed inventory schema")
+    all_rows = []
     for key in ("executions", "offline_unit_exceptions"):
         rows = value.get(key, [])
         if not isinstance(rows, list):
             raise InventoryUpdateError("inventory executions must remain arrays")
-        for row in rows:
-            sources = row.get("sources") if isinstance(row, dict) else None
-            if not isinstance(sources, list) or not sources:
-                raise InventoryUpdateError("inventory source bindings must remain nonempty arrays")
-            for source in sources:
-                if (not isinstance(source, dict) or set(source) != {"path", "sha256"}
-                        or not isinstance(source["path"], str)
-                        or re.fullmatch(r"[0-9a-f]{64}", str(source["sha256"])) is None):
-                    raise InventoryUpdateError("malformed maintenance source binding")
-                yield source
+        all_rows.extend(rows)
+    if version == 3:
+        yield from _shared_records(value, all_rows)
+    else:
+        yield from _source_records(all_rows)
 
 
 def _encoded(value) -> bytes:
@@ -306,6 +356,22 @@ def _go_triplet(value: object) -> tuple[int, int, int]:
             sys.modules[spec.name] = previous
 
 
+def _go_component_policy(before: dict[str, bytes], after: dict[str, bytes]) -> None:
+    mod, sums = "connectors/envoy/ext_proc/go.mod", "connectors/envoy/ext_proc/go.sum"
+    if before[mod] != after[mod] or before[sums] != after[sums]:
+        path = ROOT / "scripts/update-go-components.py"
+        spec = importlib.util.spec_from_file_location("maintenance_go_components", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+            module.validate_component_candidate(before[mod], after[mod], before[sums], after[sums])
+        except (ValueError, RuntimeError) as error:
+            raise InventoryUpdateError("Go component bytes violate the existing candidate policy") from error
+        finally:
+            sys.modules.pop(spec.name, None)
+
+
 def _language_policy(kind: str, before: dict[str, bytes], after: dict[str, bytes]) -> None:
     old, new = _json(before[PROJECT_LOCK]), _json(after[PROJECT_LOCK])
     field = kind + "_version"
@@ -315,26 +381,14 @@ def _language_policy(kind: str, before: dict[str, bytes], after: dict[str, bytes
         if bodies["." + kind + "-version"] != (str(values[field]) + "\n").encode():
             raise InventoryUpdateError("maintenance version view differs from its central lock")
     if kind == "python":
-        pattern = r"3\.15\.(0|[1-9][0-9]*)"
-        first, second = re.fullmatch(pattern, str(old[field])), re.fullmatch(pattern, str(new[field]))
+        pattern = r"3\.15\.(0|[1-9]\d*)"
+        first, second = re.fullmatch(pattern, str(old[field]), re.ASCII), re.fullmatch(pattern, str(new[field]), re.ASCII)
         if not first or not second or int(second[1]) < int(first[1]):
             raise InventoryUpdateError("maintenance Python version is noncanonical or nonmonotonic")
     elif _go_triplet(new[field]) < _go_triplet(old[field]):
         raise InventoryUpdateError("maintenance Go version is nonmonotonic")
     if kind == "go":
-        mod, sums = "connectors/envoy/ext_proc/go.mod", "connectors/envoy/ext_proc/go.sum"
-        if before[mod] != after[mod] or before[sums] != after[sums]:
-            path = ROOT / "scripts/update-go-components.py"
-            spec = importlib.util.spec_from_file_location("maintenance_go_components", path)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = module
-            try:
-                spec.loader.exec_module(module)
-                module.validate_component_candidate(before[mod], after[mod], before[sums], after[sums])
-            except (ValueError, RuntimeError) as error:
-                raise InventoryUpdateError("Go component bytes violate the existing candidate policy") from error
-            finally:
-                sys.modules.pop(spec.name, None)
+        _go_component_policy(before, after)
 
 
 def language_companions(root: Path, base: str, kind: str, head: str | None = None,
@@ -348,6 +402,42 @@ def language_companions(root: Path, base: str, kind: str, head: str | None = Non
                              before, after, approved)
 
 
+def _finalize_companions(root: Path, base: str, kind: str, current: dict[str, bytes],
+                         outputs: dict[str, bytes]) -> None:
+    baseline = trusted_blob(root, base, INVENTORY)
+    old, actual = _json(baseline), _json(current[INVENTORY])
+    expected = _json(outputs[INVENTORY])
+    # Only intermediate baseline/final source SHA values of approved
+    # paths are acceptable; all selection/data fields remain exact.
+    old_sources, actual_sources, new_sources = list(_records(old)), list(_records(actual)), list(_records(expected))
+    if len(old_sources) != len(actual_sources):
+        raise InventoryUpdateError("maintenance altered source binding membership")
+    for previous, observed, generated in zip(old_sources, actual_sources, new_sources):
+        if observed["path"] == previous["path"] and observed["path"] in LANGUAGE_PATHS[kind]:
+            if observed["sha256"] not in {previous["sha256"], generated["sha256"]}:
+                raise InventoryUpdateError("unexpected intermediate maintenance source digest")
+            observed["sha256"] = previous["sha256"]
+    if not _same(actual, old):
+        raise InventoryUpdateError("maintenance changed immutable inventory fields")
+    archive = _json(current[ARCHIVE])
+    baseline_archive = _json(trusted_blob(root, base, ARCHIVE))
+    if archive.get("inventory_sha256") != digest(current[INVENTORY]):
+        raise InventoryUpdateError("intermediate archive digest is not exact")
+    archive["inventory_sha256"] = baseline_archive["inventory_sha256"]
+    if not _same(archive, baseline_archive):
+        raise InventoryUpdateError("maintenance changed archive fields")
+    _check_other_bindings(root, outputs[INVENTORY], {})
+    _write_companions(root, current, outputs)
+
+
+def _cli_root(value: str | Path) -> Path:
+    """Confine CLI operations to this source tree; library roots stay explicit."""
+    text = os.fspath(value)
+    if text != str(ROOT) or Path(text).resolve(strict=True) != ROOT:
+        raise InventoryUpdateError("maintenance CLI root must be exactly its canonical source repository")
+    return ROOT
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("command", choices=("verify", "finalize"))
@@ -355,46 +445,24 @@ def main(argv=None) -> int:
     parser.add_argument("--base", required=True)
     parser.add_argument("--head")
     parser.add_argument("--staged", action="store_true")
-    parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--root", default=str(ROOT))
     args = parser.parse_args(argv)
     try:
+        root = _cli_root(args.root)
         if args.head and args.staged:
             raise InventoryUpdateError("staged verification cannot select a branch head")
         if args.command == "finalize" and (args.head or args.staged):
             raise InventoryUpdateError("finalization cannot mutate a Git object")
-        outputs = language_companions(args.root, args.base, args.kind, args.head, staged=args.staged)
-        current = {name: (trusted_blob(args.root, args.head, name) if args.head else
-                          index_blob(args.root, name) if args.staged else read_regular(args.root, name))
+        outputs = language_companions(root, args.base, args.kind, args.head, staged=args.staged)
+        current = {name: (trusted_blob(root, args.head, name) if args.head else
+                          index_blob(root, name) if args.staged else read_regular(root, name))
                    for name in COMPANIONS}
         if args.command == "finalize":
-            baseline = trusted_blob(args.root, args.base, INVENTORY)
-            old, actual = _json(baseline), _json(current[INVENTORY])
-            expected = _json(outputs[INVENTORY])
-            # Only intermediate baseline/final source SHA values of approved
-            # paths are acceptable; all selection/data fields remain exact.
-            old_sources, actual_sources, new_sources = list(_records(old)), list(_records(actual)), list(_records(expected))
-            if len(old_sources) != len(actual_sources):
-                raise InventoryUpdateError("maintenance altered source binding membership")
-            for previous, observed, generated in zip(old_sources, actual_sources, new_sources):
-                if observed["path"] == previous["path"] and observed["path"] in LANGUAGE_PATHS[args.kind]:
-                    if observed["sha256"] not in {previous["sha256"], generated["sha256"]}:
-                        raise InventoryUpdateError("unexpected intermediate maintenance source digest")
-                    observed["sha256"] = previous["sha256"]
-            if not _same(actual, old):
-                raise InventoryUpdateError("maintenance changed immutable inventory fields")
-            archive = _json(current[ARCHIVE])
-            baseline_archive = _json(trusted_blob(args.root, args.base, ARCHIVE))
-            if archive.get("inventory_sha256") != digest(current[INVENTORY]):
-                raise InventoryUpdateError("intermediate archive digest is not exact")
-            archive["inventory_sha256"] = baseline_archive["inventory_sha256"]
-            if not _same(archive, baseline_archive):
-                raise InventoryUpdateError("maintenance changed archive fields")
-            _check_other_bindings(args.root, outputs[INVENTORY], {})
-            _write_companions(args.root, current, outputs)
+            _finalize_companions(root, args.base, args.kind, current, outputs)
         elif current != outputs:
             raise InventoryUpdateError("maintenance companions differ from trusted-base derivation")
         elif not args.head and not args.staged:
-            _admit(args.root)
+            _admit(root)
         print("MAINTENANCE_COMPANIONS_VERIFIED")
         return 0
     except (OSError, ValueError, subprocess.SubprocessError) as error:

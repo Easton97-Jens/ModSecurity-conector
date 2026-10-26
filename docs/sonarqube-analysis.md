@@ -4,20 +4,11 @@
 
 ## Integration into PR #382
 
-The implementation from master `7a44f18edac729291d6551d068da64fa3fec4e1e`
-(PR #421) is authoritative for the normal merge into PR #382. Its toolchain
-retains Python `3.15.1`, Go `1.27.3`, module language `1.26.9` and
-setup-python `7.1.0`. The PR #421 source/server/runtime records below remain
-historical evidence for their explicitly named revisions, especially `d5450cd3`;
-they are not a gate status for PR #382 or the merge head. The 80 Python methods
-in the PR #421 record are not an expanded case count. Master also selects
-37 Go scenarios and native Common tests outside the Parent inventory. Matrix
-repetition adds repeated execution cost. Default inventory hooks remain guarded;
-only the fixed 13-entry `PYTHON_TESTS` selection receives child-only explicit
-`ON_DEMAND_TESTS=1`, without a global bypass. This does not reopen a historical
-I12 host/matrix/oracle campaign or restore the removed PR-specific coverage,
-source-role or zero-gate pipeline. Current integration status:
-[PR #382 status](pr-382-merge-readiness.md).
+Master `7a44f18edac729291d6551d068da64fa3fec4e1e` (PR #421) remains authoritative. Its fixed 13-entry `PYTHON_TESTS`, 37 Go selectors and native Common assessment are retained. Python additionally measures admitted offline exact IDs with actual branch tracing in guarded children; only selected children receive `ON_DEMAND_TESTS=1`. This preserves process/network guards and does not reopen historical I12 campaigns or restore the removed PR-specific collector/custom gates. All CFamily inputs remain MAIN; 16 actual CI Python unittest modules are TEST, with scope-guard evidence separate from analyzer execution. The workflow budget increases to 60 minutes after the measured offline collection/reporting interval alone was at least 1216.9 seconds.
+
+The [current PR #382 status](pr-382-merge-readiness.md) owns current counts, measurements, pending raw-retention rerun and delivery limits. Published head `67e363d44d5f6be7119eb6d76ade11ac75e95f42` failed required Sonar with 118 new findings and 0.81499% New-Code coverage against 80%; local remediation has no new published-head gate proof. A first genuine local Python XML covers 374 files; local changed-Python coverage is 24.791%, not a Sonar result. `xml --keep-combined` and independent SHA/size-bound raw child-witness copies address implicit-combine deletion; a fresh full retention measurement is still required. No exclusion, baseline, threshold or gate condition is weakened.
+
+The PR #421 source/server/runtime records below, including sections labelled current measured closure, are historical for their explicitly named revisions, especially `d5450cd3`; their 80 Python methods are not current expanded case counts and their successful gates do not qualify PR #382. Toolchain remains Python `3.15.1`, Go `1.27.3`, module language `1.26.9`, setup-python `7.1.0` and Scanner CLI `8.2.0.6438`.
 
 ## Project and analysis method
 

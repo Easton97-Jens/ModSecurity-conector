@@ -11,6 +11,14 @@ case "$connector:$target" in
             exit 2
         }
         ;;
+    envoy:*|traefik:*|lighttpd:*)
+        # Component-native Makefiles validate other non-diagnostic targets.
+        :
+        ;;
+    *)
+        echo "FAIL: unsupported remaining connector: $connector" >&2
+        exit 2
+        ;;
 esac
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)

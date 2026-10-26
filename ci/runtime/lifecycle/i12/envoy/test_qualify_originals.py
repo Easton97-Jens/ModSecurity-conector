@@ -25,9 +25,9 @@ CLIENT_RESPONSE_SHA_CHECK = 'original_client_response_sha256'
 
 
 def summary():
-    counts = {name: 1 for name in ('native_process_request_headers', 'native_process_request_body',
+    counts = dict.fromkeys(('native_process_request_headers', 'native_process_request_body',
         'native_process_response_headers', 'native_process_response_body', 'native_cleanup',
-        'native_process_logging', 'runtime_destroy', 'runtime_finish', 'common_cleanup')}
+        'native_process_logging', 'runtime_destroy', 'runtime_finish', 'common_cleanup'), 1)
     counts.update(common_finish=2, native_intervention=9, runtime_append_request_body_chunk=3,
                   runtime_append_response_body_chunk=3, native_append_request_body=2, native_append_response_body=2)
     callbacks = []
@@ -44,15 +44,15 @@ def summary():
     process = {'scope_verified': True, 'classification': 'observed_local_reset', 'local_http2_close_code': 2,
                'remote_grpc_status': None, 'successful_grpc_completion': False}
     return {'route': 'envoy-ext-proc', 'artifact_integrity_issues': [], 'runner_exit_code': 0,
-        'command_exit_codes': {name: 0 for name in ('selected-target-client', 'separate-neighbor-client',
-            'host-version', 'go-version', 'sdk-who-compile', 'sdk-who', 'envoy-config-validate')},
+        'command_exit_codes': dict.fromkeys(('selected-target-client', 'separate-neighbor-client',
+            'host-version', 'go-version', 'sdk-who-compile', 'sdk-who', 'envoy-config-validate'), 0),
         'controller': {'controller_exitcode': 0, 'exitcode': 0, 'supervisor_reaped': True,
             'error_count': 0, 'surviving_namespace_pid_count': 0, 'outside_mount_leak_count': 0,
             'namespace_pin_verified': True, 'executed_input_hashes_unchanged': True, 'timeout': False},
         'driver': {'failure_type': None, 'remaining_owned_process_count': 0,
                    'processes': {name: {'waited_exit_code': 0, 'forced_kill': False} for name in images}},
-        'source_equality': {name: True for name in ('all_rows_verified',
-            'independent_sealed_baseline_overlay_contract_verified', 'complete_archived_build_inventory_verified')},
+        'source_equality': dict.fromkeys(('all_rows_verified',
+            'independent_sealed_baseline_overlay_contract_verified', 'complete_archived_build_inventory_verified'), True),
         'loaded_images': {name: copy.deepcopy(images) for name in ('before-request', 'after-target', 'after-neighbor')},
         'clients': {'target': copy.deepcopy(client), 'neighbor': copy.deepcopy(client)},
         'grpc_transport': {role: {'process': copy.deepcopy(process)} for role in ('target', 'neighbor')},
@@ -66,6 +66,15 @@ def summary():
             'contract_state_samples': [{'state': {'response_committed': 1}}]}, {}],
             'observer_states': [{'invalid': False, 'pending_calls': 0, 'live_mappings': 0}]},
         'native_logs': {'native-audit': {'logged_numeric_rule_id_counts': {'1900032': 1, '1900034': 1}}}}
+
+
+def _private_fixture_root() -> Path:
+    from ci.lib.active_test_inventory import validate_output_root
+
+    declared = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+    if not declared:
+        raise RuntimeError("I12_TEST_ROOT or RUNNER_TEMP must name existing private storage")
+    return validate_output_root(Path(__file__).resolve().parents[5], Path(declared))
 
 
 class PredicateMutations(unittest.TestCase):
@@ -122,7 +131,7 @@ class PredicateMutations(unittest.TestCase):
 class PacketMutations(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(
-            dir=os.environ.get('TMPDIR', tempfile.gettempdir()), prefix='packet-controls-')
+            dir=_private_fixture_root(), prefix='packet-controls-')
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         storage = patch.object(Q, 'RUNROOT', self.root)

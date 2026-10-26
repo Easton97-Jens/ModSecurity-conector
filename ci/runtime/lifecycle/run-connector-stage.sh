@@ -42,6 +42,14 @@ case "$connector:$stage" in
             exit 2
         }
         ;;
+    *:build|*:minimal_runtime_smoke|*:no_crs_baseline|envoy:config_load|traefik:config_load)
+        # Both values were validated above; these stages are not archived.
+        :
+        ;;
+    *)
+        echo "FAIL: unsupported connector lifecycle stage: $connector:$stage" >&2
+        exit 2
+        ;;
 esac
 
 # Keep sockets short while artifacts retain their revision-bound identities.

@@ -18,8 +18,7 @@ static int restore_errno(int saved, int result) {
 extern "C" int msconnector_lifecycle_sdk_transaction_id(
     void *engine, const void *transaction, char *output, size_t capacity) {
     const int saved = errno;
-    constexpr size_t maximum_capacity = 256U;
-    if (engine == nullptr || transaction == nullptr || output == nullptr ||
+    if (constexpr size_t maximum_capacity = 256U; engine == nullptr || transaction == nullptr || output == nullptr ||
         capacity == 0U || capacity > maximum_capacity)
         return restore_errno(saved, -1);
     output[0] = '\0';
@@ -29,8 +28,8 @@ extern "C" int msconnector_lifecycle_sdk_transaction_id(
     if (prefix == nullptr) return restore_errno(saved, -2);
     const char *version = prefix + sizeof(version_prefix) - 1U;
     constexpr char expected[] = MSCONNECTOR_LIFECYCLE_SDK_EXPECTED_VERSION;
-    constexpr size_t expected_length = sizeof(expected) - 1U;
-    if (std::strncmp(version, expected, expected_length) != 0 ||
+    if (constexpr size_t expected_length = sizeof(expected) - 1U;
+        std::strncmp(version, expected, expected_length) != 0 ||
         (version[expected_length] != '\0' && version[expected_length] != ' ' && version[expected_length] != '('))
         return restore_errno(saved, -2);
     /* The version rejection above precedes every Transaction dereference. */

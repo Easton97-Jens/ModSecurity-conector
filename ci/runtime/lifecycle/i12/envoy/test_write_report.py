@@ -138,9 +138,11 @@ class ReportControls(unittest.TestCase):
     def test_retaken_original_requires_physical_review_hash(self):
         item = {'route': 'request', 'oracle_review_sha256': 'wrong'}
         sources = {'original': {'route': 'request', 'review_file': '/approved/review.json'}}
-        with patch.object(writer, 'reference', return_value={'sha256': 'expected'}):
-            with self.assertRaisesRegex(ValueError, 'independently verified review'):
-                writer.add_retaken_ids(item, ['original'], sources, {})
+        with (
+            patch.object(writer, 'reference', return_value={'sha256': 'expected'}),
+            self.assertRaisesRegex(ValueError, 'independently verified review'),
+        ):
+            writer.add_retaken_ids(item, ['original'], sources, {})
 
 
     def supplement_fixture(self):
@@ -165,9 +167,11 @@ class ReportControls(unittest.TestCase):
         path, sources, supplement, refs = self.supplement_fixture()
         original_review = {'reviewed_count': 125, 'new_source_proposals': 33}
         data = {'physical_inputs': {}, 'source_oracle_progress': dict(original_review)}
-        with patch.object(writer.validate_oracles, 'validate_supplement', return_value=supplement) as validate:
-            with patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]):
-                allowed = writer.add_oracle_supplements(data, [path], original_review, sources)
+        with (
+            patch.object(writer.validate_oracles, 'validate_supplement', return_value=supplement) as validate,
+            patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]),
+        ):
+            allowed = writer.add_oracle_supplements(data, [path], original_review, sources)
         validate.assert_called_once_with(path, original_review)
         self.assertEqual(allowed, {'original': {'supplement'}})
         self.assertEqual(data['source_oracle_progress'], original_review)
@@ -178,24 +182,30 @@ class ReportControls(unittest.TestCase):
     def test_supplement_rejects_different_normalized_original_id(self):
         path, sources, supplement, refs = self.supplement_fixture()
         supplement['normalized_rows'][0]['run_scoped_case_id'] = 'different'
-        with patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]):
-            with self.assertRaisesRegex(ValueError, 'exact original ID'):
-                writer.supplement_binding(supplement, path, sources)
+        with (
+            patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]),
+            self.assertRaisesRegex(ValueError, 'exact original ID'),
+        ):
+            writer.supplement_binding(supplement, path, sources)
 
     def test_supplement_rejects_sibling_route(self):
         path, sources, supplement, refs = self.supplement_fixture()
         supplement['route'] = 'request'
-        with patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]):
-            with self.assertRaisesRegex(ValueError, 'sibling original ID'):
-                writer.supplement_binding(supplement, path, sources)
+        with (
+            patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]),
+            self.assertRaisesRegex(ValueError, 'sibling original ID'),
+        ):
+            writer.supplement_binding(supplement, path, sources)
 
     def test_duplicate_supplement_cannot_count_twice(self):
         path, sources, supplement, refs = self.supplement_fixture()
         data = {'physical_inputs': {}}
-        with patch.object(writer.validate_oracles, 'validate_supplement', return_value=supplement):
-            with patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]):
-                with self.assertRaisesRegex(ValueError, 'duplicate oracle supplement'):
-                    writer.add_oracle_supplements(data, [path, path], {}, sources)
+        with (
+            patch.object(writer.validate_oracles, 'validate_supplement', return_value=supplement),
+            patch.object(writer, 'reference', side_effect=lambda p: refs[str(p)]),
+            self.assertRaisesRegex(ValueError, 'duplicate oracle supplement'),
+        ):
+            writer.add_oracle_supplements(data, [path, path], {}, sources)
 
     def test_supplement_hash_accepts_only_its_exact_original_id(self):
         _, sources, _, refs = self.supplement_fixture()

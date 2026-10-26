@@ -1832,7 +1832,7 @@ static int apache_response_header_metrics(const apr_table_t *headers,
 }
 
 static int apache_contract_record_response_metadata(msc_t *msr,
-    request_rec *r, const char *content_type)
+    const request_rec *r, const char *content_type)
 {
     size_t header_count = 0U;
     size_t header_bytes = 0U;
@@ -2233,11 +2233,10 @@ static apr_status_t apache_output_filter_finish_response(msc_t *msr,
 {
     int intervention = N_INTERVENTION_STATUS;
     apr_status_t rc;
-    apr_bucket *bucket;
 
     if (terminal_brigade != NULL)
     {
-        for (bucket = APR_BRIGADE_FIRST(terminal_brigade);
+        for (apr_bucket *bucket = APR_BRIGADE_FIRST(terminal_brigade);
             bucket != APR_BRIGADE_SENTINEL(terminal_brigade);
             bucket = APR_BUCKET_NEXT(bucket))
         {

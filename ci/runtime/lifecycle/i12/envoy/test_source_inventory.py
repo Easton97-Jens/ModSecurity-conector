@@ -10,9 +10,18 @@ import unittest
 import source_inventory as inventory
 
 
+def _private_fixture_root() -> Path:
+    from ci.lib.active_test_inventory import validate_output_root
+
+    declared = os.environ.get("I12_TEST_ROOT") or os.environ.get("RUNNER_TEMP")
+    if not declared:
+        raise RuntimeError("I12_TEST_ROOT or RUNNER_TEMP must name existing private storage")
+    return validate_output_root(Path(__file__).resolve().parents[5], Path(declared))
+
+
 class CompleteSourceControls(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR', tempfile.gettempdir()))
+        self.temporary = tempfile.TemporaryDirectory(dir=_private_fixture_root())
         self.root = Path(self.temporary.name)
         self.source = self.root / 'source'
         self.source.mkdir()

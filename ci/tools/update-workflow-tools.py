@@ -2220,6 +2220,22 @@ def verify_git_scope(
     return changed
 
 
+def publisher_candidate_blob(root: Path, name: str, head: str | None,
+                             *, staged: bool, companions) -> bytes:
+    """Read candidates through the existing primary/companion trust boundaries."""
+    if head:
+        return (git_blob(root, head, Path(name)) if name in ALLOWED_UPDATE_PATHS
+                else companions.trusted_blob(root, head, name))
+    if not staged:
+        return companions.read_regular(root, name)
+    if name in DERIVED_COMPANION_PATHS:
+        return companions.index_blob(root, name)
+    result = subprocess.run(
+        ["git", "--no-replace-objects", "-C", str(root), "show", "--no-textconv", ":" + name],
+        check=True, capture_output=True, shell=False, timeout=30)
+    return result.stdout
+
+
 def verify_derived_companion_blobs(root: Path, base: str, head: str | None,
                                    *, staged: bool = False) -> None:
     """Rebuild primary edits and SHA-only companions from trusted base bytes.
@@ -2232,17 +2248,7 @@ def verify_derived_companion_blobs(root: Path, base: str, head: str | None,
     before = {name: git_blob(root, base, Path(name)) for name in ALLOWED_UPDATE_PATHS}
 
     def actual(name: str) -> bytes:
-        if head:
-            return (git_blob(root, head, Path(name)) if name in ALLOWED_UPDATE_PATHS
-                    else companions.trusted_blob(root, head, name))
-        if staged:
-            if name in DERIVED_COMPANION_PATHS:
-                return companions.index_blob(root, name)
-            result = subprocess.run(
-                ["git", "--no-replace-objects", "-C", str(root), "show", "--no-textconv", ":" + name],
-                check=True, capture_output=True, shell=False, timeout=30)
-            return result.stdout
-        return companions.read_regular(root, name)
+        return publisher_candidate_blob(root, name, head, staged=staged, companions=companions)
 
     after = {name: actual(name) for name in ALLOWED_UPDATE_PATHS}
     base_lock = normalize_connector_lock(yaml.safe_load(before[LOCK_RELATIVE_PATH.as_posix()]))
