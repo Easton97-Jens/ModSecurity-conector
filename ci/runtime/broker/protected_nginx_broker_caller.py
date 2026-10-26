@@ -21,8 +21,8 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 
-PROTECTED_BROKER_SHA = "49c40779a7b6de9f699391bcd524ea069787df42"
-PROTECTED_FRAMEWORK_SHA = "03880bf66b3905940466ff10b3a431a27ecc6b26"
+PROTECTED_BROKER_SHA = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
+PROTECTED_FRAMEWORK_SHA = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
 PROJECT_GIT_COMMIT_API = (
     "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/git/commits/"
 )

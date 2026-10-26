@@ -2,7 +2,13 @@
 
 **Sprache:** [English](sonarqube-native-security.md) | Deutsch
 
-SDK-Vorbereitung und Zwölf-Ziele-Matrix deklarieren jetzt `ubuntu-26.04`. Die Runner-Migration benötigt neue Hosted-Build- und Analyzer-Nachweise; die bisherigen Entwicklungs-Captures belegen keine Ubuntu-26.04-Kompatibilität. Der geschützte NGINX-Aufrufer behält außerdem einen unveränderlichen alten Broker-Pin, dessen Runner-Vertrag 26.04 ablehnt. Der Benutzer autorisierte ausschließlich Broker-PR #422 nach grünen Prüfungen und finalem Review, danach den geprüften Aufrufer-Pin. Der neue Head `3d633ee27b48b64b940042e278c157f1aa629679` wartet nach reiner Coverage-Abwahl auf CI; kein Merge ist erfolgt. Siehe [Ubuntu-Migrationsrecord](../reports/audits/change-records/CR-20261026-ubuntu26-workflow-migration.de.md).
+SDK-Vorbereitung und Matrix mit zwölf Zielen verwenden `ubuntu-26.04`.
+Der Aufrufer pinnt den geprüften Master-Broker `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`
+aus dem nutzerfreigegebenen [PR #422](https://github.com/Easton97-Jens/ModSecurity-conector/pull/422).
+Geschützte manuelle Laufzeitprüfung und Hosted-Native12-Nachweis stehen aus.
+[Aktuelle Readiness](pr-382-merge-readiness.de.md) und
+[Ubuntu-Migrationsrecord](../reports/audits/change-records/CR-20261026-ubuntu26-workflow-migration.de.md)
+trennen PR-/Master-Gate-Ergebnisse und quellgebundene Prüfungen.
 
 ## Umfang und aktueller Status
 
@@ -140,9 +146,9 @@ Runtime-Promotion. Framework-CLI-/Updater-Arbeit bleibt getrennt in
 [Framework PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138).
 Der Parent-Framework-Gitlink bleibt unverändert; MRTS bleibt read-only. Framework-Revision `5ef4dc3c815c97121578cd34382b80088b9c61ec` schloss tatsächliche SDK-/Native-/Scanner-Analyse ab, einschließlich einer C-TU mit acht Taint-Regeln und Python mit 32 Taint-Regeln. CE-Task `AaF5sxOo8Px5fiPcdsNi` endete mit `SUCCESS`; sein Gate bleibt ausschließlich wegen Security-Rating 3 `ERROR`. Vier CLI-Flow-Behauptungen werden triagiert; dies bleibt vom Parent-Native12-Abschluss getrennt.
 
-Die zugelassene integrierte Auswahl bestand **79 Ausführungen / 298 expandierte Fälle ohne Skips**, beim Inventar `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be`. Dieses deklariert 1956 Fälle / 911 Ausführungen: 97 Kernfälle / 77 Ausführungen plus 1859 autorisierte Offline-Fälle / 834 Ausführungen, mit 613 Quellbindungen und 1.654.103 Bytes. Die aufbewahrte Zusammenfassung ist `targeted-offline/active-tests-v3oeoia0/summary.json` im externen Lauf `parent-ubuntu26-20261026`. Enthalten sind der korrigierte NGINX-Test zum veralteten archivierten Vertrag unter Erhalt der Isolation und 97 statische Lighttpd-Grenzvarianten. Die Prüfung reproduzierte einen echten Helper-Fehler: Der Validator lehnte dessen nicht unterstütztes Capture-Schema ab; nach Korrektur des Capture-Pfads bestand die zugelassene Ein-Fall-Regression. Unabhängige Prüfung fand keinen weiteren konkreten Befund. Das erste Teilergebnis 78/297 und der frühere Native12-Zwischenstand 34/98 bei `f1df7bc865daa8863bf98e0afdd758e7b0a8298570ae2721d484c49badafc578` bleiben historisch und sind keine aktuellen Fehler. Statische AST-Prüfungen für 14 Dateien, Zweisprachigkeits-/Pfadprüfungen und natives actionlint bestanden; zizmor meldete keine Findings. Das sind lokale Nachweise, keine Hosted-Native12-Analyse.
+Die integrierte Auswahl nach Master-Übernahme bestand **94 Ausführungen / 342 expandierte Fälle ohne Skips**, beim Inventar `e13c73b981fd1399fbe0c161a8abd753d6cbc4d429957caa86d7c33e1f59bf7c`. Das Inventar deklariert 1992 Fälle / 918 Ausführungen: 97 Kernfälle / 77 Ausführungen plus 1895 autorisierte Offline-Fälle / 841 Ausführungen, mit 614 Quellbindungen und 1.672.802 Bytes. Die Auswahl enthält acht Inventarkontrollen einschließlich Überlauf-Abweisung und sieben Broker-Selektoren / 36 Fälle sowie korrigierte Helper-Capture-Pfad- und isolierte NGINX-Archivvertragskontrollen. Das frühere PASS 79/298 bei `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be` ist ein Vor-Merge-Zwischenstand. Lokale grüne Ergebnisse belegen keine Hosted-Native12-Analyse.
 
-Neue CI am veröffentlichten Head, Analyzer-Logs, Server-Tasks, Gate-/Readback und quellbasierte Finding-Dispositionen bleiben erforderlich; aktuelle Parent-Native12-/Ubuntu-Änderungen sind unveröffentlicht.
+Neue CI am veröffentlichten Head, Analyzer-Logs, Server-Tasks, Gate-/Readback und quellbasierte Finding-Dispositionen bleiben für die Parent-Native12-/Ubuntu-Änderungen erforderlich.
 
 ## Referenzen
 

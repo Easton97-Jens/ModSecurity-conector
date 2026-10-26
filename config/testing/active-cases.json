@@ -38824,9 +38824,419 @@
           ]
         }
       ]
+    },
+    {
+      "id": "offline.ubuntu26.broker.caller-yaml-contract-accepts-the-exact-two-immutable-broker-jobs",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_the_exact_two_immutable_broker_jobs"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/actionlint.yaml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "tests/__init__.py",
+        "tests/test_nginx_root_broker.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-accepts-the-exact-two-immutable-broker-jobs.case-1",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-accepts-the-exact-two-immutable-broker-jobs; ordered variant 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.broker.caller-yaml-contract-accepts-uniform-ubuntu26-runners",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_uniform_ubuntu26_runners"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/actionlint.yaml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "tests/__init__.py",
+        "tests/test_nginx_root_broker.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-accepts-uniform-ubuntu26-runners.case-1",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-accepts-uniform-ubuntu26-runners; ordered variant 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-mixed-runner-modes",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_mixed_runner_modes"
+      },
+      "expected_subtests": 6,
+      "sources": [
+        ".github/actionlint.yaml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "tests/__init__.py",
+        "tests/test_nginx_root_broker.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-mixed-runner-modes.case-1",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-mixed-runner-modes; ordered variant 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-mixed-runner-modes.case-2",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-mixed-runner-modes; ordered variant 2.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-mixed-runner-modes.case-3",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-mixed-runner-modes; ordered variant 3.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-mixed-runner-modes.case-4",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-mixed-runner-modes; ordered variant 4.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-mixed-runner-modes.case-5",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-mixed-runner-modes; ordered variant 5.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-mixed-runner-modes.case-6",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-mixed-runner-modes; ordered variant 6.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_unknown_and_structured_runners"
+      },
+      "expected_subtests": 12,
+      "sources": [
+        ".github/actionlint.yaml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "tests/__init__.py",
+        "tests/test_nginx_root_broker.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-1",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-2",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 2.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-3",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 3.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-4",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 4.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-5",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 5.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-6",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 6.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-7",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 7.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-8",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 8.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-9",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 9.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-10",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 10.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-11",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 11.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-unknown-and-structured-runners.case-12",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-unknown-and-structured-runners; ordered variant 12.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.broker.broker-workflow-uses-ubuntu26-runner",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_broker_workflow_uses_ubuntu26_runner"
+      },
+      "expected_subtests": 0,
+      "sources": [
+        ".github/actionlint.yaml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "tests/__init__.py",
+        "tests/test_nginx_root_broker.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.broker.broker-workflow-uses-ubuntu26-runner.case-1",
+          "requirement": "Preserve the exact reviewed broker caller boundary: broker-workflow-uses-ubuntu26-runner; ordered variant 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_pin_job_variant_permission_and_secret_mutations"
+      },
+      "expected_subtests": 8,
+      "sources": [
+        ".github/actionlint.yaml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "tests/__init__.py",
+        "tests/test_nginx_root_broker.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-1",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-2",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 2.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-3",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 3.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-4",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 4.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-5",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 5.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-6",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 6.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-7",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 7.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations.case-8",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-pin-job-variant-permission-and-secret-mutations; ordered variant 8.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations",
+      "groups": [
+        "offline-unit"
+      ],
+      "selector": {
+        "kind": "python",
+        "target": "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_top_level_and_unprivileged_job_mutations"
+      },
+      "expected_subtests": 7,
+      "sources": [
+        ".github/actionlint.yaml",
+        ".github/workflows/nginx-root-broker.yml",
+        ".github/workflows/run-protected-nginx-root-broker.yml",
+        "ci/lib/active_test_inventory.py",
+        "ci/runtime/broker/nginx_root_broker.py",
+        "tests/__init__.py",
+        "tests/test_nginx_root_broker.py"
+      ],
+      "cases": [
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations.case-1",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations; ordered variant 1.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations.case-2",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations; ordered variant 2.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations.case-3",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations; ordered variant 3.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations.case-4",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations; ordered variant 4.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations.case-5",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations; ordered variant 5.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations.case-6",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations; ordered variant 6.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        },
+        {
+          "id": "offline.ubuntu26.broker.caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations.case-7",
+          "requirement": "Preserve the exact reviewed broker caller boundary: caller-yaml-contract-rejects-top-level-and-unprivileged-job-mutations; ordered variant 7.",
+          "profiles": [
+            "parent-infrastructure"
+          ]
+        }
+      ]
     }
   ],
   "source_bindings": [
+    {
+      "path": ".github/actionlint.yaml",
+      "sha256": "ef255131e65fdeb1251b180fea6d7378e525e45dae9f0601871d931f8d6de482"
+    },
     {
       "path": ".github/dependabot.yml",
       "sha256": "0b0699dcc90443e9337205cc84967ad0e734eef6468965a6889864065aee8841"
@@ -38893,7 +39303,7 @@
     },
     {
       "path": ".github/workflows/run-protected-nginx-root-broker.yml",
-      "sha256": "005db81bf57fda170389dc80473370ab6a8d11aeabdf09a0f9566a61fcb114f5"
+      "sha256": "d34b01b67d9f88552353186a3c78605b6d99d827541479207efe174bc994b341"
     },
     {
       "path": ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
@@ -39165,11 +39575,11 @@
     },
     {
       "path": "ci/runtime/broker/nginx_root_broker.py",
-      "sha256": "20ade70d60a3660280b3b4006ff4621963f88be9f62fcb9715c9a3959277d472"
+      "sha256": "4c85bf823f7c9109706394b422b46a77e24e80808571cb13c7bf1a0a47abf2eb"
     },
     {
       "path": "ci/runtime/broker/protected_nginx_broker_caller.py",
-      "sha256": "a568b3fc9a47331096ccc1c1503bb62c47eefd43f4072a9febf532f631092daf"
+      "sha256": "f708dcdf32065d366788aacf2b1f392808056c63911df4fedafca3238565b73a"
     },
     {
       "path": "ci/runtime/broker/protected_nginx_exact_head_builder.py",
@@ -41001,7 +41411,7 @@
     },
     {
       "path": "tests/test_ci_security_workflows.py",
-      "sha256": "79a87b132b9fb75ff9495e8c3e3ca39f06159d46b2589e28600867f91c9ccbce"
+      "sha256": "5d773c8b3ae538011f90feecfc6ae01edba79f05c57fadb5fd13b93b46d9bcb2"
     },
     {
       "path": "tests/test_compiler_guides.py",
@@ -41157,7 +41567,7 @@
     },
     {
       "path": "tests/test_nginx_root_broker.py",
-      "sha256": "fe1b11ee8d329926e87932f62f807c34f1ecf31b1ca5523c560e4ed4731433c7"
+      "sha256": "085e990223e1765943009210a777a32c2a26f3e7472383b9b3088dceda7a86e3"
     },
     {
       "path": "tests/test_prepare_readonly_submodule_validation_sandbox.py",

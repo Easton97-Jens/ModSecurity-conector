@@ -2,7 +2,13 @@
 
 **Language:** English | [Deutsch](sonarqube-native-security.de.md)
 
-The SDK preparation and twelve-target matrix now declare `ubuntu-26.04`. This runner migration requires fresh hosted build and analyzer evidence; the earlier development captures do not establish Ubuntu 26.04 compatibility. The protected NGINX caller also retains an immutable legacy broker pin whose runner contract rejects 26.04. The user authorized only broker PR #422 integration after green checks and final review, followed by the verified caller-pin update. Its new head `3d633ee27b48b64b940042e278c157f1aa629679` awaits CI after the coverage-only opt-out; no merge has occurred. See the [Ubuntu migration record](../reports/audits/change-records/CR-20261026-ubuntu26-workflow-migration.md).
+The SDK preparation and twelve-target matrix declare `ubuntu-26.04`.
+The caller pins the verified master broker `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`
+from the user-approved [PR #422](https://github.com/Easton97-Jens/ModSecurity-conector/pull/422).
+Protected manual runtime and Hosted native12 proof remain pending. See the
+[current readiness](pr-382-merge-readiness.md) and
+[Ubuntu migration record](../reports/audits/change-records/CR-20261026-ubuntu26-workflow-migration.md)
+for separate PR/master gate results and source-bound validation.
 
 ## Scope and current status
 
@@ -130,9 +136,9 @@ Framework CLI/updater work is separate in
 [Framework PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138).
 Parent's Framework gitlink stays unchanged; MRTS remains read-only. Framework revision `5ef4dc3c815c97121578cd34382b80088b9c61ec` completed actual SDK/native/scanner analysis, including one C TU with eight taint rules and Python with 32 taint rules. CE task `AaF5sxOo8Px5fiPcdsNi` completed `SUCCESS`; its gate remains `ERROR` solely for Security Rating 3. Four CLI-flow claims are under triage; this is separate from Parent native12 closure.
 
-The admitted integrated selection passed **79 executions / 298 expanded cases, zero skips**, at inventory `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be`. That inventory declares 1956 cases / 911 executions: 97 core cases / 77 executions plus 1859 authorized offline cases / 834 executions, with 613 source bindings and 1,654,103 bytes. The retained summary is `targeted-offline/active-tests-v3oeoia0/summary.json` in the external `parent-ubuntu26-20261026` run. It includes the corrected stale NGINX archived-contract test, preserving isolation, and 97 Lighttpd static boundary variants. Review reproduced a real helper failure: the validator rejected its unsupported capture schema; correcting the helper capture path made the admitted one-case regression pass. Independent review found no further concrete finding. The initial partial 78/297 result and earlier native12 34/98 checkpoint at `f1df7bc865daa8863bf98e0afdd758e7b0a8298570ae2721d484c49badafc578` remain historical, not current failures. Static AST checks on 14 files, bilingual/path checks and native actionlint passed; zizmor reported zero findings. These are local proofs, not Hosted native12 analysis.
+The post-master integrated selection passed **94 executions / 342 expanded cases, zero skips**, at inventory `e13c73b981fd1399fbe0c161a8abd753d6cbc4d429957caa86d7c33e1f59bf7c`. The inventory declares 1992 cases / 918 executions: 97 core cases / 77 executions plus 1895 authorized offline cases / 841 executions, with 614 source bindings and 1,672,802 bytes. The selection includes eight inventory controls including overflow rejection and seven broker selectors / 36 cases, as well as the corrected helper capture-path and isolated NGINX archived-contract controls. The earlier 79/298 pass at `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be` is a pre-merge checkpoint. Local green results do not prove Hosted native12 analysis.
 
-New published-head CI, analyzer logs, server tasks, gate/readback and source-based finding dispositions remain required; current Parent native12/Ubuntu changes are unpublished.
+New published-head CI, analyzer logs, server tasks, gate/readback and source-based finding dispositions remain required for the Parent native12/Ubuntu changes.
 
 ## References
 

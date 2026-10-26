@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside Parent default selection; no new PASS. The mandatory master Sonar assessment may separately select some definitions. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be",
-  "on_demand_definition_count": 5356,
+  "inventory_sha256": "e13c73b981fd1399fbe0c161a8abd753d6cbc4d429957caa86d7c33e1f59bf7c",
+  "on_demand_definition_count": 5353,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects Parent cases. The mandatory master Sonar assessment declares its own separate selection.",
   "schema_version": 1,
   "sources": [
@@ -2958,7 +2958,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "79a87b132b9fb75ff9495e8c3e3ca39f06159d46b2589e28600867f91c9ccbce"
+      "source_sha256": "5d773c8b3ae538011f90feecfc6ae01edba79f05c57fadb5fd13b93b46d9bcb2"
     },
     {
       "contains_selected_definitions": [],
@@ -6952,6 +6952,13 @@
       "contains_selected_definitions": [
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_action_parser_has_no_general_command_surface",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_dynamic_section_parser_handles_long_malformed_output_without_backtracking",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_the_exact_two_immutable_broker_jobs",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_uniform_ubuntu26_runners",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_mixed_runner_modes",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_unknown_and_structured_runners",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_broker_workflow_uses_ubuntu26_runner",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_pin_job_variant_permission_and_secret_mutations",
+        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_top_level_and_unprivileged_job_mutations",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_restricted_caller_yaml_parser_accepts_only_the_exact_empty_mapping_literal",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_top_level_permissions_remain_exactly_deny_default",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_restricted_caller_yaml_parser_rejects_indirection_duplicates_and_unsafe_encoding"
@@ -6980,9 +6987,6 @@
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_worker_writable_log_layout_is_exact_and_log_files_stay_fail_closed",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_cleanup_removes_worker_layout_after_failed_config_test",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_projection_rejects_symlink_or_special_inputs_before_copy",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_the_exact_two_immutable_broker_jobs",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_pin_job_variant_permission_and_secret_mutations",
-        "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_top_level_and_unprivileged_job_mutations",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_any_weakened_reusable_job_gate",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_a_constant_true_reusable_job_gate",
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_preserves_block_scalar_hash_data",
@@ -6995,7 +6999,7 @@
         "tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_workflow_real_git_object_rejections_are_fail_closed"
       ],
       "source": "tests/test_nginx_root_broker.py",
-      "source_sha256": "fe1b11ee8d329926e87932f62f807c34f1ecf31b1ca5523c560e4ed4731433c7"
+      "source_sha256": "085e990223e1765943009210a777a32c2a26f3e7472383b9b3088dceda7a86e3"
     },
     {
       "contains_selected_definitions": [],

@@ -22,7 +22,7 @@ All active hosted Parent and Framework runner fields declare ubuntu-26.04; prote
 
 ## Implementation decision and rationale
 
-The current Parent tree has 66 actual runs-on fields in 34 workflow files: 64 ubuntu-26.04 and two protected self-hosted lists. The new native security workflow contributes two hosted fields. The separately published Framework revision `5ef4dc3c815c97121578cd34382b80088b9c61ec` has 31 ubuntu-26.04 fields in 18 workflows. Parent Framework gitlink remains unchanged. Exact supplemental actionlint labels and focused runner contract expectations follow this migration.
+The current Parent tree has 66 actual runs-on fields in 34 workflow files: 64 ubuntu-26.04 and two protected self-hosted lists. The new native security workflow contributes two hosted fields. The separately published Framework revision `5bffa21d3dd49d3ca647e89eebe005b8421b0812` has 31 ubuntu-26.04 fields in 18 workflows. Parent Framework gitlink remains unchanged. Exact supplemental actionlint labels and focused runner contract expectations follow this migration.
 
 ## Changed files
 
@@ -32,17 +32,19 @@ Parent `.github/workflows/` runner declarations, `.github/actionlint.yaml`, focu
 
 RTK-wrapped read-only Python enumeration counted actual runs-on fields in both active worktrees. Native Change Record scaffold creation used ci/tools/new-change-record.py. No functional tests were executed for this documentation update.
 
-The admitted integrated selection passed **79 executions / 298 expanded cases, zero skips**, at inventory `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be`. That inventory declares 1956 cases / 911 executions: 97 core cases / 77 executions plus 1859 authorized offline cases / 834 executions, with 613 source bindings and 1,654,103 bytes. The retained summary is `targeted-offline/active-tests-v3oeoia0/summary.json` in the external `parent-ubuntu26-20261026` run. It includes the corrected stale NGINX archived-contract test, preserving isolation, and 97 Lighttpd static boundary variants. Review reproduced a real helper failure: the validator rejected its unsupported capture schema; correcting the helper capture path made the admitted one-case regression pass. Independent review found no further concrete finding. The initial partial 78/297 result and earlier native12 34/98 checkpoint at `f1df7bc865daa8863bf98e0afdd758e7b0a8298570ae2721d484c49badafc578` remain historical, not current failures. Static AST checks on 14 files, bilingual/path checks and native actionlint passed; zizmor reported zero findings. These are local proofs, not Hosted native12 analysis.
+The post-master integrated selection passed **94 executions / 342 expanded cases, zero skips**, at inventory `e13c73b981fd1399fbe0c161a8abd753d6cbc4d429957caa86d7c33e1f59bf7c`. The inventory declares 1992 cases / 918 executions: 97 core cases / 77 executions plus 1895 authorized offline cases / 841 executions, with 614 source bindings and 1,672,802 bytes. The selection includes eight inventory controls including overflow rejection and seven broker selectors / 36 cases, as well as the corrected helper capture-path and isolated NGINX archived-contract controls. The earlier 79/298 pass at `06286b9ae1d1bac124a73c247893c2d522c15cce2dd52089a49f1bb7bd8759be` is a pre-merge checkpoint. Local green results do not prove Hosted native12 analysis.
 
 ## Security impact
 
-Runner labels change build environments, not authority. No gate, permissions, immutable revision pin or protected self-hosted boundary is relaxed. The legacy immutable NGINX broker `49c40779a7b6de9f699391bcd524ea069787df42` accepts only ubuntu-latest and therefore rejects the migrated caller. Compatibility preparation is isolated on `fix/nginx-broker-ubuntu26-20261026`; reviewed master integration and then a verified immutable caller-pin update remain required. No merge is authorized by this record.
+The user-approved broker [PR #422](https://github.com/Easton97-Jens/ModSecurity-conector/pull/422) was normally squashed at expected head `3d633ee27b48b64b940042e278c157f1aa629679` into master revision `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`; provider readback verified the merge. Independent final review of all seven files found no concrete finding. All six PR ruleset checks and terminal C++17/20/23 Sonar results passed at that exact PR head. The Parent caller now pins broker `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` and its actual Framework `99a7985c1be92a2297b1b59208f64df6768f2cbf`; the Parent gitlink is unchanged. Protected self-hosted labels and the master uniform-runner validator remain intact; the duplicate coverage exclusion property was reduced to one declaration. No protected broker manual runtime or expanded connector E2E was run. Authorization covered only #422 and the caller-pin follow-up, not a #382 merge.
+
+All six master ruleset checks passed at `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`. Master C++17 Sonar actually failed with Security E / Reliability E against a `previous_version` baseline from May 14; read-only review found 20 pre-existing security/reliability issues, none introduced by #422; five native triggers are already removed in #382. No passing master Sonar gate is claimed. These master results are separate from the successful exact PR-head analysis. The PR delivery record must bind the exact Parent native12/Ubuntu commit and fresh CI without transferring older successes.
 
 ## Runtime evidence
 
 No new Parent Hosted Ubuntu 26 runtime evidence. Twelve native development captures total 611 Parent TU compilations, not unique files or hosted analysis. The coordinator reports 34 local executions / 98 expanded cases passed at pre-Ubuntu inventory `f1df7bc865daa8863bf98e0afdd758e7b0a8298570ae2721d484c49badafc578`. These results do not transfer to the changed runner environment.
 
-[Framework Draft PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138) is separately published at `5ef4dc3c815c97121578cd34382b80088b9c61ec`, with 31 Ubuntu 26.04 runner fields. Actual SDK/native build, scanner/JRE authentication and analysis succeeded: one C TU with eight taint rules and Python with 32 taint rules were analyzed. CE task `AaF5sxOo8Px5fiPcdsNi` and analysis `eb2599ca-c449-4e33-8cb3-e643eb0b593d` completed `SUCCESS`. The gate is `ERROR` solely for Security Rating 3; four CLI-flow claims are being triaged and quality corrections are separate work. Eleven other CI workflows passed. This is genuine Framework analyzer evidence, not a passing security gate or imported Parent gitlink proof.
+Separate [Framework Draft PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138) is now published at `5bffa21d3dd49d3ca647e89eebe005b8421b0812`, retaining 31 Ubuntu 26.04 runner fields. The coordinator passed 86 local methods with zero skips; at last readback ten of twelve CI workflows succeeded, with Sonar SDK and scaffold checks pending. The earlier `5ef4dc3c815c97121578cd34382b80088b9c61ec` analysis genuinely executed C/Python taint and its gate became `OK` after source-backed false-positive readback, but that result is stale for the new head. No current Framework final gate or Parent gitlink import is claimed.
 
 ## Known limitations
 
@@ -50,7 +52,7 @@ Current dirty Ubuntu/native12 configuration lacks published-head hosted validati
 
 ## Remaining risks
 
-Ubuntu image/toolchain differences may expose build or analyzer regressions. The protected caller remains blocked by its immutable old broker contract. User approval now permits only PR #422 integration after green checks and final review, followed by the verified caller-pin update; no merge has occurred. Its new head `3d633ee27b48b64b940042e278c157f1aa629679` awaits CI after applying only the standing coverage opt-out. Local configuration counts do not prove hosted runner availability or scanner success.
+Ubuntu image/toolchain differences may expose regressions; local source counts and offline checks do not establish current Hosted native12 or protected runtime success.
 
 ## Checks not run and rationale
 
@@ -58,4 +60,4 @@ Fresh Parent Ubuntu 26 hosted workflow runs, native12 analyzer/server completion
 
 ## Final diff and review status
 
-Documentation is prepared for Root review alongside the current integration diff. Completion remains conditional on fresh applicable validation and resolution of the trusted-broker dependency.
+Documentation is prepared for Root review alongside the current integration diff. Completion remains conditional on fresh applicable validation and fresh verification of the integrated broker pins.
