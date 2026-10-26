@@ -21,14 +21,8 @@ CFAMILY_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"}
 CODE_SUFFIXES = CFAMILY_SUFFIXES | {".py", ".go", ".sh", ".bash"}
 CONFIG_SUFFIXES = {".json", ".yaml", ".yml"}
 COMPONENTS = ("common", "connectors", "ci", "scripts", "tests", ".github", "examples", "config", "fuzz")
-# These are independent ownership boundaries, not patterns copied from the
-# configurable sonar.exclusions value that this guard must validate.
-OUTPUT_ROOTS = ("build/", "dist/", "ci-artifacts/", "verified-runs/", "reports/testing/generated/")
-WORKFLOW_FIXTURE_DIRECTORIES = {
-    "ci/fixtures/workflow-permission-contract",
-    "ci/fixtures/zizmor",
-    "tests/fixtures/python-version-contract",
-}
+# The user-selected root boundaries are independent of configurable patterns.
+EXCLUDED_ROOTS = ("modules", "reports")
 
 
 def properties(path: Path) -> dict[str, str]:
@@ -98,16 +92,7 @@ def maintained_analyzable(path: str) -> bool:
     file = Path(path)
     if file.suffix in CODE_SUFFIXES or file.name == "go.mod":
         return True
-    if file.suffix not in CONFIG_SUFFIXES:
-        return False
-    if path.startswith(OUTPUT_ROOTS):
-        return False
-    # Only immediate YAML workflow fixtures are special. Sibling Python/C code,
-    # JSON contracts and nested directories retain normal analysis protection.
-    return not (
-        file.suffix in {".yaml", ".yml"}
-        and file.parent.as_posix() in WORKFLOW_FIXTURE_DIRECTORIES
-    )
+    return file.suffix in CONFIG_SUFFIXES
 
 
 def validate_settings(config: dict[str, str], python_pin: str) -> None:
@@ -118,6 +103,7 @@ def validate_settings(config: dict[str, str], python_pin: str) -> None:
         "sonar.scanner.autoconfig.enabled": "false",
         "sonar.sources": ".",
         "sonar.tests": ".",
+        "sonar.scm.exclusions.disabled": "true",
     }
     for key, value in required.items():
         if config.get(key) != value:
@@ -135,13 +121,22 @@ def verify_classification(path: str, test: bool, production: bool) -> None:
     file = Path(path)
     if test and production:
         raise ValueError(f"source/test overlap: {path}")
-    if maintained_analyzable(path):
-        if expected_test(path) != test:
-            raise ValueError(f"incorrect test classification: {path}")
-        if not expected_test(path) and not production:
-            raise ValueError(f"maintained source excluded: {path}")
+    if expected_test(path) != test:
+        raise ValueError(f"incorrect test classification: {path}")
+    if not test and not production:
+        category = "maintained source" if maintained_analyzable(path) else "tracked Parent file"
+        raise ValueError(f"{category} excluded: {path}")
     if file.suffix in CFAMILY_SUFFIXES and not production:
         raise ValueError(f"CFamily file must remain in source scope: {path}")
+
+
+def verify_excluded_boundary(boundary: str, source_exclusions: list[str], test_exclusions: list[str]) -> None:
+    """Exclude each selected root from both source and test indexing."""
+    label = "independent submodule" if boundary == "modules" else "root reports"
+    if not selected(boundary + "/placeholder.c", source_exclusions):
+        raise ValueError(f"{label} source contents must be excluded")
+    if not selected(boundary + "/test_placeholder.py", test_exclusions):
+        raise ValueError(f"{label} test contents must be excluded")
 
 
 def classify_paths(config: dict[str, str], tracked: list[str]) -> tuple[list[str], list[str], list[str]]:
@@ -154,9 +149,10 @@ def classify_paths(config: dict[str, str], tracked: list[str]) -> tuple[list[str
     tests: list[str] = []
     excluded: list[str] = []
     for path in tracked:
-        if path == "modules/ModSecurity-test-Framework" or path.startswith("modules/"):
-            if not selected(path + "/placeholder.c", source_exclusions):
-                raise ValueError("independent submodule contents must be excluded")
+        boundary = path.split("/", 1)[0]
+        if boundary in EXCLUDED_ROOTS:
+            verify_excluded_boundary(boundary, source_exclusions, test_exclusions)
+            excluded.append(path)
             continue
         test = selected(path, test_inclusions) and not selected(path, test_exclusions)
         production = (
@@ -171,6 +167,9 @@ def classify_paths(config: dict[str, str], tracked: list[str]) -> tuple[list[str
             source.append(path)
         else:
             excluded.append(path)
+    expected_exclusions = [boundary + "/**" for boundary in EXCLUDED_ROOTS]
+    if source_exclusions != expected_exclusions or test_exclusions != expected_exclusions:
+        raise ValueError("source/test exclusions must contain only root modules/** and reports/**")
     return source, tests, excluded
 
 

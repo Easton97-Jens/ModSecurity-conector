@@ -160,7 +160,7 @@ def _parent(path: Path):
         os.close(descriptor)
 
 
-def _read_admitted(path: Path, maximum_bytes: int) -> bytes:
+def _read_admitted(path: Path, maximum_bytes: int, *, require_owned_input: bool = False) -> bytes:
     with _parent(path) as parent:
         descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                              dir_fd=parent)
@@ -168,6 +168,9 @@ def _read_admitted(path: Path, maximum_bytes: int) -> bytes:
             before = os.fstat(descriptor)
             if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_bytes:
                 raise ValueError("evidence input is not a bounded regular file")
+            if require_owned_input and (
+                    before.st_uid not in {0, os.geteuid()} or before.st_mode & 0o022):
+                raise ValueError("evidence input requires a trusted owner and safe write permissions")
             with os.fdopen(descriptor, "rb") as stream:
                 descriptor = -1
                 content = stream.read(maximum_bytes + 1)

@@ -8,6 +8,7 @@ from stock_qualification import EXTERNAL, PREVIOUS, REPO, read_text, regular, sh
 
 CXX_LINK_FLAG = '-lstdc++'
 RECEIPT_FILE = 'receipt.json'
+CAPTURE_SOURCE = 'capture-04/source'
 
 
 # This is the grammar emitted by stock_capture.prepare, before private probes.
@@ -40,7 +41,7 @@ def validated_recipe(argv, old):
     """Recognize the retained compiler recipe before applying known substitutions."""
     if not isinstance(argv, list) or not all(isinstance(value, str) for value in argv):
         raise ValueError('invalid retained compiler recipe argv')
-    source, build = old / 'capture-04/source', old / 'capture-04/build'
+    source, build = old / CAPTURE_SOURCE, old / 'capture-04/build'
     prefix = ['rtk', 'proxy', 'cc', *STRICT_FLAGS]
     for relative in INCLUDE_DIRS:
         prefix += ['-I', str(source / relative)]
@@ -80,7 +81,7 @@ def _source_arguments(argv, source_copy, old):
     source_copy = source_copy.absolute()
     if not source_copy.is_relative_to(EXTERNAL) or '..' in source_copy.parts:
         raise ValueError('source snapshot must be external')
-    return [value.replace(str(old / 'capture-04/source'), str(source_copy)) for value in argv]
+    return [value.replace(str(old / CAPTURE_SOURCE), str(source_copy)) for value in argv]
 
 
 def build(output, mime_build, sink_faults=None, source_copy=None, helper_build=None, transport_observer=None):
@@ -113,7 +114,7 @@ def build(output, mime_build, sink_faults=None, source_copy=None, helper_build=N
         argv += ['-Wl,--wrap=send', '-Wl,--wrap=recv']
     _validate_include_directories(argv)
     inputs = {value: sha(regular(value)) for value in argv if value.endswith(('.c', '.o'))}
-    source_root = source_copy if source_copy is not None else old / 'capture-04/source'
+    source_root = source_copy if source_copy is not None else old / CAPTURE_SOURCE
     headers = {str(path): sha(regular(path)) for path in source_root.rglob('*.h')}
     receipt = {'argv': argv, 'compile_recipe': {'path': str(recipe), 'sha256': sha(recipe)},
         'actual_mime_collector_build': {'path': str(mime_build / RECEIPT_FILE),

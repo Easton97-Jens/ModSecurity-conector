@@ -82,12 +82,14 @@ class BaselinePathControls(unittest.TestCase):
         self.assertEqual(BIND.check_reference(ref), self.ledger)
 
     def test_changed_reference_hash_is_rejected(self):
+        ref = self.ref(self.ledger) | {"sha256": "0" * 64}
         with self.assertRaisesRegex(ValueError, "hash changed"):
-            BIND.check_reference(self.ref(self.ledger) | {"sha256": "0" * 64})
+            BIND.check_reference(ref)
 
     def test_changed_reference_size_is_rejected(self):
+        ref = self.ref(self.ledger) | {"bytes": 1}
         with self.assertRaisesRegex(ValueError, "hash changed"):
-            BIND.check_reference(self.ref(self.ledger) | {"bytes": 1})
+            BIND.check_reference(ref)
 
     def test_baseline_semantic_mismatch_is_rejected(self):
         with mock.patch.object(BIND.baseline_producer, "reconcile", return_value={"rows": ["changed"]}), \
@@ -125,14 +127,16 @@ class BaselinePathControls(unittest.TestCase):
     def test_reference_symlink_leaf_is_rejected(self):
         link = self.storage / "ledger-link.json"
         link.symlink_to(self.ledger)
+        ref = self.ref(self.ledger) | {"path": str(link)}
         with self.assertRaises(OSError):
-            BIND.check_reference(self.ref(self.ledger) | {"path": str(link)})
+            BIND.check_reference(ref)
 
     def test_reference_symlink_parent_is_rejected(self):
         link = self.storage / "linked-parent"
         link.symlink_to(self.storage, target_is_directory=True)
+        ref = self.ref(self.ledger) | {"path": str(link / self.ledger.name)}
         with self.assertRaises(OSError):
-            BIND.check_reference(self.ref(self.ledger) | {"path": str(link / self.ledger.name)})
+            BIND.check_reference(ref)
 
     def test_private_metadata_is_rejected_before_open(self):
         ref = self.ref(self.ledger) | {"path": str(self.repository / ".git" / "config")}

@@ -21,7 +21,7 @@ REVIEW = load('apache_offline_review_flow', 'ci/runtime/lifecycle/apache-i12/rev
 BATCH = load('apache_offline_batch_flow', 'ci/runtime/lifecycle/apache-i12/acceptance/review_batch.py')
 
 
-class PhysicalFixture(unittest.TestCase):
+class PhysicalFixture:
     def setUp(self):
         from ci.lib.active_test_inventory import validate_output_root
         storage = validate_output_root(ROOT, Path(os.environ['RUNNER_TEMP']))
@@ -110,7 +110,7 @@ class PhysicalFixture(unittest.TestCase):
         self.assertEqual(set(packet['observations']), set(REVIEW.LEDGER.SHARED.ROLES))
 
 
-class CandidateFlowTests(PhysicalFixture):
+class CandidateFlowTests(PhysicalFixture, unittest.TestCase):
     def test_synthetic_capture_joins_native_events_cleanup_and_retains_unknowns(self):
         packet = self.extract()
         self.assert_unsigned(packet)
@@ -162,7 +162,7 @@ class CandidateFlowTests(PhysicalFixture):
             'actual_same_pid_in_host_window_observer_finals']), 1)
 
 
-class BatchFlowTests(PhysicalFixture):
+class BatchFlowTests(PhysicalFixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.case_root = self.base / 'batch' / '000-synthetic-allow'

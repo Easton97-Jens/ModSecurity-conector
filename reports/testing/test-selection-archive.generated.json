@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside Parent default selection; no new PASS. The mandatory master Sonar assessment may separately select some definitions. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "99ea8c2f38f380b508bf978270c3c34f66a1f5bfa18cdcd772ba971ba4f40474",
-  "on_demand_definition_count": 5428,
+  "inventory_sha256": "8a3ee8e8e852b5dc0b2eff8001bd011b0c9ed488c1936d96625abd3e29e13211",
+  "on_demand_definition_count": 5360,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects Parent cases. The mandatory master Sonar assessment declares its own separate selection.",
   "schema_version": 1,
   "sources": [
@@ -36,7 +36,7 @@
         "ci.runtime.lifecycle.i12.envoy.test_bind_originals.OriginalBindingControls.test_explicit_comparison_oracle_changes_only_expected_result"
       ],
       "source": "ci/runtime/lifecycle/i12/envoy/test_bind_originals.py",
-      "source_sha256": "5c9ad368115f8eea781aa67cd0b80ee3252e5b639a48718c5a4dd20d72410f4e"
+      "source_sha256": "d3959cef46e1cea510d12a97eed4a4d7f3a725bb54ba0fe42a4bd2654fab0997"
     },
     {
       "contains_selected_definitions": [],
@@ -1852,20 +1852,20 @@
     },
     {
       "contains_selected_definitions": [
+        "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_p3_principal_marked_neighbor_healthy_unchanged_rule_source",
+        "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_actual_nonzero_body_for_null_pointer_fault",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_historical_technical_cases_are_controlled_returns_not_elapsed_timeouts",
+        "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_sink_plans_preserve_first_failure_without_inventing_after16_activation",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_original_removed_directive_config_contract_is_not_engine_size_parser"
       ],
       "on_demand_definitions": [
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_all155_original_contracts_preserved_no_runtime_promotion",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_unique_main_request_token_even_aliases",
-        "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_p3_principal_marked_neighbor_healthy_unchanged_rule_source",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_reject_apache_host_variant_preserves_original_oracle_conflict",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_process_partial_does_not_claim_transport_truncation",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_unknown_config_case_rejected_and_config_has_no_request",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_mime_variants_and_raw_alias_body_are_materialized",
-        "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_actual_nonzero_body_for_null_pointer_fault",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_lifecycle_fault_contract_does_not_invent_allocator_oom_requirement",
-        "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_sink_plans_preserve_first_failure_without_inventing_after16_activation",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_body_hash_tampering_and_duplicate_ids_fail",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_alias_cycle_and_path_escape_rejected",
         "tests.test_apache_i12_acceptance_cases.AcceptanceCasesTest.test_changed_original_oracle_and_unknown_id_rejected",
@@ -1894,9 +1894,7 @@
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_fault_seam_never_becomes_normal_contract_execution",
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_config_preserves_apache_reject_partial_and_private_sink",
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_explicit_control_vhost_host_header_has_no_duplicate",
-        "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_generated_id_config_omits_both_native_id_directives"
-      ],
-      "on_demand_definitions": [
+        "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_generated_id_config_omits_both_native_id_directives",
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_response_file_materializes_real_static_source_without_bucket_claim",
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_gate_failure_receipts_cannot_become_normal_success",
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_sink_virtual_hosts_keep_control_physical_sink_healthy",
@@ -1916,11 +1914,13 @@
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_private_admission_requires_each_runtime_preload_binding",
         "tests.test_apache_i12_acceptance_driver.AcceptanceDriverTest.test_inherited_fault_environment_is_not_carried_into_another_case"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_apache_i12_acceptance_driver.py",
       "source_sha256": "bba898fd74426370aae133cf5d07efce72de4fa99b70d2a84c02e1616b4375b0"
     },
     {
       "contains_selected_definitions": [
+        "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_all54_originals_preserved_without_runtime_or_resolution_promotion",
         "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_abnormal_has_no_fabricated_http_status_or_normal_eos",
         "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_unknown_scenario_does_not_get_a_default_allow_oracle",
         "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_flush_requires_a_real_host_stage_and_partial_write_requires_retry_proof",
@@ -1935,7 +1935,6 @@
         "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_phase4_native_deny_is_distinct_from_committed_http200"
       ],
       "on_demand_definitions": [
-        "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_all54_originals_preserved_without_runtime_or_resolution_promotion",
         "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_prior_observed_result_is_never_an_oracle_input",
         "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_historical_failed_retest_is_retained_without_current_promotion",
         "tests.test_apache_i12_acceptance_oracles.SourceOracleTests.test_changed_original_contract_and_membership_are_rejected",
@@ -2460,7 +2459,7 @@
       ],
       "on_demand_definitions": [],
       "source": "tests/test_apache_i12_review_flows.py",
-      "source_sha256": "765194272bb2132bc1cdcfde579b86b90fa569eb4c5df22826b7cd971772fcfb"
+      "source_sha256": "712c60bb4fcef747d81a9fc3e0baa895634ec85059a26c283541131b5b51ae11"
     },
     {
       "contains_selected_definitions": [],
@@ -4084,6 +4083,12 @@
     },
     {
       "contains_selected_definitions": [
+        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_relay_records_physical_error_instead_of_silent_timeout",
+        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_tap_rewrites_wire_and_retains_original_frame_bytes",
+        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_connect_deadline_cannot_become_persistent_spop_relay_timeout",
+        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_tls_truncation_preserves_physical_bytes",
+        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_tls_close_notify_is_distinct_from_client_cancel",
+        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_client_report_has_physical_wall_and_monotonic_window",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_cancel_and_send_failure_keep_windows_without_fabricated_completion",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_timeout_receipt_records_kill_and_wait_without_inventing_child_times",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_close_notify_without_tcp_eof_remains_distinct",
@@ -4096,10 +4101,7 @@
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_strict_forbids_complete_large_body_and_preserves_safe_oracle",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_mrc_negative_controls_preserve_input_and_mutate_actual_forwarding",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_fragmented_mrc_frame_and_oversized_or_invalid_headers",
-        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_relay_records_physical_error_instead_of_silent_timeout",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_fixture_rejects_changed_original_or_expected_oracle",
-        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_tap_rewrites_wire_and_retains_original_frame_bytes",
-        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_connect_deadline_cannot_become_persistent_spop_relay_timeout",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_native_limit_fixtures_predict_actual_limit_paths",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_claim_replay_runs_only_after_successful_legitimate_claim_ack",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_claim_replay_records_real_result_code_and_first_cause",
@@ -4113,9 +4115,6 @@
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_response_framing_keeps_unknown_or_conflicting_lengths_unproved",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_complete_source_body_with_wrong_declared_length_fails",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_mrc_wire_version_matches_primary_c_header_and_product_aliases",
-        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_tls_truncation_preserves_physical_bytes",
-        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_tls_close_notify_is_distinct_from_client_cancel",
-        "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_client_report_has_physical_wall_and_monotonic_window",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_actual_harmless_tls_client_process_records_window_endpoints_and_wait",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_actual_refused_client_preserves_error_window_and_unknown_endpoints",
         "tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_actual_signal_wait_is_separate_from_missing_child_completion",
@@ -4260,11 +4259,17 @@
     },
     {
       "contains_selected_definitions": [
+        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_supplemental_identity_cannot_transfer_a_legacy_or_mistyped_original_id",
+        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_ack_correlates_connection_stream_and_frame_not_list_position",
+        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_orphan_and_non_fin_ack_cannot_pass_on_plausible_status",
+        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_duplicate_extra_ack_and_notify_reentry_are_observation_failures",
+        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_ack_action_types_duplicates_scope_and_direction_are_checked",
+        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_actual_evaluator_rejects_orphan_ack_despite_correct_http_and_backend",
+        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_sample_claim_uses_observed_sample_and_unknown_notify_is_rejected",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_observer_accept_finishes_before_closing_peer_snapshot",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_observer_live_accept_is_failure_instead_of_ignored_cleanup"
       ],
       "on_demand_definitions": [
-        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_supplemental_identity_cannot_transfer_a_legacy_or_mistyped_original_id",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_real_signed_haproxy_body_length_and_version_are_preserved",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_null_sample_is_not_reported_as_empty_binary_sample",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_ack_boolean_status_and_error_remain_independent_fields",
@@ -4280,16 +4285,10 @@
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_chunked_and_unframed_h2_are_not_full_sample_claims",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_corrected_malformed_notify_preserves_real_fin_flag_and_identifiers",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_fixture_envelope_matches_primary_product_constants",
-        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_ack_correlates_connection_stream_and_frame_not_list_position",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_p1_intervention_never_predicts_fictional_request_eos",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_p1_allow_is_not_a_phase_ceiling_and_does_finalize_request_body",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_atomic_scope_primary_source_only_skips_p2_for_actual_disruption",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_ip_metadata_uses_real_address_type_not_integer_or_display_string",
-        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_orphan_and_non_fin_ack_cannot_pass_on_plausible_status",
-        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_duplicate_extra_ack_and_notify_reentry_are_observation_failures",
-        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_ack_action_types_duplicates_scope_and_direction_are_checked",
-        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_actual_evaluator_rejects_orphan_ack_despite_correct_http_and_backend",
-        "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_sample_claim_uses_observed_sample_and_unknown_notify_is_rejected",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_sealed_fixture_admission_rejects_writable_directories_not_only_files",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_fixture_sealing_rejects_symlink_without_changing_target_modes",
         "tests.test_haproxy_i12_spop_wire.HaproxyI12SpopWireTests.test_varint_boundaries_roundtrip_and_excess_fail_closed",
@@ -4825,6 +4824,11 @@
         "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_rejects_mismatched_hash",
         "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_rejects_symbolic_link_metadata",
         "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_rejects_oversized_metadata_before_read",
+        "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_rejects_writable_metadata_before_payload_read",
+        "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_rejects_foreign_owned_metadata_before_payload_read",
+        "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_owned_readonly_metadata_preserves_load_reference_and_hash",
+        "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_independent_source_receipt_needs_no_configured_runtime_root",
+        "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_native_independent_archive_receipt_needs_no_configured_runtime_root",
         "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_stock_rejects_outside_metadata_before_probe",
         "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_stock_pinned_text_preserves_valid_receipt",
         "tests.test_i12_metadata_recipe_boundaries.MetadataRecipeBoundaryTests.test_stock_rejects_linked_receipt",
@@ -4839,10 +4843,11 @@
       ],
       "on_demand_definitions": [],
       "source": "tests/test_i12_metadata_recipe_boundaries.py",
-      "source_sha256": "8b4d398daab9971fd94c1848fdf8a2f82ccecde88db42af8fc26ca8ed18f3606"
+      "source_sha256": "596b2109da29a65d04f774c677864b6e7a538b7622e38a465cef389589e9c050"
     },
     {
       "contains_selected_definitions": [
+        "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_accepts_each_non_derived_kind_without_mutating_selection",
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_rejects_synthetic_arbitrary_selection_reorder_and_changed_execution",
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_true_flag_for_special_also_requires_bound_packet",
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_packet_run_and_independent_physical_run_must_match",
@@ -4859,7 +4864,6 @@
       "on_demand_definitions": [
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_actual_catalog_exact_partition_order_and_execution_kinds",
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_full_original_requirements_and_compact_projection_bind_the_same_catalog",
-        "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_accepts_each_non_derived_kind_without_mutating_selection",
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_record_cannot_relabel_exact_catalog_kind_subtype_or_execution",
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_classification_can_be_derived_from_exact_catalog",
         "tests.test_i12_nginx_acceptance.NginxAcceptanceTests.test_unknown_and_duplicate_original_record_rejected",
@@ -8577,10 +8581,6 @@
     },
     {
       "contains_selected_definitions": [
-        "tests.test_sonar_scope.SonarScopeTests.test_ci_prefixed_python_unittest_is_classified_as_test",
-        "tests.test_sonar_scope.SonarScopeTests.test_ci_suffixed_python_unittest_is_classified_as_test"
-      ],
-      "on_demand_definitions": [
         "tests.test_sonar_scope.SonarScopeTests.test_preserves_cfamily_tests_and_connector_build_scripts",
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_python_minor_drift",
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_language_blind_test_scope",
@@ -8588,20 +8588,28 @@
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_real_workflow_exclusion_even_with_github_readme",
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_maintained_json_config_exclusion_even_with_config_readme",
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_maintained_yaml_example_exclusion_even_with_examples_readme",
-        "tests.test_sonar_scope.SonarScopeTests.test_keeps_negative_workflow_fixtures_separate_from_real_workflows",
+        "tests.test_sonar_scope.SonarScopeTests.test_includes_workflow_fixtures_alongside_real_workflows",
         "tests.test_sonar_scope.SonarScopeTests.test_fixture_directory_does_not_exempt_python",
         "tests.test_sonar_scope.SonarScopeTests.test_fixture_directory_does_not_exempt_nested_yaml",
-        "tests.test_sonar_scope.SonarScopeTests.test_preserves_explicit_generated_json_boundary",
+        "tests.test_sonar_scope.SonarScopeTests.test_excludes_entire_root_reports_directory_from_both_scopes",
+        "tests.test_sonar_scope.SonarScopeTests.test_all_other_tracked_directories_and_suffixes_remain_in_scope",
+        "tests.test_sonar_scope.SonarScopeTests.test_rejects_new_directory_or_unknown_suffix_exclusions",
+        "tests.test_sonar_scope.SonarScopeTests.test_rejects_test_scope_leaks_from_excluded_roots",
+        "tests.test_sonar_scope.SonarScopeTests.test_rejects_unmatched_extra_exclusion_patterns",
+        "tests.test_sonar_scope.SonarScopeTests.test_requires_scm_ignore_independence",
         "tests.test_sonar_scope.SonarScopeTests.test_config_cannot_be_hidden_in_test_scope",
         "tests.test_sonar_scope.SonarScopeTests.test_readme_alone_does_not_count_as_analyzed_component",
         "tests.test_sonar_scope.SonarScopeTests.test_preserves_distributed_python_go_test_classification",
+        "tests.test_sonar_scope.SonarScopeTests.test_ci_prefixed_python_unittest_is_classified_as_test",
+        "tests.test_sonar_scope.SonarScopeTests.test_ci_suffixed_python_unittest_is_classified_as_test",
         "tests.test_sonar_scope.SonarScopeTests.test_rejects_ambiguous_property_files",
         "tests.test_sonar_scope.SonarScopeTests.test_scope_patterns_reject_foreign_glob_syntax",
         "tests.test_sonar_scope.SonarScopeTests.test_requires_independent_submodule_boundary",
         "tests.test_sonar_scope.SonarScopeTests.test_requires_review_when_go_module_inventory_changes"
       ],
+      "on_demand_definitions": [],
       "source": "tests/test_sonar_scope.py",
-      "source_sha256": "9da938f3c7d06572c90711686107f5d9b20e2b2c792877a4a5d7c36e32319662"
+      "source_sha256": "baabe5b9573ae515b670607cda9b82cebb56cbfda941f79f875d37da1d5c3618"
     },
     {
       "contains_selected_definitions": [],
@@ -8697,6 +8705,7 @@
     },
     {
       "contains_selected_definitions": [
+        "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_provenance_effective_chain_and_atomic_settings",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_engine_start_success_returns_registered_service",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_engine_start_sink_open_failure_retains_window_and_service",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_engine_start_failure_without_fault_reraises",
@@ -8720,7 +8729,6 @@
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_file_response_router_is_exclusive_and_neighbors_keep_regular_backend",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_file_reader_commands_pin_manifest_and_do_not_decode_memory_payload",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_file_backend_readiness_uses_pid_bound_listen_receipt_without_tcp_probe",
-        "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_provenance_effective_chain_and_atomic_settings",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_default_handle_controls_cannot_become_provenance",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_host_limit_controls_retain_default_mrc1_without_outer_attestation",
         "tests.test_traefik_i12_auth_acceptance.AcceptanceControls.test_capacity_fixture_uses_actual34_request_and_separate40019_application_body",
@@ -8780,18 +8788,11 @@
     },
     {
       "contains_selected_definitions": [
-        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_dispatches_and_closes_listener_on_termination",
-        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_rejects_socket_without_dispatch",
-        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_closes_socket_and_records_dispatch_error",
-        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_retries_accept_error_and_closes_on_interrupt"
-      ],
-      "on_demand_definitions": [
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_authorization_sample_labels_cannot_choose_paths",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_relay_refuses_api_paths_outside_fixed_authorization_endpoint",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_relay_uses_fixed_native_api_and_preserves_forwarded_original_uri",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_socket_pair_requires_fixed_paths_and_private_owned_directory",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_signal_child_command_is_built_from_validated_case",
-        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_loopback_server_keeps_plain_http_wire_semantics",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_parser_preserves_duplicate_order_and_leaves_chunk_wire_unread",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_parser_rejects_invalid_or_unbounded_heads_with_single_response",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_expect_continue_precedes_body_and_invalid_expectation_closes",
@@ -8799,6 +8800,13 @@
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_connection_tokens_are_case_insensitive_and_close_wins",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_rejected_head_records_failure_and_never_dispatches",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_request_line_read_failure_retains_zero_byte_receipt",
+        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_dispatches_and_closes_listener_on_termination",
+        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_rejects_socket_without_dispatch",
+        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_closes_socket_and_records_dispatch_error",
+        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_production_accept_loop_retries_accept_error_and_closes_on_interrupt"
+      ],
+      "on_demand_definitions": [
+        "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_loopback_server_keeps_plain_http_wire_semantics",
         "tests.test_traefik_i12_auth_net_guards.NetBoundaries.test_persistent_connection_keeps_body_framing_and_then_ends"
       ],
       "source": "tests/test_traefik_i12_auth_net_guards.py",
@@ -8925,6 +8933,7 @@
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_source_symlinks_special_files_and_copy_mutation_are_rejected",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_copy_does_not_follow_a_new_symlink_after_source_validation",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_invalid_toolchain_is_rejected_before_output_is_created",
+        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_all118_input_ids_remain_distinct_and_unqualified",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_canonical_runner_directives_do_not_replace_shared_baseline_rules",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_backpressure_wait_releases_only_exact_measured_tuple_or_timeout",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_retained_packet_requires_header_pid_scope_time_and_sdk_rule_proof",
@@ -8950,7 +8959,6 @@
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_driver_rejects_inherited_toolchain_and_changed_controller_path",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_transformed_environment_preserves_controller_rtk_lookup",
         "tests.test_traefik_i12_native_acceptance.NativePrivateToolchainControls.test_runtime_receipt_requires_actual_version_root_and_hash",
-        "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_all118_input_ids_remain_distinct_and_unqualified",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_canonical_yaml_wire_preserves_literal_chunks_limits_and_content_type_variants",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_generated_id_observer_admits_only_exact_case_child_environment",
         "tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_ack_fault_is_outcome10_not_commit7_and_positive_ack_is_unchanged",

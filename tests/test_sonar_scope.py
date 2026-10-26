@@ -36,7 +36,7 @@ class SonarScopeTests(unittest.TestCase):
         result = SCOPE.validate(self.config, "3.15.1", self.files)
         self.assertEqual(result["test_files"], 3)
         self.assertEqual(result["cfamily_translation_units"], 3)
-        self.assertEqual(result["excluded_tracked_files"], [])
+        self.assertEqual(result["excluded_tracked_files"], ["modules/ModSecurity-test-Framework"])
 
     def test_rejects_python_minor_drift(self) -> None:
         with self.assertRaisesRegex(ValueError, "major.minor"):
@@ -70,7 +70,7 @@ class SonarScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "maintained source excluded: examples/envoy/service.yaml"):
             SCOPE.validate(self.config, "3.15.1", self.files)
 
-    def test_keeps_negative_workflow_fixtures_separate_from_real_workflows(self) -> None:
+    def test_includes_workflow_fixtures_alongside_real_workflows(self) -> None:
         fixtures = [
             "ci/fixtures/workflow-permission-contract/unsafe.yml",
             "ci/fixtures/zizmor/insecure.yml",
@@ -79,7 +79,8 @@ class SonarScopeTests(unittest.TestCase):
         ]
         self.files.extend(fixtures)
         result = SCOPE.validate(self.config, "3.15.1", self.files)
-        self.assertEqual(result["excluded_tracked_files"], fixtures)
+        self.assertTrue(set(fixtures).issubset(result["source_paths"]))
+        self.assertEqual(result["excluded_tracked_files"], ["modules/ModSecurity-test-Framework"])
         self.assertIn(".github/workflows/lint.yml", result["source_paths"])
 
     def test_fixture_directory_does_not_exempt_python(self) -> None:
@@ -94,10 +95,57 @@ class SonarScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "maintained source excluded: ci/fixtures/zizmor/tooling/config.yaml"):
             SCOPE.validate(self.config, "3.15.1", self.files)
 
-    def test_preserves_explicit_generated_json_boundary(self) -> None:
-        self.files.append("reports/testing/generated/canonical/full-runtime-matrix.generated.json")
+    def test_excludes_entire_root_reports_directory_from_both_scopes(self) -> None:
+        reports = [
+            "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+            "reports/audits/review.md", "reports/helper.py", "reports/test_helper.py",
+        ]
+        self.files.extend(reports)
         result = SCOPE.validate(self.config, "3.15.1", self.files)
-        self.assertEqual(result["excluded_tracked_files"], [self.files[-1]])
+        self.assertEqual(result["excluded_tracked_files"], ["modules/ModSecurity-test-Framework"] + reports)
+        self.assertFalse(set(reports).intersection(result["source_paths"] + result["test_paths"]))
+
+    def test_all_other_tracked_directories_and_suffixes_remain_in_scope(self) -> None:
+        paths = [
+            ".codex/context/policy.md", "docs/usage.md", "licenses/NOTICE",
+            "new-component/custom.input", "build/maintained.py", "ci/evidence/reports/generator.py",
+        ]
+        self.files.extend(paths)
+        result = SCOPE.validate(self.config, "3.15.1", self.files)
+        self.assertTrue(set(paths).issubset(result["source_paths"]))
+        self.assertEqual(result["excluded_tracked_files"], ["modules/ModSecurity-test-Framework"])
+
+    def test_rejects_new_directory_or_unknown_suffix_exclusions(self) -> None:
+        for path in (".codex/context/policy.md", "docs/usage.md", "licenses/NOTICE", "new-component/custom.input"):
+            config = dict(self.config)
+            config["sonar.exclusions"] += "," + path
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "tracked Parent file excluded"):
+                SCOPE.validate(config, "3.15.1", self.files + [path])
+
+    def test_rejects_test_scope_leaks_from_excluded_roots(self) -> None:
+        for boundary in ("modules", "reports"):
+            config = dict(self.config)
+            config["sonar.test.exclusions"] = ",".join(
+                item for item in config["sonar.test.exclusions"].split(",") if item != boundary + "/**"
+            )
+            with self.subTest(boundary=boundary), self.assertRaisesRegex(ValueError, "test contents must be excluded"):
+                SCOPE.validate(config, "3.15.1", self.files + [boundary + "/test_probe.py"])
+
+    def test_rejects_unmatched_extra_exclusion_patterns(self) -> None:
+        for key in ("sonar.exclusions", "sonar.test.exclusions"):
+            config = dict(self.config)
+            config[key] += ",future-root/**"
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "only root modules/.* and reports/"):
+                SCOPE.validate(config, "3.15.1", self.files)
+
+    def test_requires_scm_ignore_independence(self) -> None:
+        for setting in (None, "false"):
+            config = dict(self.config)
+            config.pop("sonar.scm.exclusions.disabled")
+            if setting is not None:
+                config["sonar.scm.exclusions.disabled"] = setting
+            with self.subTest(setting=setting), self.assertRaisesRegex(ValueError, "sonar.scm.exclusions.disabled"):
+                SCOPE.validate(config, "3.15.1", self.files)
 
     def test_config_cannot_be_hidden_in_test_scope(self) -> None:
         self.config["sonar.test.inclusions"] += ",config/**/*.json"

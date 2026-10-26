@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -37,6 +38,7 @@ class MetadataRecipeBoundaryTests(unittest.TestCase):
         self.scratch = Path(scratch.name)
         self.input = self.scratch / 'receipt.json'
         self.input.write_text('{"bound": true}')
+        self.input.chmod(0o644)
 
     def canonical_recipe(self):
         old = self.link.PREVIOUS / 'stock'
@@ -86,6 +88,75 @@ class MetadataRecipeBoundaryTests(unittest.TestCase):
             stream.truncate(self.native.i12_paths.MAXIMUM_BYTES + 1)
         with self.assertRaisesRegex(ValueError, 'bounded regular'):
             self.native.load(self.input)
+
+    def test_native_rejects_writable_metadata_before_payload_read(self):
+        for mode in (0o666, 0o664):
+            self.input.chmod(mode)
+            with self.subTest(mode=oct(mode)), patch.object(
+                    self.native.i12_paths.os, 'fdopen',
+                    side_effect=AssertionError('untrusted metadata reached payload read')):
+                with self.assertRaisesRegex(ValueError, 'trusted owner|write permissions'):
+                    self.native.load(self.input)
+
+    def test_native_rejects_foreign_owned_metadata_before_payload_read(self):
+        identity = self.input.stat()
+        real_fstat = os.fstat
+        foreign_uid = 1 if os.geteuid() != 1 else 2
+
+        def foreign_leaf(descriptor):
+            details = real_fstat(descriptor)
+            if stat.S_ISREG(details.st_mode) and (
+                    details.st_dev, details.st_ino) == (identity.st_dev, identity.st_ino):
+                return SimpleNamespace(st_mode=details.st_mode, st_size=details.st_size,
+                    st_uid=foreign_uid, st_mtime_ns=details.st_mtime_ns,
+                    st_ctime_ns=details.st_ctime_ns)
+            return details
+
+        with patch.object(self.native.i12_paths.os, 'fstat', side_effect=foreign_leaf), \
+                patch.object(self.native.i12_paths.os, 'fdopen',
+                    side_effect=AssertionError('foreign metadata reached payload read')):
+            with self.assertRaisesRegex(ValueError, 'trusted owner|write permissions'):
+                self.native.load(self.input)
+
+    def test_native_owned_readonly_metadata_preserves_load_reference_and_hash(self):
+        expected = hashlib.sha256(self.input.read_bytes()).hexdigest()
+        for mode in (0o644, 0o444):
+            self.input.chmod(mode)
+            with self.subTest(mode=oct(mode)):
+                self.assertEqual(self.native.load(self.input), {'bound': True})
+                self.native.require_hash(self.input, expected)
+                self.assertEqual(self.native.reference(self.input, 'source_manifest'),
+                    {'path': str(self.input), 'sha256': expected,
+                     'bytes': self.input.stat().st_size, 'role': 'source_manifest'})
+
+    def test_native_independent_source_receipt_needs_no_configured_runtime_root(self):
+        external_root = '/var/tmp/codex/ModSecurity-conector'
+
+        def source_paths(value):
+            return self.scratch / 'unselected-runtime' if value == external_root else Path(value)
+
+        with patch.object(self.native, '_i12_library', self.scratch / 'ci/lib'), \
+                patch.object(self.native, 'Path', side_effect=source_paths), \
+                patch.object(self.native.i12_paths, '_configured_roots', return_value=()):
+            self.assertEqual(self.native.load(self.input), {'bound': True})
+
+    def test_native_independent_archive_receipt_needs_no_configured_runtime_root(self):
+        archive = self.scratch / 'archive'
+        archive.mkdir()
+        receipt = archive / 'receipt.json'
+        receipt.write_bytes(self.input.read_bytes())
+        receipt.chmod(0o644)
+        mapped_roots = {
+            '/var/tmp/codex/ModSecurity-conector': self.scratch / 'unselected-runtime',
+            '/root/git/codex-storage-archives': archive,
+        }
+
+        def archive_paths(value):
+            return mapped_roots.get(value, Path(value))
+
+        with patch.object(self.native, 'Path', side_effect=archive_paths), \
+                patch.object(self.native.i12_paths, '_configured_roots', return_value=()):
+            self.assertEqual(self.native.load(receipt), {'bound': True})
 
     def test_stock_rejects_outside_metadata_before_probe(self):
         with patch.object(Path, 'stat', side_effect=AssertionError('unexpected filesystem probe')):

@@ -24,6 +24,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 RCFILE = ROOT / "ci/sonar-coverage.ini"
+ACTIVE_INVENTORY_SOURCE = "ci/lib/active_test_inventory.py"
 GO_PACKAGE_PATTERN = "./..."
 # Explicit requirements: analysis scope, revision provenance, private artifacts,
 # report input classification, and engine inventory. No discovery of unrelated
@@ -139,7 +140,7 @@ def publish_python_report(output: Path, env: dict[str, str]) -> dict[str, object
 def admitted_offline_inventory():
     """Use the existing Parent admission API; never discover extra tests."""
     name = "sonar_coverage_inventory"
-    specification = importlib.util.spec_from_file_location(name, ROOT / "ci/lib/active_test_inventory.py")
+    specification = importlib.util.spec_from_file_location(name, ROOT / ACTIVE_INVENTORY_SOURCE)
     if specification is None or specification.loader is None:
         raise ValueError("cannot load the authoritative Parent inventory admission")
     module = importlib.util.module_from_spec(specification)
@@ -198,7 +199,7 @@ def parallel_python_files(output: Path) -> set[Path]:
 
 def python_child_witness_line() -> int:
     """Locate an actual body statement that only the guarded child executes."""
-    tree = ast.parse((ROOT / "ci/lib/active_test_inventory.py").read_bytes())
+    tree = ast.parse((ROOT / ACTIVE_INVENTORY_SOURCE).read_bytes())
     child = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                  and node.name == "python_child")
     return next(node.lineno for node in child.body if isinstance(node, ast.Assign)
@@ -223,7 +224,7 @@ def child_file_has_witness(path: Path, witness: int) -> bool:
         source = Path(filename)
         if source.is_absolute():
             source = source.relative_to(ROOT)
-        if source.as_posix() == "ci/lib/active_test_inventory.py":
+        if source.as_posix() == ACTIVE_INVENTORY_SOURCE:
             return witness in (data.lines(filename) or [])
     return False
 

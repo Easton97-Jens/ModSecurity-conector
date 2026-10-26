@@ -6,9 +6,19 @@
 
 Master `7a44f18edac729291d6551d068da64fa3fec4e1e` (PR #421) bleibt maßgeblich. Seine feste `PYTHON_TESTS`-Auswahl mit 13 Einträgen, 37 Go-Selektoren und die native Common-Prüfung bleiben erhalten. Python misst zusätzlich zugelassene exakte Offline-IDs mit tatsächlichem Branch-Tracing in geschützten Kindern; nur ausgewählte Kinder erhalten `ON_DEMAND_TESTS=1`. Prozess-/Netzwerksperren bleiben erhalten; historische I12-Kampagnen werden nicht eröffnet und der entfernte PR-eigene Collector/eigene Gates nicht wiederhergestellt. Alle CFamily-Eingaben bleiben MAIN; 16 tatsächliche CI-Python-Unittest-Module sind TEST, wobei Scope-Guard-Nachweis und Analyzer-Ausführung getrennt bleiben. Das Workflow-Budget steigt auf 60 Minuten, nachdem das gemessene Offline-Erfassungs-/Berichtsintervall allein mindestens 1216.9 Sekunden benötigte.
 
-Der [aktuelle PR-#382-Status](pr-382-merge-readiness.de.md) führt aktuelle Zahlen, Messungen, ausstehende Rohdaten-Erhaltungsnachprüfung und Delivery-Grenzen. Veröffentlichter Head `67e363d44d5f6be7119eb6d76ade11ac75e95f42` scheiterte am verbindlichen Sonar mit 118 neuen Findings und 0.81499% New-Code-Coverage gegen 80%; lokale Korrekturen haben keinen neuen Gate-Nachweis am veröffentlichten Head. Ein erstes echtes lokales Python-XML erfasst 374 Dateien; lokale Changed-Python-Coverage beträgt 24.791%, kein Sonar-Ergebnis. `xml --keep-combined` und unabhängige SHA-/größengebundene rohe Kind-Nachweiskopien korrigieren Löschung durch implizites Combine; eine frische vollständige Erhaltungsmessung bleibt erforderlich. Keine Ausnahme, Baseline, Schwelle oder Gate-Bedingung wird abgeschwächt.
+Die neueste Nutzeranweisung nimmt Coverage auch aus Merge-Entscheidungen: `sonar.coverage.exclusions=**` betrifft nur Coverage, nicht Source-, Security- oder Duplikationsanalyse. Das aktive eingebaute Gate `Sonar way` (ID `9`) und die Master-Gate-Warteprüfung bleiben unverändert; ein neuer Head-Scan muss nicht anwendbare Coverage und die fünf erhaltenen Bedingungen sowie verbindliche CI belegen. Die gescheiterte Zuordnung einer eigenen Gate-Kopie und vollständige Grenzen stehen im [PR-#382-Status](pr-382-merge-readiness.de.md); vollständige Coverage-/Rohdaten-Erhaltungsmessung ist als Abnahmekriterium abgelöst. [Coverage-Ausschlussparameter](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/project-analysis/setting-analysis-scope/exclude-from-coverage-duplication).
+
+Vor der Coverage-Abwahl endete am veröffentlichten Head `c924e7585fc0bd197fbefa0ba0f8bbc8cb39aea7` CE-Task `AaF3r2p9NjdnpZXZdVK3` mit `SUCCESS`; Analyse `1ebafbd5-5eb0-4ae0-ab7f-5e0d665f4f02` hat Gate `ERROR`. New-Code-Coverage beträgt **26.409132606258282% gegen 80%**, bei 10 offenen neuen Findings. Exakte Scan-/Importbindungen, CI- und Finding-Dispositionen sowie aktuelle Grenzen stehen im [PR-#382-Status](pr-382-merge-readiness.de.md).
+
+Die frühere lokale Changed-Python-Messung von 24.791% und ihr Rohdatenverlust bleiben historische, getrennte Nachweise. `xml --keep-combined` und unabhängige SHA-/größengebundene Kind-Nachweise korrigieren die Löschung; vollständiger Rohdaten-Erhaltungsnachweis bleibt eine historische Evidence-Grenze und ist als Akzeptanzkriterium abgelöst. Aktuelle WIP-Zahlen, gezielte Ergebnisse und Delivery-Grenzen stehen im [PR-#382-Status](pr-382-merge-readiness.de.md).
 
 Nachfolgende PR-#421-Quell-/Server-/Runtime-Aufzeichnungen, einschließlich als aktueller gemessener Abschluss bezeichneter Abschnitte, sind historisch für ihre ausdrücklich genannten Revisionen, insbesondere `d5450cd3`; ihre 80 Python-Methoden sind keine aktuellen expandierten Fallzahlen und ihre erfolgreichen Gates qualifizieren PR #382 nicht. Die Toolchain bleibt Python `3.15.1`, Go `1.27.3`, Modul-Sprachversion `1.26.9`, setup-python `7.1.0` und Scanner CLI `8.2.0.6438`.
+
+## Deprecations und aktuelle Security-Relevanz
+
+Die [offiziellen Deprecation-Ankündigungen](https://docs.sonarsource.com/sonarqube-cloud/deprecations-and-removals#deprecation-announcements) sind gegen den tatsächlichen Einsatz zu prüfen: Das c924-Scannerlog zeigt CLI `8.2.0.6438`, JRE-Provisioning und Java `21.0.12.1`, nicht Java 17. Im getrackten Code wurden weder veraltete Active-User-/Role-APIs noch Legacy-Type-/Severity-Abfragen oder die veraltete Build-Wrapper-Property gefunden; daraus folgt keine erforderliche Repository-Migration oder AI-Gate-Änderung.
+
+Der moderne impactbasierte Readback für `SECURITY` mit `issueStatuses=OPEN,CONFIRMED` liefert ein neues `S5443`-Finding mit Impact `HIGH` und Tag `former-hotspot`. Dies entspricht der angekündigten Überführung von Hotspots in Security-Issues: Eine leere Hotspotliste belegt deshalb keine Abwesenheit von Security-Findings. Triage verwendet Impacts und Issue-Status statt Legacy-Type/Severity und validiert den konkreten Codepfad; neue Auflösung benötigt weiterhin einen neuen Head-Scan.
 
 ## Projekt und Analysemethode
 
@@ -70,26 +80,11 @@ zu übernehmen.
 
 ## Scope-Ausschlüsse und Standards
 
-| Bereich | Begründung und Behandlung |
-| --- | --- |
-| `modules/ModSecurity-test-Framework/**` | Eigenständiges Git-Submodul einschließlich verschachteltem MRTS; die Parent-Analyse importiert oder ändert seinen Code nicht. |
-| `reports/testing/generated/**` | Generierte Evidence; gepflegte Generatoren bleiben im Scope. Andere Berichte und Attributionsdateien werden nicht explizit ausgeschlossen. |
-| `build/**`, `dist/**`, `ci-artifacts/**`, `verified-runs/**`; lokale Ausgaben und Caches | Root-`/build/`, `/dist/`, `/compile_commands.json`, Umgebungen, Dependency-Caches und Laufzeitausgaben sind bereits SCM-ignoriert. SCM-Ausschlüsse aktiviert lassen. |
-| Python-/Go-Test-Inklusionsmuster | Klassifikation entfernt diese Dateien aus der Source-Indizierung und vermeidet doppelte Indizierung; sie entfernt sie nicht aus der Analyse. |
-| `tests/fixtures/python-version-contract/*.yml`, `tests/fixtures/python-version-contract/*.yaml`, `ci/fixtures/zizmor/*.yml`, `ci/fixtures/workflow-permission-contract/*.yml` | Ungültige/unsichere Workflow-Beispiele und ihre Kontrollen sind Testdaten statt ausführbarer Produktionsworkflows. Nur diese YAML-Dateien sind ausgeschlossen; Python-/C-Fixtures bleiben im Scope. |
-
-Kein `**/build/**` hinzufügen: Das würde gepflegte Connector-Buildskripte
-verbergen. Kein Connector und keine vollständige Sprache wird zum Unterdrücken
-von Findings ausgeschlossen. Der Go-Analyzer schließt `vendor` standardmäßig
-aus; es wurde kein solches gepflegtes Verzeichnis gefunden. Scanner-Standards,
-SCM-Ignorierungen, Dateisuffixe, Größenlimits, geerbte globale Einstellungen und
-nicht eingebundene Header können die tatsächlich analysierte Menge weiterhin
-reduzieren. Scanner-Logs und serverseitige Datei-/Sprachmetriken prüfen, statt
-anfänglichen Scope mit bestätigter Analyse gleichzusetzen. CI-Kommandozeilenwerte
-überschreiben Konfigurationsdateiwerte, die wiederum Projekt-UI-Werte
-überschreiben; bei fehlenden Dateien auch Organisations-/Globalausschlüsse prüfen.
+Der vorbereitete lokale Scope schließt ausschließlich root `modules/**` und root `reports/**` aus MAIN und TEST aus. Alle anderen Parent-Verzeichnisse bleiben enthalten, einschließlich `ci/evidence/reports/`, Connector-Buildskripten und YAML-Fixtures. `sonar.scm.exclusions.disabled=true` verhindert eine stille Scope-Reduktion durch SCM-Ignorierungen. Python-/Go-TEST-Zuordnung und sämtliche CFamily-MAIN-Zuordnungen bleiben erhalten. Die getrackte Aufteilung beträgt 1651 MAIN + 498 TEST + 361 Root-Report-Einträge + einen Framework-Gitlink = 2511 Einträge; 25 verschachtelte Reportgeneratoren bleiben MAIN. Dies belegt konfigurierten Quellumfang, keine semantische Analyzer-Unterstützung oder Ausführung für jedes Format; lokale Scope-Änderungen benötigen weiterhin einen Scan am neuen veröffentlichten Head.
 
 ## CFamily-Buildtreue
+
+Der aktuelle c924-Scan nutzte AutoConfig mit 185 Translation Units: Funktionsqualität 98.01% bei Fehlern in 61/3067 Funktionen, Statementqualität 98.27% bei Fehlern in 810/46710 Statements. C/C++-Taintanalyse war ausdrücklich `DISABLED`; dies ist kein vollständiger C/C++-Security-Nachweis. Die offiziellen [Analysemodi](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/analysis-modes) empfehlen Compilation Database für höchste Analysequalität; die [Taint-Anforderungen](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis) bleiben gesondert zu erfüllen. Eine Migration ist bisher weder umgesetzt noch autorisiert; eine begrenzte Machbarkeitsprüfung ersetzt keine Ausführung. AI-Gate-/MISRA-Änderungen sind daraus nicht abgeleitet.
 
 Der getrackte Parent-Bestand bei `9f44647593bac7947113558c6ad183ab118e80af`
 enthält 136 native Translation Units: 135 C und eine C++. Dazu gehören native
@@ -198,8 +193,8 @@ echte Reports in frischen Sprachverzeichnissen unter einer externen
 `--output-root`. Das Werkzeug erfasst den SHA, prüft die Stabilität des Checkouts
 und verlangt für CI einen sauberen Checkout. `--allow-dirty` dient nur der
 lokalen Entwicklung und kennzeichnet Reports mit nicht committeten Änderungen.
-Leere Ersatzreports oder Coverage-Ausschlüsse verdecken keine
-Produktivcode-Lücken. Eine kurze externe `--temp-root` vermeidet
+Leere Ersatzreports werden nicht erzeugt. Die ausdrückliche reine Coverage-Abwahl
+oben erhält die Analyse produktiver Sources. Eine kurze externe `--temp-root` vermeidet
 Unix-Socket-Pfadgrenzen in Tests.
 
 Python verwendet die bestehende Hash-gepinnte Dependency `coverage==7.17.0` in

@@ -217,6 +217,19 @@ def _source_bindings(sources: list[Any]) -> dict[str, str]:
     return bindings
 
 
+def _shared_source_references(execution: Any, bindings: dict[str, str]) -> set[str]:
+    references = execution.get("sources") if isinstance(execution, dict) else None
+    if not isinstance(references, list) or not references:
+        raise InventoryError("execution requires shared source references")
+    local = set()
+    for relative in references:
+        _relative_path(relative)
+        if relative not in bindings or relative in local:
+            raise InventoryError("shared source references must be unique known paths")
+        local.add(relative)
+    return local
+
+
 def _expand_shared_sources(value: dict[str, Any], executions: list[Any]) -> None:
     """Validate the complete schema-3 pool/reference graph before expansion."""
     pool = value["source_bindings"]
@@ -225,16 +238,7 @@ def _expand_shared_sources(value: dict[str, Any], executions: list[Any]) -> None
     bindings = _source_bindings(pool)
     used = set()
     for execution in executions:
-        references = execution.get("sources") if isinstance(execution, dict) else None
-        if not isinstance(references, list) or not references:
-            raise InventoryError("execution requires shared source references")
-        local = set()
-        for relative in references:
-            _relative_path(relative)
-            if relative not in bindings or relative in local:
-                raise InventoryError("shared source references must be unique known paths")
-            local.add(relative)
-        used.update(local)
+        used.update(_shared_source_references(execution, bindings))
     if used != set(bindings):
         raise InventoryError("shared source bindings must not contain unused paths")
     for execution in executions:

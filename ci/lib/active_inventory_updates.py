@@ -81,6 +81,19 @@ def _source_path(value) -> None:
         raise InventoryUpdateError("maintenance source path must be canonical relative POSIX")
 
 
+def _shared_reference_paths(row, paths):
+    references = row.get("sources") if isinstance(row, dict) else None
+    if not isinstance(references, list) or not references:
+        raise InventoryUpdateError("inventory shared source references must be nonempty arrays")
+    local = set()
+    for relative in references:
+        _source_path(relative)
+        if relative not in paths or relative in local:
+            raise InventoryUpdateError("shared maintenance references must be unique known paths")
+        local.add(relative)
+    return local
+
+
 def _shared_records(value, rows):
     pool = value["source_bindings"]
     if not isinstance(pool, list) or not pool:
@@ -93,16 +106,7 @@ def _shared_records(value, rows):
         paths.add(source["path"])
     used = set()
     for row in rows:
-        references = row.get("sources") if isinstance(row, dict) else None
-        if not isinstance(references, list) or not references:
-            raise InventoryUpdateError("inventory shared source references must be nonempty arrays")
-        local = set()
-        for relative in references:
-            _source_path(relative)
-            if relative not in paths or relative in local:
-                raise InventoryUpdateError("shared maintenance references must be unique known paths")
-            local.add(relative)
-        used.update(local)
+        used.update(_shared_reference_paths(row, paths))
     if used != paths:
         raise InventoryUpdateError("unused shared maintenance source binding")
     return pool

@@ -37,7 +37,7 @@ def read_bytes(path):
             or not any(path != root and path.is_relative_to(root) for root in roots)):
         raise ValueError('sealed input outside approved evidence/source roots')
     try:
-        return i12_paths._read_admitted(path, i12_paths.MAXIMUM_BYTES)
+        return i12_paths._read_admitted(path, i12_paths.MAXIMUM_BYTES, require_owned_input=True)
     except OSError as error:
         raise ValueError('sealed input must be a physical absolute regular file') from error
 
