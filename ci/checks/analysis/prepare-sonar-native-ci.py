@@ -216,10 +216,9 @@ def host_archive(target: str, destination: Path) -> Path | None:
         pin = json.loads((ROOT / "connectors/haproxy/htx-overlay/version-contract.json").read_text())
         name, url, expected = "haproxy-" + pin["version"] + ".tar.gz", pin["source_url"], pin["sha256"]
     elif target == "lighttpd-patched-module":
-        pin = {key: value for key, value in (
-            line.split("=", 1)
-            for line in (ROOT / "connectors/lighttpd/lighttpd-version.contract").read_text().splitlines()
-            if line and not line.startswith("#"))}
+        pin = {key: value
+               for line in (ROOT / "connectors/lighttpd/lighttpd-version.contract").read_text().splitlines()
+               if line and not line.startswith("#") for key, value in [line.split("=", 1)]}
         name = "lighttpd-" + pin["LIGHTTPD_VERSION"] + ".tar.xz"
         url, expected = pin["LIGHTTPD_DOWNLOAD_URL"], pin["LIGHTTPD_SHA256"]
     else:
