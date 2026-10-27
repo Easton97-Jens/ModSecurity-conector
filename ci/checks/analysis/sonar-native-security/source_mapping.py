@@ -45,6 +45,11 @@ def verify_manifest(manifest):
             or not producer.is_relative_to(checkout)
             or digest(producer) != manifest["producer"]["sha256"]):
         raise ValueError("copied-source mapping producer identity is invalid")
+    verify_manifest_files(manifest, checkout, copied_root)
+    verify_manifest_include_directories(manifest, checkout)
+
+
+def verify_manifest_files(manifest, checkout, copied_root):
     for copied, identity in manifest["files"].items():
         source, original = Path(copied), Path(identity["original"])
         if (source.resolve(strict=True) != source or original.resolve(strict=True) != original
@@ -54,6 +59,9 @@ def verify_manifest(manifest):
     for name, expected in manifest["context_files"].items():
         if not Path(name).is_absolute() or digest(name) != expected:
             raise ValueError("copied-source native archive/configure context changed")
+
+
+def verify_manifest_include_directories(manifest, checkout):
     for field in ("original_include_directories", "original_quote_directories"):
         for name in manifest.get(field, []):
             path = Path(name)

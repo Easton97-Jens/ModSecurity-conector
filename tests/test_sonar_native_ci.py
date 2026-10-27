@@ -162,8 +162,9 @@ class SonarNativeCiTests(unittest.TestCase):
                 path.write_text(json.dumps(event))
                 with patch.dict(os.environ, GITHUB_EVENT_NAME="pull_request", GITHUB_EVENT_PATH=str(path)), \
                         patch.object(CI, "ctu_limits", return_value=(2, 2048)):
+                    manifest = scope_manifest()
                     with self.assertRaisesRegex(ValueError, "same-repository revision"):
-                        CI.write_settings(scope_manifest(), output, TARGET, REVISION)
+                        CI.write_settings(manifest, output, TARGET, REVISION)
 
     def test_external_root_rejects_checkout(self):
         with self.assertRaisesRegex(ValueError, "private external project child"):

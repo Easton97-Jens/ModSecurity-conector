@@ -24,6 +24,15 @@ from go_provenance import verify_fips_transition
 from source_mapping import verify_trusted_directory
 
 
+PROFILE_REGISTRY_SOURCE = 'connectors/profile_registry.c'
+COMMON_SOURCE_DIRECTORY = 'common/src'
+COMMON_INCLUDE_DIRECTORY = 'common/include'
+PROFILE_REGISTRY_HEADER = 'connectors/profile_registry.h'
+SHELL_FORWARD_ARGUMENTS = ' "$@"\n'
+SHELL_EXEC_PREFIX = '#!/bin/sh\nexec '
+COMMON_SOURCE_PATTERN = 'common/src/*.c'
+
+
 TARGETS = {
     "common-targeted-evaluator": {
         "script": "ci/checks/analysis/check-targeted-evaluator-cpp17.sh",
@@ -36,14 +45,14 @@ TARGETS = {
         "script": "connectors/envoy/build/build_ext_proc.sh",
         "artifact": "envoy-ext-proc/msconnector_envoy_ext_proc",
         "cgo": True,
-        "sources": ["connectors/profile_registry.c",
+        "sources": [PROFILE_REGISTRY_SOURCE,
                     "connectors/envoy/ext_proc/internal/processor/common_runtime_bridge.c"],
     },
     "envoy-composite": {
         "script": "connectors/envoy/build/build_composite.sh",
         "artifact": "envoy-composite/msconnector_composite",
         "cgo": True,
-        "sources": ["connectors/profile_registry.c",
+        "sources": [PROFILE_REGISTRY_SOURCE,
                     "connectors/envoy/ext_proc/internal/processor/common_runtime_bridge.c"],
     },
     "lighttpd-patched-module": {
@@ -63,7 +72,7 @@ TARGETS = {
     "envoy-ext-authz": {
         "script": "connectors/envoy/build/build_connector.sh",
         "artifact": "envoy-connector/msconnector_envoy_ext_authz",
-        "sources": ["connectors/profile_registry.c", "connectors/envoy/metadata.c",
+        "sources": [PROFILE_REGISTRY_SOURCE, "connectors/envoy/metadata.c",
                     "connectors/envoy/src/envoy_modsecurity_mapper.c",
                     "connectors/envoy/src/envoy_ext_authz_response_companion.c",
                     "connectors/envoy/src/envoy_ext_authz_service_main.c"],
@@ -76,13 +85,13 @@ TARGETS = {
     "traefik-engine-service": {
         "script": "connectors/traefik/build/build-engine-service.sh",
         "artifact": "traefik-engine-service/traefik-engine-service",
-        "sources": ["connectors/profile_registry.c",
+        "sources": [PROFILE_REGISTRY_SOURCE,
                     "connectors/traefik/src/traefik_engine_service.c"],
     },
     "traefik-forwardauth": {
         "script": "connectors/traefik/build/build-connector.sh",
         "artifact": "traefik-connector/traefik-forwardauth",
-        "sources": ["connectors/profile_registry.c", "connectors/traefik/metadata.c",
+        "sources": [PROFILE_REGISTRY_SOURCE, "connectors/traefik/metadata.c",
                     "connectors/traefik/src/traefik_modsecurity_mapper.c",
                     "connectors/traefik/src/traefik_forwardauth_response_companion.c",
                     "connectors/traefik/src/traefik_provenance.c",
@@ -97,8 +106,8 @@ def haproxy_sources(checkout):
     result = ["connectors/haproxy/src/haproxy_modsecurity_binding.c",
               "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
               "connectors/haproxy/src/haproxy_modsecurity_mapper.c"]
-    replacements = {"$(COMMON_SRC)": "common/src", "$(REPO_ROOT)/": "",
-                    "$(PROFILE_REGISTRY_SOURCE)": "connectors/profile_registry.c"}
+    replacements = {"$(COMMON_SRC)": COMMON_SOURCE_DIRECTORY, "$(REPO_ROOT)/": "",
+                    "$(PROFILE_REGISTRY_SOURCE)": PROFILE_REGISTRY_SOURCE}
     for variable in ("COMMON_SDK_SRCS", "RESPONSE_COMPANION_SRCS"):
         matches = re.findall(r"^" + variable + r" := (.+)$", text, re.MULTILINE)
         if len(matches) != 1:
@@ -134,10 +143,10 @@ def mapping_manifest(checkout, root, producer, pairs, context):
     manifest = {"schema": 1, "checkout": str(checkout), "copy_root": str(root),
                 "producer": {"path": str(producer), "sha256": digest(producer)},
                 "context_files": {str(path): digest(path) for path in context}, "files": files,
-                "original_include_directories": [str(checkout / "common/include"), str(checkout)],
+                "original_include_directories": [str(checkout / COMMON_INCLUDE_DIRECTORY), str(checkout)],
                 "original_quote_directories": sorted({str(checkout)} | {str(original.parent) for _, original in pairs
                                                        if original.suffix in {".h", ".hpp", ".hxx"}
-                                                       and not original.is_relative_to(checkout / "common/include")})}
+                                                       and not original.is_relative_to(checkout / COMMON_INCLUDE_DIRECTORY)})}
     path = root / "source-map.json"
     path.write_text(json.dumps(manifest, indent=2) + "\n")
     return path
@@ -167,21 +176,21 @@ def build_apache(checkout, root, sdk, environment, log):
              if path.is_file() and path.suffix in {".c", ".h"}]
     common_root = root / "common-src"
     registry = root / "profile-registry"
-    pairs += [(common_root / name, checkout / "common/src" / name) for name in [*common, "header_validation_internal.h"]]
-    pairs += [(registry / "connectors/profile_registry.c", checkout / "connectors/profile_registry.c"),
-              (registry / "connectors/profile_registry.h", checkout / "connectors/profile_registry.h")]
+    pairs += [(common_root / name, checkout / COMMON_SOURCE_DIRECTORY / name) for name in [*common, "header_validation_internal.h"]]
+    pairs += [(registry / PROFILE_REGISTRY_SOURCE, checkout / PROFILE_REGISTRY_SOURCE),
+              (registry / PROFILE_REGISTRY_HEADER, checkout / PROFILE_REGISTRY_HEADER)]
     context = [apxs, checkout / "connectors/apache/configure.ac", checkout / "connectors/apache/Makefile.am"]
     manifest = mapping_manifest(checkout, root, producer, pairs, context)
     proxy = root / "apxs"
     proxy.write_text("#!/bin/sh\nfor arg do\n if [ \"$arg\" = -c ]; then\n  exec "
                      + shlex.join([str(apxs), "-S", "CC=" + environment["CC"],
                                    "-Wc,-std=c17", "-Wc,-Wall", "-Wc,-Wextra", "-Wc,-Werror"])
-                     + ' "$@"\n fi\ndone\nexec ' + shlex.quote(str(apxs)) + ' "$@"\n')
+                     + ' "$@"\n fi\ndone\nexec ' + shlex.quote(str(apxs)) + SHELL_FORWARD_ARGUMENTS)
     proxy.chmod(0o700)
     environment = dict(environment, SONAR_NATIVE_SOURCE_MAP=str(manifest),
                        SONAR_NATIVE_LTO_CONTEXT="apache-gcc-native-driver",
-                       MSCONNECTOR_COMMON_INC=str(checkout / "common/include"),
-                       MSCONNECTOR_COMMON_SRC=str(checkout / "common/src"),
+                       MSCONNECTOR_COMMON_INC=str(checkout / COMMON_INCLUDE_DIRECTORY),
+                       MSCONNECTOR_COMMON_SRC=str(checkout / COMMON_SOURCE_DIRECTORY),
                        MSCONNECTOR_COMMON_BUILD_SRC=str(common_root),
                        MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT=str(registry))
     native_cc = subprocess.check_output([str(apxs), "-q", "CC"], env=environment, text=True).strip()
@@ -193,9 +202,9 @@ def build_apache(checkout, root, sdk, environment, log):
     binary_dir = root / "bin"
     binary_dir.mkdir(mode=0o700)
     compiler_proxy = binary_dir / native_cc
-    compiler_proxy.write_text("#!/bin/sh\nexec " + shlex.join([
+    compiler_proxy.write_text(SHELL_EXEC_PREFIX + shlex.join([
         sys.executable, str(Path(__file__).with_name("capture.py").resolve()), "--compiler",
-        str(Path(real_native_cc).resolve()), "--"]) + ' "$@"\n')
+        str(Path(real_native_cc).resolve()), "--"]) + SHELL_FORWARD_ARGUMENTS)
     compiler_proxy.chmod(0o700)
     environment["PATH"] = str(binary_dir) + os.pathsep + environment["PATH"]
     subprocess.run(["sh", "./autogen.sh"], cwd=stage, env=environment,
@@ -215,8 +224,45 @@ def build_apache(checkout, root, sdk, environment, log):
                "limitation": "Installed Apache/APR context is recorded; no pinned runtime or hosted evidence is asserted."}
     (root / "apache-installed-context.json").write_text(json.dumps(receipt, indent=2) + "\n")
     sources = ["connectors/apache/src/" + name for name in source_names]
-    sources += ["common/src/" + name for name in common] + ["connectors/profile_registry.c"]
+    sources += ["common/src/" + name for name in common] + [PROFILE_REGISTRY_SOURCE]
     return sources, artifact, receipt
+
+
+def extract_haproxy_archive(archive, host, dirname):
+    """Validate the pinned archive layout before extracting any member."""
+    with tarfile.open(archive) as bundle:
+        members = bundle.getmembers()
+        if not members or any(Path(member.name).is_absolute() or ".." in Path(member.name).parts
+                              or not Path(member.name).parts or Path(member.name).parts[0] != dirname
+                              for member in members):
+            raise ValueError("HAProxy archive has an unexpected source root")
+        bundle.extractall(host, members=members, filter="data")
+
+
+def record_haproxy_foreign_sources(producer, checkout, worktree, source, dirname, foreign):
+    """Bind upstream compile sources to their unchanged pinned archive members."""
+    for path in producer["sources"]:
+        if not Path(path).is_relative_to(checkout):
+            relative = Path(path).relative_to(worktree)
+            if digest(source / relative) != digest(Path(path)):
+                raise ValueError("upstream HTX source differs from its pinned archive member")
+            foreign[path] = {"archive_member": dirname + "/" + str(relative), "sha256": digest(Path(path))}
+
+
+def haproxy_foreign_sources(link, records, checkout, worktree, source, dirname):
+    """Require one actual compile producer per linked native object."""
+    foreign = {}
+    for name, expected in link["inputs"].items():
+        if Path(name).suffix != ".o":
+            # Shared SDK inputs are separately hash-bound in the target
+            # contract; they are not translation-unit object producers.
+            continue
+        producers = [record for record in records if record["kind"] == "compile"
+                     and record["output"] == name and record["output_sha256"] == expected]
+        if len(producers) != 1:
+            raise ValueError("native HTX link input lacks its unique actual compile")
+        record_haproxy_foreign_sources(producers[0], checkout, worktree, source, dirname, foreign)
+    return foreign
 
 
 def build_haproxy_htx(checkout, root, environment, archive, log):
@@ -228,13 +274,7 @@ def build_haproxy_htx(checkout, root, environment, archive, log):
     dirname = "haproxy-" + pin["version"]
     host = root / "host"
     host.mkdir()
-    with tarfile.open(archive) as bundle:
-        members = bundle.getmembers()
-        if not members or any(Path(member.name).is_absolute() or ".." in Path(member.name).parts
-                              or not Path(member.name).parts or Path(member.name).parts[0] != dirname
-                              for member in members):
-            raise ValueError("HAProxy archive has an unexpected source root")
-        bundle.extractall(host, members=members, filter="data")
+    extract_haproxy_archive(archive, host, dirname)
     source = host / dirname
     overlay = root / "haproxy-overlay"
     worktree = overlay / "worktree"
@@ -248,8 +288,8 @@ def build_haproxy_htx(checkout, root, environment, archive, log):
     for name in ("haproxy_modsecurity_binding.c", "haproxy_modsecurity_binding.h",
                  "haproxy_modsecurity_mapper.c", "haproxy_modsecurity_mapper.h"):
         pairs.append((worktree / "src" / name, checkout / "connectors/haproxy/src" / name))
-    pairs += [(worktree / "src/msconnector_profile_registry.c", checkout / "connectors/profile_registry.c"),
-              (worktree / "src/connectors/profile_registry.h", checkout / "connectors/profile_registry.h"),
+    pairs += [(worktree / "src/msconnector_profile_registry.c", checkout / PROFILE_REGISTRY_SOURCE),
+              (worktree / "src/connectors/profile_registry.h", checkout / PROFILE_REGISTRY_HEADER),
               (worktree / "src/header_validation_internal.h", checkout / "common/src/header_validation_internal.h"),
               (worktree / "src/msconnector_response_companion_client.c", checkout / "common/runtime/response_companion_client.c")]
     for name in ("response_companion_client.h", "response_companion_protocol.h",
@@ -259,7 +299,7 @@ def build_haproxy_htx(checkout, root, environment, archive, log):
         if path.is_file():
             pairs.append((worktree / "include/msconnector" / path.relative_to(checkout / "common/include/msconnector"), path))
     for name in matches[0].split():
-        pairs.append((worktree / "src" / ("msconnector_" + name), checkout / "common/src" / name))
+        pairs.append((worktree / "src" / ("msconnector_" + name), checkout / COMMON_SOURCE_DIRECTORY / name))
     context = [archive, contract_path, checkout / "connectors/haproxy/htx-overlay" / pin["makefile_patch"],
                source / "Makefile"]
     manifest = mapping_manifest(checkout, root, producer, pairs, context)
@@ -288,22 +328,7 @@ def build_haproxy_htx(checkout, root, environment, archive, log):
     links = [record for record in records if record["kind"] == "link" and record["output"] == str(artifact)]
     if len(links) != 1:
         raise ValueError("native HTX binary has no unique actual compiler link")
-    foreign = {}
-    for name, expected in links[0]["inputs"].items():
-        if Path(name).suffix != ".o":
-            # Shared SDK inputs are separately hash-bound in the target
-            # contract; they are not translation-unit object producers.
-            continue
-        producers = [record for record in records if record["kind"] == "compile"
-                     and record["output"] == name and record["output_sha256"] == expected]
-        if len(producers) != 1:
-            raise ValueError("native HTX link input lacks its unique actual compile")
-        for path in producers[0]["sources"]:
-            if not Path(path).is_relative_to(checkout):
-                relative = Path(path).relative_to(worktree)
-                if digest(source / relative) != digest(Path(path)):
-                    raise ValueError("upstream HTX source differs from its pinned archive member")
-                foreign[path] = {"archive_member": dirname + "/" + str(relative), "sha256": digest(Path(path))}
+    foreign = haproxy_foreign_sources(links[0], records, checkout, worktree, source, dirname)
     receipt = root / "haproxy-build-receipt.json"
     receipt.write_text(json.dumps({"host": "haproxy", "source_root": str(worktree),
                                   "native_build_arguments": command, "producer_sha256": digest(producer),
@@ -317,15 +342,8 @@ def build_haproxy_htx(checkout, root, environment, archive, log):
     return sources, artifact, {name: value["sha256"] for name, value in foreign.items()}, external_context
 
 
-def finish_go_capture(checkout, root, artifact, environment, log):
-    """Bind real C/AR/link inputs to the Go final artifact without source rewrites."""
-    records = [json.loads(path.read_text()) for path in (root / "captures").glob("*.json")]
-    go = Path(shutil.which("go")).resolve(strict=True)
-    version = subprocess.check_output([str(go), "env", "GOVERSION"], env=environment, text=True).strip()
-    approved_version = "go" + (checkout / ".go-version").read_text().strip()
-    if version != approved_version:
-        raise ValueError("actual Go toolchain differs from current Parent .go-version")
-    goroot = Path(subprocess.check_output([str(go), "env", "GOROOT"], env=environment, text=True).strip())
+def replay_go_link_candidates(records, root, go, artifact, environment, log):
+    """Replay the actual buildid step and require one matching final artifact."""
     candidates = []
     replay_root = root / "go-buildid-replay"
     replay_root.mkdir(mode=0o700)
@@ -342,14 +360,11 @@ def finish_go_capture(checkout, root, artifact, environment, log):
     if len(candidates) != 1:
         raise ValueError("no unique actual Go linker/buildid chain produces the final artifact")
     go_link, replay, replay_command = candidates[0]
-    raw_candidates = [record for record in records if record["kind"] == "link"
-                      and record["output"] == go_link["output"]]
-    if len(raw_candidates) != 1:
-        raise ValueError("Go final artifact lacks a unique raw native compiler link")
-    raw = raw_candidates[0]
-    retained_raw = Path(raw["retained_files"][raw["output"]])
-    transition = verify_fips_transition(retained_raw, go_link["retained_output"])
-    work_root = root / "go-work"
+    return go_link, replay, replay_command
+
+
+def restore_go_native_context(raw, work_root):
+    """Verify retained bytes before restoring missing task-owned link context."""
     for name, retained in raw["retained_files"].items():
         path = Path(name)
         expected = raw["output_sha256"] if name == raw["output"] else raw["inputs"][name]
@@ -363,6 +378,10 @@ def finish_go_capture(checkout, root, artifact, environment, log):
             shutil.copyfile(retained, path)
         else:
             raise ValueError("missing native linker context outside task-owned Go work root")
+
+
+def go_object_provenance(raw, records, checkout):
+    """Separate unique Parent object producers from external Go context."""
     aliases, external, context_compiles = {}, {}, []
     for name, expected in raw["inputs"].items():
         if Path(name).suffix != ".o":
@@ -378,6 +397,29 @@ def finish_go_capture(checkout, root, artifact, environment, log):
         else:
             external[name] = expected
             context_compiles.extend(matches)
+    return aliases, external, context_compiles
+
+
+def finish_go_capture(checkout, root, artifact, environment, log):
+    """Bind real C/AR/link inputs to the Go final artifact without source rewrites."""
+    records = [json.loads(path.read_text()) for path in (root / "captures").glob("*.json")]
+    go = Path(shutil.which("go")).resolve(strict=True)
+    version = subprocess.check_output([str(go), "env", "GOVERSION"], env=environment, text=True).strip()
+    approved_version = "go" + (checkout / ".go-version").read_text().strip()
+    if version != approved_version:
+        raise ValueError("actual Go toolchain differs from current Parent .go-version")
+    goroot = Path(subprocess.check_output([str(go), "env", "GOROOT"], env=environment, text=True).strip())
+    go_link, replay, replay_command = replay_go_link_candidates(records, root, go, artifact, environment, log)
+    raw_candidates = [record for record in records if record["kind"] == "link"
+                      and record["output"] == go_link["output"]]
+    if len(raw_candidates) != 1:
+        raise ValueError("Go final artifact lacks a unique raw native compiler link")
+    raw = raw_candidates[0]
+    retained_raw = Path(raw["retained_files"][raw["output"]])
+    transition = verify_fips_transition(retained_raw, go_link["retained_output"])
+    work_root = root / "go-work"
+    restore_go_native_context(raw, work_root)
+    aliases, external, context_compiles = go_object_provenance(raw, records, checkout)
     source_paths = [goroot / name for name in (
         "src/cmd/link/internal/ld/fips140.go", "src/cmd/go/internal/work/buildid.go",
         "src/cmd/buildid/buildid.go", "src/cmd/internal/buildid/rewrite.go")]
@@ -420,8 +462,8 @@ def build_nginx(checkout, root, sdk, environment, archive, log):
         bundle.extractall(host, members=members, filter="data")
     source = host / dirname
     environment = dict(environment, MODSECURITY_INC=str(sdk / "include"), MODSECURITY_LIB=str(sdk / "lib"),
-                       MSCONNECTOR_COMMON_INC=str(checkout / "common/include"),
-                       MSCONNECTOR_COMMON_SRC=str(checkout / "common/src"),
+                       MSCONNECTOR_COMMON_INC=str(checkout / COMMON_INCLUDE_DIRECTORY),
+                       MSCONNECTOR_COMMON_SRC=str(checkout / COMMON_SOURCE_DIRECTORY),
                        MSCONNECTOR_PROFILE_REGISTRY_ROOT=str(checkout))
     configure = ["sh", "./configure", "--with-compat", "--with-cc=" + environment["CC"],
                  "--with-cc-opt=-std=c17 -Wall -Wextra -Werror",
@@ -436,7 +478,7 @@ def build_nginx(checkout, root, sdk, environment, archive, log):
     sources = []
     for item in matches[0].replace("\\\n", " ").split():
         for variable, value in (("$ngx_addon_dir", "connectors/nginx"),
-                                ("$MSCONNECTOR_COMMON_SRC", "common/src"),
+                                ("$MSCONNECTOR_COMMON_SRC", COMMON_SOURCE_DIRECTORY),
                                 ("$MSCONNECTOR_PROFILE_REGISTRY_ROOT/", "")):
             item = item.replace(variable, value)
         if "$" in item or Path(item).is_absolute() or ".." in Path(item).parts:
@@ -458,8 +500,8 @@ def build_nginx(checkout, root, sdk, environment, archive, log):
 
 def build_lighttpd_patched(checkout, root, environment, archive, log):
     contract_path = checkout / "connectors/lighttpd/lighttpd-version.contract"
-    pin = dict(line.split("=", 1) for line in contract_path.read_text().splitlines()
-               if line and not line.startswith("#"))
+    pin = {key: value for line in contract_path.read_text().splitlines()
+           if line and not line.startswith("#") for key, value in [line.split("=", 1)]}
     dirname = "lighttpd-" + pin["LIGHTTPD_VERSION"]
     if archive is None:
         url = pin["LIGHTTPD_DOWNLOAD_URL"]
@@ -505,8 +547,8 @@ def build_lighttpd_patched(checkout, root, environment, archive, log):
         environment.pop(name, None)
     subprocess.run(["sh", str(checkout / TARGETS["lighttpd-patched-module"]["script"])],
                    cwd=checkout, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
-    sources = sorted(str(path.relative_to(checkout)) for path in checkout.glob("common/src/*.c"))
-    sources += ["common/runtime/msconnector_runtime.c", "connectors/profile_registry.c",
+    sources = sorted(str(path.relative_to(checkout)) for path in checkout.glob(COMMON_SOURCE_PATTERN))
+    sources += ["common/runtime/msconnector_runtime.c", PROFILE_REGISTRY_SOURCE,
                 "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c", "connectors/lighttpd/module/mod_msconnector.c"]
     patchfile = checkout / "connectors/lighttpd/patches" / pin["LIGHTTPD_PATCH_FILENAME"]
     context = {"host": "lighttpd", "archive": str(archive), "archive_sha256": digest(archive),
@@ -527,11 +569,11 @@ def build_lighttpd_split(checkout, root, sdk, environment, log):
     executable produced by that comparison is never executed or exported.
     """
     sources = ["connectors/lighttpd/stock_sidecar/stock_sidecar.c",
-               "common/runtime/msconnector_runtime.c", "connectors/profile_registry.c"]
-    sources += sorted(str(path.relative_to(checkout)) for path in checkout.glob("common/src/*.c"))
+               "common/runtime/msconnector_runtime.c", PROFILE_REGISTRY_SOURCE]
+    sources += sorted(str(path.relative_to(checkout)) for path in checkout.glob(COMMON_SOURCE_PATTERN))
     flags = ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
              "-DMSCONNECTOR_STOCK_SIDECAR_MAIN"]
-    for directory in (checkout, checkout / "common/include", checkout / "common/runtime",
+    for directory in (checkout, checkout / COMMON_INCLUDE_DIRECTORY, checkout / "common/runtime",
                       checkout / "connectors/lighttpd/stock_sidecar", sdk / "include"):
         flags += ["-I", str(directory)]
     output = root / "build/lighttpd-stock-sidecar"
@@ -554,7 +596,6 @@ def build_lighttpd_split(checkout, root, sdk, environment, log):
     if digest(canonical) != digest(output / "lighttpd-stock-sidecar"):
         raise ValueError("split lighttpd artifact differs from canonical native producer; parity unverified")
     return sources, digest(canonical)
-
 
 
 def build_targeted_evaluator(checkout, root, sdk, environment, cxx, log):
@@ -593,14 +634,8 @@ def build_targeted_evaluator(checkout, root, sdk, environment, cxx, log):
     return [source], artifact, receipt
 
 
-def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cache=None,
-          allowed_output_parent=None):
-    checkout = checkout.resolve(strict=True)
-    revision_before = subprocess.check_output(["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
-    product_diff_before = subprocess.check_output(
-        ["git", "-C", str(checkout), "diff", "HEAD", "--", "common", "connectors"])
-    root = root.absolute()
-    sdk = sdk.resolve(strict=True)
+def verify_native_output_root(checkout, root, sdk, allowed_output_parent):
+    """Validate external ownership and ancestry before creating build files."""
     allowed_parent = (Path("/var/tmp/codex/ModSecurity-conector") if allowed_output_parent is None
                       else allowed_output_parent).resolve(strict=True)
     verify_trusted_directory(allowed_parent)
@@ -618,26 +653,21 @@ def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cac
     if root.is_relative_to(checkout) or checkout.is_relative_to(root):
         raise ValueError("build run root must be disjoint from checkout")
     verify_build_output_ancestry(root)
+
+
+def verify_native_build_inputs(checkout, sdk, target):
+    """Bind the selected native producer and immutable SDK before build setup."""
     spec = TARGETS[target]
     if "producer_sha256" in spec and digest(checkout / spec["script"]) != spec["producer_sha256"]:
         raise ValueError("split adapter canonical producer changed; explicit parity review required")
     library = sdk / "lib/libmodsecurity.so"
     if not library.is_file() or not (sdk / "include/modsecurity/modsecurity.h").is_file():
         raise ValueError("SDK must supply the immutable ModSecurity development prefix")
-    root.mkdir(parents=True, mode=0o700)
-    captures = root / "captures"
-    captures.mkdir(mode=0o700)
-    launcher = Path(__file__).with_name("capture.py").resolve()
-    shims = {}
-    for name, compiler in (("cc", cc), ("cxx", cxx)):
-        executable = shutil.which(compiler)
-        if executable is None:
-            raise ValueError("required compiler is unavailable")
-        shim = root / name
-        command = [sys.executable, str(launcher), "--compiler", str(Path(executable).resolve()), "--"]
-        shim.write_text("#!/bin/sh\nexec " + shlex.join(command) + ' "$@"\n')
-        shim.chmod(0o700)
-        shims[name] = str(shim)
+    return spec, library
+
+
+def native_build_environment(checkout, root, sdk, captures, shims):
+    """Sanitize inherited compiler paths and retain explicit native defaults."""
     environment = dict(os.environ)
     implicit_environment = {
         "CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "OBJC_INCLUDE_PATH", "INCLUDE",
@@ -668,20 +698,25 @@ def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cac
                         "SONAR_NATIVE_CAPTURE_ROOT": str(captures),
                         "MODSECURITY_INCLUDE_DIR": str(sdk / "include"),
                         "MODSECURITY_LIB_DIR": str(sdk / "lib")})
+    return environment
+
+
+def configure_go_capture_environment(checkout, root, target, spec, environment, go_module_cache):
+    """Install capture seams and configure the isolated offline Go work root."""
     if spec.get("cgo"):
         archiver = shutil.which("ar")
         if archiver is None:
             raise ValueError("native CGo archive requires an existing archiver")
         shim = root / "ar"
-        shim.write_text("#!/bin/sh\nexec " + shlex.join([
+        shim.write_text(SHELL_EXEC_PREFIX + shlex.join([
             sys.executable, str(Path(__file__).with_name("archive-capture.py").resolve()),
-            "--archiver", str(Path(archiver).resolve()), "--"]) + ' "$@"\n')
+            "--archiver", str(Path(archiver).resolve()), "--"]) + SHELL_FORWARD_ARGUMENTS)
         shim.chmod(0o700)
         environment["AR"] = str(shim)
         environment["ENVOY_EXT_PROC_COMMON_TEST"] = "0"
         go_shim = root / "go-tool"
-        go_shim.write_text("#!/bin/sh\nexec " + shlex.join([
-            sys.executable, str(Path(__file__).with_name("go-tool-capture.py").resolve())]) + ' "$@"\n')
+        go_shim.write_text(SHELL_EXEC_PREFIX + shlex.join([
+            sys.executable, str(Path(__file__).with_name("go-tool-capture.py").resolve())]) + SHELL_FORWARD_ARGUMENTS)
         go_shim.chmod(0o700)
     if target.startswith("envoy-"):
         module_cache = root / "go-module-cache" if go_module_cache is None else go_module_cache.resolve(strict=True)
@@ -697,6 +732,11 @@ def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cac
                             "GOMODCACHE": str(module_cache), "TMPDIR": str(work)})
         # The native producer also builds the independent Go response observer.
         # Its native subprocesses cannot enter the ext_authz selected graph.
+
+
+def native_target_command(checkout, spec):
+    """Prepare the selected native command before opening its build log."""
+    command, sources = None, None
     if "make_target" in spec:
         command = ["make", "-C", str(checkout / "connectors/haproxy"),
                    "REPO_ROOT=" + str(checkout), "CFLAGS=-std=c17 -Wall -Wextra -Werror",
@@ -705,28 +745,84 @@ def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cac
     elif not any(spec.get(name) for name in ("split", "nginx", "lighttpd_patched", "haproxy_htx", "apache", "evaluator")):
         command = ["sh", str(checkout / spec["script"]), "build"]
         sources = sorted(str(path.relative_to(checkout))
-                         for pattern in ("common/src/*.c", "common/runtime/*.c")
+                         for pattern in (COMMON_SOURCE_PATTERN, "common/runtime/*.c")
                          for path in checkout.glob(pattern)) + spec["sources"]
+    return command, sources
+
+
+def execute_native_target(checkout, root, sdk, spec, environment, cxx, host_archive, command, sources, log):
+    """Run the selected producer and return its target-specific receipt data."""
+    details = {}
+    artifact = None
+    if spec.get("evaluator"):
+        sources, artifact, details["evaluator_receipt"] = build_targeted_evaluator(
+            checkout, root, sdk, environment, cxx, log)
+    elif spec.get("nginx"):
+        sources, artifact, details["external_sources"], details["external_context"] = build_nginx(
+            checkout, root, sdk, environment, host_archive, log)
+    elif spec.get("lighttpd_patched"):
+        sources, artifact, details["header_context"] = build_lighttpd_patched(
+            checkout, root, environment, host_archive, log)
+    elif spec.get("haproxy_htx"):
+        sources, artifact, details["external_sources"], details["external_context"] = build_haproxy_htx(
+            checkout, root, environment, host_archive, log)
+    elif spec.get("apache"):
+        sources, artifact, details["installed_context"] = build_apache(checkout, root, sdk, environment, log)
+    elif spec.get("split"):
+        sources, details["canonical_hash"] = build_lighttpd_split(checkout, root, sdk, environment, log)
+    else:
+        subprocess.run(command, cwd=checkout,
+                       env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
+    return sources, artifact, details
+
+
+def add_native_target_context(contract, spec, details):
+    """Attach native receipt data in the established contract field order."""
+    if spec.get("evaluator"):
+        contract["producer"].update(details["evaluator_receipt"])
+    if spec.get("split"):
+        contract["producer"]["canonical_artifact_sha256"] = details["canonical_hash"]
+        contract["producer"]["split_command_mirror"] = True
+    if spec.get("nginx") or spec.get("haproxy_htx"):
+        contract["external_sources"] = details["external_sources"]
+        contract["external_context"] = details["external_context"]
+    if spec.get("lighttpd_patched"):
+        contract["header_context"] = details["header_context"]
+    if spec.get("apache"):
+        contract["installed_context"] = details["installed_context"]
+        contract["allow_gcc_internal_lto_context_limit"] = True
+
+
+def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cache=None,
+          allowed_output_parent=None):
+    checkout = checkout.resolve(strict=True)
+    revision_before = subprocess.check_output(["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
+    product_diff_before = subprocess.check_output(
+        ["git", "-C", str(checkout), "diff", "HEAD", "--", "common", "connectors"])
+    root = root.absolute()
+    sdk = sdk.resolve(strict=True)
+    verify_native_output_root(checkout, root, sdk, allowed_output_parent)
+    spec, library = verify_native_build_inputs(checkout, sdk, target)
+    root.mkdir(parents=True, mode=0o700)
+    captures = root / "captures"
+    captures.mkdir(mode=0o700)
+    launcher = Path(__file__).with_name("capture.py").resolve()
+    shims = {}
+    for name, compiler in (("cc", cc), ("cxx", cxx)):
+        executable = shutil.which(compiler)
+        if executable is None:
+            raise ValueError("required compiler is unavailable")
+        shim = root / name
+        command = [sys.executable, str(launcher), "--compiler", str(Path(executable).resolve()), "--"]
+        shim.write_text(SHELL_EXEC_PREFIX + shlex.join(command) + SHELL_FORWARD_ARGUMENTS)
+        shim.chmod(0o700)
+        shims[name] = str(shim)
+    environment = native_build_environment(checkout, root, sdk, captures, shims)
+    configure_go_capture_environment(checkout, root, target, spec, environment, go_module_cache)
+    command, sources = native_target_command(checkout, spec)
     with (root / "build.log").open("x") as log:
-        if spec.get("evaluator"):
-            sources, artifact, evaluator_receipt = build_targeted_evaluator(
-                checkout, root, sdk, environment, cxx, log)
-        elif spec.get("nginx"):
-            sources, artifact, external_sources, external_context = build_nginx(
-                checkout, root, sdk, environment, host_archive, log)
-        elif spec.get("lighttpd_patched"):
-            sources, artifact, header_context = build_lighttpd_patched(
-                checkout, root, environment, host_archive, log)
-        elif spec.get("haproxy_htx"):
-            sources, artifact, external_sources, external_context = build_haproxy_htx(
-                checkout, root, environment, host_archive, log)
-        elif spec.get("apache"):
-            sources, artifact, installed_context = build_apache(checkout, root, sdk, environment, log)
-        elif spec.get("split"):
-            sources, canonical_hash = build_lighttpd_split(checkout, root, sdk, environment, log)
-        else:
-            subprocess.run(command, cwd=checkout,
-                           env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
+        sources, artifact, details = execute_native_target(
+            checkout, root, sdk, spec, environment, cxx, host_archive, command, sources, log)
     if not any(spec.get(name) for name in ("nginx", "lighttpd_patched", "haproxy_htx", "apache", "evaluator")):
         artifact = root / "build" / spec["artifact"]
     if not artifact.is_file():
@@ -741,19 +837,7 @@ def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cac
                 "producer": {"script": spec["script"], "script_sha256": digest(checkout / spec["script"])},
                 "compiler_environment": "implicit compiler/loader paths sanitized; source flags explicit in argv",
                 "limitations": ["Dynamic library resolution is declared by SDK path; scanner readback is separate."]}
-    if spec.get("evaluator"):
-        contract["producer"].update(evaluator_receipt)
-    if spec.get("split"):
-        contract["producer"]["canonical_artifact_sha256"] = canonical_hash
-        contract["producer"]["split_command_mirror"] = True
-    if spec.get("nginx") or spec.get("haproxy_htx"):
-        contract["external_sources"] = external_sources
-        contract["external_context"] = external_context
-    if spec.get("lighttpd_patched"):
-        contract["header_context"] = header_context
-    if spec.get("apache"):
-        contract["installed_context"] = installed_context
-        contract["allow_gcc_internal_lto_context_limit"] = True
+    add_native_target_context(contract, spec, details)
     if spec.get("cgo"):
         with (root / "build.log").open("a") as log:
             chain = finish_go_capture(checkout, root, artifact, environment, log)

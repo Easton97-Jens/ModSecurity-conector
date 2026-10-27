@@ -2,6 +2,10 @@
 
 **Language:** English | [Deutsch](pr-382-merge-readiness.de.md)
 
+## Requested follow-up: the remaining 25 Sonar findings
+
+On 2026-10-27 the user separately authorized fixing the 25 remaining maintainability findings at base `0867713`. Six existing native-analysis helpers and one test receive behavior-preserving extractions, constants, comprehensions, ASCII-equivalent regex shorthand and an unambiguous exception assertion. The 29 selected existing on-demand executors / 38 expanded cases passed with zero skips. The automatic inventory remains 100 cases / 80 executions; no case, workflow, gate or source scope is added or weakened. The [follow-up Change Record](../reports/audits/change-records/CR-20261027-sonar25-maintainability.md) describes scope and proof. Fresh published-head CI/Sonar and the final review state are recorded on the linked PR; the earlier closure below stays bound to its named revisions.
+
 ## Integration and authority
 
 [PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) is the authority for the final published head, terminal checks and review state. This record documents the finite closure changes following checkpoint `011cb197a82801c2c3eada073eb6847899c44933`; results from earlier heads are not transferred.

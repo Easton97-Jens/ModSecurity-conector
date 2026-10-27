@@ -37,6 +37,7 @@ TARGETS = (
 )
 NATIVE_STORAGE_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
 PROJECT_PREFIX = "Easton97-Jens_ModSecurity-conector_native_"
+PROJECT_BASE_DIR = "sonar.projectBaseDir"
 HEX40 = re.compile(r"[0-9a-f]{40}")
 
 
@@ -160,6 +161,19 @@ def pack_sdk(root: Path, transfer: Path, revision: str) -> None:
     (transfer / "sdk-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
 
+def sdk_prefix_filter(root: Path, expected: Path, member: tarfile.TarInfo, destination: str):
+    path = Path(member.name)
+    if (path.is_absolute() or ".." in path.parts
+            or not (root / path).resolve().is_relative_to(expected)):
+        raise ValueError("SDK transfer member escapes its fixed prefix subtree")
+    if member.issym() or member.islnk():
+        linked = ((root / path).parent / member.linkname if member.issym()
+                  else root / member.linkname).resolve()
+        if not linked.is_relative_to(expected):
+            raise ValueError("SDK transfer link escapes its fixed prefix subtree")
+    return tarfile.data_filter(member, destination)
+
+
 def restore_sdk(root: Path, transfer: Path, revision: str) -> Path:
     metadata = json.loads((transfer / "sdk-metadata.json").read_text())
     if (set(metadata) != {"schema", "revision", "source", "prefix", "bundle_sha256", "library_sha256", "provenance"}
@@ -177,18 +191,8 @@ def restore_sdk(root: Path, transfer: Path, revision: str) -> Path:
             or metadata["provenance"]["build_id"] != prefix.name):
         raise ValueError("SDK transfer build provenance disagrees with its source/prefix")
     with tarfile.open(bundle) as archive:
-        def prefix_filter(member: tarfile.TarInfo, destination: str):
-            path = Path(member.name)
-            if (path.is_absolute() or ".." in path.parts
-                    or not (root / path).resolve().is_relative_to(expected)):
-                raise ValueError("SDK transfer member escapes its fixed prefix subtree")
-            if member.issym() or member.islnk():
-                linked = ((root / path).parent / member.linkname if member.issym()
-                          else root / member.linkname).resolve()
-                if not linked.is_relative_to(expected):
-                    raise ValueError("SDK transfer link escapes its fixed prefix subtree")
-            return tarfile.data_filter(member, destination)
-        archive.extractall(root, filter=prefix_filter)
+        archive.extractall(root, filter=lambda member, destination:
+                           sdk_prefix_filter(root, expected, member, destination))
     library = prefix / "lib/libmodsecurity.so"
     if digest(library) != metadata["library_sha256"]:
         raise ValueError("restored SDK library digest mismatch")
@@ -212,8 +216,10 @@ def host_archive(target: str, destination: Path) -> Path | None:
         pin = json.loads((ROOT / "connectors/haproxy/htx-overlay/version-contract.json").read_text())
         name, url, expected = "haproxy-" + pin["version"] + ".tar.gz", pin["source_url"], pin["sha256"]
     elif target == "lighttpd-patched-module":
-        pin = dict(line.split("=", 1) for line in (ROOT / "connectors/lighttpd/lighttpd-version.contract").read_text().splitlines()
-                   if line and not line.startswith("#"))
+        pin = {key: value for key, value in (
+            line.split("=", 1)
+            for line in (ROOT / "connectors/lighttpd/lighttpd-version.contract").read_text().splitlines()
+            if line and not line.startswith("#"))}
         name = "lighttpd-" + pin["LIGHTTPD_VERSION"] + ".tar.xz"
         url, expected = pin["LIGHTTPD_DOWNLOAD_URL"], pin["LIGHTTPD_SHA256"]
     else:
@@ -264,12 +270,12 @@ def ctu_limits(units: int, disk_bytes: int, memory_kib: int, cpus: int) -> tuple
 
 def write_settings(manifest: dict, root: Path, target: str, revision: str) -> None:
     scope = manifest["scanner_scope"]
-    if (set(scope) != {"sonar.projectBaseDir", "sonar.sources", "sonar.cfamily.compile-commands",
+    if (set(scope) != {PROJECT_BASE_DIR, "sonar.sources", "sonar.cfamily.compile-commands",
                        "sonar.coverage.exclusions", "sonar.scm.revision"}
             or scope["sonar.coverage.exclusions"] != "**" or target not in TARGETS
             or manifest["target"] != target or manifest["revision"] != revision
             or manifest["import_eligible"] is not True or manifest["development_only"] is not False
-            or scope["sonar.scm.revision"] != revision or scope["sonar.projectBaseDir"] != str(ROOT)
+            or scope["sonar.scm.revision"] != revision or scope[PROJECT_BASE_DIR] != str(ROOT)
             or set(scope["sonar.sources"].split(",")) != {
                 str(Path(path).relative_to(ROOT)) for path in manifest["scanner_expected_parent_input_paths"]}):
         raise ValueError("scanner scope is not the exact eligible Parent target closure")
@@ -280,7 +286,7 @@ def write_settings(manifest: dict, root: Path, target: str, revision: str) -> No
     # project.settings and sonar.projectBaseDir are incompatible CLI options.
     # The fixed scanner step runs at the verified checkout root; retain only
     # its validated relative source list and absolute compiler-context path.
-    settings = {**{name: value for name, value in scope.items() if name != "sonar.projectBaseDir"},
+    settings = {**{name: value for name, value in scope.items() if name != PROJECT_BASE_DIR},
                 "sonar.projectKey": PROJECT_PREFIX + target.replace("-", "_"),
                 "sonar.organization": "easton97-jens", "sonar.host.url": "https://sonarcloud.io",
                 "sonar.sourceEncoding": "UTF-8", "sonar.scm.exclusions.disabled": "true",

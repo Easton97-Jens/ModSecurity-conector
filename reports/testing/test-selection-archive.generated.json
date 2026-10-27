@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "4a04b29972c57c1d508297ebb0454584ab3d69c94695e52931c53b3610890cfb",
+  "inventory_sha256": "972866207512972dda9bc4b4d7be387fcbf35f8d5b13753b684dc2f40a177adb",
   "on_demand_definition_count": 6192,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
@@ -8544,7 +8544,7 @@
         "tests.test_sonar_native_ci.SonarNativeCiTests.test_ctu_limits_reject_insufficient_resources"
       ],
       "source": "tests/test_sonar_native_ci.py",
-      "source_sha256": "fc93f64f7257e967c139990b1eac2f18d8047870a4fe38c60f9e18d04239c053"
+      "source_sha256": "4fd4dd6b210856fe209afd549f31d1aec8cac3a056090443fc999a9c856d5a22"
     },
     {
       "contains_selected_definitions": [],

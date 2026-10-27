@@ -2,6 +2,10 @@
 
 **Sprache:** [English](pr-382-merge-readiness.md) | Deutsch
 
+## Beauftragter Folgefix: die verbleibenden 25 Sonar-Befunde
+
+Am 2026-10-27 autorisierte der Nutzer gesondert die Korrektur der 25 verbleibenden Wartbarkeitsbefunde an Basis `0867713`. Sechs vorhandene native Analysehilfen und ein Test erhalten verhaltenserhaltende Aufteilungen, Konstanten, Comprehensions, ASCII-gleiche Regex-Kürzel und eine eindeutige Ausnahme-Assertion. Die 29 gezielt ausgewählten bestehenden On-demand-Ausführungen / 38 expandierten Fälle bestanden ohne Skips. Das automatische Inventar bleibt bei 100 Fällen / 80 Ausführungen; kein Fall, Workflow, Gate oder Quellscope wird ergänzt oder abgeschwächt. Der [Folgefix-Change-Record](../reports/audits/change-records/CR-20261027-sonar25-maintainability.de.md) beschreibt Umfang und Nachweise. Neue CI/Sonar am veröffentlichten Head und der finale Review-Status stehen im verlinkten PR; der frühere Abschluss unten bleibt an seine genannten Revisionen gebunden.
+
 ## Integration und Befugnis
 
 [PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382) ist maßgeblich für final veröffentlichten Head, terminale Checks und Review-Status. Dieser Eintrag dokumentiert die endlichen Abschlusskorrekturen nach Zwischenstand `011cb197a82801c2c3eada073eb6847899c44933`; Ergebnisse früherer Heads werden nicht übertragen.

@@ -39433,7 +39433,7 @@
     },
     {
       "path": "ci/checks/analysis/prepare-sonar-native-ci.py",
-      "sha256": "0b8bf72ad3e879981e1f1b55c22a8ac3ddb704ab8594b41fdc32e397828a79c4"
+      "sha256": "b0e62e3da8100dec8cd42c22a1eb34553ef20475568d75a024933f609043b540"
     },
     {
       "path": "ci/checks/analysis/run-sonar-coverage.py",
@@ -39441,23 +39441,23 @@
     },
     {
       "path": "ci/checks/analysis/sonar-native-security/build-target.py",
-      "sha256": "d32e0ac211818bc9d1ffb3895f6a7a2493ec49ae0d7c8c73be93a081438866d4"
+      "sha256": "f84f13293d9d0aa1a726f2b7370649d200bc710f408374b526693c5552c6c080"
     },
     {
       "path": "ci/checks/analysis/sonar-native-security/capture.py",
-      "sha256": "b56fb8b6b76e05f8967e174bad292bd0bdd5ca3e765d71f0dd4a03795b984896"
+      "sha256": "b53fd9952efdfd6d7a843d277bf35fb934670839c4fdaeb207ae16352f47d87d"
     },
     {
       "path": "ci/checks/analysis/sonar-native-security/go_provenance.py",
-      "sha256": "bb6482a69407cae63edfd2659729f3a43ddc7399a3eb681ffe94d9a98fbccbe0"
+      "sha256": "e4a2d6625161652309bd85614a4d3ebbd4f73cf4917d36d056469047ec5c89ed"
     },
     {
       "path": "ci/checks/analysis/sonar-native-security/source_mapping.py",
-      "sha256": "82cd1639e58a2fdd5950b1c879827eaff708a5f324678a2d25c92a8cde91772e"
+      "sha256": "4d0c6ea0caaf77b5da344266eda9ea9cff7435cdc21335c49d1332ebde75d5ab"
     },
     {
       "path": "ci/checks/analysis/sonar-native-security/validate.py",
-      "sha256": "4ad95829a3ea99d8807b2332cf77627439d6e2bbfbb002ad6231d72b769a3ad7"
+      "sha256": "342c10ca41539119e6f9534bd56cc3c37b92b7091e1e039dd6774b950078b2eb"
     },
     {
       "path": "ci/checks/common/check-common-memory-safety.sh",
@@ -41641,7 +41641,7 @@
     },
     {
       "path": "tests/test_sonar_native_ci.py",
-      "sha256": "fc93f64f7257e967c139990b1eac2f18d8047870a4fe38c60f9e18d04239c053"
+      "sha256": "4fd4dd6b210856fe209afd549f31d1aec8cac3a056090443fc999a9c856d5a22"
     },
     {
       "path": "tests/test_sonar_native_security.py",

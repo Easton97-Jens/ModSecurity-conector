@@ -65,7 +65,7 @@ def verify_lto_limit(record, contract, checkout, capture_root):
     for name, reason in transients.items():
         path = Path(name)
         admitted = ((reason == "gcc-lto-intermediate-not-retained"
-                     and re.fullmatch(r"[^/]+\.ltrans[0-9]+\.ltrans\.o", path.name) is not None)
+                     and re.fullmatch(r"[^/]+\.ltrans(?a:\d+)\.ltrans\.o", path.name) is not None)
                     or (reason == "gcc-lto-debug-auxiliary-not-retained"
                         and re.fullmatch(r"cc[A-Za-z0-9]+\.debug\.temp\.o", path.name) is not None))
         if (not admitted or not path.is_relative_to(temporary)
@@ -110,11 +110,7 @@ def external_admission(contract, checkout):
         raise ValueError("external source configure receipt disagrees with native producer")
     checked_hashes(receipt["generated_files"])
     checked_hashes(sources)
-    for name, expected in sources.items():
-        path = Path(name)
-        if (path.resolve(strict=True) != path or not path.is_relative_to(source_root)
-                or receipt["generated_files"].get(name) != expected):
-            raise ValueError("unadmitted external source in target contract")
+    _verify_nginx_sources(sources, source_root, receipt)
     return sources
 
 
@@ -141,6 +137,19 @@ def haproxy_external_admission(sources, context, checkout):
         raise ValueError("HAProxy external source receipt disagrees with its actual native producer")
     checked_hashes(receipt["generated_files"])
     checked_hashes(sources)
+    _verify_haproxy_sources(archive, sources, source_root, receipt, pin)
+    return sources
+
+
+def _verify_nginx_sources(sources, source_root, receipt):
+    for name, expected in sources.items():
+        path = Path(name)
+        if (path.resolve(strict=True) != path or not path.is_relative_to(source_root)
+                or receipt["generated_files"].get(name) != expected):
+            raise ValueError("unadmitted external source in target contract")
+
+
+def _verify_haproxy_sources(archive, sources, source_root, receipt, pin):
     with tarfile.open(archive) as bundle:
         for name, expected in sources.items():
             path = Path(name)
@@ -152,7 +161,189 @@ def haproxy_external_admission(sources, context, checkout):
             stream = bundle.extractfile(member)
             if stream is None or hashlib.sha256(stream.read()).hexdigest() != expected:
                 raise ValueError("HAProxy external source differs from actual pinned archive member")
-    return sources
+
+
+def _verify_compile_mapping(record):
+    mapping = record.get("source_mapping")
+    if mapping:
+        checked_hashes({mapping["manifest"]: mapping["manifest_sha256"]})
+        manifest = json.loads(Path(mapping["manifest"]).read_text())
+        copied = [Path(name) for name in mapping["ordered_copied_dependencies"]]
+        original = [Path(name) for name in mapping["ordered_original_dependencies"]]
+        SOURCE_MAPPING.verify_dependency_context(copied, original, manifest)
+        if (record["dependencies"] != mapping["original_dependencies"]
+                or any(name in manifest["files"] for name in record["dependencies"])
+                or mapping["original_source"] != next(iter(record["sources"]))):
+            raise ValueError("mapped compiler does not actually read all original Parent source/header inputs")
+        _verify_mapped_arguments(record, mapping, manifest)
+
+
+def _verify_mapped_arguments(record, mapping, manifest):
+    producer_args = mapping["original_producer_arguments"]
+    indices = [index for index, argument in enumerate(producer_args[1:])
+               if not argument.startswith("-") and str(SOURCE_MAPPING.absolute(
+                   argument, Path(record["directory"]))) == mapping["copied_source"]]
+    if len(indices) != 1:
+        raise ValueError("mapped native producer source operand is ambiguous")
+    mapped_args = SOURCE_MAPPING.mapped_arguments(
+        producer_args[1:], indices[0], Path(mapping["original_source"]),
+        Path(mapping["copied_source"]), manifest)
+    if record["expanded_arguments"] != [producer_args[0], *mapped_args]:
+        raise ValueError("mapped compiler arguments disagree with the pre-execution receipt")
+
+
+class _CapturedGraph:
+    def __init__(self, external, object_aliases, producers, contract, checkout, root):
+        self.external = external
+        self.object_aliases = object_aliases
+        self.producers = producers
+        self.graph_records = []
+        self.selected = []
+        self.contract = contract
+        self.checkout = checkout
+        self.root = root
+        self.visiting = set()
+
+    def walk(self, name, expected_hash):
+        key = (name, expected_hash)
+        if key in self.visiting:
+            raise ValueError("cyclic captured link graph")
+        checked_hashes({name: expected_hash})
+        if name in self.external:
+            if expected_hash != self.external[name]:
+                raise ValueError("external input identity mismatch")
+            return
+        if name in self.object_aliases:
+            alias = self.object_aliases[name]
+            if expected_hash != alias["sha256"]:
+                raise ValueError("Go numbered object alias changed")
+            self.walk(alias["producer"], expected_hash)
+            return
+        variants = self.producers.get(key, [])
+        if len(variants) != 1:
+            raise ValueError(f"missing or ambiguous captured producer: {name}")
+        record = variants[0]
+        if record["kind"] not in {"compile", "link", "archive"}:
+            raise ValueError("compile-and-link must use separately captured translation units")
+        for field in ("sources", "dependencies", "response_files", "inputs", "linker_inputs", "link_map"):
+            checked_hashes(record[field])
+        if digest(record["arguments"][0]) != record["compiler_sha256"]:
+            raise ValueError("captured compiler identity changed")
+        if not Path(record["directory"]).is_dir():
+            raise ValueError("captured working directory was removed")
+        self.graph_records.append(record)
+        self.visiting.add(key)
+        if record["kind"] == "compile":
+            self._compile(record)
+        elif record["kind"] == "archive":
+            self._archive(record)
+        else:
+            self._link(record)
+        self.visiting.remove(key)
+
+
+    def _compile(self, record):
+        if len(record["sources"]) != 1 or not record["dependencies"]:
+            raise ValueError("translation unit has no complete dependency context")
+        if "-std=c++20" in record["expanded_arguments"] or "-fmodules-ts" in record["expanded_arguments"]:
+            raise ValueError("C++20/modules target needs an explicitly supported analysis contract")
+        _verify_compile_mapping(record)
+        self.selected.append(record)
+
+    def _archive(self, record):
+        if (not record["members"] or set(record["members"].values()) != set(record["inputs"])
+                or any(Path(path).name != member for member, path in record["members"].items())):
+            raise ValueError("archive member closure disagrees with real native producer")
+        for child, child_hash in record["inputs"].items():
+            self.walk(child, child_hash)
+
+    def _link(self, record):
+        verify_lto_limit(record, self.contract, self.checkout, self.root)
+        if not record["inputs"]:
+            raise ValueError("link target has no captured object inputs")
+        if not record["link_map"] or not record["linker_inputs"]:
+            raise ValueError("link target has no retained real linker input inventory")
+        if not set(record["inputs"]).issubset(record["linker_inputs"]):
+            raise ValueError("declared object inputs disagree with real linker map")
+        if not set(self.external).issubset(record["linker_inputs"]):
+            raise ValueError("declared external SDK input was not loaded by the real linker")
+        for linked in record["linker_inputs"]:
+            if (Path(linked).is_relative_to(self.checkout)
+                    and linked not in record["inputs"] and linked not in self.external):
+                raise ValueError("undeclared checkout input in real linker map")
+        for child, child_hash in record["inputs"].items():
+            self.walk(child, child_hash)
+
+
+def _declared_sources(contract, checkout):
+    expected = set()
+    for name in contract["sources"]:
+        path = checkout / name
+        if (Path(name).is_absolute() or ".." in Path(name).parts or not path.is_file()
+                or any(character in name for character in ",\r\n\0")):
+            raise ValueError("declared target source is not a checkout file")
+        if path.resolve() != path.absolute():
+            raise ValueError("declared target source traverses a symlink")
+        expected.add(str(path))
+    if not expected or len(expected) != len(contract["sources"]):
+        raise ValueError("target source closure is empty or duplicated")
+    return expected
+
+
+def _captured_producers(records):
+    producers = {}
+    for record in records:
+        if record.get("schema") != 1:
+            raise ValueError("unsupported capture schema")
+        key = (record["output"], record["output_sha256"])
+        producers.setdefault(key, []).append(record)
+    return producers
+
+
+def _verify_source_closure(selected, full_source_closure):
+    actual = [name for record in selected for name in record["sources"]]
+    if len(actual) != len(set(actual)):
+        raise ValueError("multiple compilation variants of the same source in one target")
+    # External host objects are not silently discarded. The contract must name
+    # every source in the selected target; copied checkout code cannot pass.
+    if set(actual) != full_source_closure:
+        raise ValueError("captured target source closure disagrees with producer contract: "
+                         + json.dumps({"missing": sorted(full_source_closure - set(actual)),
+                                       "unexpected": sorted(set(actual) - full_source_closure)}))
+
+
+def _indexed_parent_inputs(selected, checkout, expected):
+    parent_dependencies = {name for record in selected for name in record["dependencies"]
+                           if Path(name).is_relative_to(checkout)}
+    parent_headers = parent_dependencies - expected
+    indexed_inputs = expected | parent_dependencies
+    if any(Path(name).resolve(strict=True) != Path(name) or any(character in name for character in ",\r\n\0")
+           for name in indexed_inputs):
+        raise ValueError("Parent indexed dependency path is noncanonical or ambiguous")
+    indexed_relative = sorted(str(Path(name).relative_to(checkout)) for name in indexed_inputs)
+    return parent_headers, indexed_inputs, indexed_relative
+
+
+def _verify_context_compilations(context_compilations):
+    for record in context_compilations:
+        for field in ("sources", "dependencies", "response_files"):
+            checked_hashes(record[field])
+        if digest(record["arguments"][0]) != record["compiler_sha256"]:
+            raise ValueError("external Go context compiler identity changed")
+
+
+def _record_limitations(evidence, graph_records, go_chain):
+    unretained = {name: reason for record in graph_records
+                  for name, reason in record.get("compiler_internal_transients", {}).items()}
+    if unretained:
+        evidence["unretained_compiler_internal_inputs"] = unretained
+        evidence["limitations"].append(
+            "GCC internal LTO temporary bytes are not retained; real original-object target membership "
+            "and source/headers are verified for SAST, not a complete final ELF/internal-LTO byte DAG.")
+    if go_chain:
+        evidence["limitations"].extend([
+            "The native target includes actual producer-compiled static archive members; dead-code reachability is not asserted.",
+            "Go IR, Go/C cross-language taint and external standard-library code are outside this C/C++ target claim."])
 
 
 def export(root, contract, checkout, output, *, allow_dirty_development=False):
@@ -173,17 +364,7 @@ def export(root, contract, checkout, output, *, allow_dirty_development=False):
                                          "--untracked-files=all"]))
     if dirty and not allow_dirty_development:
         raise ValueError("native scan requires a clean exact-revision checkout")
-    expected = set()
-    for name in contract["sources"]:
-        path = checkout / name
-        if (Path(name).is_absolute() or ".." in Path(name).parts or not path.is_file()
-                or any(character in name for character in ",\r\n\0")):
-            raise ValueError("declared target source is not a checkout file")
-        if path.resolve() != path.absolute():
-            raise ValueError("declared target source traverses a symlink")
-        expected.add(str(path))
-    if not expected or len(expected) != len(contract["sources"]):
-        raise ValueError("target source closure is empty or duplicated")
+    expected = _declared_sources(contract, checkout)
     external_sources = external_admission(contract, checkout)
     full_source_closure = expected | set(external_sources)
     external = contract.get("external_inputs", {})
@@ -200,123 +381,17 @@ def export(root, contract, checkout, output, *, allow_dirty_development=False):
         context_compilations = go_chain["external_context_compilations"]
         if any(external.get(name) != value for name, value in go_chain["external_go_inputs"].items()):
             raise ValueError("Go external input contract disagrees with actual producer chain")
-    producers = {}
-    for record in records:
-        if record.get("schema") != 1:
-            raise ValueError("unsupported capture schema")
-        key = (record["output"], record["output_sha256"])
-        producers.setdefault(key, []).append(record)
-    selected = []
-    graph_records = []
-    visiting = set()
-
-    def walk(name, expected_hash):
-        key = (name, expected_hash)
-        if key in visiting:
-            raise ValueError("cyclic captured link graph")
-        checked_hashes({name: expected_hash})
-        if name in external:
-            if expected_hash != external[name]:
-                raise ValueError("external input identity mismatch")
-            return
-        if name in object_aliases:
-            alias = object_aliases[name]
-            if expected_hash != alias["sha256"]:
-                raise ValueError("Go numbered object alias changed")
-            walk(alias["producer"], expected_hash)
-            return
-        variants = producers.get(key, [])
-        if len(variants) != 1:
-            raise ValueError(f"missing or ambiguous captured producer: {name}")
-        record = variants[0]
-        if record["kind"] not in {"compile", "link", "archive"}:
-            raise ValueError("compile-and-link must use separately captured translation units")
-        for field in ("sources", "dependencies", "response_files", "inputs", "linker_inputs", "link_map"):
-            checked_hashes(record[field])
-        if digest(record["arguments"][0]) != record["compiler_sha256"]:
-            raise ValueError("captured compiler identity changed")
-        if not Path(record["directory"]).is_dir():
-            raise ValueError("captured working directory was removed")
-        graph_records.append(record)
-        visiting.add(key)
-        if record["kind"] == "compile":
-            if len(record["sources"]) != 1 or not record["dependencies"]:
-                raise ValueError("translation unit has no complete dependency context")
-            if "-std=c++20" in record["expanded_arguments"] or "-fmodules-ts" in record["expanded_arguments"]:
-                raise ValueError("C++20/modules target needs an explicitly supported analysis contract")
-            mapping = record.get("source_mapping")
-            if mapping:
-                checked_hashes({mapping["manifest"]: mapping["manifest_sha256"]})
-                manifest = json.loads(Path(mapping["manifest"]).read_text())
-                copied = [Path(name) for name in mapping["ordered_copied_dependencies"]]
-                original = [Path(name) for name in mapping["ordered_original_dependencies"]]
-                SOURCE_MAPPING.verify_dependency_context(copied, original, manifest)
-                if (record["dependencies"] != mapping["original_dependencies"]
-                        or any(name in manifest["files"] for name in record["dependencies"])
-                        or mapping["original_source"] != next(iter(record["sources"]))):
-                    raise ValueError("mapped compiler does not actually read all original Parent source/header inputs")
-                producer_args = mapping["original_producer_arguments"]
-                indices = [index for index, argument in enumerate(producer_args[1:])
-                           if not argument.startswith("-") and str(SOURCE_MAPPING.absolute(
-                               argument, Path(record["directory"]))) == mapping["copied_source"]]
-                if len(indices) != 1:
-                    raise ValueError("mapped native producer source operand is ambiguous")
-                mapped_args = SOURCE_MAPPING.mapped_arguments(
-                    producer_args[1:], indices[0], Path(mapping["original_source"]),
-                    Path(mapping["copied_source"]), manifest)
-                if record["expanded_arguments"] != [producer_args[0], *mapped_args]:
-                    raise ValueError("mapped compiler arguments disagree with the pre-execution receipt")
-            selected.append(record)
-        elif record["kind"] == "archive":
-            if (not record["members"] or set(record["members"].values()) != set(record["inputs"])
-                    or any(Path(path).name != member for member, path in record["members"].items())):
-                raise ValueError("archive member closure disagrees with real native producer")
-            for child, child_hash in record["inputs"].items():
-                walk(child, child_hash)
-        else:
-            verify_lto_limit(record, contract, checkout, root)
-            if not record["inputs"]:
-                raise ValueError("link target has no captured object inputs")
-            if not record["link_map"] or not record["linker_inputs"]:
-                raise ValueError("link target has no retained real linker input inventory")
-            if not set(record["inputs"]).issubset(record["linker_inputs"]):
-                raise ValueError("declared object inputs disagree with real linker map")
-            if not set(external).issubset(record["linker_inputs"]):
-                raise ValueError("declared external SDK input was not loaded by the real linker")
-            for linked in record["linker_inputs"]:
-                if (Path(linked).is_relative_to(checkout)
-                        and linked not in record["inputs"] and linked not in external):
-                    raise ValueError("undeclared checkout input in real linker map")
-            for child, child_hash in record["inputs"].items():
-                walk(child, child_hash)
-        visiting.remove(key)
-
+    producers = _captured_producers(records)
+    graph = _CapturedGraph(external, object_aliases, producers, contract, checkout, root)
+    selected = graph.selected
+    graph_records = graph.graph_records
     if go_chain:
-        walk(raw_link["output"], raw_link["output_sha256"])
+        graph.walk(raw_link["output"], raw_link["output_sha256"])
     else:
-        walk(artifact, artifact_hash)
-    actual = [name for record in selected for name in record["sources"]]
-    if len(actual) != len(set(actual)):
-        raise ValueError("multiple compilation variants of the same source in one target")
-    # External host objects are not silently discarded. The contract must name
-    # every source in the selected target; copied checkout code cannot pass.
-    if set(actual) != full_source_closure:
-        raise ValueError("captured target source closure disagrees with producer contract: "
-                         + json.dumps({"missing": sorted(full_source_closure - set(actual)),
-                                       "unexpected": sorted(set(actual) - full_source_closure)}))
-    parent_dependencies = {name for record in selected for name in record["dependencies"]
-                           if Path(name).is_relative_to(checkout)}
-    parent_headers = parent_dependencies - expected
-    indexed_inputs = expected | parent_dependencies
-    if any(Path(name).resolve(strict=True) != Path(name) or any(character in name for character in ",\r\n\0")
-           for name in indexed_inputs):
-        raise ValueError("Parent indexed dependency path is noncanonical or ambiguous")
-    indexed_relative = sorted(str(Path(name).relative_to(checkout)) for name in indexed_inputs)
-    for record in context_compilations:
-        for field in ("sources", "dependencies", "response_files"):
-            checked_hashes(record[field])
-        if digest(record["arguments"][0]) != record["compiler_sha256"]:
-            raise ValueError("external Go context compiler identity changed")
+        graph.walk(artifact, artifact_hash)
+    _verify_source_closure(selected, full_source_closure)
+    parent_headers, indexed_inputs, indexed_relative = _indexed_parent_inputs(selected, checkout, expected)
+    _verify_context_compilations(context_compilations)
     context_by_output = {(record["output"], record["output_sha256"]): record for record in context_compilations}
     rows = [{"directory": record["directory"], "file": next(iter(record["sources"])),
              "arguments": record["arguments"], "output": record["output"]}
@@ -346,17 +421,7 @@ def export(root, contract, checkout, output, *, allow_dirty_development=False):
                 "limitations": ["No scanner or server-side taint/parse-quality result is asserted.",
                                  "External generated/upstream translation units are retained build context; "
                                  "only Parent-owned translation units are requested for indexing/taint analysis."]}
-    unretained = {name: reason for record in graph_records
-                  for name, reason in record.get("compiler_internal_transients", {}).items()}
-    if unretained:
-        evidence["unretained_compiler_internal_inputs"] = unretained
-        evidence["limitations"].append(
-            "GCC internal LTO temporary bytes are not retained; real original-object target membership "
-            "and source/headers are verified for SAST, not a complete final ELF/internal-LTO byte DAG.")
-    if go_chain:
-        evidence["limitations"].extend([
-            "The native target includes actual producer-compiled static archive members; dead-code reachability is not asserted.",
-            "Go IR, Go/C cross-language taint and external standard-library code are outside this C/C++ target claim."])
+    _record_limitations(evidence, graph_records, go_chain)
     (output / "manifest.json").write_text(json.dumps(evidence, indent=2) + "\n")
     return evidence
 
