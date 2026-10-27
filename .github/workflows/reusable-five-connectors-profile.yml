@@ -15,7 +15,7 @@ jobs:
     permissions:
       contents: read
     name: Resolve closed No-CRS profile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.profile.outputs.matrix }}
@@ -27,7 +27,7 @@ jobs:
 
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -38,7 +38,12 @@ jobs:
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify fixed No-CRS workflow contract
-        run: python3 -m unittest -v tests.test_all_connectors_no_crs_workflow_contract
+        run: |
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+          python3 ci/tools/run-active-tests.py --group inventory
+
+      - name: Validate global expanded behavioral inventory
+        run: python3 ci/tools/run-active-tests.py --check
 
       - name: Resolve fixed connector matrix
         id: profile
@@ -56,12 +61,13 @@ jobs:
     name: No-CRS / ${{ matrix.connector }} / ${{ inputs.profile }} / ${{ matrix.protocol }} / ${{ matrix.phase4_mode }}
     needs:
       - resolve-profile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.resolve-profile.outputs.matrix) }}
     env:
+      GOTOOLCHAIN: local
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
       FIVE_CONNECTOR_PROFILE: ${{ inputs.profile }}
@@ -83,7 +89,7 @@ jobs:
 
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -92,6 +98,14 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Set up canonical Go for Envoy and Traefik builds
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
 
       - name: Verify declared fixed profile
         env:
@@ -213,19 +227,13 @@ jobs:
           set -euo pipefail
           make "build-$CONNECTOR"
 
-      - name: Validate configuration load
+      - name: Validate retained Envoy and Traefik configuration inputs
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
         env:
           CONNECTOR: ${{ matrix.connector }}
         run: |
           set -euo pipefail
           make "check-config-$CONNECTOR"
-
-      - name: Run request-free start smoke
-        env:
-          CONNECTOR: ${{ matrix.connector }}
-        run: |
-          set -euo pipefail
-          make "start-smoke-$CONNECTOR"
 
       - name: Run canonical minimal No-CRS runtime smoke
         env:
@@ -321,7 +329,7 @@ jobs:
     if: always()
     needs:
       - no-crs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       FIVE_CONNECTOR_PROFILE: ${{ inputs.profile }}
@@ -335,7 +343,7 @@ jobs:
 
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false

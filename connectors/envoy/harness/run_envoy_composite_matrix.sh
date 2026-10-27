@@ -471,6 +471,12 @@ for number, line in enumerate(raw_records, 1):
 decision_ids = {value["decision_id"] for value in records}
 if len(decision_ids) != 1:
     raise SystemExit(f"expected one unique decision_id, found {len(decision_ids)}")
+if case_id == "companion_unavailable":
+    terminal = [value for value in records if value.get("phase") == "terminal"]
+    if (len(terminal) != 1 or terminal[0].get("reason") != "restart"
+            or terminal[0].get("outcome") != "closed"
+            or terminal[0].get("cleanup_outcome") != "closed"):
+        raise SystemExit("companion shutdown requires one successful native restart cleanup")
 if case_id in expected_rules:
     phase, rule_id = expected_rules[case_id]
     matched = [value for value in records if value.get("phase") == phase]
@@ -855,6 +861,9 @@ run_case() {
     if [ "$case_id" = p3_redirect ]; then
         [ "$observed_status" = 302 ] || fail "P3 redirect status was not 302"
     fi
+    if [ "$case_id" = companion_unavailable ]; then
+        [ "$observed_status" = 500 ] || fail "unavailable companion did not retain native Envoy error status"
+    fi
     if [ "$case_id" = envoy_response_metadata_omitted ]; then
         [ "$observed_status" = 503 ] || fail "response metadata omission did not fail closed"
         wait_for_event_phase "$case_event_log" terminal timeout || fail "response metadata omission did not reach bounded timeout cleanup"
@@ -1002,7 +1011,8 @@ run_case spoofed_lease_header P1 GET /vector/allow "X-Msconnector-Composite-Leas
 run_case p1_deny P1 GET /vector/p1 "X-Msconnector-Vector: msconnector-p1-only" ""
 run_case p2_allow P2 POST /vector/p2-empty "Content-Type: text/plain" ""
 run_case p2_deny P2 POST /vector/p2 "Content-Type: text/plain" "msconnector-p2-only"
-run_case p2_oversize P2 POST /vector/p2-body-limit "Content-Type: text/plain" "msconnector-p2-body-limit;bounded-test-input"
+# Full 33-byte host sample: within Envoy transport capacity, above native limit 32.
+run_case p2_oversize P2 POST /vector/p2-body-limit "Content-Type: text/plain" "msconnector-p2-body-limit;bounded"
 run_case p3_deny P3 GET /vector/p3 "" ""
 run_case p3_redirect P3 GET /vector/p3-redirect "" ""
 run_case p4_safe P4 GET /vector/p4-safe "" ""

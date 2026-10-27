@@ -51,7 +51,7 @@ the configurations are host-installation or host-runtime examples.
 | rules_file | Installed reviewed rules file | Required; runtime configuration; engine scope | /etc/modsecurity/no-crs-baseline.conf. Rules can block traffic. |
 | transaction_id_header | HTTP correlation-header name | Required; runtime configuration; transaction scope | x-modsec-transaction-id. Metadata only; do not use it for secrets. |
 | request_body_mode and response_body_mode | none, buffered, or streaming according to host capability | Required; runtime configuration; engine scope | streaming for the Stock sidecar and matching patched host; never enable streaming on an unpatched native Stock module. |
-| request_body_limit, response_body_limit, body_limit_action | Positive byte limits and reject or process_partial policy | Required where bodies are enabled; runtime configuration; engine scope | 1048576 and reject. Bounds do not imply full connector buffering. |
+| SecRequestBodyLimit, SecRequestBodyLimitAction | Native request inspection limit and action | Engine rule configuration; no connector option or default | The engine chooses Reject or ProcessPartial; SecRequestBodyNoFilesLimit remains an independent native constraint. |
 | phase4_mode | P4 policy: off, safe, or strict | Required in these runtime files; runtime configuration; engine scope | safe for patched Safe; all selects strict. It does not prove a status rewrite or abort. |
 | server.stream-response-body and proxy.server | Patched delivery setting and local upstream route | Required for Patched bundles; host configuration; server scope | 1 and 127.0.0.1:8081. Identity HTTP/1.1 only; do not infer gzip/br or HTTP/2 behavior. |
 | event_path | Writable JSONL metadata destination | Required in these references; runtime configuration; engine scope | /var/log/lighttpd/msconnector-events.jsonl. Protect and rotate it; do not write bodies or secrets. |
@@ -80,7 +80,7 @@ rule evaluation. The sidecar proxy has no native lifecycle claim.
 
 Every bundle contains the topology artifacts, a Common Runtime `key=value`
 file, and (for Stock) the sidecar argv record. Each runtime file uses the
-same bounded header/body/event limits and visibly includes source-valid
+same bounded header/event controls and incremental body modes and visibly includes source-valid
 inactive rule-source and transaction-ID alternatives as comments. Do not
 enable more than one rule source or use the static transaction ID in
 production.
@@ -195,3 +195,40 @@ client abort.
 
 - [lighttpd connector source and patched-host boundary](../../connectors/lighttpd/README.md)
 - [Repository examples overview](../README.md)
+
+The shipped argv records select separate disk-backed private directories under
+`/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`. Launch a profile as the
+service UID using `python3 connectors/lighttpd/launch_stock_sidecar.py --profile safe`.
+The launcher accepts only `all`, `off`, `safe` and `strict`, reads their fixed
+repository argv records, and executes the installed native component at
+`/usr/libexec/msconnector/lighttpd-stock-sidecar`. Arbitrary executable paths,
+argv-file paths and extra options are unsupported. It validates ownership,
+permissions and native artifact type, then executes through a pinned descriptor. The launcher provisions missing
+spool directories and rejects unsafe existing paths without changing their
+permissions. Configuration parents such as `/etc/lighttpd` may remain 0755;
+spool directories must be effective-UID-owned 0700. `--install-root` relocates
+the fixed component path and absolute config/spool paths for staged installations;
+external builds must be staged at that fixed component path. Runtime config contents
+still need installation-specific rules and event paths.
+
+`--spool-capacity-bytes` defaults to 268435456 (256 MiB) aggregate outstanding
+spool reservations per process, rounded to filesystem blocks.
+`--spool-free-reserve-bytes` defaults to 67108864 (64 MiB) unprivileged available
+free space. These are technical disk admission capacities, independent of native
+WAF body policy. After P1 allows, admission checks the pinned filesystem,
+preallocates the complete declared request with `posix_fallocate`, and rechecks
+the free-space floor before any native body append. Failure returns 503 and a
+connector resource error, never a WAF BODY_LIMIT event. There is no sparse-file
+fallback. Reservations remain held until the descriptor closes on every exit,
+including replay, cancellation and receipt failure. A directory lifetime lock
+rejects a second sidecar process using the same directory. Deadline checks before
+and after allocation do not make synchronous regular-file calls cancellable.
+
+An administrator must provision root-owned non-writable ancestors before an
+unprivileged service can use `/var/lib`: for example,
+`install -d -o root -g root -m 0755 /var/lib/msconnector /var/lib/msconnector/lighttpd-stock`,
+then `install -d -o SERVICE_UID -g SERVICE_GID -m 0700 /var/lib/msconnector/lighttpd-stock/safe`
+(and the other selected profiles). These commands describe initial provisioning;
+do not use them to repair existing unsafe paths implicitly. The launcher can
+create missing children only where its effective UID has directory write
+permission; it validates administrator-provisioned paths without elevation.

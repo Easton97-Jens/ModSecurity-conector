@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "response_companion_transport.h"
+#include "response_companion_protocol.h"
 
 #include "msconnector/decision_action.h"
 #include "msconnector/limits.h"
@@ -109,6 +110,7 @@ typedef struct response_companion_session_state {
     int committed;
     int has_decision;
     int outcome_recorded;
+    int precommit_terminal_outcome;
     size_t response_body_bytes;
 } response_companion_session_state;
 
@@ -897,6 +899,8 @@ response_companion_error_class_from_error(const msconnector_error *error)
         error->code;
 
     switch (code) {
+    case MSCONNECTOR_ERROR_MODSECURITY_FAILURE:
+        return MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
     case MSCONNECTOR_ERROR_BODY_TOO_LARGE:
         return MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
     case MSCONNECTOR_ERROR_EVENT_TOO_LARGE:
@@ -1071,6 +1075,22 @@ static int response_companion_remove_owned_socket(
     return unlink(transport->config.socket_path) == 0 || errno == ENOENT;
 }
 
+/* Common/backend operations define exactly one as success. Invalid callback
+ * returns must not become a successful protocol acknowledgement. Preserve a
+ * typed first error supplied by the backend instead of replacing its cause. */
+static int response_companion_backend_result(int result, msconnector_error *error)
+{
+    if (result == 1) {
+        return 1;
+    }
+    if (error != NULL && error->code == MSCONNECTOR_ERROR_NONE) {
+        msconnector_error_set(error, MSCONNECTOR_ERROR_INTERNAL,
+            "response companion backend operation failed",
+            "response_companion_transport");
+    }
+    return 0;
+}
+
 static msconnector_runtime_response_companion_session *
 response_companion_runtime_backend_session(
     const msconnector_response_companion_backend_session *session)
@@ -1094,9 +1114,9 @@ static int response_companion_runtime_backend_claim(void *context,
         return response_companion_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE,
             "response companion Runtime backend session allocation failed");
     }
-    if (!msconnector_runtime_response_companion_claim_handle(
+    if (msconnector_runtime_response_companion_claim_handle(
             (msconnector_runtime_response_companion_registry *)context, handle,
-            runtime_session, error)) {
+            runtime_session, error) != 1) {
         free(runtime_session);
         return 0;
     }
@@ -1115,7 +1135,7 @@ static int response_companion_runtime_backend_process_response_headers(
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_process_response_headers(
-            runtime_session, response, decision, error);
+            runtime_session, response, decision, error) == 1;
 }
 
 static int response_companion_runtime_backend_append_response_body_chunk(
@@ -1128,7 +1148,7 @@ static int response_companion_runtime_backend_append_response_body_chunk(
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_append_response_body_chunk(
-            runtime_session, data, size, error);
+            runtime_session, data, size, error) == 1;
 }
 
 static int response_companion_runtime_backend_finish_response_body(void *context,
@@ -1141,7 +1161,7 @@ static int response_companion_runtime_backend_finish_response_body(void *context
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_finish_response_body(
-            runtime_session, decision, error);
+            runtime_session, decision, error) == 1;
 }
 
 static int response_companion_runtime_backend_set_response_commit_state(
@@ -1154,7 +1174,7 @@ static int response_companion_runtime_backend_set_response_commit_state(
     (void)context;
     return runtime_session != NULL &&
         msconnector_runtime_response_companion_session_set_response_commit_state(
-            runtime_session, headers_sent, body_started, error);
+            runtime_session, headers_sent, body_started, error) == 1;
 }
 
 static int response_companion_runtime_backend_record_host_action(void *context,
@@ -1170,7 +1190,7 @@ static int response_companion_runtime_backend_record_host_action(void *context,
         msconnector_runtime_response_companion_session_record_host_action(
             runtime_session, action->decision, action->actual_action,
             action->visible_http_status, action->transport_result,
-            action->connection_aborted, error);
+            action->connection_aborted, error) == 1;
 }
 
 static int response_companion_runtime_backend_cancel(void *context,
@@ -1306,7 +1326,7 @@ static int response_companion_backend_claim(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_process_response_headers(
@@ -1332,7 +1352,7 @@ static int response_companion_backend_process_response_headers(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_append_response_body_chunk(
@@ -1357,7 +1377,7 @@ static int response_companion_backend_append_response_body_chunk(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_finish_response_body(
@@ -1382,7 +1402,7 @@ static int response_companion_backend_finish_response_body(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_set_response_commit_state(
@@ -1407,7 +1427,7 @@ static int response_companion_backend_set_response_commit_state(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_record_host_action(
@@ -1432,7 +1452,7 @@ static int response_companion_backend_record_host_action(
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 /* The caller holds the generic backend lock unless this backend explicitly
@@ -1477,14 +1497,14 @@ static int response_companion_backend_cancel(
     }
     result = transport->config.backend.cancel(transport->config.backend.context, session,
         upstream_disconnect, error);
-    if (result && !response_companion_backend_require_terminal_release_locked(
+    if (result == 1 && !response_companion_backend_require_terminal_release_locked(
             transport, session, error)) {
         result = 0;
     }
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static int response_companion_backend_release(
@@ -1505,14 +1525,14 @@ static int response_companion_backend_release(
             "response companion backend synchronization failed");
     }
     result = transport->config.backend.release(transport->config.backend.context, session, error);
-    if (result && !response_companion_backend_require_terminal_release_locked(
+    if (result == 1 && !response_companion_backend_require_terminal_release_locked(
             transport, session, error)) {
         result = 0;
     }
     if (backend_locked) {
         (void)pthread_mutex_unlock(&transport->synchronization.backend_lock);
     }
-    return result;
+    return response_companion_backend_result(result, error);
 }
 
 static void response_companion_backend_fail(
@@ -1637,7 +1657,9 @@ static int response_companion_handle_claim(
          * after a failed CLAIM.  Give it one terminal cleanup callback and
          * then invalidate the transport's borrowed capability. */
         response_companion_backend_fail(worker->transport, &state->session,
-            MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
+            error.code == MSCONNECTOR_ERROR_NONE ?
+                MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL :
+                response_companion_error_class_from_error(&error));
     }
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         msconnector_error_set(&error, MSCONNECTOR_ERROR_PROTOCOL,
@@ -1707,18 +1729,14 @@ static int response_companion_handle_body(
     msconnector_error_init(&error);
     result = state->response_headers && state->committed && !state->response_eos &&
         frame->payload_size <= MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK &&
-        state->response_body_bytes <= worker->transport->config.max_response_body_bytes &&
-        frame->payload_size <= worker->transport->config.max_response_body_bytes -
-            state->response_body_bytes &&
+        frame->payload_size <= SIZE_MAX - state->response_body_bytes &&
         response_companion_backend_append_response_body_chunk(worker->transport,
             &state->session, frame->payload, frame->payload_size, &error);
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         msconnector_error_set(&error, frame->payload_size >
             MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK ||
-            state->response_body_bytes > worker->transport->config.max_response_body_bytes ||
-            frame->payload_size > worker->transport->config.max_response_body_bytes -
-                state->response_body_bytes ?
-                MSCONNECTOR_ERROR_BODY_TOO_LARGE : MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            frame->payload_size > SIZE_MAX - state->response_body_bytes ?
+                MSCONNECTOR_ERROR_PROTOCOL : MSCONNECTOR_ERROR_PHASE_SEQUENCE,
             "response companion response body operation is invalid",
             "response_companion_transport");
     }
@@ -1826,8 +1844,18 @@ static int response_companion_handle_outcome(
      * custom backend from recording a pre-P3 action. */
     result = state->response_headers && state->has_decision && !state->outcome_recorded &&
         response_companion_parse_outcome(frame,
-        &actual_action, &visible_status, &connection_aborted) &&
-        response_companion_backend_record_host_action(worker->transport,
+        &actual_action, &visible_status, &connection_aborted);
+    if (result) {
+        /* Only an admitted host outcome may annotate the retained decision.
+         * Runtime derives the policy mode from its actual configuration. */
+        if (state->committed && state->response_eos &&
+            state->latest_decision.phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+            state->latest_decision.disruptive &&
+            state->latest_decision.kind >= MSCONNECTOR_DECISION_KIND_DENY &&
+            state->latest_decision.kind <= MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT) {
+            state->latest_decision.late_intervention = 1;
+        }
+        result = response_companion_backend_record_host_action(worker->transport,
             &state->session,
             &(msconnector_response_companion_host_action){
                 .decision = &state->latest_decision,
@@ -1837,6 +1865,7 @@ static int response_companion_handle_outcome(
                     actual_action, connection_aborted),
                 .connection_aborted = connection_aborted},
             &error);
+    }
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         const char *message = "response companion outcome is invalid";
 
@@ -1853,6 +1882,10 @@ static int response_companion_handle_outcome(
     }
     if (result) {
         state->outcome_recorded = 1;
+        state->precommit_terminal_outcome = !state->committed &&
+            msconnector_response_companion_precommit_outcome_matches(
+                state->latest_decision.kind, state->latest_decision.http_status,
+                actual_action, visible_status, connection_aborted);
     } else {
         response_companion_fail_session(worker->transport, state,
             response_companion_error_class_from_error(&error));
@@ -1926,12 +1959,21 @@ static int response_companion_handle_release(
     int result;
 
     msconnector_error_init(&error);
-    result = state->response_eos && frame->payload_size == 0U &&
+    /* A validated disruptive P3 outcome also completes the exchange before
+     * upstream response commitment; no artificial P4 EOS or CANCEL is needed. */
+    const int precommit_terminal = state->response_headers &&
+        state->has_decision && state->outcome_recorded &&
+        state->precommit_terminal_outcome && !state->committed &&
+        state->latest_decision.phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS &&
+        state->latest_decision.disruptive &&
+        state->latest_decision.kind >= MSCONNECTOR_DECISION_KIND_DENY &&
+        state->latest_decision.kind <= MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT;
+    result = (state->response_eos || precommit_terminal) && frame->payload_size == 0U &&
         response_companion_backend_release(worker->transport, &state->session,
             &error);
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         msconnector_error_set(&error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
-            "response companion release before P4 end-of-stream is invalid",
+            "response companion release requires P4 EOS or terminal precommit outcome",
             "response_companion_transport");
     }
     if (!result) {
@@ -1943,7 +1985,8 @@ static int response_companion_handle_release(
         return 0;
     }
     if (result) {
-        /* RELEASE has finished P4 and detached the exact claimed registry
+        /* RELEASE has finished P4 or an acknowledged terminal P3 decision
+         * and detached the exact claimed registry
          * entry. Reset every per-session bit before admitting the next CLAIM
          * on this trusted connection. */
         response_companion_reset_session_state(state);
@@ -2200,7 +2243,7 @@ int msconnector_response_companion_transport_init_with_backend(
         path_size >= sizeof(transport->config.socket_path) || !response_companion_path_is_safe(
         options->socket_path) || !response_companion_header_limits_are_valid(
             options->max_header_count, options->max_header_bytes) ||
-        options->max_response_body_bytes == 0U || options->operation_timeout_ms == 0U ||
+        options->operation_timeout_ms == 0U ||
         options->operation_timeout_ms > UINT64_C(600000)) {
         return response_companion_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG,
             "response companion transport configuration is invalid");
@@ -2211,7 +2254,6 @@ int msconnector_response_companion_transport_init_with_backend(
     memcpy(transport->config.socket_path, options->socket_path, path_size + 1U);
     transport->config.max_header_count = options->max_header_count;
     transport->config.max_header_bytes = options->max_header_bytes;
-    transport->config.max_response_body_bytes = options->max_response_body_bytes;
     transport->config.operation_timeout_ms = options->operation_timeout_ms;
     transport->config.expected_uid = geteuid();
     transport->config.expected_gid = getegid();

@@ -451,14 +451,47 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
             "pre-admission reservation", case="p2_to_p3_timeout", connector="traefik", mutate=corrupt_reservation
         )
 
-    def test_p2_oversize_requires_the_observed_client_413(self):
+    def test_p2_oversize_accepts_matching_native_403(self):
+        def native_request_reject(events):
+            for event in events:
+                if event.get("phase") in {"P2", "request_host_action"}:
+                    event["visible_status"] = 403
+
+        for connector in ("envoy", "traefik"):
+            with self.subTest(connector=connector):
+                manifest = self.write_case(case="p2_oversize", connector=connector, mutate=native_request_reject)
+                client = manifest.parent / "client.observation.json"
+                data = json.loads(client.read_text(encoding="utf-8"))
+                data["visible_status"] = 403
+                client.write_text(json.dumps(data), encoding="utf-8")
+                self.assertEqual(verify_manifest(manifest).status, "LIFECYCLE_ONLY")
+
+    def test_p2_oversize_rejects_a_different_host_status(self):
+        def mismatch(events):
+            for event in events:
+                if event.get("phase") == "request_host_action":
+                    event["visible_status"] = 403
+
+        self.assert_invalid_case("matching native 403/413", case="p2_oversize", mutate=mismatch)
+
+    def test_p2_oversize_requires_native_p2_before_transport_rejection(self):
+        def remove_p2(events):
+            events[:] = [event for event in events if event.get("phase") != "P2"]
+
+        self.assert_invalid_case(
+            "raw P1..P4 observer events are missing or out of order",
+            case="p2_oversize",
+            mutate=remove_p2,
+        )
+
+    def test_p2_oversize_requires_the_matching_observed_client_status(self):
         manifest = self.write_case(case="p2_oversize")
         client = manifest.parent / "client.observation.json"
         data = json.loads(client.read_text(encoding="utf-8"))
         data["visible_status"] = 200
         client.write_text(json.dumps(data), encoding="utf-8")
 
-        with self.assertRaisesRegex(EvidenceError, "raw 413 P2 decision"):
+        with self.assertRaisesRegex(EvidenceError, "matching native 403/413"):
             verify_manifest(manifest)
 
     def test_p4_safe_requires_matching_committed_client_status(self):
@@ -724,6 +757,13 @@ class CompositeEvidenceVerifierTests(unittest.TestCase):
         with self.assertRaisesRegex(EvidenceError, "upstream response observation"):
             verify_manifest(manifest)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

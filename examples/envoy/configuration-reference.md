@@ -37,8 +37,6 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`max_header_count`](#max-header-count) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_header_name_bytes`](#max-header-name-bytes) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_header_value_bytes`](#max-header-value-bytes) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
-| [`max_request_body_bytes`](#max-request-body-bytes) | Connector service | int64 | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
-| [`max_response_body_bytes`](#max-response-body-bytes) | Connector service | int64 | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`max_total_header_bytes`](#max-total-header-bytes) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`shutdown_timeout_ms`](#shutdown-timeout-ms) | Connector service | int | yes | none; JSON decoder/Config.Validate requires every selected field | ext_proc service JSON object | Sets one bounded ext_proc service control. |
 | [`static_resources`](#static-resources) | Host / Connector | Envoy Bootstrap static_resources mapping | no | No connector-owned static-resource set default is declared; the selected template sets the explicit listener and static clusters. | The YAML object path shown in the selected example. | Declares the complete static data-plane topology used by the checked-in example. |
@@ -173,9 +171,6 @@ Host/connector switches bind or configure host integration. They are not the sam
 | `transaction_id_header` | Selected runtime profile key | [transaction_id_header](../common/common-connector-configuration.md#transaction-id-header) |
 | `request_body_mode` | Selected runtime profile key | [request_body_mode](../common/common-connector-configuration.md#request-body-mode) |
 | `response_body_mode` | Selected runtime profile key | [response_body_mode](../common/common-connector-configuration.md#response-body-mode) |
-| `request_body_limit` | Selected runtime profile key | [request_body_limit](../common/common-connector-configuration.md#request-body-limit) |
-| `response_body_limit` | Selected runtime profile key | [response_body_limit](../common/common-connector-configuration.md#response-body-limit) |
-| `body_limit_action` | Selected runtime profile key | [body_limit_action](../common/common-connector-configuration.md#body-limit-action) |
 | `phase4_mode` | Selected runtime profile key | [phase4_mode](../common/common-connector-configuration.md#phase4-mode) |
 | `default_block_status` | Selected runtime profile key | [default_block_status](../common/common-connector-configuration.md#default-block-status) |
 | `default_error_status` | Selected runtime profile key | [default_error_status](../common/common-connector-configuration.md#default-error-status) |
@@ -1648,116 +1643,6 @@ Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, an
 ### Example
 
 Selected example value: `8192`.
-
-Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
-
-### Safety and operations
-
-Bound all header, body, gRPC, and timeout values; keep service listen address private.
-
-<a id="max-request-body-bytes"></a>
-## `max_request_body_bytes`
-
-### Short description
-
-Sets one bounded ext_proc service control.
-
-### Syntax
-
-```text
-"max_request_body_bytes": <int64>
-```
-
-### Valid contexts
-
-- ext_proc service JSON object
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| int64 | positive value | yes |
-
-### Default
-
-none; JSON decoder/Config.Validate requires every selected field
-
-Source: `processor.Config has no implicit field defaults`.
-
-### Inheritance and merge
-
-No inheritance; one JSON object is decoded with unknown fields rejected.
-
-Merge: No merge; a second JSON value is rejected after the one configuration object.
-
-### Phases and runtime effect
-
-Limits and late policy affect P1–P4 processor behavior.
-
-Sets one bounded ext_proc service control.
-
-### Validation and errors
-
-Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.
-
-### Example
-
-Selected example value: `10485760`.
-
-Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
-
-### Safety and operations
-
-Bound all header, body, gRPC, and timeout values; keep service listen address private.
-
-<a id="max-response-body-bytes"></a>
-## `max_response_body_bytes`
-
-### Short description
-
-Sets one bounded ext_proc service control.
-
-### Syntax
-
-```text
-"max_response_body_bytes": <int64>
-```
-
-### Valid contexts
-
-- ext_proc service JSON object
-
-### Values
-
-| Type | Allowed values | Required |
-| --- | --- | --- |
-| int64 | positive value | yes |
-
-### Default
-
-none; JSON decoder/Config.Validate requires every selected field
-
-Source: `processor.Config has no implicit field defaults`.
-
-### Inheritance and merge
-
-No inheritance; one JSON object is decoded with unknown fields rejected.
-
-Merge: No merge; a second JSON value is rejected after the one configuration object.
-
-### Phases and runtime effect
-
-Limits and late policy affect P1–P4 processor behavior.
-
-Sets one bounded ext_proc service control.
-
-### Validation and errors
-
-Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.
-
-### Example
-
-Selected example value: `10485760`.
 
 Source-backed example: [examples/envoy/safe/envoy-ext-proc-service.json](../../examples/envoy/safe/envoy-ext-proc-service.json).
 

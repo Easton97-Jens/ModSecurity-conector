@@ -13,6 +13,7 @@
 #include "msconnector/decision.h"
 #include "msconnector/error.h"
 #include "msconnector/request_mapper_contract.h"
+#include "fixtures/http_authorization_request_stream_stubs.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -28,7 +29,6 @@
 #include <unistd.h>
 
 struct msconnector_runtime { int unused; };
-struct msconnector_runtime_transaction { int unused; };
 static struct msconnector_runtime fake_runtime;
 static int ready_fd = -1;
 static int release_fd = -1;
@@ -238,10 +238,8 @@ void msconnector_runtime_destroy(msconnector_runtime **runtime) {
 void msconnector_runtime_request_contract(const msconnector_runtime *runtime,
     msconnector_request_mapper_contract *contract) {
     (void)runtime; msconnector_request_mapper_contract_init(contract);
-    contract->max_header_count = 16U; contract->max_body_bytes = 1024U;
+    contract->max_header_count = 16U;
 }
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *r)
-    { (void)r; return 1024U; }
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *r)
     { (void)r; return 4096U; }
 size_t msconnector_runtime_header_count_limit(const msconnector_runtime *r)
@@ -251,7 +249,7 @@ int msconnector_runtime_error_log_enabled(const msconnector_runtime *r)
 int msconnector_runtime_error_http_status(const msconnector_runtime *r,
     msconnector_error_code code) { (void)r; (void)code; return 500; }
 
-int msconnector_runtime_transaction_begin(msconnector_runtime *runtime,
+int msconnector_runtime_transaction_begin_request_stream(msconnector_runtime *runtime,
     const msconnector_request *request, const char *request_id,
     msconnector_runtime_transaction **out, msconnector_decision *decision,
     msconnector_error *error) {
@@ -275,8 +273,8 @@ int msconnector_runtime_transaction_finish(msconnector_runtime_transaction *t,
     msconnector_error *error) {
     char release;
 
-    if (t == NULL) return 0;
-    t->unused = 0;
+    if (t == NULL || t->finished) return 0;
+    t->finished = 1;
     /* This is the last fake-runtime callback before response serialization.
      * It lets the parent send the RST before the service reaches send_all(). */
     if (transaction_count == 1U &&
@@ -290,6 +288,38 @@ const char *msconnector_runtime_transaction_id(
     const msconnector_runtime_transaction *t) { (void)t; return "peer-close"; }
 void msconnector_runtime_transaction_destroy(msconnector_runtime_transaction **t)
     { if (t != NULL) { free(*t); *t = NULL; } }
+
+/* This legacy transport fixture has no trusted-provenance producer. */
+int msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+    msconnector_runtime *runtime, const msconnector_request *request,
+    const char *request_id, const msconnector_runtime_trusted_provenance *provenance,
+    msconnector_runtime_transaction **out, msconnector_decision *decision,
+    msconnector_error *error) {
+    if (provenance != NULL) {
+        if (out != NULL) *out = NULL;
+        msconnector_error_set(error, MSCONNECTOR_ERROR_UNSUPPORTED_PHASE,
+            "trusted provenance is outside this legacy fixture", "fixture");
+        return 0;
+    }
+    return msconnector_runtime_transaction_begin_request_stream(runtime, request,
+        request_id, out, decision, error);
+}
+int msconnector_runtime_transaction_finalize_and_snapshot(
+    msconnector_runtime_transaction **transaction,
+    msconnector_runtime_transaction_snapshot *snapshot, msconnector_error *error) {
+    if (transaction == NULL || *transaction == NULL || snapshot == NULL) return 0;
+    if (!(*transaction)->finished &&
+        msconnector_runtime_transaction_finish(*transaction, error) != 1) return 0;
+    memset(snapshot, 0, sizeof(*snapshot));
+    snapshot->finished = (*transaction)->finished;
+    snapshot->request_body.bytes_seen = (*transaction)->request_body_bytes;
+    snapshot->request_body.finished = (*transaction)->request_body_finished;
+    snapshot->contract.cleanup_started = 1;
+    snapshot->contract.cleanup_complete = 1;
+    snapshot->contract.status = MSCONNECTOR_TRANSACTION_STATUS_CLEANED;
+    msconnector_runtime_transaction_destroy(transaction);
+    return 1;
+}
 
 static const msconnector_transaction_profile transaction_profile = {
     .profile_id = 1U, .profile_name = "peer-close", .connector_id = "peer-close",
@@ -442,6 +472,7 @@ cleanup:
 }
 
 int main(void) {
+    msconnector_test_request_stream_stubs_smoke();
     const int result = run_peer_test();
 
     if (result == EXIT_SUCCESS) {

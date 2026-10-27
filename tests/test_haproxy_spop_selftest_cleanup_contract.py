@@ -54,7 +54,7 @@ class HAProxySPOPSelfTestCleanupContractTests(unittest.TestCase):
         self.assertIn("pthread_mutex_lock(&state->decision_log_lock)", source)
         self.assertIn("pthread_mutex_unlock(&state->decision_log_lock)", source)
         self.assertIn("pthread_mutex_destroy(&state->decision_log_lock)", source)
-        decision_start = source.index("static void decision_log_write(")
+        decision_start = source.index("static int decision_log_write(")
         decision_end = source.index("static int production_config_has_safe_peer_limits", decision_start)
         decision_body = source[decision_start:decision_end]
         self.assertLess(
@@ -315,6 +315,13 @@ int main(void) {
         self.assertIn("context->owned_metadata |= SELF_TEST_METADATA_PID;", source)
         self.assertIn("context->owned_metadata |= SELF_TEST_METADATA_PORT;", source)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

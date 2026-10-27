@@ -30,8 +30,8 @@ GO_MODULE_REQUIREMENT = re.compile(
 )
 PCRE2_SHA256 = "47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
-PROTECTED_NGINX_BROKER_SHA = "49c40779a7b6de9f699391bcd524ea069787df42"
-PROTECTED_NGINX_BROKER_FRAMEWORK_SHA = "03880bf66b3905940466ff10b3a431a27ecc6b26"
+PROTECTED_NGINX_BROKER_SHA = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
+PROTECTED_NGINX_BROKER_FRAMEWORK_SHA = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
 PROTECTED_NGINX_BROKER_REUSABLE_REFERENCE = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
     + PROTECTED_NGINX_BROKER_SHA
@@ -53,7 +53,8 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "510b20d55b4d4293c7e78c826035d1c695a12216de280c59d6f36122112ff708"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "e5430e380eb92f98060835cef70f0552506e2ffc149c513d629cb6f15d1422f5"
+SONAR_NATIVE_WORKFLOW_NORMALIZED_SHA256 = "12cac10473c7c8ba2366289d92009de69608e4fe63e4cb69fbe98f8d877173f5"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
     "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
@@ -239,10 +240,9 @@ def assert_hash_locked_ci_test_dependency_installation(
     normalized = normalize_shell_script(validator)
     install_step = "Install hash-locked CI test dependency"
     install_command = (
-        "python3 -m pip install --disable-pip-version-check --no-input "
-        "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+        "python3 ci/tools/install-ci-dependencies.py --ci-toolcache"
     )
-    workflow_test = "tests.test_ci_security_workflows"
+    workflow_test = "python3 ci/tools/run-active-tests.py --group supply-chain"
 
     testcase.assertIn(install_step, validator)
     testcase.assertIn(install_command, normalized)
@@ -1456,7 +1456,7 @@ def sonar_pr_secret_errors(text: str) -> list[str]:
         },
         "secret must be on one immutable scanner action": (
             len(scanner_steps) == 1
-            and scanner.get("uses") == locked_action_pin("sonarsource/sonarqube-scan-action")
+            and scanner.get("uses") == locked_action_pin("SonarSource/sonarqube-scan-action")
             and "run" not in scanner
         ),
         "scanner secret mapping must be exact": scanner.get("env") == {
@@ -1471,6 +1471,42 @@ def sonar_pr_secret_errors(text: str) -> list[str]:
         ),
     }
     return [message for message, valid in checks.items() if not valid]
+
+
+def sonar_native_pr_secret_errors(text: str) -> list[str]:
+    """Admit only the complete reviewed twelve-project native scanner workflow.
+
+    The structural digest closes every source-changing step, script, argument,
+    default, environment and matrix field. Only exact canonical Action identity
+    and release updates are normalized; arbitrary pinned actions are rejected.
+    """
+    try:
+        workflow = yaml.load(text, Loader=yaml.BaseLoader)
+        sdk, native = workflow["jobs"]["sdk"], workflow["jobs"]["native"]
+        scanner = next(step for step in native["steps"] if step.get("id") == "scan")
+        allowed_actions = {"actions/checkout", "actions/setup-python", "actions/setup-go",
+                           "actions/upload-artifact", "actions/download-artifact",
+                           "SonarSource/sonarqube-scan-action"}
+        for match in LOCKED_ACTION_USE.finditer(text):
+            action = match.group("prefix").split("uses:", 1)[1].strip().removesuffix("@")
+            if (action not in allowed_actions
+                    or match.group(0) != "uses: " + locked_action_reference_with_version(action)):
+                return ["native workflow Action differs from its exact canonical source/lock identity"]
+        guard = ("github.repository == 'Easton97-Jens/ModSecurity-conector' && "
+                 "(github.event_name == 'push' || "
+                 "github.event.pull_request.head.repo.full_name == github.repository)")
+        if any(" ".join(job.get("if", "").split()) != guard for job in (sdk, native)):
+            return ["native workflow must restrict both jobs to the exact same-repository guard"]
+        if (scanner["env"] != {"SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}", "SONAR_SCANNER_JAVA_OPTS": "-Xmx2g",
+                               "SONAR_USER_HOME": "${{ runner.temp }}/native-sonar-cache"}
+                or text.count("${{ secrets.SONAR_TOKEN }}") != 1
+                or re.search(r"\bsecrets\b", text.replace("${{ secrets.SONAR_TOKEN }}", ""), re.IGNORECASE)):
+            return ["native workflow credentials must exist only on the exact pinned scanner step"]
+        if sha256(normalize_locked_action_pins(text).encode()).hexdigest() != SONAR_NATIVE_WORKFLOW_NORMALIZED_SHA256:
+            return ["native workflow differs from its closed reviewed source/steps/env/matrix/SCM contract"]
+    except (KeyError, StopIteration, TypeError, AssertionError, yaml.YAMLError):
+        return ["native workflow is missing its closed reviewed structure"]
+    return []
 
 
 class CiSecurityWorkflowTest(unittest.TestCase):
@@ -1920,7 +1956,8 @@ jobs:
         self.assertIn('--parent-sha "$EXPECTED_PARENT_SHA" --format github-output >> "$GITHUB_OUTPUT"', verification)
         self.assertIn('test "$parent_commit" = "$EXPECTED_PARENT_SHA"', job)
         self.assertIn('test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"', job)
-        self.assertIn("--require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock", job)
+        self.assertIn("python3 ci/tools/install-ci-dependencies.py --ci-toolcache", job)
+        self.assertIn("--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock", job)
         self.assertIn('test "${#CRS_RUNTIME_RUN_ID}" -le 48', job)
         self.assertIn("EVIDENCE_ROOT: \"\"", job)
 
@@ -2622,6 +2659,8 @@ jobs:
                 continue
             if path.name == "sonarqube.yml":
                 self.assertEqual(sonar_pr_secret_errors(text), [], path.name)
+            elif path.name == "sonar-native-security.yml":
+                self.assertEqual(sonar_native_pr_secret_errors(text), [], path.name)
             else:
                 self.assertNotIn("secrets.", text, path.name)
             for job_name, job in job_blocks(text).items():
@@ -2646,6 +2685,78 @@ jobs:
         )
         self.assertNotEqual(sonar_pr_secret_errors(unsafe), [])
 
+    def test_native_sonar_workflow_meets_closed_contract(self) -> None:
+        self.assertEqual(sonar_native_pr_secret_errors(self.workflow("sonar-native-security.yml")), [])
+
+    def test_native_sonar_workflow_rejects_contract_mutations(self) -> None:
+        text = self.workflow("sonar-native-security.yml")
+        mutations = [
+            ("fork guard", "github.repository == 'Easton97-Jens/ModSecurity-conector' &&", "true || github.repository == 'Easton97-Jens/ModSecurity-conector' &&"),
+            ("second checkout", "      - name: Set up canonical Python", "      - uses: " + locked_action_reference_with_version("actions/checkout") + "\n        with:\n          ref: master\n          persist-credentials: false\n      - name: Set up canonical Python"),
+            ("inserted git checkout", "          set -euo pipefail", "          set -euo pipefail\n          git checkout master"),
+            ("different preparation wrapper", "prepare-sonar-native-ci.py analyze", "unreviewed-native-wrapper.py analyze"),
+            ("global token", "permissions: {}", "env:\n  SONAR_TOKEN: '${{ secrets.SONAR_TOKEN }}'\npermissions: {}"),
+            ("global source environment", "env:\n  NATIVE_CI_ROOT:", "env:\n  BASH_ENV: /unreviewed.sh\n  NATIVE_CI_ROOT:"),
+            ("write permission", "      contents: read", "      contents: write"),
+            ("wrong source revision", "ref: ${{ github.event.pull_request.head.sha || github.sha }}", "ref: master"),
+            ("persisted credentials", "persist-credentials: false", "persist-credentials: true"),
+            ("unexpected recursive submodules", "submodules: false", "submodules: recursive"),
+            ("different project", "project: Easton97-Jens_ModSecurity-conector_native_haproxy_htx", "project: Easton97-Jens_ModSecurity-conector"),
+            ("different target", "target: haproxy-htx", "target: apache-native-module"),
+            ("different concurrency", "max-parallel: 2", "max-parallel: 11"),
+            ("masked native failure", "    needs: sdk", "    continue-on-error: true\n    needs: sdk"),
+            ("scanner argument injection", "-Dsonar.projectKey=${{ matrix.project }}", "-Dsonar.projectKey=${{ matrix.project }} -Dsonar.cfamily.taintAnalysis=false"),
+            ("wrong SCM identity", "-Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}", "-Dsonar.scm.revision=master"),
+            ("token in shell", "          umask 077", "          umask 077\n          echo '${{ secrets.SONAR_TOKEN }}'"),
+            ("different scanner Action", "uses: SonarSource/sonarqube-scan-action@", "uses: other/scanner@"),
+            ("source-controlled shell default", "    shell: bash", "    shell: python"),
+            ("privileged event", "  pull_request:", "  pull_request_target:"),
+        ]
+        for name, original, replacement in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, text)
+                self.assertNotEqual(sonar_native_pr_secret_errors(text.replace(original, replacement, 1)), [])
+
+    def test_native_sonar_action_updates_require_matching_canonical_lock(self) -> None:
+        text = self.workflow("sonar-native-security.yml")
+        original = locked_action_reference_with_version("SonarSource/sonarqube-scan-action")
+        replacement = "SonarSource/sonarqube-scan-action@" + "a" * 40 + " # v99.0.0"
+        self.assertNotEqual(sonar_native_pr_secret_errors(text.replace(original, replacement)), [])
+        with tempfile.TemporaryDirectory() as temporary:
+            lock = Path(temporary) / "security-tools.lock.yml"
+            value = yaml.safe_load(LOCK_PATH.read_text())
+            value["pinned_actions"]["SonarSource/sonarqube-scan-action"].update({"commit_sha": "a" * 40, "version": "v99.0.0"})
+            lock.write_text(yaml.safe_dump(value))
+            from unittest.mock import patch
+            with patch.dict(globals(), LOCK_PATH=lock):
+                self.assertEqual(sonar_native_pr_secret_errors(text.replace(original, replacement)), [])
+                self.assertNotEqual(sonar_native_pr_secret_errors(text), [])
+
+    def test_native_sonar_retry_reuses_successful_sdk_identity(self) -> None:
+        text = self.workflow("sonar-native-security.yml")
+        workflow = yaml.load(text, Loader=yaml.BaseLoader)
+        sdk, native = workflow["jobs"]["sdk"], workflow["jobs"]["native"]
+        self.assertEqual(sdk["outputs"], {
+            "artifact_id": "${{ steps.upload-sdk.outputs.artifact-id }}",
+            "producer_root": "${{ steps.prepare-sdk.outputs.producer_root }}",
+        })
+        prepare = next(step for step in sdk["steps"] if step.get("id") == "prepare-sdk")
+        self.assertIn('printf \'producer_root=%s\\n\' "$NATIVE_CI_ROOT" >> "$GITHUB_OUTPUT"', prepare["run"])
+        root_template = workflow["env"]["NATIVE_CI_ROOT"].replace("${{ github.run_id }}", "123")
+        successful_sdk = {"producer_root": root_template.replace("${{ github.run_attempt }}", "1"),
+                          "artifact_id": "456"}
+        retry_global_root = root_template.replace("${{ github.run_attempt }}", "2")
+        download = next(step for step in native["steps"] if str(step.get("uses", "")).startswith("actions/download-artifact@"))
+        references = {"root": native["env"]["NATIVE_CI_ROOT"], "artifact": download["with"]["artifact-ids"]}
+        resolved = {name: successful_sdk[expression.removeprefix("${{ needs.sdk.outputs.").removesuffix(" }}")]
+                    for name, expression in references.items()}
+        self.assertEqual(resolved, {"root": successful_sdk["producer_root"], "artifact": "456"})
+        self.assertNotEqual(resolved["root"], retry_global_root)
+        self.assertEqual(download["with"]["merge-multiple"], "true")
+        self.assertNotIn("name", download["with"])
+        self.assertNotIn("run-id", download["with"])
+        self.assertEqual(sonar_native_pr_secret_errors(text), [])
+
     def test_sonar_secret_contract_rejects_global_token(self) -> None:
         text = self.workflow("sonarqube.yml")
         unsafe = text.replace("permissions: {}", "env:\n  SONAR_TOKEN: '${{ secrets.SONAR_TOKEN }}'\n\npermissions: {}", 1)
@@ -2658,7 +2769,7 @@ jobs:
 
     def test_sonar_secret_contract_rejects_other_action(self) -> None:
         text = self.workflow("sonarqube.yml")
-        unsafe = text.replace("uses: sonarsource/sonarqube-scan-action@", "uses: unknown/scanner@", 1)
+        unsafe = text.replace("uses: SonarSource/sonarqube-scan-action@", "uses: unknown/scanner@", 1)
         self.assertNotEqual(sonar_pr_secret_errors(unsafe), [])
 
     def test_sonar_standard_matrix_keeps_full_parent_scope(self) -> None:
@@ -2671,6 +2782,13 @@ jobs:
         self.assertIn("-Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}", args)
         self.assertNotRegex(args, r"-D(?:sonar\.(?:sources|tests|inclusions|exclusions)|project\.settings)=")
         self.assertNotIn("projectBaseDir", scanner["with"])
+        self.assertNotIn("run-sonar-coverage.py", text)
+        self.assertNotIn("ON_DEMAND_TESTS", text)
+        self.assertNotIn("unittest", text)
+        self.assertNotIn("go test", text)
+        self.assertNotIn("check-common-helpers.sh", text)
+        self.assertIn("ci/checks/analysis/check-sonar-scope.py", text)
+        self.assertIn("-Dsonar.qualitygate.wait=true", args)
 
     def test_sonar_standard_matrix_rejects_decisive_higher_standards(self) -> None:
         text = self.workflow("sonarqube.yml")
@@ -3273,8 +3391,8 @@ sudo -n chmod 0750 "$namespace_parent"
                 "    permissions:\n      contents: write",
             ),
             "resolver receives publisher credential": (
-                "    runs-on: ubuntu-latest",
-                "    env:\n      GH_TOKEN: ${{ github.token }}\n    runs-on: ubuntu-latest",
+                "    runs-on: ubuntu-26.04",
+                "    env:\n      GH_TOKEN: ${{ github.token }}\n    runs-on: ubuntu-26.04",
             ),
             "publisher enables auto-merge": (
                 "--draft",
@@ -3636,6 +3754,53 @@ sudo -n chmod 0750 "$namespace_parent"
         dependabot = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
         self.assertNotIn('package-ecosystem: "github-actions"', dependabot)
         self.assertIn('package-ecosystem: "pip"', dependabot)
+        configuration = yaml.safe_load(dependabot)
+        self.assertEqual(configuration["version"], 2)
+        self.assertCountEqual(
+            [entry["package-ecosystem"] for entry in configuration["updates"]],
+            ["pip", "gomod"],
+        )
+        pip = next(entry for entry in configuration["updates"]
+                   if entry["package-ecosystem"] == "pip")
+        self.assertEqual(pip, {
+            "package-ecosystem": "pip", "directory": "/",
+            "schedule": {"interval": "weekly"},
+            "cooldown": {"default-days": 7}, "open-pull-requests-limit": 5,
+        })
+        parent_manifests = list(ROOT.glob("go.mod"))
+        for directory in ROOT.iterdir():
+            if directory.is_dir() and directory.name not in {"modules", ".git", ".codex", ".venv"}:
+                parent_manifests.extend(directory.rglob("go.mod"))
+        module_directories = {
+            "/" + manifest.parent.relative_to(ROOT).as_posix() if manifest.parent != ROOT else "/"
+            for manifest in parent_manifests if manifest.is_file()
+        }
+        self.assertTrue(module_directories)
+        gomod = next(entry for entry in configuration["updates"]
+                     if entry["package-ecosystem"] == "gomod")
+
+        def assert_go_update_scope(candidate):
+            self.assertEqual(set(candidate["directories"]), module_directories)
+            self.assertEqual(len(candidate["directories"]), len(module_directories))
+            self.assertEqual(candidate["schedule"], {"interval": "weekly"})
+            self.assertEqual(candidate["cooldown"], {"default-days": 7})
+            self.assertEqual(candidate["open-pull-requests-limit"], 5)
+            self.assertNotIn("directory", candidate)
+            self.assertNotIn("target-branch", candidate)
+            self.assertNotIn("ignore", candidate)
+
+        assert_go_update_scope(gomod)
+        for module_directory in sorted(module_directories):
+            with self.subTest(go_module=module_directory):
+                self.assertIn(module_directory, gomod["directories"])
+        invalid_scopes = (
+            dict(gomod, directories=gomod["directories"][:-1]),
+            dict(gomod, directories=[*gomod["directories"], "/modules/ModSecurity-test-Framework"]),
+        )
+        for candidate in invalid_scopes:
+            with self.subTest(invalid_directories=candidate["directories"]):
+                with self.assertRaises(AssertionError):
+                    assert_go_update_scope(candidate)
 
         workflow_name = "update-workflow-tools.yml"
         workflow = self.workflow(workflow_name)
@@ -3786,6 +3951,9 @@ sudo -n chmod 0750 "$namespace_parent"
 
         self.assertNotIn("secrets.", jobs["resolve-python-patch"])
         self.assertNotIn("secrets.", jobs["validate-python-patch"])
+        candidate_install = 'python3 ci/tools/install-ci-dependencies.py --ci-toolcache --expected-version "$CANDIDATE_VERSION"'
+        self.assertIn(candidate_install, normalize_shell_script(jobs["validate-python-patch"]))
+        self.assertEqual(workflow.count(candidate_install), 1)
 
         self.assertEqual(job_permissions(jobs["resolve-python-patch"]), {"contents": "read"})
         self.assertEqual(job_permissions(jobs["validate-python-patch"]), {"contents": "read"})
@@ -3819,8 +3987,7 @@ sudo -n chmod 0750 "$namespace_parent"
         publisher_normalized = normalize_shell_script(publisher)
         publisher_install_step = "Install hash-locked CI test dependency"
         publisher_install_command = (
-            "python3 -m pip install --disable-pip-version-check --no-input "
-            "--only-binary=:all: --require-hashes -r requirements-ci.lock"
+            "python3 ci/tools/install-ci-dependencies.py --ci-toolcache"
         )
         self.assertIn(publisher_install_step, publisher)
         self.assertIn(publisher_install_command, publisher_normalized)
@@ -3853,9 +4020,9 @@ sudo -n chmod 0750 "$namespace_parent"
             'python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json',
             publisher,
         )
-        self.assertIn("UPDATE_BRANCH: automation/update-python-314", publisher)
-        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.14 patch update"', publisher)
-        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-314-updater -->"', publisher)
+        self.assertIn("UPDATE_BRANCH: automation/update-python-315", publisher)
+        self.assertIn('PR_TITLE: "chore(ci): propose Python 3.15 patch update"', publisher)
+        self.assertIn('PR_MARKER: "<!-- modsecurity-conector-python-315-updater -->"', publisher)
         self.assertIn("FRAMEWORK_REFERENCE_SHA: 3cb33609626ff689c54b6dc0f31fb7e9401fe75e", publisher)
         self.assertIn(
             'PUBLISH_REMOTE_URL="https://github.com/Easton97-Jens/ModSecurity-conector.git"',
@@ -3869,7 +4036,9 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn('git reset --hard "origin/$DEFAULT_BRANCH"', publisher)
         self.assertIn('branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"', publisher)
         expected_paths = "$(printf '%s\\n' .python-version ci/tooling/project-versions.lock.json)"
-        self.assertIn(f'if [ "$branch_paths" != "{expected_paths}" ]; then', publisher)
+        companion_paths = "$(printf '%s\\n' .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json)"
+        self.assertIn(f'if [ "$branch_paths" != "{expected_paths}" ] &&', publisher)
+        self.assertIn(f'[ "$branch_paths" != "{companion_paths}" ]; then', publisher)
         self.assertIn('"--force-with-lease=refs/heads/$UPDATE_BRANCH:$EXPECTED_REMOTE_TIP"', publisher)
         self.assertNotRegex(publisher, r"git push\s+--force(?:\s|$)")
         self.assertNotRegex(publisher, r"git push\s+--force-with-lease(?:\s|$)")
@@ -3885,14 +4054,20 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("Recheck the matching Draft pull request after publication", publisher)
         self.assertIn("pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA", publisher)
         self.assertIn('changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"', publisher)
-        self.assertIn(f'if [ "$changed_paths" != "{expected_paths}" ]; then', publisher)
+        self.assertIn(f'if [ "$changed_paths" != "{expected_paths}" ] &&', publisher)
+        self.assertIn(f'[ "$changed_paths" != "{companion_paths}" ]; then', publisher)
         field_check = "python3 ci/tools/sync-project-versions.py --verify-update python"
         self.assertIn(field_check, publisher)
-        staging = 'git add -- .python-version ci/tooling/project-versions.lock.json'
+        staging = 'git add -- .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json'
         self.assertLess(publisher.index(field_check), publisher.index(staging))
         self.assertIn(staging, publisher)
         self.assertIn('staged_paths="$(git diff --cached --name-only)"', publisher)
-        self.assertIn(f'if [ "$staged_paths" != "{expected_paths}" ]; then', publisher)
+        self.assertIn(f'if [ "$staged_paths" != "{expected_paths}" ] &&', publisher)
+        self.assertIn(f'[ "$staged_paths" != "{companion_paths}" ]; then', publisher)
+        companion_check = "python3 ci/lib/active_inventory_updates.py verify --kind python --base HEAD"
+        self.assertLess(publisher.index(companion_check), publisher.index(staging))
+        self.assertIn(companion_check + " --staged", publisher)
+        self.assertIn("(records == 2 || records == 4) && !invalid", publisher)
         self.assertIn("git diff --cached --check", publisher)
         self.assertNotIn("git add -A", publisher)
         self.assertNotIn("git add .", publisher)
@@ -3939,8 +4114,8 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("secrets.", outcome)
         self.assertNotIn("publisher_app_token", outcome)
         self.assertIn("case \"$UPDATE_AVAILABLE\" in", outcome)
-        self.assertIn("No Python 3.14 patch update is available.", outcome)
-        self.assertIn("Kein Python-3.14-Patch-Update ist verfügbar.", outcome)
+        self.assertIn("No Python 3.15 patch update is available.", outcome)
+        self.assertIn("Kein Python-3.15-Patch-Update ist verfügbar.", outcome)
 
     def test_go_release_updater_separates_trusted_stages_and_writer_scope(self) -> None:
         workflow_name = "update-go-version.yml"
@@ -3976,7 +4151,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("latest_version", resolver)
         self.assertNotIn("1.26", resolver)
         self.assertIn("component_version_tuple", resolver)
-        self.assertIn("component_current_tuple < target_tuple", resolver)
+        self.assertIn("component_available != requirement_available", resolver)
+        self.assertIn("requirement.get(\"update_available\") is not update", resolver)
+        self.assertIn('"golang.org/x/net": "v0.61.0"', resolver)
+        self.assertIn('"golang.org/x/sys": "v0.49.0"', resolver)
+        self.assertIn('"golang.org/x/text": "v0.43.0"', resolver)
         self.assertIn("toolchain_update_available", resolver)
         self.assertIn("component_update_available", resolver)
         self.assertIn('"connectors/envoy/ext_proc"', resolver)
@@ -3996,6 +4175,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertEqual(candidate.count("go mod tidy -diff"), 4)
         self.assertEqual(candidate.count("go mod verify"), 4)
         self.assertEqual(candidate.count("go test -mod=readonly ./..."), 4)
+        self.assertEqual(candidate.count("go test -race -mod=readonly ./..."), 4)
         self.assertEqual(candidate.count("go vet -mod=readonly ./..."), 4)
         self.assertEqual(candidate.count("go build -mod=readonly ./..."), 4)
         self.assertIn("connectors/traefik/native_middleware", candidate)
@@ -4004,11 +4184,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("Create and validate the bounded Go component candidate", candidate)
         self.assertIn("--validate-component-files", candidate)
         self.assertIn('--repository-root "$GITHUB_WORKSPACE"', candidate)
-        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", candidate)
+        self.assertIn("python3 ../../../scripts/update-go-components.py --apply-requirements --json", candidate)
         self.assertNotIn("go get", candidate)
         self.assertLess(
             candidate.index("--validate-component-files"),
-            candidate.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+            candidate.index("python3 ../../../scripts/update-go-components.py --apply-requirements --json"),
         )
         self.assertNotIn("--baseline-go-mod", candidate)
         self.assertNotIn("--candidate-go-mod", candidate)
@@ -4044,11 +4224,11 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertNotIn("--force-with-lease", publisher)
         self.assertIn('python3 scripts/update-go-version.py --update --expected-version "$CANDIDATE_VERSION" --json', publisher)
         self.assertIn("--validate-component-files", publisher)
-        self.assertIn("go mod edit -require=google.golang.org/grpc@v1.83.2", publisher)
+        self.assertIn("python3 ../../../scripts/update-go-components.py --apply-requirements --json", publisher)
         self.assertNotIn("go get", publisher)
         self.assertLess(
             publisher.index("--validate-component-files"),
-            publisher.index("go mod edit -require=google.golang.org/grpc@v1.83.2"),
+            publisher.index("python3 ../../../scripts/update-go-components.py --apply-requirements --json"),
         )
         self.assertNotIn("--baseline-go-mod", publisher)
         self.assertNotIn("--candidate-go-mod", publisher)
@@ -4065,6 +4245,7 @@ sudo -n chmod 0750 "$namespace_parent"
         self.assertIn("UPDATE_BRANCH: automation/update-go-release", publisher)
         self.assertIn('PR_TITLE: "chore(ci): propose latest stable Go update"', publisher)
         self.assertIn("validate-go-release", publisher)
+        self.assertIn("needs.validate-go-release.result == 'success'", job_if_expression(publisher))
         self.assertNotIn("1.26", publisher)
         self.assertIn("connectors/envoy/ext_proc/go.mod", publisher)
         self.assertIn("connectors/envoy/ext_proc/go.sum", publisher)
@@ -4085,6 +4266,28 @@ sudo -n chmod 0750 "$namespace_parent"
             "Module directives: only the fixed google.golang.org/grpc security bundle may change",
             publisher,
         )
+
+    def test_go_candidate_pr_validation_is_read_only_and_tests_all_modules(self) -> None:
+        text = self.workflow("validate-go-candidate.yml")
+        candidate = self.jobs("validate-go-candidate.yml")["go-candidate"]
+        self.assertEqual(job_permissions(candidate), {"contents": "read"})
+        self.assertIn("  pull_request:", text)
+        self.assertNotIn("pull_request_target", text)
+        self.assertNotIn("secrets.", text)
+        self.assertNotIn("continue-on-error", text)
+        self.assertNotIn("write", text)
+        self.assertNotIn("create-go-update-pr", text)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", candidate)
+        self.assertIn("persist-credentials: false", candidate)
+        self.assertIn("submodules: false", candidate)
+        self.assertIn("cache: false", candidate)
+        self.assertIn("go-version-file: .go-version", candidate)
+        self.assertIn("GOTOOLCHAIN: local", candidate)
+        self.assertIn("GOWORK: off", candidate)
+        for module in ("envoy/ext_proc", "traefik/native_middleware", "traefik/composite_middleware", "traefik/response_observer"):
+            self.assertIn(f"connectors/{module}", candidate)
+        for command in ("go mod tidy -diff", "go mod verify", "go test -mod=readonly ./...", "go test -race -mod=readonly ./...", "go vet -mod=readonly ./...", "go build -mod=readonly ./..."):
+            self.assertIn(command, candidate)
 
     def test_sarif_upload_permissions_are_scoped(self) -> None:
         codeql = self.workflow("ci-security-codeql.yml")
@@ -4128,6 +4331,13 @@ sudo -n chmod 0750 "$namespace_parent"
             },
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

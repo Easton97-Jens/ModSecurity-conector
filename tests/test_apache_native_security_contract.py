@@ -18,18 +18,22 @@ class ApacheNativeSecurityContractTests(unittest.TestCase):
         cls.source = FILTERS.read_text(encoding="utf-8")
         cls.event_jsonl = EVENT_JSONL.read_text(encoding="utf-8")
 
-    def test_request_body_append_requires_exact_libmodsecurity_success(self) -> None:
+    def test_request_body_append_uses_operation_specific_result_contract(self) -> None:
         self.assertRegex(
             self.source,
             re.compile(
+                r"!msconnector_native_body_append_can_continue\("
                 r"msc_append_request_body\(msr->t,\s*"
-                r"\(const unsigned char \*\)data, plan\.append_size\) != 1",
+                r"\(const unsigned char \*\)data, len\)\)",
                 re.DOTALL,
             ),
         )
 
     def test_final_request_body_processing_requires_exact_success(self) -> None:
-        self.assertIn("if (msc_process_request_body(msr->t) != 1)", self.source)
+        self.assertIn(
+            "if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))",
+            self.source,
+        )
 
     def test_response_header_append_failure_enters_precommit_terminal_path(self) -> None:
         helper = self.source[self.source.index("static int apache_add_response_headers"):]
@@ -75,6 +79,13 @@ class ApacheNativeSecurityContractTests(unittest.TestCase):
         self.assertIn("component[0] == '\\0'", self.event_jsonl)
         self.assertIn("path[0] == '/' ? \"/\" : \".\"", self.event_jsonl)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

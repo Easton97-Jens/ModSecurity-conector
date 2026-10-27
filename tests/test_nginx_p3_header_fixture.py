@@ -76,5 +76,12 @@ class NginxP3HeaderFixtureContractTests(unittest.TestCase):
         self.assertNotIn("LD_PRELOAD", source)
 
 
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
+
 if __name__ == "__main__":
     unittest.main()

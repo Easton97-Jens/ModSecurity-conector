@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -490,7 +491,9 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 	defer firstConnection.Close()
 	secondConnection := dial(t)
 	defer secondConnection.Close()
-	first, err := extprocv3.NewExternalProcessorClient(firstConnection).Process(context.Background())
+	streamContext, cancelStreams := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelStreams()
+	first, err := extprocv3.NewExternalProcessorClient(firstConnection).Process(streamContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,11 +504,17 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 		t.Fatalf("first stream did not reach the held response-only state: %v", err)
 	}
 
-	excess, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(context.Background())
+	excess, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(streamContext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := excess.Send(request()); err != nil {
+	// Admission rejection can arrive before Send. Synchronize that ordering
+	// deliberately: gRPC Send returns EOF for a server-generated error, while
+	// Recv carries the actual status that must still be ResourceExhausted.
+	if _, err := excess.Header(); err != nil && status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("cross-transport excess stream header error = %v, want nil or ResourceExhausted", err)
+	}
+	if err := excess.Send(request()); err != nil && err != io.EOF {
 		t.Fatal(err)
 	}
 	if _, err := excess.Recv(); status.Code(err) != codes.ResourceExhausted {
@@ -518,7 +527,7 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 	if _, err := first.Recv(); err == nil {
 		t.Fatal("first stream remained active after CloseSend")
 	}
-	next, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(context.Background())
+	next, err := extprocv3.NewExternalProcessorClient(secondConnection).Process(streamContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -715,10 +724,9 @@ func TestTerminalAuthzResponseHonorsHeaderLimits(t *testing.T) {
 	}
 }
 
-func TestTerminalAuthzResponseHonorsAggregateBodyLimit(t *testing.T) {
+func TestTerminalAuthzResponseHasNoInspectionBudget(t *testing.T) {
 	service, err := New(Config{
-		SocketPath:           "/unused",
-		MaxResponseBodyBytes: 4,
+		SocketPath: "/unused",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -734,10 +742,10 @@ func TestTerminalAuthzResponseHonorsAggregateBodyLimit(t *testing.T) {
 	if err != nil || done || response.GetResponseBody() == nil || state.responseBytes != 4 {
 		t.Fatalf("bounded terminal body = response=%#v done=%t bytes=%d err=%v", response, done, state.responseBytes, err)
 	}
-	if _, _, err := service.responseBody(state, &extprocv3.HttpBody{Body: []byte("5"), EndOfStream: true}); err == nil {
-		t.Fatal("terminal authorization response accepted aggregate body above configured limit")
+	if _, _, err := service.responseBody(state, &extprocv3.HttpBody{Body: []byte("5"), EndOfStream: true}); err != nil {
+		t.Fatal(err)
 	}
-	if state.responseBytes != 4 {
+	if state.responseBytes != 5 {
 		t.Fatalf("terminal overflow changed accepted body count: %d", state.responseBytes)
 	}
 }
@@ -761,6 +769,7 @@ func TestClientRejectsOversizedBody(t *testing.T) {
 }
 
 func TestServiceSplitsStreamedResponseBodyBeforeMRC1Limit(t *testing.T) {
+	service := &Service{}
 	left, right := net.Pipe()
 	defer left.Close()
 	frames := make(chan struct {
@@ -790,7 +799,6 @@ func TestServiceSplitsStreamedResponseBodyBeforeMRC1Limit(t *testing.T) {
 		}
 	}()
 
-	service := &Service{config: Config{MaxResponseBodyBytes: int64(maxBody + 7)}}
 	state := &stream{
 		c:               &client{conn: left, timeout: time.Second},
 		committed:       true,
@@ -825,16 +833,16 @@ func TestServiceSplitsStreamedResponseBodyBeforeMRC1Limit(t *testing.T) {
 	}
 }
 
-func TestServiceRejectsOversizedStreamedCallbackBeforeForwardingAPrefix(t *testing.T) {
+func TestServiceRejectsAccountingOverflowBeforeForwardingAPrefix(t *testing.T) {
+	service := &Service{}
 	left, right := net.Pipe()
 	defer left.Close()
 	defer right.Close()
-	service := &Service{config: Config{MaxResponseBodyBytes: int64(maxBody)}}
-	state := &stream{c: &client{conn: left, timeout: time.Second}, responseHeaders: true}
+	state := &stream{c: &client{conn: left, timeout: time.Second}, responseHeaders: true, responseBytes: math.MaxInt64}
 	if _, _, err := service.responseBody(state, &extprocv3.HttpBody{Body: make([]byte, maxBody+1)}); err == nil {
 		t.Fatal("oversized logical response body was accepted")
 	}
-	if state.responseBytes != 0 {
+	if state.responseBytes != math.MaxInt64 {
 		t.Fatalf("response bytes = %d, want no forwarded prefix", state.responseBytes)
 	}
 	if err := right.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {

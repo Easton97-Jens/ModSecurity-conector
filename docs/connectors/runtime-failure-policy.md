@@ -276,7 +276,7 @@ engine; live load characterization and an earlier protocol-admission budget
 remain a documented residual risk.
 
 The default `response-companion=none` profile rejects every response-phase
-activation (`response-body-limit > 0`, `enable-response-headers`, or
+activation (`enable-response-headers` or
 `response-phases`) with exit `2` before it creates a production listener or
 worker. This is fail-closed configuration rejection, not partial response
 enforcement; a valid request-only startup is the legitimate follow-up control.

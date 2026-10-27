@@ -70,7 +70,7 @@ class HaproxySPOPConfigSecurityContractTests(unittest.TestCase):
         reader_end = SOURCE.index("static int load_config_file(", reader_start)
         reader = SOURCE[reader_start:reader_end]
         loader_start = reader_end
-        loader_end = SOURCE.index("static int fail_mode_closed(", loader_start)
+        loader_end = SOURCE.index("static int mode_enforces(", loader_start)
         loader = SOURCE[loader_start:loader_end]
 
         self.assertIn("character == '\\0'", reader)
@@ -130,6 +130,13 @@ class HaproxySPOPConfigSecurityContractTests(unittest.TestCase):
                 )
                 self.assertEqual(completed.returncode, 2, completed.stderr)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

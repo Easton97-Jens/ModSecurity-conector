@@ -16,6 +16,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"sync"
@@ -38,14 +39,11 @@ var (
 )
 
 type Limits struct {
-	Capacity        int
-	TTL             time.Duration
-	IdleTTL         time.Duration
-	MaxRequestBody  int64
-	MaxResponseBody int64
-	MaxBodyChunks   int
-	MaxHeaders      int
-	MaxHeaderBytes  int
+	Capacity       int
+	TTL            time.Duration
+	IdleTTL        time.Duration
+	MaxHeaders     int
+	MaxHeaderBytes int
 }
 
 // ReservationSnapshot is the immutable request-header input accepted only
@@ -77,15 +75,7 @@ func (l Limits) withDefaults() Limits {
 	if l.IdleTTL <= 0 {
 		l.IdleTTL = 5 * time.Second
 	}
-	if l.MaxRequestBody <= 0 {
-		l.MaxRequestBody = 1 << 20
-	}
-	if l.MaxResponseBody <= 0 {
-		l.MaxResponseBody = 1 << 20
-	}
-	if l.MaxBodyChunks <= 0 {
-		l.MaxBodyChunks = 256
-	}
+
 	if l.MaxHeaders <= 0 {
 		l.MaxHeaders = 256
 	}
@@ -148,7 +138,7 @@ func New(connector string, key []byte, limits Limits, engine processor.Transacti
 	if connector == "" || len(key) < 32 || engine == nil {
 		return nil, errors.New("connector, 256-bit key, and engine are required")
 	}
-	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxRequestBody < 0 || limits.MaxResponseBody < 0 || limits.MaxBodyChunks < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 {
+	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 {
 		return nil, ErrLimit
 	}
 	if limits.Capacity > 4096 {
@@ -165,9 +155,14 @@ func New(connector string, key []byte, limits Limits, engine processor.Transacti
 }
 func (c *Coordinator) dispatchEvents() {
 	defer close(c.eventDone)
+	failed := false
 	for ev := range c.events {
+		if failed {
+			continue // Drain queued events without replaying a failed sink.
+		}
 		if err := c.observer.Observe(ev); err != nil {
-			c.setFault(fmt.Errorf("%w: %v", ErrObserver, err))
+			failed = true
+			c.setFault(fmt.Errorf("%w: %w", ErrObserver, err))
 		}
 	}
 }
@@ -303,9 +298,13 @@ func (c *Coordinator) BeginRequest(ctx context.Context, meta processor.StreamMet
 		fault := c.fault
 		c.mu.Unlock()
 		tx.Close(context.WithoutCancel(ctx), e.summary)
+		cleanupErr := c.recordCleanupFailure(tx)
 		c.releaseCapacity()
 		if fault != nil {
 			return nil, processor.Decision{}, fault
+		}
+		if cleanupErr != nil {
+			return nil, processor.Decision{}, cleanupErr
 		}
 		return nil, processor.Decision{}, ErrClosed
 	}
@@ -408,10 +407,7 @@ func (a *Admission) RecordHostAction(ctx context.Context, action processor.HostA
 		e.mu.Unlock()
 		return ErrOutOfOrder
 	}
-	if e.syntheticRequestBodyLimit {
-		e.mu.Unlock()
-		return errors.New("synthetic request body limit has no native Common host action")
-	}
+
 	if e.hostActionRecorded {
 		e.mu.Unlock()
 		return ErrDuplicate
@@ -441,37 +437,6 @@ func (a *Admission) RecordHostAction(ctx context.Context, action processor.HostA
 	return nil
 }
 
-// RecordRequestBodyLimitHostAction records the bounded 413 selected by the
-// coordinator before the overflowing bytes are sent to Common. There is no
-// native Common disruptive decision in this path, so it deliberately never
-// invokes processor.HostActionRecorder or claims native rule evidence.
-func (a *Admission) RecordRequestBodyLimitHostAction() error {
-	if a == nil || a.e == nil {
-		return ErrClosed
-	}
-	e := a.e
-	e.mu.Lock()
-	if err := e.checkLocked(); err != nil {
-		e.mu.Unlock()
-		return err
-	}
-	if !e.blocked || !e.syntheticRequestBodyLimit {
-		e.mu.Unlock()
-		return ErrOutOfOrder
-	}
-	if e.hostActionRecorded {
-		e.mu.Unlock()
-		return ErrDuplicate
-	}
-	e.hostActionRecorded = true
-	err := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "request_host_action", Outcome: "recorded", Reason: "request_body_limit", RequestedAction: "block", ActualHostAction: string(processor.AppliedActionDeny), VisibleStatus: 413, EventTime: time.Now()})
-	e.mu.Unlock()
-	if err != nil {
-		e.finish(context.Background(), "companion_failure")
-		return err
-	}
-	return nil
-}
 func (a *Admission) Lease() (string, error) {
 	if a == nil || a.e == nil {
 		return "", ErrClosed
@@ -640,7 +605,7 @@ type entry struct {
 	reserved                                                                   bool
 	binding                                                                    [sha256.Size]byte
 	snapshot                                                                   ReservationSnapshot
-	p4EventEmitted, syntheticRequestBodyLimit, hostActionRecorded              bool
+	p4EventEmitted, hostActionRecorded                                         bool
 	session                                                                    string
 	closeOnce                                                                  sync.Once
 }
@@ -862,8 +827,8 @@ func (e *entry) requestBody(ctx context.Context, b []byte, eos bool) (processor.
 	if e.phase != phaseRequestBody {
 		return processor.Decision{}, ErrOutOfOrder
 	}
-	if e.requestBodyBytes+int64(len(b)) > e.c.limits.MaxRequestBody || e.requestChunks+1 > e.c.limits.MaxBodyChunks {
-		return e.requestBodyLimitLocked()
+	if e.requestBodyBytes < 0 || int64(len(b)) > math.MaxInt64-e.requestBodyBytes || e.requestChunks == math.MaxInt {
+		return processor.Decision{}, errors.New("request accounting overflow")
 	}
 	e.requestBodyBytes += int64(len(b))
 	e.requestChunks++
@@ -892,19 +857,6 @@ func (e *entry) markReservedLeaseLocked() error {
 	return e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "lease", Outcome: "issued"})
 }
 
-// requestBodyLimitLocked emits one bounded P2 decision without delivering the
-// overflowing bytes to the engine. Adapters can then record the actual 413
-// host action and terminal cleanup against the same decision ID.
-func (e *entry) requestBodyLimitLocked() (processor.Decision, error) {
-	e.blocked = true
-	e.syntheticRequestBodyLimit = true
-	e.last = time.Now()
-	d := processor.Decision{Action: processor.ActionDeny, Status: 413}
-	if err := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "P2", Outcome: "observed", Reason: "request_body_limit", RequestedAction: string(d.Action), VisibleStatus: d.Status}); err != nil {
-		return d, err
-	}
-	return d, ErrLimit
-}
 func (e *entry) issueLease() (string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -976,14 +928,11 @@ func (e *entry) responseBody(ctx context.Context, s string, b []byte, eos bool) 
 	if e.phase != phaseResponseBody {
 		return processor.Decision{}, ErrOutOfOrder
 	}
-	if e.responseBodyBytes+int64(len(b)) > e.c.limits.MaxResponseBody {
-		return processor.Decision{}, ErrLimit
+	if e.responseBodyBytes < 0 || int64(len(b)) > math.MaxInt64-e.responseBodyBytes || e.responseChunks == math.MaxInt {
+		return processor.Decision{}, fmt.Errorf("response accounting overflow")
 	}
 	e.responseBodyBytes += int64(len(b))
 	e.responseChunks++
-	if e.responseChunks > e.c.limits.MaxBodyChunks {
-		return processor.Decision{}, ErrLimit
-	}
 	d, err := e.tx.ProcessBody(ctx, processor.DirectionResponse, b, eos)
 	e.summary.ResponseBodyBytes = e.responseBodyBytes
 	e.summary.ResponseBodyChunks++
@@ -1138,11 +1087,27 @@ func (e *entry) finish(ctx context.Context, why string) {
 		delete(e.c.entries, e.id)
 		e.c.mu.Unlock()
 		e.c.releaseCapacity()
+		outcome, cleanupOutcome := "closed", "closed"
 		if e.tx != nil {
 			e.tx.Close(ctx, e.summary)
+			if err := e.c.recordCleanupFailure(e.tx); err != nil {
+				outcome, cleanupOutcome = "failed", "failed"
+			}
 		}
-		_ = e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "terminal", Outcome: "closed", Reason: why, CleanupOutcome: "closed", EventTime: time.Now()})
+		_ = e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "terminal", Outcome: outcome, Reason: why, CleanupOutcome: cleanupOutcome, EventTime: time.Now()})
 	})
+}
+
+func (c *Coordinator) recordCleanupFailure(tx processor.Transaction) error {
+	reporter, ok := tx.(processor.CleanupFailureReporter)
+	if !ok {
+		return nil
+	}
+	err := reporter.CleanupFailure()
+	if err != nil && !errors.Is(err, processor.ErrTransactionFinishPhaseSequence) {
+		c.setFault(fmt.Errorf("transaction cleanup: %w", err))
+	}
+	return err
 }
 
 func (c *Coordinator) Sweep(now time.Time) {

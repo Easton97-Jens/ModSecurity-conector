@@ -2,10 +2,40 @@
 
 **Sprache:** [English](sonarqube-analysis.md) | Deutsch
 
+Am veröffentlichten Parent `011cb197` schloss [Lauf 40392396874](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40392396874) SDK-Vorbereitung und alle zwölf nativen Build-/Capture-/Index-/CTU-/Taint-Analysen ab: insgesamt 611 Compilation Units, keine partiellen Units und 100 % Indexierung je Ziel. Vor Einzeltriage bestanden drei native Gates, neun scheiterten. Zwanzig von 22 Workflows bestanden; die breiten C++17/20/23-Gates scheiterten. Die Quellprüfung bestätigte zwölf Python-Security-Issues und 39 native Issue-Instanzen als False Positives; alle 36 Main-/Advisory-Python-Instanzen und 39 nativen Instanzen sind einzeln als False Positive aufgelöst und frisch zurückgelesen. Ursprüngliche Job-Ergebnisse bleiben unverändert. Diese Analyse liegt vor dem endlichen Abschlusscommit und ist keine Abnahme des finalen Heads. Siehe [zentralen Status](pr-382-merge-readiness.de.md).
+
+Framework-Revision `03da9353561bf632a1f7bfc71b0a2671ec7aa257` bestand alle zwölf CI-Workflows und Sonar und ist Ready; kein Framework-Merge wurde durchgeführt. Parent behält Framework-Gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf`; MRTS bleibt unverändert. Broker-PR #422 ist bereits benutzerautorisiert bei `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` integriert; kein weiterer Master-Merge ist autorisiert. Geschützter manueller Lauf, Connector-E2E-Erweiterung und historische I12-Kampagnen wurden nicht ausgeführt.
+
+## Integration in PR #382
+
+Der [Leitfaden zur nativen zielbezogenen Sicherheitsanalyse](sonarqube-native-security.de.md)
+beschreibt den separaten Compilation-Database-Workflow mit zwölf Zielen,
+beobachtete Hosted-Analyse und revisionsgebundene Entwicklungsevidence. Er ergänzt
+den breiten Scan; historische PR-#421-Aufzeichnungen unten validieren den neuen
+nativen Workflow nicht.
+
+Die automatische Auswahl umfasst jetzt 100 expandierte Fälle / 80 Ausführungen einschließlich dreier Schutzkontrollen. Weitere 1893 Fälle / 839 Ausführungen sind ausschließlich ausdrücklich auf Abruf verfügbar. Automatische Coverage-Katalogbefehle wurden entfernt; der erhaltene Collector verlangt `--on-demand`. Coverage ist laut Benutzeranweisung für den Merge irrelevant. Breite Quell-/Scanner-/Gate-Analyse bleibt aktiv; nur root `modules/**` und root `reports/**` sind ausgeschlossen.
+
+Die neueste Nutzeranweisung nimmt Coverage auch aus Merge-Entscheidungen: `sonar.coverage.exclusions=**` betrifft nur Coverage, nicht Source-, Security- oder Duplikationsanalyse. Das aktive eingebaute Gate `Sonar way` (ID `9`) und die Master-Gate-Warteprüfung bleiben unverändert; ein neuer Head-Scan muss nicht anwendbare Coverage und die fünf erhaltenen Bedingungen sowie verbindliche CI belegen. Die gescheiterte Zuordnung einer eigenen Gate-Kopie und vollständige Grenzen stehen im [PR-#382-Status](pr-382-merge-readiness.de.md); vollständige Coverage-/Rohdaten-Erhaltungsmessung ist als Abnahmekriterium abgelöst. [Coverage-Ausschlussparameter](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/project-analysis/setting-analysis-scope/exclude-from-coverage-duplication).
+
+Vor der Coverage-Abwahl endete am veröffentlichten Head `c924e7585fc0bd197fbefa0ba0f8bbc8cb39aea7` CE-Task `AaF3r2p9NjdnpZXZdVK3` mit `SUCCESS`; Analyse `1ebafbd5-5eb0-4ae0-ab7f-5e0d665f4f02` hat Gate `ERROR`. New-Code-Coverage beträgt **26.409132606258282% gegen 80%**, bei 10 offenen neuen Findings. Exakte Scan-/Importbindungen, CI- und Finding-Dispositionen sowie aktuelle Grenzen stehen im [PR-#382-Status](pr-382-merge-readiness.de.md).
+
+Die frühere lokale Changed-Python-Messung von 24.791% und ihr Rohdatenverlust bleiben historische, getrennte Nachweise. `xml --keep-combined` und unabhängige SHA-/größengebundene Kind-Nachweise korrigieren die Löschung; vollständiger Rohdaten-Erhaltungsnachweis bleibt eine historische Evidence-Grenze und ist als Akzeptanzkriterium abgelöst. Aktuelle WIP-Zahlen, gezielte Ergebnisse und Delivery-Grenzen stehen im [PR-#382-Status](pr-382-merge-readiness.de.md).
+
+Nachfolgende PR-#421-Quell-/Server-/Runtime-Aufzeichnungen, einschließlich als aktueller gemessener Abschluss bezeichneter Abschnitte, sind historisch für ihre ausdrücklich genannten Revisionen, insbesondere `d5450cd3`; ihre 80 Python-Methoden sind keine aktuellen expandierten Fallzahlen und ihre erfolgreichen Gates qualifizieren PR #382 nicht. Die Toolchain bleibt Python `3.15.1`, Go `1.27.3`, Modul-Sprachversion `1.26.9`, setup-python `7.1.0` und Scanner CLI `8.2.0.6438`.
+
+## Deprecations und aktuelle Security-Relevanz
+
+Die [offiziellen Deprecation-Ankündigungen](https://docs.sonarsource.com/sonarqube-cloud/deprecations-and-removals#deprecation-announcements) sind gegen den tatsächlichen Einsatz zu prüfen: Das c924-Scannerlog zeigt CLI `8.2.0.6438`, JRE-Provisioning und Java `21.0.12.1`, nicht Java 17. Im getrackten Code wurden weder veraltete Active-User-/Role-APIs noch Legacy-Type-/Severity-Abfragen oder die veraltete Build-Wrapper-Property gefunden; daraus folgt keine erforderliche Repository-Migration oder AI-Gate-Änderung.
+
+Der historische impactbasierte c924-Readback für `SECURITY` mit `issueStatuses=OPEN,CONFIRMED` lieferte ein neues `S5443`-Finding mit Impact `HIGH` und Tag `former-hotspot`. Dies entspricht der angekündigten Überführung von Hotspots in Security-Issues: Eine leere Hotspotliste belegt deshalb keine Abwesenheit von Security-Findings. Triage verwendet Impacts und Issue-Status statt Legacy-Type/Severity und validiert den konkreten Codepfad; aktuelle Dispositionen und Ergebnisse der exakten Head-SHA stehen im [PR-#382-Status](pr-382-merge-readiness.de.md).
+
 ## Projekt und Analysemethode
 
-Das Parent-Repository verwendet ein SonarQube-Cloud-Projekt,
-`Easton97-Jens_ModSecurity-conector`, in der Organisation `easton97-jens`. Der
+Die breite Parent-Analyse verwendet das SonarQube-Cloud-Hauptprojekt
+`Easton97-Jens_ModSecurity-conector` und zwei Standard-Advisory-Projekte in der
+Organisation `easton97-jens`. Separate [native Zielprojekte](sonarqube-native-security.de.md)
+bewahren ihre eigenen Buildkontexte und Analysehistorien. Der
 Organization-Key wurde aus der authentifizierten Projekt-API gelesen und nicht
 aus dem GitHub-Kontonamen abgeleitet. Jede Standardvariante analysiert dieselben gepflegten
 Parent-Komponenten. Framework und MRTS bleiben eigenständige Repositories und
@@ -18,7 +48,7 @@ Diese vier ähnlich benannten Mechanismen unterscheiden sich:
 | Cloud Automatic Analysis | Läuft auf Sonars Infrastruktur; liest `.sonarcloud.properties`, ignoriert `sonar-project.properties` und kann keine Coverage importieren. Für dieses Projekt deaktiviert lassen. |
 | CI-basierte SonarScanner-CLI-Analyse | Gewählte Methode: `.github/workflows/sonarqube.yml` führt drei vollständige Parent-Scans mit derselben `sonar-project.properties` aus. |
 | Automatische CLI-Konfiguration | `sonar.scanner.autoconfig.enabled=false` erhält die explizite Source-/Testzuordnung. Aktivierung würde die manuellen Source-/Testeinstellungen ignorieren und Warnungen erzeugen. |
-| CFamily AutoConfig / Compilation Database | C/C++-Analyzermodi innerhalb des CI-Scans. AutoConfig leitet Compileroptionen ab; Compilation Database liest echte Buildbefehle über `sonar.cfamily.compile-commands`. Dieses Projekt wählt AutoConfig. |
+| CFamily AutoConfig / Compilation Database | C/C++-Analyzermodi innerhalb des CI-Scans. AutoConfig leitet Compileroptionen ab; Compilation Database liest echte Buildbefehle über `sonar.cfamily.compile-commands`. Breite Parent-Projekte behalten AutoConfig; separate native Projekte verwenden Datenbanken je Ziel. |
 
 Der Workflow pinnt die offizielle Scan-Action auf
 `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` (`v8.3.0`) und wählt explizit
@@ -44,8 +74,8 @@ Inklusions-/Exklusionsparameter unterstützen Muster.
 
 | Sprache / Analyzer | Gepflegte Komponenten | Source-/Testzuordnung | Buildinformationen und Grenzen |
 | --- | --- | --- | --- |
-| Python | `ci/`, `scripts/`, `common/`, Connector-Werkzeuge, getracktes `.codex/bin/`, `tests/` | Python-Dateien unter `tests/`, verteilte Connector-Testmodule und deren Testhilfen sind Tests; Betriebswerkzeuge bleiben Sources. | `.python-version` pinnt `3.14.7`; `sonar.python.version=3.14` verwendet Sonars erforderliches Haupt-/Nebenversionsformat. |
-| Go | `connectors/envoy/ext_proc`, `connectors/traefik/native_middleware`, `connectors/traefik/composite_middleware`, `connectors/traefik/response_observer` | `**/*_test.go` sind Tests; andere Go-Dateien und jede `go.mod` bleiben im Source-Scope. | Vier Module; `.go-version` ist `1.27.1`, die Modul-Sprachdirektiven sind `1.26.5`. Coverage muss innerhalb jedes Moduls erzeugt werden. |
+| Python | `ci/`, `scripts/`, `common/`, Connector-Werkzeuge, getracktes `.codex/bin/`, `tests/` | Python-Dateien unter `tests/`, verteilte Connector-Testmodule und deren Testhilfen sind Tests; Betriebswerkzeuge bleiben Sources. | `.python-version` pinnt `3.15.1`; `sonar.python.version=3.15` verwendet Sonars erforderliches Haupt-/Nebenversionsformat. |
+| Go | `connectors/envoy/ext_proc`, `connectors/traefik/native_middleware`, `connectors/traefik/composite_middleware`, `connectors/traefik/response_observer` | `**/*_test.go` sind Tests; andere Go-Dateien und jede `go.mod` bleiben im Source-Scope. | Vier Module; `.go-version` ist `1.27.3`, die Modul-Sprachdirektiven sind `1.26.9`. Coverage muss innerhalb jedes Moduls erzeugt werden. |
 | C / C++ | `common/`, alle sechs Connector-Familien, `tests/`, `fuzz/` | Sämtlicher C/C++-Code einschließlich Tests, Fixture-Modulen und Fuzz-Harnesses bleibt Source-Code, weil CFamily `sonar.tests` nicht unterstützt. | AutoConfig analysiert Translation Units im Scope; Header benötigen eine einbindende Translation Unit. Der gezielte Evaluator verwendet C++17. |
 | Shell | `ci/`, `scripts/`, `common/`, Connector-Build-/Harness-Skripte | Gepflegte `.sh`-Skripte bleiben Sources, einschließlich Skripten in Connector-Verzeichnissen namens `build/`. | Bash/POSIX unterstützt. Die automatische Erkennung von `connectors/apache/build/apxs-wrapper.in` ist nicht nachgewiesen; ein Scope-Eintrag allein beweist keine Shell-Analyse. |
 | GitHub Actions | `.github/workflows/` und zutreffende Action-Definitionen | Echte Workflows sind Sources; absichtlich ungültige Workflow-Fixtures sind Testdaten. | Eigener Actions-Analyzer; generisches YAML ersetzt keine Workflow-Semantik. |
@@ -62,26 +92,11 @@ zu übernehmen.
 
 ## Scope-Ausschlüsse und Standards
 
-| Bereich | Begründung und Behandlung |
-| --- | --- |
-| `modules/ModSecurity-test-Framework/**` | Eigenständiges Git-Submodul einschließlich verschachteltem MRTS; die Parent-Analyse importiert oder ändert seinen Code nicht. |
-| `reports/testing/generated/**` | Generierte Evidence; gepflegte Generatoren bleiben im Scope. Andere Berichte und Attributionsdateien werden nicht explizit ausgeschlossen. |
-| `build/**`, `dist/**`, `ci-artifacts/**`, `verified-runs/**`; lokale Ausgaben und Caches | Root-`/build/`, `/dist/`, `/compile_commands.json`, Umgebungen, Dependency-Caches und Laufzeitausgaben sind bereits SCM-ignoriert. SCM-Ausschlüsse aktiviert lassen. |
-| Python-/Go-Test-Inklusionsmuster | Klassifikation entfernt diese Dateien aus der Source-Indizierung und vermeidet doppelte Indizierung; sie entfernt sie nicht aus der Analyse. |
-| `tests/fixtures/python-version-contract/*.yml`, `tests/fixtures/python-version-contract/*.yaml`, `ci/fixtures/zizmor/*.yml`, `ci/fixtures/workflow-permission-contract/*.yml` | Ungültige/unsichere Workflow-Beispiele und ihre Kontrollen sind Testdaten statt ausführbarer Produktionsworkflows. Nur diese YAML-Dateien sind ausgeschlossen; Python-/C-Fixtures bleiben im Scope. |
-
-Kein `**/build/**` hinzufügen: Das würde gepflegte Connector-Buildskripte
-verbergen. Kein Connector und keine vollständige Sprache wird zum Unterdrücken
-von Findings ausgeschlossen. Der Go-Analyzer schließt `vendor` standardmäßig
-aus; es wurde kein solches gepflegtes Verzeichnis gefunden. Scanner-Standards,
-SCM-Ignorierungen, Dateisuffixe, Größenlimits, geerbte globale Einstellungen und
-nicht eingebundene Header können die tatsächlich analysierte Menge weiterhin
-reduzieren. Scanner-Logs und serverseitige Datei-/Sprachmetriken prüfen, statt
-anfänglichen Scope mit bestätigter Analyse gleichzusetzen. CI-Kommandozeilenwerte
-überschreiben Konfigurationsdateiwerte, die wiederum Projekt-UI-Werte
-überschreiben; bei fehlenden Dateien auch Organisations-/Globalausschlüsse prüfen.
+Der vorbereitete lokale Scope schließt ausschließlich root `modules/**` und root `reports/**` aus MAIN und TEST aus. Alle anderen Parent-Verzeichnisse bleiben enthalten, einschließlich `ci/evidence/reports/`, Connector-Buildskripten und YAML-Fixtures. `sonar.scm.exclusions.disabled=true` verhindert eine stille Scope-Reduktion durch SCM-Ignorierungen. Python-/Go-TEST-Zuordnung und sämtliche CFamily-MAIN-Zuordnungen bleiben erhalten. Nach der Master-Übernahme beträgt die getrackte Aufteilung 1662 MAIN + 503 TEST + 367 Root-Report-Einträge + einen Framework-Gitlink = 2533 Einträge; 25 verschachtelte Reportgeneratoren bleiben MAIN. Dies belegt konfigurierten Quellumfang, keine semantische Analyzer-Unterstützung oder Ausführung für jedes Format; lokale Scope-Änderungen benötigen weiterhin einen Scan am neuen veröffentlichten Head.
 
 ## CFamily-Buildtreue
+
+Der historische c924-Scan nutzte AutoConfig mit 185 Translation Units: Funktionsqualität 98.01% bei Fehlern in 61/3067 Funktionen, Statementqualität 98.27% bei Fehlern in 810/46710 Statements. C/C++-Taintanalyse war ausdrücklich `DISABLED`; dies ist kein vollständiger C/C++-Security-Nachweis. Die offiziellen [Analysemodi](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/analysis-modes) empfehlen Compilation Database für höchste Analysequalität; die [Taint-Anforderungen](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis) bleiben gesondert zu erfüllen. Der später autorisierte [native Workflow](sonarqube-native-security.de.md) ergänzt diesen breiten Scan mit zwölf unabhängigen Zielkontexten; Entwicklungsbuilds belegen keine Hosted-Analyse. AI-Gate-/MISRA-Änderungen sind daraus nicht abgeleitet.
 
 Der getrackte Parent-Bestand bei `9f44647593bac7947113558c6ad183ab118e80af`
 enthält 136 native Translation Units: 135 C und eine C++. Dazu gehören native
@@ -89,8 +104,9 @@ Tests, Fixtures, Fuzz-Code und CI-Probes. Die bestehenden Targets
 `make compile-db-nginx-c17` und `make compile-db-cpp17` erfassen nur die
 NGINX-/Common-Deklaration und den gezielten Evaluator. Diese unvollständigen
 Datenbanken würden andere Parent-Units aus der CFamily-Analyse entfernen.
-AutoConfig und die Datenbankbeschränkung des Scope-Guards bleiben deshalb bis
-zum Nachweis eines echten vollständigen Parent-Buildvertrags bestehen.
+AutoConfig und die Datenbankbeschränkung des Scope-Guards bleiben deshalb für
+den breiten Parent-Scan bestehen. Unabhängig abgegrenzte native Projekte ergänzen
+ihn, ohne unabhängige Ziele zusammenzufassen oder den breiten Quellumfang zu entfernen.
 
 | Komponente | Realer Buildkontext, den eine vollständige Datenbank erhalten muss |
 | --- | --- |
@@ -178,6 +194,8 @@ Jobs sind entfernt.
 
 ## CI, Tests und Coverage
 
+Die folgenden Collector-Details beschreiben den erhaltenen ausdrücklichen `--on-demand`-Pfad, keine automatische CI-Katalogausführung. Quellanalyse und Gate-Warten laufen unabhängig weiter.
+
 Der Workflow checkt `${{ github.event.pull_request.head.sha || github.sha }}`
 mit vollständiger Historie aus und verwendet diese Revision für
 `sonar.scm.revision`. Das bestehende `SONAR_TOKEN` steht nur dem Scanner-Schritt
@@ -185,13 +203,13 @@ zur Verfügung. Fork-PRs erhalten es nicht; es wird keine privilegierte
 `pull_request_target`-Ausführung eingeführt.
 
 Testklassifikation, Testausführung, Coverage-Erzeugung und Analyzer-Import
-bleiben getrennte Vorgänge. `ci/checks/analysis/run-sonar-coverage.py` erzeugt
+bleiben getrennte Vorgänge. Mit ausdrücklichem `--on-demand` erzeugt `ci/checks/analysis/run-sonar-coverage.py`
 echte Reports in frischen Sprachverzeichnissen unter einer externen
 `--output-root`. Das Werkzeug erfasst den SHA, prüft die Stabilität des Checkouts
 und verlangt für CI einen sauberen Checkout. `--allow-dirty` dient nur der
 lokalen Entwicklung und kennzeichnet Reports mit nicht committeten Änderungen.
-Leere Ersatzreports oder Coverage-Ausschlüsse verdecken keine
-Produktivcode-Lücken. Eine kurze externe `--temp-root` vermeidet
+Leere Ersatzreports werden nicht erzeugt. Die ausdrückliche reine Coverage-Abwahl
+oben erhält die Analyse produktiver Sources. Eine kurze externe `--temp-root` vermeidet
 Unix-Socket-Pfadgrenzen in Tests.
 
 Python verwendet die bestehende Hash-gepinnte Dependency `coverage==7.17.0` in
@@ -242,7 +260,8 @@ Nullwerte sowie 71 gcov-Reports über 62 Repository-Dateien einschließlich alle
 27,5 %, 65,3 %, 69,0 % und 61,6 % in Tabellenreihenfolge. Wiederholte
 Go-Blockzeilen verschiedener Testbinärdateien müssen zusammengeführt statt
 addiert werden. Diese Beobachtungen verwendeten lokal Python `3.14.4` und Go
-`1.27.3`; CI bleibt auf Python `3.14.7` und Go `1.27.1` gepinnt. Das sind
+`1.27.3`; jene PR-#421-Source verwendete die CI-Pins Python `3.14.7` und
+Go `1.27.1`. Die PR-#382-Integrationspins stehen oben. Das sind
 Entwicklungsnachweise, kein Import- oder Gate-Nachweis des finalen Commits.
 
 Die Auswahl führt nicht jeden Parent-Test, jede Plattform,
@@ -282,7 +301,7 @@ Der Workflow folgt der [offiziellen Scan-Action-Schnittstelle](https://github.co
 | --- | --- |
 | C / C++ | Unterstützte AutoConfig-Include-Einstellungen und nativer `.gcov`-Import; partielle Compilation Databases ersetzen nicht den vollständigen Parent-Scope. AutoConfig kann keine C/C++-Taintanalyse liefern. |
 | Go | Die gepinnte Go-1.27-Toolchain wird unterstützt. Jedes Modul behält sein `go.mod`, die `*_test.go`-Klassifizierung und vor dem Scan erzeugte Standardreports aus `-coverprofile`. |
-| Python | `sonar.python.version=3.14` verwendet Major.Minor; echte Cobertura-XML nutzt relative Quelldateinamen sowie Branch- und Subprozess-Messung. |
+| Python | `sonar.python.version=3.15` verwendet Major.Minor; echte Cobertura-XML nutzt relative Quelldateinamen sowie Branch- und Subprozess-Messung. |
 | Shell | Bash und POSIX sind die offiziell unterstützten Dialekte. Tatsächliche Shebangs, `.sh`-/`.bash`-Quellscope und Verhaltensprüfungen erhalten; lokale Syntaxerfolge beweisen kein Sonar-Parsing. |
 | Workflows / JSON / YAML | Dedizierte Actions-Analyse und dokumentiertes generisches JSON-/YAML-Opt-in bleiben aktiviert; negative Workflow-Fixtures behalten ihre eng begrenzte Behandlung. |
 

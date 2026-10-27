@@ -29,9 +29,9 @@
 #ifndef MSCONNECTOR_TEST_TEMPORARY_DIRECTORY
 #define MSCONNECTOR_TEST_TEMPORARY_DIRECTORY "/tmp"
 #endif
-#define TEST_TRANSPORT_OPTIONS(connector, socket, headers, bytes, body, timeout) \
+#define TEST_TRANSPORT_OPTIONS(connector, socket, headers, bytes, timeout) \
     (&(msconnector_response_companion_transport_options){ \
-        (connector), (socket), (headers), (bytes), (body), (timeout) })
+        (connector), (socket), (headers), (bytes), (timeout) })
 
 static char test_private_root[TEST_PATH_SIZE];
 
@@ -104,6 +104,7 @@ typedef struct mock_backend {
     const char *handle;
     int retain_terminal_opaque;
     int use_borrowed_decision;
+    int accept_any_outcome;
     int pause_headers;
     atomic_int pause_cancel;
     atomic_int cancel_started;
@@ -123,7 +124,6 @@ typedef struct mock_transport_setup {
     const char *label;
     size_t max_header_count;
     size_t max_header_bytes;
-    size_t max_response_body_bytes;
     unsigned timeout_ms;
     void (*expire)(void *, uint64_t);
 } mock_transport_setup;
@@ -134,7 +134,7 @@ typedef struct mock_transport_setup {
         .handle = (handle_value), .directory_template = (directory_value), \
         .label = (label_value), \
         .max_header_count = 32U, .max_header_bytes = 64U, \
-        .max_response_body_bytes = 8U, .timeout_ms = (timeout_value), \
+        .timeout_ms = (timeout_value), \
         .expire = (expire_value) })
 
 typedef struct transport_stop_call {
@@ -445,7 +445,8 @@ static int finish_normal(int socket_fd)
 }
 
 static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
-    char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE])
+    char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE],
+    size_t engine_response_limit, const char *engine_response_limit_action)
 {
     const char *directory = test_private_directory();
     FILE *config;
@@ -467,7 +468,11 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     assert(close(event_fd) == 0);
     rules = fdopen(rules_fd, "w");
     assert(rules != NULL);
+    assert(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
+        engine_response_limit, engine_response_limit_action) > 0);
     assert(fputs("SecRuleEngine On\n"
+        "SecResponseBodyAccess On\n"
+        "SecResponseBodyMimeType text/plain\n"
         "SecRule RESPONSE_HEADERS:X-Mrc-Block \"@streq yes\" "
         "\"id:1200901,phase:3,deny,status:451,log,t:none\"\n", rules) != EOF);
     assert(fclose(rules) == 0);
@@ -479,8 +484,6 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
         "transaction_id_header=x-request-id\n"
         "request_body_mode=none\n"
         "response_body_mode=streaming\n"
-        "request_body_limit=1024\n"
-        "response_body_limit=8\n"
         "phase4_mode=safe\n"
         "default_block_status=403\n"
         "default_error_status=500\n"
@@ -542,9 +545,12 @@ static void run_client_transport_interop_test(msconnector_runtime *runtime,
     assert((fcntl(client.socket_fd, F_GETFD) & FD_CLOEXEC) != 0);
     assert(msconnector_response_companion_client_claim(&client, first_handle,
         &result, &error));
+    assert(!msconnector_response_companion_client_release(&client, &result, &error));
+    assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
     assert(msconnector_response_companion_client_response_headers(&client,
         &response, &result, &error));
     assert(result.decision == MSCONNECTOR_DECISION_KIND_ALLOW);
+    assert(!msconnector_response_companion_client_release(&client, &result, &error));
     assert(!msconnector_response_companion_client_response_headers(&client,
         &response, &result, &error));
     assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
@@ -565,10 +571,12 @@ static void run_client_transport_interop_test(msconnector_runtime *runtime,
     assert(msconnector_response_companion_client_response_headers(&client,
         &response, &result, &error));
     assert(result.decision == MSCONNECTOR_DECISION_KIND_DENY);
+    assert(!msconnector_response_companion_client_release(&client, &result, &error));
     assert(msconnector_response_companion_client_outcome(&client,
         MSCONNECTOR_DECISION_ACTION_DENY, 451, 0, &result, &error));
-    assert(msconnector_response_companion_client_cancel(&client, 0, &result,
+    assert(msconnector_response_companion_client_release(&client, &result,
         &error));
+    assert(!client.claimed && !client.outcome_recorded && !client.precommit_terminal_outcome);
     handoff(runtime, registry, "mrc1-client-interop-typed-cancel", third_handle);
     assert(msconnector_response_companion_client_claim(&client, third_handle,
         &result, &error));
@@ -698,6 +706,7 @@ static int mock_backend_process_response_headers(void *opaque,
     } else {
         msconnector_decision_set_allow(decision);
     }
+    decision->phase = MSCONNECTOR_PHASE_RESPONSE_HEADERS;
     return 1;
 }
 
@@ -786,7 +795,7 @@ static int mock_backend_record_host_action(void *opaque,
     }
     assert(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
-        ((backend->use_borrowed_decision &&
+        (backend->accept_any_outcome || (backend->use_borrowed_decision &&
             action->decision->kind == MSCONNECTOR_DECISION_KIND_DENY &&
             action->actual_action == MSCONNECTOR_DECISION_ACTION_DENY &&
             action->visible_http_status == 451 && !action->connection_aborted &&
@@ -847,7 +856,8 @@ static int mock_backend_release(void *opaque,
     }
     assert(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
-        backend->response_eos) {
+        (backend->response_eos || (backend->accept_any_outcome &&
+         backend->use_borrowed_decision && backend->response_headers))) {
         backend->observation.active = 0;
         backend->observation.releases++;
         if (!backend->retain_terminal_opaque) {
@@ -958,8 +968,65 @@ static void setup_mock_transport(msconnector_response_companion_transport *trans
     assert(msconnector_response_companion_transport_init_with_backend(transport,
         vtable, TEST_TRANSPORT_OPTIONS(setup->label, socket_path,
             setup->max_header_count, setup->max_header_bytes,
-            setup->max_response_body_bytes, setup->timeout_ms), &error));
+            setup->timeout_ms), &error));
     assert(msconnector_response_companion_transport_start(transport, &error));
+}
+
+static void run_precommit_outcome_release_mismatch_test(void)
+{
+    static const char handle[] =
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const msconnector_decision_action actions[] = {
+        MSCONNECTOR_DECISION_ACTION_ALLOW, MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
+        MSCONNECTOR_DECISION_ACTION_DENY};
+    msconnector_response_companion_backend vtable;
+    msconnector_response_companion_transport transport;
+    mock_backend backend = {0};
+    char directory[TEST_PATH_SIZE];
+    char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
+    unsigned char headers[128];
+    msconnector_response response = {.status = 200, .http_version = "HTTP/1.1"};
+    msconnector_error error;
+    backend.use_borrowed_decision = 1;
+    /* Mirror a metadata-only owner callback: ACK alone is not sufficient
+     * proof that the actual host observation matches native P3 deny. */
+    backend.accept_any_outcome = 1;
+    setup_mock_transport(&transport, &vtable, &backend,
+        TEST_MOCK_TRANSPORT_SETUP(handle, "mrm.XXXXXX", "outcome-match", 1000U, NULL),
+        directory, socket_path);
+    mock_backend_set_borrowed_rule(&backend, "borrowed-original");
+    for (size_t index = 0; index < sizeof(actions) / sizeof(actions[0]); ++index) {
+        const int status = index == 2U ? 403 : 451;
+        msconnector_response_companion_client client = {0};
+        msconnector_response_companion_result result = {0};
+        msconnector_error_init(&error);
+        assert(msconnector_response_companion_client_open(&client, socket_path,
+            1000U, geteuid(), getegid(), &error));
+        assert(msconnector_response_companion_client_claim(&client, handle, &result, &error));
+        assert(msconnector_response_companion_client_response_headers(&client, &response, &result, &error));
+        assert(result.decision == MSCONNECTOR_DECISION_KIND_DENY && result.status == 451);
+        assert(msconnector_response_companion_client_outcome(&client, actions[index], status, 0, &result, &error));
+        assert(!msconnector_response_companion_client_release(&client, &result, &error));
+        assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+        assert(msconnector_response_companion_client_cancel(&client, 0, &result, &error));
+        msconnector_response_companion_result_destroy(&result);
+        assert(msconnector_response_companion_client_close(&client, &error));
+
+        test_result raw;
+        const unsigned char outcome[4] = {(unsigned char)actions[index], 0U,
+            (unsigned char)(status >> 8), (unsigned char)status};
+        const int fd = connect_client(socket_path);
+        assert(claim(fd, handle));
+        assert(exchange(fd, TEST_RESPONSE_HEADERS, headers,
+            build_headers(headers, sizeof(headers), 200, NULL, NULL), &raw) && raw.success);
+        assert(exchange(fd, TEST_OUTCOME, outcome, sizeof(outcome), &raw) && raw.success);
+        assert(exchange(fd, TEST_RELEASE, NULL, 0U, &raw));
+        assert(!raw.success && raw.error_code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+        assert(close(fd) == 0);
+    }
+    assert(msconnector_response_companion_transport_stop(&transport, &error));
+    assert(pthread_mutex_destroy(&backend.lock) == 0);
+    assert(rmdir(directory) == 0);
 }
 
 static void run_response_header_wire_capacity_test(void)
@@ -972,7 +1039,6 @@ static void run_response_header_wire_capacity_test(void)
         .label = "header-capacity-test",
         .max_header_count = MSCONNECTOR_MAX_HEADER_COUNT,
         .max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES,
-        .max_response_body_bytes = 8U,
         .timeout_ms = 100U,
         .expire = NULL
     };
@@ -1061,7 +1127,6 @@ static void run_response_header_count_contract_test(void)
         .label = "header-count-test",
         .max_header_count = MSCONNECTOR_MAX_HEADER_COUNT,
         .max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES,
-        .max_response_body_bytes = 8U,
         .timeout_ms = 100U,
         .expire = NULL
     };
@@ -1102,7 +1167,7 @@ static void run_response_header_count_contract_test(void)
         &invalid_transport, &backend_vtable,
         TEST_TRANSPORT_OPTIONS("invalid-header-count", socket_path,
             MSCONNECTOR_MAX_HEADER_COUNT + 1U,
-            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 8U, 100U), &error));
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
 
     memset(&invalid_transport, 0, sizeof(invalid_transport));
@@ -1111,7 +1176,7 @@ static void run_response_header_count_contract_test(void)
         &invalid_transport, &backend_vtable,
         TEST_TRANSPORT_OPTIONS("invalid-header-bytes", socket_path,
             MSCONNECTOR_MAX_HEADER_COUNT,
-            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U, 8U, 100U), &error));
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
 
     memset(&invalid_transport, 0, sizeof(invalid_transport));
@@ -1120,7 +1185,7 @@ static void run_response_header_count_contract_test(void)
         &invalid_transport, &backend_vtable,
         TEST_TRANSPORT_OPTIONS("start-header-bytes", socket_path,
             MSCONNECTOR_MAX_HEADER_COUNT,
-            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 8U, 100U), &error));
+            MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, 100U), &error));
     invalid_transport.config.max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES + 1U;
     msconnector_error_init(&error);
     assert(!msconnector_response_companion_transport_start(&invalid_transport, &error));
@@ -1198,7 +1263,7 @@ static void run_explicit_backend_contract_test(void)
     char socket_directory[TEST_PATH_SIZE];
     char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
     unsigned char headers[128];
-    unsigned char too_large_body[9] = {0};
+    unsigned char too_large_body[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK + 1U] = {0};
     test_result result;
     int socket_fd;
 
@@ -1233,6 +1298,19 @@ static void run_explicit_backend_contract_test(void)
      * second action/event. */
     assert(exchange(socket_fd, TEST_OUTCOME,
         (const unsigned char *)"\0\0\0\310", 4U, &result));
+    assert(!result.success && result.error_code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
+    assert(close(socket_fd) == 0);
+
+    /* Even an acknowledged Allow OUTCOME cannot authorize early RELEASE. */
+    socket_fd = connect_client(socket_path);
+    assert(claim(socket_fd, handle));
+    assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, headers,
+        build_headers(headers, sizeof(headers), 200, NULL, NULL), &result));
+    assert(result.success && result.decision == MSCONNECTOR_DECISION_KIND_ALLOW);
+    assert(exchange(socket_fd, TEST_OUTCOME,
+        (const unsigned char *)"\0\0\0\310", 4U, &result));
+    assert(result.success);
+    assert(exchange(socket_fd, TEST_RELEASE, NULL, 0U, &result));
     assert(!result.success && result.error_code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
     assert(close(socket_fd) == 0);
 
@@ -1289,17 +1367,17 @@ static void run_explicit_backend_contract_test(void)
     assert(msconnector_response_companion_transport_stop(&transport, &error));
     assert(access(socket_path, F_OK) != 0);
     mock_backend_snapshot(&backend, &observation);
-    assert(observation.claims == 7U);
-    assert(observation.response_headers == 4U);
+    assert(observation.claims == 8U);
+    assert(observation.response_headers == 5U);
     assert(observation.response_body_chunks == 1U);
     assert(observation.response_body_bytes == 3U);
     assert(observation.response_eos == 2U);
     assert(observation.commits == 3U);
-    assert(observation.outcomes == 1U);
+    assert(observation.outcomes == 2U);
     assert(observation.cancels == 1U);
     assert(observation.releases == 2U);
-    assert(observation.failures == 4U);
-    assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
+    assert(observation.failures == 5U);
+    assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
     assert(!observation.active);
     assert(pthread_mutex_destroy(&backend.lock) == 0);
     assert(rmdir(socket_directory) == 0);
@@ -1681,30 +1759,30 @@ static void run_transport_startup_helper_contract_test(void)
     msconnector_error_init(&error);
     assert(!msconnector_response_companion_transport_ensure_started(NULL, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
     assert(!initialized && !ready);
     assert(!msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &inconsistent_initialized, &inconsistent_ready,
-        TEST_TRANSPORT_OPTIONS("startup-test", socket_path, 32U, 64U, 8U, 100U),
+        TEST_TRANSPORT_OPTIONS("startup-test", socket_path, 32U, 64U, 100U),
         &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
     assert(!inconsistent_initialized && inconsistent_ready);
     assert(!msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", "",
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_INVALID_CONFIG);
     assert(!initialized && !ready);
 
     assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(initialized && ready);
     listener_fd = transport.listener.listener_fd;
     assert(listener_fd >= 0);
     assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(transport.listener.listener_fd == listener_fd);
 
     /* A terminal poll path leaves the old descriptor invalid and ends the
@@ -1714,7 +1792,7 @@ static void run_transport_startup_helper_contract_test(void)
     wait_for_listener_stop(&transport);
     assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(atomic_load_explicit(&transport.listener.running, memory_order_acquire));
     recovery_fd = connect_client(socket_path);
     assert(close(recovery_fd) == 0);
@@ -1728,7 +1806,7 @@ static void run_transport_startup_helper_contract_test(void)
     assert(!msconnector_response_companion_transport_ensure_started(&failed_transport,
         &registry, &failed_initialized, &failed_ready,
         TEST_TRANSPORT_OPTIONS("startup-failed", blocked_socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
     assert(failed_initialized && !failed_ready);
     assert(msconnector_response_companion_transport_stop(&failed_transport, &error));
@@ -1747,7 +1825,7 @@ static void run_transport_startup_helper_contract_test(void)
     assert(!msconnector_response_companion_transport_ensure_started(
         &unsafe_ancestor_transport, &registry, &unsafe_initialized, &unsafe_ready,
         TEST_TRANSPORT_OPTIONS("startup-unsafe-ancestor", unsafe_socket_path,
-            32U, 64U, 8U, 100U), &error));
+            32U, 64U, 100U), &error));
     assert(error.code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
     assert(unsafe_initialized && !unsafe_ready);
     assert(msconnector_response_companion_transport_stop(
@@ -1791,7 +1869,7 @@ int main(void)
     unsigned char body[9] = {0};
 
     run_transport_startup_helper_contract_test();
-    create_runtime_fixture(config_path, event_path, rules_path);
+    create_runtime_fixture(config_path, event_path, rules_path, 1048576U, "Reject");
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
     assert(msconnector_runtime_set_transaction_profile(runtime,
@@ -1810,7 +1888,7 @@ int main(void)
     }
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_init(&transport, &registry,
-        TEST_TRANSPORT_OPTIONS("envoy", socket_path, 32U, 64U, 8U, 50U), &error));
+        TEST_TRANSPORT_OPTIONS("envoy", socket_path, 32U, 64U, 50U), &error));
     assert(msconnector_response_companion_transport_start(&transport, &error));
 
     handoff(runtime, &registry, "opaque-a", first_handle);
@@ -1893,7 +1971,7 @@ int main(void)
     assert(exchange(socket_fd, TEST_RESPONSE_BODY, body, 5U, &result));
     assert(result.success);
     assert(exchange(socket_fd, TEST_RESPONSE_BODY, body + 5U, 4U, &result));
-    assert(!result.success);
+    assert(result.success);
     assert(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "timeout", sixth_handle);
@@ -1917,10 +1995,26 @@ int main(void)
     assert(result.status == 0U);
     assert(close(socket_fd) == 0);
 
-    /* A P3 deny becomes terminal before the host reports its actual deny
-     * action.  OUTCOME followed by CANCEL must release the single claim as
-     * successful cleanup rather than turning the valid deny into a protocol
-     * error. */
+    /* Raw peers cannot RELEASE a CLAIM, P3 Allow, or unacknowledged P3 deny.
+     * These are independently enforced server obligations. */
+    for (int stage = 0; stage < 3; ++stage) {
+        handoff(runtime, &registry, "early-release-negative", sixth_handle);
+        socket_fd = connect_client(socket_path);
+        assert(claim(socket_fd, sixth_handle));
+        if (stage > 0) {
+            assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, headers,
+                build_headers(headers, sizeof(headers), 200,
+                    stage == 2 ? "X-Mrc-Block" : NULL,
+                    stage == 2 ? "yes" : NULL), &result));
+            assert(result.success);
+        }
+        assert(exchange(socket_fd, TEST_RELEASE, NULL, 0U, &result));
+        assert(!result.success);
+        assert(close(socket_fd) == 0);
+    }
+
+    /* A P3 deny is terminal before its actual host outcome. OUTCOME followed
+     * by RELEASE performs successful policy cleanup with no typed CANCEL. */
     handoff(runtime, &registry, "p3-terminal", sixth_handle);
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, sixth_handle));
@@ -1932,7 +2026,7 @@ int main(void)
     assert(exchange(socket_fd, TEST_OUTCOME,
         (const unsigned char *)"\1\0\1\303", 4U, &result));
     assert(result.success);
-    assert(exchange(socket_fd, TEST_CANCEL, (const unsigned char *)"\0", 1U,
+    assert(exchange(socket_fd, TEST_RELEASE, NULL, 0U,
         &result));
     assert(result.success);
     assert(result.decision == MSCONNECTOR_DECISION_KIND_ERROR);
@@ -1966,6 +2060,7 @@ int main(void)
     msconnector_runtime_destroy(&runtime);
     assert_metadata_only_events(event_path);
     run_explicit_backend_contract_test();
+    run_precommit_outcome_release_mismatch_test();
     run_response_header_wire_capacity_test();
     run_response_header_count_contract_test();
     run_backend_fault_claim_race_test();

@@ -61,7 +61,7 @@ class ResponseHandleContractTest(unittest.TestCase):
     def test_typed_cancel_preserves_the_source_error_while_using_a_separate_io_error(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
         start = source.index(
-            "static void haproxy_modsecurity_htx_companion_cancel_and_close("
+            "static int haproxy_modsecurity_htx_companion_cancel_and_close("
         )
         end = source.index("\n}\n", start) + 3
         helper = source[start:end]
@@ -128,7 +128,7 @@ class ResponseHandleContractTest(unittest.TestCase):
         source = SOURCE.read_text(encoding="utf-8")
         self.assertIn('host_action = action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY', source)
         self.assertIn('? "log_only" : "abort_connection"', source)
-        self.assertIn('"response body strict intervention"', source)
+        self.assertIn("if (late_action != MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY)", source)
         self.assertIn("MSCONNECTOR_PHASE4_MODE_STRICT", source)
         self.assertIn("stream_shutdown(s, SF_ERR_KILLED)", source)
 
@@ -194,7 +194,11 @@ class ResponseHandleContractTest(unittest.TestCase):
         self.assertIn("DECISION_ACTION_ABORT_CONNECTION", companion_finish)
         self.assertIn("connection_aborted = actual_action ==", companion_finish)
         self.assertIn("record_host_action", companion_finish)
-        self.assertIn("stream_shutdown(s, SF_ERR_KILLED)", companion_finish)
+        self.assertIn("if (connection_aborted)", companion_finish)
+        self.assertIn("haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,", companion_finish)
+        start = source.index("static void haproxy_modsecurity_htx_fail_closed_postcommit(")
+        end = source.index("\n}\n", start) + 3
+        self.assertIn("stream_shutdown(s, SF_ERR_KILLED)", source[start:end])
 
 
     def test_spop_ack_registers_response_handle(self) -> None:
@@ -204,6 +208,13 @@ class ResponseHandleContractTest(unittest.TestCase):
             harness,
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

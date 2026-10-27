@@ -868,7 +868,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         rendered = SYNC._render_targets(self.root, SYNC.parse_common(self.common), NEW_FRAMEWORK_SHA)
         lock = self.root / "ci/tooling/project-versions.lock.json"
         payload = json.loads(lock.read_bytes())
-        payload["python_version"] = "3.14.8"
+        payload["python_version"] = "3.15.8"
         lock.write_text(json.dumps(payload, indent=2) + "\n")
         before = self.all_target_bytes()
         with self.assertRaisesRegex(SYNC.SyncError, "changed concurrently"):
@@ -892,6 +892,13 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
         fcntl.flock(competing, fcntl.LOCK_UN)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

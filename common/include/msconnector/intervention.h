@@ -14,6 +14,9 @@ extern "C" {
 #define MSCONNECTOR_REQUEST_BODY_LIMIT_REJECTION_LOG \
     "Request body limit is marked to reject the request"
 
+#define MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG \
+    "Response body limit is marked to reject the request"
+
 typedef struct msconnector_intervention {
     int disruptive;
     int status;
@@ -38,6 +41,11 @@ int msconnector_intervention_has_redirect_url(const char *redirect_url);
  * signature.  This deliberately does not broaden ordinary rule-ID validation
  * for other disruptive interventions. */
 int msconnector_intervention_is_request_body_limit_rejection(
+    enum msconnector_phase phase,
+    const msconnector_intervention *intervention);
+
+/* Exact native P4 Reject signature; no connector response size policy. */
+int msconnector_intervention_is_response_body_limit_rejection(
     enum msconnector_phase phase,
     const msconnector_intervention *intervention);
 

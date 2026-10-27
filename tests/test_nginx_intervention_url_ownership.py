@@ -21,15 +21,31 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
             module, "ngx_http_modsecurity_process_redirect_intervention"
         )
 
-    def test_intervention_is_initialized_and_cleaned_once(self) -> None:
+    def test_intervention_ownership_transfer_and_final_cleanup(self) -> None:
         self.assertIn("ngx_memzero(&intervention, sizeof(intervention));", self.intervention)
         self.assertIn("intervention.status = 200;", self.intervention)
         self.assertNotIn("free(intervention.log)", self.intervention)
+        # EOS may replace its result with the previously captured native owner.
+        # That result is released before the move; only the moved owner reaches
+        # the final cleanup after all extraction and host delivery decisions.
+        transfer = """if (ctx->native_event_phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+        ctx->request_intervention_pending) {
+        msc_intervention_cleanup(&intervention);
+        intervention = ctx->pending_request_intervention;
+        ngx_memzero(&ctx->pending_request_intervention,
+            sizeof(ctx->pending_request_intervention));
+        ctx->request_intervention_pending = 0;
+        native_result = 1;
+    }"""
+        self.assertIn(transfer, self.intervention)
         self.assertEqual(
-            self.intervention.count("msc_intervention_cleanup(&intervention);"), 1
+            self.intervention.count("msc_intervention_cleanup(&intervention);"), 2
+        )
+        self.assertEqual(
+            self.intervention.replace(transfer, "").count("msc_intervention_cleanup(&intervention);"), 1
         )
 
-        cleanup = self.intervention.index("msc_intervention_cleanup(&intervention);")
+        cleanup = self.intervention.rindex("msc_intervention_cleanup(&intervention);")
         self.assertNotIn("intervention.url", self.intervention[cleanup:])
         self.assertNotIn("intervention.log", self.intervention[cleanup:])
         self.assertEqual(
@@ -45,7 +61,7 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
         call = self.intervention.index(
             "result = ngx_http_modsecurity_process_redirect_intervention"
         )
-        cleanup = self.intervention.index("msc_intervention_cleanup(&intervention);")
+        cleanup = self.intervention.rindex("msc_intervention_cleanup(&intervention);")
         self.assertLess(call, cleanup)
         self.assertIn("goto cleanup;", self.intervention[call:cleanup])
 
@@ -118,6 +134,13 @@ class NginxInterventionUrlOwnershipTests(unittest.TestCase):
         self.assertLess(retained_status, redirect)
         self.assertLess(redirect, status)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

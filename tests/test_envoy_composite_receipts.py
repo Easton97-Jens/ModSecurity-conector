@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import json
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -63,6 +69,59 @@ class EnvoyCompositeReceiptContractTest(unittest.TestCase):
         self.assertIn('"shared_verifier_summary_artifact": verifier_summary_artifact', source)
         self.assertIn('"shared_verifier_status": verifier_status', source)
 
+    def test_native_oversize_uses_a_complete_sample_within_host_capacity(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        invocation = next(line for line in source.splitlines() if line.startswith("run_case p2_oversize "))
+        arguments = shlex.split(invocation)
+        template = (ROOT / "connectors/envoy/config/envoy-ext-authz-composite.yaml.in").read_text()
+        rules = (ROOT / "common/rules/modsecurity_p1_p4_vectors.conf").read_text()
+        host_capacity = int(re.search(r"max_request_bytes: (\d+)", template).group(1))
+        native_limit = int(re.search(r"^SecRequestBodyLimit (\d+)$", rules, re.MULTILINE).group(1))
+        self.assertEqual(arguments[5], "Content-Type: text/plain")
+        self.assertEqual(len(arguments[6].encode("ascii")), 33)
+        self.assertGreater(len(arguments[6]), native_limit)
+        self.assertLessEqual(len(arguments[6]), host_capacity)
+        self.assertIn("allow_partial_message: false", template)
+        self.assertIn("SecRequestBodyNoFilesLimit 32", rules)
+        self.assertIn("SecRequestBodyLimitAction Reject", rules)
+
+    def test_companion_shutdown_validator_requires_one_closed_restart(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        validator = source.split("check_event_log() {", 1)[1].split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        base = {
+            "decision_id": "server-generated-test-decision",
+            "connector": "envoy", "phase": "terminal", "outcome": "closed",
+            "reason": "restart", "cleanup_outcome": "closed",
+            "event_time": "2026-10-11T00:00:00Z",
+            "request_path": "envoy.ext_authz", "response_path": "envoy.ext_proc",
+            "transport": "envoy_ext_authz_ext_proc_grpc",
+        }
+        cases = {
+            "closed_restart": [base],
+            "failed_cleanup": [dict(base, cleanup_outcome="failed")],
+            "failed_outcome": [dict(base, outcome="failed")],
+            "wrong_cause": [dict(base, reason="timeout")],
+            "duplicate_terminal": [base, base],
+        }
+        self.assertIn('[ "$observed_status" = 500 ] || fail "unavailable companion did not retain native Envoy error status"', source)
+        for name, events in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                event_path = Path(temporary) / "events.jsonl"
+                output_path = Path(temporary) / "structural.json"
+                event_path.write_text("".join(json.dumps(event) + "\n" for event in events))
+                event_path.chmod(0o600)
+                result = subprocess.run(
+                    [sys.executable, "-c", validator, str(event_path), str(output_path), "companion_unavailable"],
+                    text=True, capture_output=True, check=False,
+                )
+                if name == "closed_restart":
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertTrue(output_path.is_file())
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("one successful native restart cleanup", result.stderr)
+                    self.assertFalse(output_path.exists())
+
     def test_structural_verifier_status_and_payload_free_contract_remain_conservative(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
 
@@ -77,6 +136,13 @@ class EnvoyCompositeReceiptContractTest(unittest.TestCase):
         for forbidden in ("request_body", "response_body", "opaque_handle"):
             self.assertNotIn(f'"{forbidden}"', source)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

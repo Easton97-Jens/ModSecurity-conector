@@ -40,6 +40,14 @@ def write_executable(path: Path, content: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
+def isolated_make_environment(environment: dict[str, str]) -> dict[str, str]:
+    """Keep outer Make assignments from overriding deliberate fixture bindings."""
+    result = environment.copy()
+    for variable in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS"):
+        result.pop(variable, None)
+    return result
+
+
 class OptionalPrerequisiteStatusTests(unittest.TestCase):
     maxDiff = None
 
@@ -287,7 +295,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env=environment,
+                env=isolated_make_environment(environment),
             )
             record = json.loads(status_file.read_text(encoding="utf-8"))
 
@@ -391,7 +399,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env=environment,
+                env=isolated_make_environment(environment),
             )
             record = json.loads(status_file.read_text(encoding="utf-8"))
 
@@ -437,7 +445,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env=environment,
+                env=isolated_make_environment(environment),
             )
             record = json.loads(status_file.read_text(encoding="utf-8"))
 
@@ -501,7 +509,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env=environment,
+                env=isolated_make_environment(environment),
             )
             record = json.loads(status_file.read_text(encoding="utf-8"))
 
@@ -761,7 +769,7 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env=environment,
+                env=isolated_make_environment(environment),
             )
             record = json.loads(status_file.read_text(encoding="utf-8"))
 
@@ -774,6 +782,13 @@ class OptionalPrerequisiteStatusTests(unittest.TestCase):
         self.assertTrue(record["allowed_by_contract"])
         self.assertEqual(record["status_source"], "parent_preflight")
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

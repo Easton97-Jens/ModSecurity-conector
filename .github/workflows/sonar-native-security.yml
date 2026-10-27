@@ -1,0 +1,181 @@
+name: Native target Sonar security
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: sonar-native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  NATIVE_CI_ROOT: /var/tmp/codex/ModSecurity-conector/sonar-native-${{ github.run_id }}-${{ github.run_attempt }}
+  ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  PYTHONDONTWRITEBYTECODE: "1"
+  GOTOOLCHAIN: local
+  GOWORK: "off"
+
+jobs:
+  sdk:
+    outputs:
+      artifact_id: ${{ steps.upload-sdk.outputs.artifact-id }}
+      producer_root: ${{ steps.prepare-sdk.outputs.producer_root }}
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install canonical SDK build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config bison flex libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+      - name: Build and package the canonical shared SDK without runtime execution
+        id: prepare-sdk
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 ci/checks/analysis/prepare-sonar-native-ci.py sdk \
+            --root "$NATIVE_CI_ROOT" --revision "$ANALYZED_SHA" \
+            --transfer "$RUNNER_TEMP/native-sdk-transfer"
+          printf 'producer_root=%s\n' "$NATIVE_CI_ROOT" >> "$GITHUB_OUTPUT"
+      - name: Transfer only the same-run SDK and provenance
+        id: upload-sdk
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-sdk-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-sdk-transfer/sdk.tar.gz
+            ${{ runner.temp }}/native-sdk-transfer/sdk-metadata.json
+          if-no-files-found: error
+          retention-days: 1
+
+  native:
+    needs: sdk
+    name: Native security (${{ matrix.target }})
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - target: traefik-engine-service
+            project: Easton97-Jens_ModSecurity-conector_native_traefik_engine_service
+          - target: haproxy-spoa-runtime
+            project: Easton97-Jens_ModSecurity-conector_native_haproxy_spoa_runtime
+          - target: apache-native-module
+            project: Easton97-Jens_ModSecurity-conector_native_apache_native_module
+          - target: haproxy-htx
+            project: Easton97-Jens_ModSecurity-conector_native_haproxy_htx
+          - target: envoy-ext-proc
+            project: Easton97-Jens_ModSecurity-conector_native_envoy_ext_proc
+          - target: envoy-composite
+            project: Easton97-Jens_ModSecurity-conector_native_envoy_composite
+          - target: lighttpd-patched-module
+            project: Easton97-Jens_ModSecurity-conector_native_lighttpd_patched_module
+          - target: nginx-dynamic-module
+            project: Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module
+          - target: lighttpd-stock-sidecar
+            project: Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar
+          - target: envoy-ext-authz
+            project: Easton97-Jens_ModSecurity-conector_native_envoy_ext_authz
+          - target: traefik-forwardauth
+            project: Easton97-Jens_ModSecurity-conector_native_traefik_forwardauth
+          - target: common-targeted-evaluator
+            project: Easton97-Jens_ModSecurity-conector_native_common_targeted_evaluator
+    env:
+      NATIVE_CI_ROOT: ${{ needs.sdk.outputs.producer_root }}
+      NATIVE_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Set up canonical Go for native CGo producers
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Install actual native producer prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev autoconf automake libtool pkg-config bison flex libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+      - name: Receive only the current run SDK
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.sdk.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/native-sdk-transfer
+      - name: Capture the real target and prepare its exact Parent source scope
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 ci/checks/analysis/prepare-sonar-native-ci.py analyze \
+            --root "$NATIVE_CI_ROOT" --revision "$ANALYZED_SHA" \
+            --transfer "$RUNNER_TEMP/native-sdk-transfer" --target "$NATIVE_TARGET"
+      - name: Analyze the actual target and wait for its terminal Quality Gate
+        id: scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_SCANNER_JAVA_OPTS: -Xmx2g
+          SONAR_USER_HOME: ${{ runner.temp }}/native-sonar-cache
+        with:
+          scannerVersion: 8.2.0.6438
+          args: >-
+            -Dproject.settings=${{ env.NATIVE_CI_ROOT }}/native.properties
+            -Dsonar.projectKey=${{ matrix.project }}
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Report only the observed server task identity
+        if: always()
+        run: |
+          python3 ci/checks/analysis/prepare-sonar-native-ci.py report \
+            --root "$NATIVE_CI_ROOT" --revision "$ANALYZED_SHA" --target "$NATIVE_TARGET"

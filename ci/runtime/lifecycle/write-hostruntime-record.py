@@ -13,6 +13,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -24,8 +25,10 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
 from runtime_path_utils import (
+    open_runtime_artifact_parent,
     prepare_verified_runtime_artifact_root,
     read_runtime_artifact_text,
+    require_regular_runtime_artifact,
     runtime_artifact_path,
     write_runtime_artifact_text_atomic,
 )
@@ -103,8 +106,26 @@ def relative_declared_artifact(
 
 
 def artifact_sha256(runtime_root: Path, path: Path, label: str) -> str:
-    data = read_runtime_artifact_text(runtime_root, path, label).encode("utf-8")
-    return hashlib.sha256(data).hexdigest()
+    """Hash original artifact bytes through the existing safe read boundary."""
+    target = runtime_artifact_path(runtime_root, path, label, must_exist=True)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise ValueError("safe runtime artifact reads require O_NOFOLLOW")
+    parent_descriptor = open_runtime_artifact_parent(target)
+    descriptor = -1
+    try:
+        descriptor = os.open(target.name, os.O_RDONLY | no_follow, dir_fd=parent_descriptor)
+        require_regular_runtime_artifact(descriptor, label)
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = -1
+            digest = hashlib.sha256()
+            while chunk := stream.read(1 << 20):
+                digest.update(chunk)
+            return digest.hexdigest()
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(parent_descriptor)
 
 
 def artifact_map(value: dict[str, Any], label: str) -> dict[str, Any]:

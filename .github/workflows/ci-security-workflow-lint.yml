@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
   apr-util-provenance:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -20,7 +20,7 @@ jobs:
           persist-credentials: false
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -28,20 +28,26 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
-      - name: Run APR-util provenance contracts
-        run: python3 -m unittest -v tests.test_framework_apr_util_provenance tests.test_apr_util_static_contract
+      - name: Install reviewed hash-bound CI dependencies
+        run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+      - name: Verify current Framework-owned APR-util provenance and Parent source policy
+        run: |
+          sh ci/tools/print-framework-apr-util-env.sh "$PWD/modules/ModSecurity-test-Framework" "$PWD" >/dev/null
+          python3 ci/tools/run-active-tests.py --group apr-provenance --group supply-chain
+      - name: Validate the four inventoried runtime path policies
+        run: python3 ci/tools/run-active-tests.py --group runtime-path-policy
 
   actionlint:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -51,12 +57,7 @@ jobs:
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Install pinned CI test dependencies
         run: |
-          python3 -m pip install \
-            --disable-pip-version-check \
-            --no-input \
-            --only-binary=:all: \
-            --require-hashes \
-            -r requirements-ci.lock
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Fetch checksum-verified actionlint
         run: python3 ci/tools/fetch_security_tool.py --tool actionlint --destination "$RUNNER_TEMP/security-tools"
       - name: Lint workflows with ShellCheck when present
@@ -64,19 +65,19 @@ jobs:
           set -eu
           python3 ci/tools/lint_workflows.py
       - name: Validate CI-security workflow contracts
-        run: python3 -m unittest -v tests.test_ci_security_workflows tests.test_lint_workflows tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools
+        run:  python3 ci/tools/run-active-tests.py --group supply-chain
 
   zizmor:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -89,21 +90,5 @@ jobs:
       - name: Analyze workflows offline
         run: |
           "$RUNNER_TEMP/security-tools/zizmor" --offline .github/workflows
-      - name: Require insecure fixture rejection
-        run: |
-          if "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/zizmor/insecure.yml; then
-            echo 'Expected zizmor to reject the insecure fixture.'
-            exit 1
-          fi
-      - name: Require safe fixture acceptance
-        run: |
-          "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/zizmor/safe.yml
-      - name: Require workflow-permission unsafe fixture rejection
-        run: |
-          if "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/workflow-permission-contract/unsafe.yml; then
-            echo 'Expected zizmor to reject the unsafe workflow-permission fixture.'
-            exit 1
-          fi
-      - name: Require workflow-permission safe fixture acceptance
-        run: |
-          "$RUNNER_TEMP/security-tools/zizmor" --offline ci/fixtures/workflow-permission-contract/safe.yml
+      - name: Execute all four inventoried scanner fixture controls
+        run: python3 ci/tools/run-active-tests.py --group workflow-fixtures

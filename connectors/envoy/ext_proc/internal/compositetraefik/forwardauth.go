@@ -29,42 +29,17 @@ const (
 
 var (
 	ErrInvalidRequest = errors.New("invalid forwardAuth request")
-	ErrBodyLimit      = errors.New("forwardAuth request body limit exceeded")
 )
-
-// ForwardAuthConfig bounds all data retained by one authorization call.
-type ForwardAuthConfig struct {
-	MaxBodyBytes int64
-}
-
-func (c ForwardAuthConfig) withDefaults() (ForwardAuthConfig, error) {
-	if c.MaxBodyBytes <= 0 {
-		if c.MaxBodyBytes < 0 {
-			return ForwardAuthConfig{}, ErrBodyLimit
-		}
-		c.MaxBodyBytes = 32
-	}
-	if c.MaxBodyBytes > maxFrame {
-		return ForwardAuthConfig{}, ErrBodyLimit
-	}
-	return c, nil
-}
 
 // ForwardAuth handles the private loopback authorization call. The lease was
 // reserved by the outer UDS companion and is activated here to create exactly
 // one retained Common transaction for P1/P2 and the later P3/P4 response.
 type ForwardAuth struct {
 	Coordinator *composite.Coordinator
-	Config      ForwardAuthConfig
 }
 
 func (h *ForwardAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.Coordinator == nil {
-		writeUnavailable(w)
-		return
-	}
-	cfg, err := h.Config.withDefaults()
-	if err != nil {
 		writeUnavailable(w)
 		return
 	}
@@ -92,35 +67,32 @@ func (h *ForwardAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Preserve Common request ordering: P1 is evaluated from the canonical
 	// ForwardAuth metadata before the bounded body read is turned into P2.
-	body, tooLarge, err := readBounded(r.Body, cfg.MaxBodyBytes)
-	if err != nil {
-		admission.Cancel(r.Context())
-		writeUnavailable(w)
-		return
-	}
-	decision, err = admission.ProcessBody(r.Context(), body, true)
-	if tooLarge {
-		if err != nil && !errors.Is(err, composite.ErrLimit) {
+	chunk := make([]byte, 32768)
+	for {
+		if r.Context().Err() != nil {
 			admission.Cancel(r.Context())
 			writeUnavailable(w)
 			return
 		}
-		if admission.RecordRequestBodyLimitHostAction() != nil {
+		n, readErr := r.Body.Read(chunk)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			admission.Cancel(r.Context())
 			writeUnavailable(w)
 			return
 		}
-		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-		return
-	}
-	if err != nil {
-		admission.Cancel(r.Context())
-		writeUnavailable(w)
-		return
-	}
-	if decision.Action != processor.ActionAllow {
-		h.writeRequestDecision(w, r, admission, decision)
-		return
+		decision, err = admission.ProcessBody(r.Context(), chunk[:n], errors.Is(readErr, io.EOF))
+		if err != nil {
+			admission.Cancel(r.Context())
+			writeUnavailable(w)
+			return
+		}
+		if decision.Action != processor.ActionAllow {
+			h.writeRequestDecision(w, r, admission, decision)
+			return
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
 	}
 	// Neither the lease nor a derived binding is ever copied to this response.
 	w.WriteHeader(http.StatusOK)
@@ -153,23 +125,6 @@ func (h *ForwardAuth) writeRequestDecision(w http.ResponseWriter, r *http.Reques
 	// the coordinator correctly recorded a request-terminal rejection.
 	decision.Status = status
 	writeDecision(w, decision, status)
-}
-
-func readBounded(r io.Reader, limit int64) ([]byte, bool, error) {
-	if r == nil {
-		return nil, false, nil
-	}
-	if limit < 0 {
-		return nil, false, ErrBodyLimit
-	}
-	b, err := io.ReadAll(io.LimitReader(r, limit+1))
-	if err != nil {
-		return nil, false, err
-	}
-	if int64(len(b)) > limit {
-		return b, true, nil
-	}
-	return b, false, nil
 }
 
 func writeUnavailable(w http.ResponseWriter) {

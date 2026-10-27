@@ -4,6 +4,36 @@
 
 Dieser Baum enthält Connector-Repository-Orchestrierung, Verträge und Evidence-Werkzeuge. Das Framework besitzt den wiederverwendbaren Case-Katalog; dieses Repository besitzt die Connector-Integration über `FRAMEWORK_ROOT`.
 
+## Automatische Verhaltensauswahl
+
+[config/testing/active-cases.json](../config/testing/active-cases.json) bleibt die einzige Selektorautorität für normale lokale, CI- und geplante Prüfungen.
+
+Der Nutzer autorisierte zusätzliche Offline-Python-Unitfälle ausdrücklich außerhalb der Kerngrenze von 100 Fällen. Schema 2 desselben Inventars deklariert nun **938 expandierte Fälle in 541 Ausführungen**: 89 Kernfälle / 69 Ausführungen (einschließlich der ursprünglichen acht Offline-Fälle) plus 849 ausdrücklich quellgebundene `offline_unit_exceptions` / 472 Ausführungen. Jede unabhängige Variante wird gezählt. Der Runner validiert beide Abschnitte und erzwingt die Kerngrenze vor jedem Kindprozess; 101 Kernfälle scheitern weiterhin. Ausnahmeselektoren sind ausschließlich Python; ihr isoliertes Kind installiert vor dem Testimport einen Guard gegen Prozessstart und Netzwerkzugriff. Das paketweite `tests.load_tests` verschiebt Offline-Testimports in dieses Kind. Rohes `unittest discover -s tests` importiert jedes Modul zunächst im Elternprozess, um seinen Hook zu finden; diese Top-Level wurden auf fehlende sofortige Prozess-/Hostaktivität geprüft, die Testausführung erfolgt anschließend ausschließlich im geschützten Kind. Die Zahlen beschreiben die aktuelle Auswahl, keine finale Abnahme. Die Ausnahme autorisiert keine Native-/Go-/Host-Szenarien außerhalb des Kernbudgets.
+
+Sonar verwendet verbindlich den Workflow aus master #421 (`7a44f18e`) mit eigener Python-/Go-/Native-Common-Prüfung. PR #421 dokumentiert 80 Python-Methoden und 37 benannte Go-Szenarien; Methoden sind keine expandierten Fallzahlen. Matrixwiederholung erhöht Ausführungskosten, schafft aber keine neuen Fallidentitäten. Die feste `PYTHON_TESTS`-Auswahl mit 13 Einträgen erhält ausschließlich im Kind `ON_DEMAND_TESTS=1`; Standard-Inventarhooks bleiben geschützt, ohne globalen Bypass. Die Prozess-/Go-/Native-Prüfung ist keine Python-Offline-Ausnahme und keine wiedereröffnete I12-Kampagne. Entfernte PR-eigene Coverage-Pipeline und eigene Gates bleiben entfernt. Die Inventargrenze gilt für die übrige Parent-Auswahl; eine globale Höchstzahl einschließlich Master-Sonar wird nicht behauptet. PR-#421-Ergebnisse bleiben an ihre ursprünglichen Revisionen gebunden und belegen nicht den PR-#382-Merge-Head.
+
+
+`make check-active-inventory` prüft das gesamte Inventar ohne Teststart; `make test` und `make test-active` führen seine zugelassene Auswahl aus. Gruppen-/Fall-/Modulfilter greifen erst nach vollständiger Zulassung. Unbekannte/leere Auswahl und geänderte Quellbindungen scheitern; die Auswahl wird nie gekürzt. Funktionale Build-/Lint-Aufrufer verwenden dieselbe Autorität. Statische Kompilierung, CodeQL, actionlint, zizmor, OSV und Secret-Scanning behalten inhaltliche unabhängige Gates.
+
+Root-/Komponenten-Defaults, normale CI, geplante Vertragsprüfungen und Wartungs-
+Kandidatenvalidierung nutzen dieselbe Auswahl. No-CRS-Pläne müssen vor der
+Hostausführung mit den exakt deklarierten Parent-Fall-IDs übereinstimmen. Die
+festen fünf CRS-Profilzellen behalten ihre tatsächlich ausgewählten Requests
+und fehlgeschlossen geprüfte Evidence-/Cleanup-Verträge. NGINX behält seine
+geschützte Exact-Head-Grenze mit den zwei getrennt gezählten Callback-Fällen
+On/Off. Readiness darf kein verborgenes zusätzliches Request-Szenario ergänzen.
+Profilspezifische Ergebnisse qualifizieren keine Geschwisterpfade.
+
+Vollständige Matrix-, breite Smoke-, MRTS-, Full-Lifecycle-, historische I12-
+und zufällige Fuzz-Kampagnen bleiben Spezialarbeit. Ihre erhaltenen Befehle
+benötigen explizit <code>ON_DEMAND_TESTS=1</code> und einen aktuellen Auftrag für
+diese Prüfung; manuelle Spezialworkflows benötigen zusätzlich ihre geschlossene
+Eingabe <code>on_demand</code>, soweit vorhanden. Das Flag erlaubt weder die
+Wiederaufnahme geschlossener I12-Arbeit noch gelockerte Privilegien-, Quell- oder
+Artefaktgrenzen. Nicht global exportieren und nicht für normale CI/Zeitpläne
+setzen. Siehe [Archiv und verlorene Abdeckung](../docs/testing-and-evidence.de.md)
+und [Testeinstiegspunkte](../tests/README.de.md).
+
 ## Struktur
 
 | Bereich | Verantwortung | Aufruf |
@@ -30,17 +60,17 @@ Verwende Make-Targets statt verschachtelte Dateien aus einem beliebigen Arbeitsv
 
 | Target | Zweck | Eingaben | Artefakte |
 | --- | --- | --- | --- |
-| `make quick-check` | Schnelle Vertrags-, Syntax- und Dokumentationsprüfung | `PYTHON`, `FRAMEWORK_ROOT` | Keine kanonische Runtime-Evidence |
+| `make quick-check` | Statische Vertrags-, Syntax- und Dokumentationsprüfung sowie die zugelassene funktionale Teilmenge | `PYTHON`, `FRAMEWORK_ROOT` | Keine kanonische Runtime-Evidence |
 | `make prepare-runtime-components` | Materialisiert oder verwendet Cache-v2-Eingaben erneut | `BUILD_ROOT`, `CACHE_ROOT`, `CONNECTOR_COMPONENT_CACHE` | Komponentenmanifest und lokaler Snapshot |
-| `make full-lifecycle-<connector>` | Führt ein ausgewähltes natives HTTP/1.1-Kernprofil aus | `<connector>` = `apache`, `nginx`, `haproxy`, `envoy`, `traefik` oder `lighttpd`; `NO_CRS_RUN_ID` | Connector-Evidence |
-| `make full-lifecycle-all-connectors` | Führt alle sechs ausgewählten Profile aus | `NO_CRS_RUN_ID`, beschreibbare Runtime-/Evidence-Roots | Sechs Result-Sets |
+| `ON_DEMAND_TESTS=1 make full-lifecycle-<connector>` | Führt ein ausgewähltes natives HTTP/1.1-Kernprofil aus | `<connector>` = `apache`, `nginx`, `haproxy`, `envoy`, `traefik` oder `lighttpd`; `NO_CRS_RUN_ID` | Connector-Evidence |
+| `ON_DEMAND_TESTS=1 make full-lifecycle-all-connectors` | Führt alle sechs ausgewählten Profile aus | `NO_CRS_RUN_ID`, beschreibbare Runtime-/Evidence-Roots | Sechs Result-Sets |
 | `make check-six-connector-core-completion` | Validiert Aggregate-Evidence | Gleiche Run-ID und Evidence-Root | Aggregate PASS/FAIL |
 
 `NO_CRS_RUN_ID` ist eine dateisystemsichere Laufkennung, beispielsweise `repository-cleanup-core-20260712T164725Z`. Keine Secrets, Benutzernamen oder Tickettexte verwenden. Details stehen in der [Variablenreferenz](../docs/reference/variables.de.md).
 
-Die obigen Sechs-Connector-Make-Targets sind allgemeine lokale
-Orchestrierungs-Targets. Sie sind nicht die zeitgesteuerte/manuelle
-CI-Baseline. Diese Baseline ist das geschlossene Profil <code>no-crs</code> in
+Die obigen Sechs-Connector-Lifecycle-Befehle sind erhaltene Orchestrierungs-
+Beispiele auf Abruf, keine Standardvalidierung und nicht die zeitgesteuerte/
+manuelle CI-Baseline. Diese Baseline ist das geschlossene Profil <code>no-crs</code> in
 <code>.github/workflows/reusable-five-connectors-profile.yml</code>, das von
 <code>all-connectors-no-crs.yml</code> aufgerufen wird. Es wählt nur Apache,
 HAProxy, Envoy, Traefik und lighttpd, weist unbekannte Profile und
@@ -108,6 +138,30 @@ seinen genehmigten Protected-Producer und Protected-Runtime-Evidence, während
 dieser PR den Broker-Produktionspfad weder aufruft noch verändert. Die
 Contract-Tests belegen Validator-Verhalten, kein gehostetes Runtime-Ergebnis.
 
+## Optionale Erfassung eigener NGINX-Worker-Mappings
+
+Die geschlossenen Common-Input-Fault- und Lifecycle-Sequenz-Driver lesen
+normalerweise `/proc/<pid>/maps` des tatsächlichen nobody-Workers; ein
+verweigerter Zugriff bleibt ein Fehler. Eine ausdrücklich ausgewählte
+Testbibliothek über `--worker-self-map-library` (oder
+`NGX_NATIVE_WORKER_SELF_MAP_LIBRARY`) lässt stattdessen denselben Worker
+unmittelbar nach seinem echten erfolgreichen Wechsel zu UID/GID 65534
+`/proc/self/maps` lesen. Sie ergänzt keine Prozessinspektions-Capability.
+Der Root-Elternprozess öffnet eine neue reguläre `O_APPEND`-Datei mit Modus
+0600 und genau einem Link und übergibt ihren privaten Deskriptor ausschließlich
+dem nativen Start. Der Helper bindet Gerät und Inode dieses Deskriptors und
+erfasst ausschließlich das eigene Kind seines ursprünglichen Masters.
+
+Vor dem ersten Request verlangt der Elternprozess vollständige begrenzte
+Rohbytes, passende Worker-PID, Eltern-PID, UID/GID und Prozessstartzeit sowie
+tatsächliche Mappings für das ausgewählte native Modul und jede geladene
+Fixture-Bibliothek. Fehlende, unsichere, unvollständige oder abweichende
+Erfassung schlägt geschlossen fehl. Rohbytes und Helper-Artefakthash bleiben
+im Run-Beleg; Master-Mappings ersetzen keine Worker-Mappings. Dieser Kanal
+belegt ausschließlich geladene Mappings. Er liefert kein Host-EOS, keine
+MIME-Entscheidung, keine Native/Common-ID-Verknüpfung und keinen vollständigen
+Lifecycle-PASS.
+
 ## Statusdatensätze für optionale Voraussetzungen
 
 `ci/tools/run-check-status.py` führt einen direkten Child-Befehl aus,
@@ -139,11 +193,12 @@ Child-Befehls und verwendet diesen Verzeichnis-Handle für die temporäre Datei
 und das finale Ersetzen. Diese Datensätze sind CI-Steuerungs-Evidence, keine
 kanonische Runtime-Evidence.
 
-`make check-apache-request-transaction-cleanup` bleibt strikt: Sein
-Python-Quellvertrag und der native Apache/APR-Harness müssen beide vollständig
-sein, und eine fehlende Voraussetzung bleibt nichtnull. Dagegen behält
-`make check-apache-request-transaction-cleanup-lint` denselben verpflichtenden
-Python-Quellvertrag bei, verwendet jedoch den Parent-eigenen Preflight
+Mit explizitem <code>ON_DEMAND_TESTS=1</code> behält
+`make check-apache-request-transaction-cleanup` seinen strikten speziellen
+Python-Quellvertrag und den nativen Apache/APR-Harness; beide müssen vollständig
+sein, eine fehlende Voraussetzung bleibt nichtnull. Im selben Spezialmodus
+behält `make check-apache-request-transaction-cleanup-lint` den Python-
+Quellvertrag bei, verwendet jedoch den Parent-eigenen Preflight
 `--blocked-if-missing-apache-development`. Bevor das Child startet, löst der
 Runner `APXS_BIN`, dann `APXS`, dann `CI_APXS_BIN_CANDIDATES` (oder
 `apxs`/`apxs2`) auf und verlangt ein ausführbares APXS, dessen Ergebnis von
@@ -153,9 +208,10 @@ Preflight fehlschlägt, zeichnet der Runner das strukturierte
 dieses Lint-Target. Besteht der Preflight, läuft das Child; jedes Child-`77`,
 einschließlich eines kopierten oder gefälschten `CHECK_STATUS_REASON`-Strings
 in einem der beiden Ausgabestreams, bleibt ein nicht klassifiziertes Ergebnis
-ungleich null. Die fünf dokumentierten Push-Workflows erreichen diese eine
-Subprüfung über `make lint` oder `make quick-check`; kein anderes Target, kein
-Common-Check und kein Connector-Check erbt diese Erlaubnis.
+ungleich null. Ohne <code>ON_DEMAND_TESTS=1</code> wählen beide Make-Aliase statt dieses
+archivierten nativen Harness die zugelassene Apache-Gruppe. Die spezielle
+Erlaubnis autorisiert keinen Erfolg für ein anderes Target, einen Common-Check
+oder einen Connector-Check.
 
 ## Neue Datei hinzufügen
 

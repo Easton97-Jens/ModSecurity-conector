@@ -1,0 +1,116 @@
+# Change Record: CR-20261025-pr382-global-inventory-coverage
+
+**Historischer Zwischenstand, abgelöst:** Eigene Sonar-Pipeline auf Nutzerwunsch entfernt; [aktueller Status](../../../docs/pr-382-merge-readiness.de.md). Alte Zahlen und Prüfergebnisse bleiben an ihre damaligen Revisionen gebunden.
+
+**Sprache:** [English](CR-20261025-pr382-global-inventory-coverage.md) | Deutsch
+
+Parent-Inventar-/Coverage-Migration. Auslieferungsevidence am exakten veröffentlichten Head: [PR #382](https://github.com/Easton97-Jens/ModSecurity-conector/pull/382).
+
+## Identität
+
+| Feld | Wert |
+| --- | --- |
+| Change-ID | CR-20261025-pr382-global-inventory-coverage |
+| Datum (UTC) | 2026-10-25 |
+| Basis-Revision | `d510d21dba7eab3c9f0ccbe579fbc9c105eb3da1` |
+
+## Motivation und Problemstellung
+
+Ältere führende Dokumente verlangten abgeschlossene I12-Arbeit, automatische Defaults wählten Tausende Testdefinitionen aus und Sonar Automatic Analysis importierte keine Coverage. Historische Ergebnisse bleiben erhalten; aktiver Status sowie Auswahl-/Messproduzenten werden korrigiert.
+
+## Akzeptanzkriterien
+
+Ein Inventar erzwingt höchstens 100 Kern-Verhaltensfälle vor allen ausgewählten Kindprozessen; die nachträgliche ausdrückliche Nutzerfreigabe ergänzt getrennt gezählte geschützte Offline-Python-Ausnahmen. Alle automatischen Defaults werden daraus abgeleitet. Echte Reports müssen erzeugt/importiert und plausible revisionsgebundene Metriken belegt werden. Bestehende Gates einschließlich 80% New-Code-Coverage bleiben unverändert. Ready erfordert exakte lokale/Remote-/PR-Identität, aktuelle Basis, erfolgreiche Pflicht-CI/Sonar und erledigte erforderliche Rückmeldungen. Framework/MRTS und historische I12-Qualifikation bleiben unverändert.
+
+## Implementierungsentscheidung und Begründung
+
+`config/testing/active-cases.json`, geschlossene Selektoren und Quellhashes verwenden; Überlauf, unbekannte/leere Auswahl, Abweichungen und alternative ausführbare Kataloge ohne Kürzung ablehnen. Python-Discovery leitet sich aus denselben Zielen ab. Spezialprüfungen hinter ausdrücklichem `ON_DEMAND_TESTS=1` erhalten und ein nicht ausführbares Definitionsarchiv generieren. Runtime-Sammler zählen unabhängige Fälle und verwenden ausschließlich eine identische kanonische Readiness-Transaktion wieder.
+
+Tatsächliche Python-Zeilenereignisse und geeignete Kinder desselben Präfixes/derselben UID, native Profile für vier Go-Module sowie echte GCC/gcov-C-/C++-Einheiten messen. Revision, Inventar, Quell-/Reporthashes, Toolchains, SDK und Rollen-/Konfigurationseingaben binden; Import erfordert saubere passende Quellen. Einzeln geprüfte Fixtures als TEST klassifizieren; gemischte Betriebswerkzeuge bleiben MAIN. Keine Produktionsausschlüsse, künstlichen Treffer, Baseline-Verschiebung oder Gate-Abschwächung.
+
+## Geänderte Dateien
+
+Inventar/Coverage: `config/testing/active-cases.json`, `ci/lib/active_test_inventory.py`, `ci/lib/active_coverage.py`, `ci/lib/python_coverage_bootstrap.py`, `ci/tools/run-active-tests.py`, `ci/tools/collect-active-coverage.py`, ihre beiden Kontrollmodule, `tests/__init__.py` und verzögerte Hooks in erhaltenen Testmodulen. Integration: Root-/Komponenten-Makefiles, Workflows und verschachtelte Build-/Runtime-Helfer. Analyse: beide Sonar-Properties, `config/testing/sonar-source-roles.json`, gemeinsamer Klassifizierer/Generator, Scanner-Workflow und unveränderlicher Action-Lock/Updater-Allowlisten. Archiv: `ci/tools/update-test-archive.py` und `reports/testing/test-selection-archive.generated.json`.
+
+EN/DE-Paare: aktuelle Abschluss-/Quellrollendokumente, historische Checklist/Handoff/Matrix/Eventvertrag/#410-Abschluss und Phase-4-/Body-Inspection-Verweise, CI-/Test-/Variablenanleitungen sowie dieser Record. Der Git-Diff ist die vollständige Dateiliste.
+
+## Ausgeführte Befehle
+
+RTK umschließt jeden lokalen Shell-Befehl. Beobachtete Verfahren umfassen `ci/tools/run-active-tests.py --check`, ausgewählte Kontrollen, `ci/tools/collect-active-coverage.py run --strict-skips --output-root <external-run-root>`, `ci/tools/sync-sonar-test-scope.py --check`, gepinntes actionlint/zizmor, Workflow-Versionsverträge und `git diff --check`. Detaillierte Laufevidence liegt extern unter `/var/tmp/codex/ModSecurity-conector/runs/pr382-merge-readiness-20261025`.
+
+Die ersten 21 Kontrollen bestanden einschließlich synthetischer 101-Fall-Ablehnung vor dem Start eines Sentinel-Kindprozesses. Tatsächliche Fehler bei Loader-Benennung, Python-3.15-Zeilenmetadaten und fremden GCC-Notizen wurden korrigiert; dieselben betroffenen Fälle bestanden. Der korrigierte native C++-Allow-Fall und vier Memory-Verhalten bestanden einschließlich ASAN ohne Skip. Eine frische Sammlung erzeugte 35 generische Quellen (11 Python, 24 nativ), 13 Go-Quellen aus vier Modulen und 190 Rohreports aus 59 Fällen; der lokale Dirty-Report ist nicht importfähig. Eine spätere Prüfung erkannte und korrigierte einen unpräzisen negativen Shell-Befund; sein Nachweis des exakten Grunds wird getrennt erneuert. Finale Ergebnisse am veröffentlichten Head gehören zur aktuellen PR-Evidence.
+
+Die spätere Sammlung mit 57 Fällen schloss ebenfalls erfolgreich ab und zeigte eine echte Messlücke: Das HTTP-Dienstkind verwendete `_exit`, wodurch seine Zähler verloren gingen. Die Fixture speichert jetzt ausschließlich bei Coverage-Messung echte GCC-Zähler vor diesem Exit. Beide bestehenden Deadline-/Recovery-Fälle bestanden erneut; die tatsächlichen Dienstbeobachtungen änderten sich von 0 auf 694 abgedeckte von 1165 gemessenen Zeilen. Dies sind lokale Zeilenbeobachtungen und keine Sonar-Projekt-/New-Code-Prozente.
+
+Quellbindungen benennen `path` und `sha256` ausdrücklich; ein Quelldateiname wird nie als Credential-ähnlicher Feldname verwendet. Zwölf Scannerbefunde in vorgemerkten Änderungen wurden unabhängig als öffentlicher Konfigurationstext oder exakte aktuelle Quellhashes verifiziert. Strukturierte Darstellung und genauer benannte Property-Konstante beseitigen diese Fehlalarme ohne Suppressions oder Scanneränderungen.
+
+Hosted-Verifikation an `9736ba07cdf0f60488c0d07b2200eea867c02abb` zeigte fehlende Jobvoraussetzungen: Apache-/APR-Header und PyYAML sowie einen lokal vorausgesetzten Ausgabepfad im Header-Wrapper. Jobs provisionieren jetzt tatsächliche erforderliche Pakete/hashgebundene Python-Abhängigkeit; der Wrapper validiert einen bestehenden externen Temp-Parent und erstellt sein privates Unterverzeichnis. Dieselben beiden Fälle bestanden ohne gesetztes `BUILD_ROOT`. Ausgewählter Stock-Sidecar- und Deskriptor-Expiry-Fall bestanden lokal ebenfalls ohne Skips. Der saubere Report mit 56 Fällen an diesem Commit enthält 77 generische Quellen (11 Python/66 nativ), 13 Go-Quellen und 306 Rohreports; nach der Folgeänderung ist er historisch und darf nicht für eine andere Revision importiert werden.
+
+Dieselbe Hosted-Runde erkannte außerdem eine nicht ausgewählte alte Go-Toolchain im Envoy-Runtimejob, ein fehlendes NGINX-Aufruf-Tempverzeichnis und die neue allgemeine Zehn-Minuten-Grenze des Runners, die kalte Apache-Provisionierung unterbrach. Runtimezeilen wählen nun `.go-version` vor Provisionierung; NGINX erstellt/revalidiert sein privates Tempverzeichnis. Ausschließlich die drei geschlossenen Host-Runtimeskripte erhalten eine Frist von 6000 Sekunden innerhalb der bestehenden 120-Minuten-Jobs; gewöhnliche Kontrollen behalten 600 Sekunden und die Ein-Sekunden-Prozessgruppen-Cleanup-Kontrolle bestand erneut.
+
+Hosted-Verifikation an `71e9586607a66a5fc2c204df17f4436c41eb8411` bestand zum Abfragezeitpunkt die ausgewählten NGINX-Host-Fälle und vier CRS-Connectorjobs. Sie zeigte außerdem fehlende ModSecurity-Header bei Apache-Fixture-Aufrufern, einen Konflikt zwischen CodeQL-Tracer und ASan, einen Fehler der Standardheader-Suchreihenfolge und ein nicht unterstütztes älteres Distributions-SDK. Aufrufer installieren nun die Header; zugelassene ASan-Fälle laufen vor CodeQL-Initialisierung, während die Produktkompilierung weiterhin erfasst wird. C++ verwendet ein privates Include-Verzeichnis ausschließlich für den SDK-Namensraum. Coverage- und Stock-Jobs verwenden den bestehenden gepinnten Shared-Component-SDK-Builder, der keine Hostkampagne ausführt. Achtzehn neue Sonar-Befunde führten zu gezieltem Quellrefactoring, Compiler-Zulassung und exklusiver Veröffentlichung in einem festen Trace-Dateipfad; ihre Serververifikation steht aus. Dieselben 17 Inventar-/Reportkontrollen und fünf nativen C++-/Memory-Verhalten bestanden lokal ohne Skips vor der abschließenden Helper-Extraktion; die geplante Sammlung am sauberen Head erneuert diesen Nachweis.
+
+An `73f52b6c751b5bbffa70aca96effa6d8f323ed79` bestanden die saubere lokale Sammlung mit 56 Fällen und Identitätsverifikation (308 Rohreports), vollständiger lokaler Lint und Hosted-Sammlung/-Verifikation (309 Rohreports). Beide maßen 77 generische Quellen und 13 Go-Quellen/vier Module. Alle fünf CodeQL-Jobs und der Stock-SDK-Job bestanden. AutoScan beseitigte 17 von 18 Befunden; der verbleibende Compilerargument-Befund führte zu einer geschlossenen positiven Grammatik und begrenzten Quell-/SDK-/Ausgaberollen. Die Hosted-Prüfung mit HTTP Basic meldete für `MODSECURITYCONECTOR` die Authentifizierung `valid=false`; Scanner/Import/Coverage-Prozentwerte werden nicht behauptet. Der Repository-Besitzer konfigurierte anschließend das eigene `SONAR_TOKEN` über GitHub-Einstellungen; der Workflow validiert es vor Provisionierung, ohne den Wert offenzulegen. Eine zwischenzeitliche Abfrage des entfernten alten Namens scheiterte vor der Sammlung. An dieser Zwischenrevision blieb AutoScan bis gültiger CI-Authentifizierung aktiviert. Die quellenbezogene Updater-Validierung kopiert und prüft nun sämtliche Inventarquellabhängigkeiten erneut, ohne die Änderungsfreigabe des Publishers zu erweitern. Ihre bestehenden sieben ausgewählten Vertragsfälle bestanden im privaten Kandidatenbaum. Achtzehn instrumentierte native Fälle bestanden nach Korrektur der APR-Linkereingaben. Eine neue Kontrolle lehnte ein als Objektdatei getarntes Text-Linkerskript vor jedem Compilerprozess ab; sie ersetzt eine optionale positive Inventarprobe, die auf Abruf erhalten bleibt. Das damalige Zwischeninventar umfasste 100/81; die generierte Archivzahl muss nach der aktuellen Neuverteilung erneuert werden. Die Basic-Prüfung allein bewies keine allgemeine Token-Ungültigkeit; das erneuerte Credential wird nun vor Provisionierung mit Bearer-Authentifizierung geprüft. Provider-Verifikation am finalen Head bleibt getrennt.
+
+## Aktuelle Auswahl und beobachteter CI-Import
+
+Dasselbe Schema-2-Inventar deklariert nun transparent 1000 expandierte Fälle / 580 Ausführungen: 100 Kernfälle / 80 Ausführungen (einschließlich der ursprünglichen acht Offline-Fälle) und 900 vom Nutzer autorisierte quellgebundene Python-Offline-Ausnahmen / 500 Ausführungen. Die Kerngrenze bleibt 100 und wird vor allen Kindprozessen erzwungen; Ausnahmevarianten werden ausdrücklich gezählt. Offline-Kinder sperren Prozessstart und Netzwerkzugriff vor Imports; paketweite Discovery verschiebt Offline-Imports in dieses Kind. Rohes `unittest discover -s tests` importiert Module zunächst im Elternprozess, um ihre Hooks zu finden; geprüfte Top-Level führen keine sofortigen Prozess-/Hostaktionen aus, tatsächliche Tests laufen anschließend nur in geschützten Kindern. Dies sind Zahlen der aktuellen Auswahl, keine finale Abnahme. Native-/Go-/Connector-Szenarien fallen nicht unter diese Ausnahme.
+
+Coverage wählt aktuell 964 Fälle / 558 Ausführungen aus. Ein aktiver Offline-Timingfall läuft in Sonar-CI separat ohne Instrumentierung: Seine unveränderte Ein-Sekunden-Assertion scheiterte unter Tracing (2,551 s) und bestand ohne Tracing (0,034 s). Er bleibt ausgewählt und geprüft; nur die Messung ändert sich, ohne Fallentfernung, Quellausschluss oder Gate-Lockerung. Kind-Tracing filtert Fixture-Zeilencallbacks und behält ausschließlich tatsächlich positive Treffer für Parent-MAIN-Quellen.
+
+
+Die Connector-Auswahl bleibt bei 26 Fällen: 13 No-CRS, 11 CRS und zwei NGINX-Callbacks. Acht getrennte Konfigurations-/Startstufen bleiben archiviert; Minimalprofile führen weiterhin echte Konfiguration/Start/Anfragen/Shutdown aus, ohne getrennte anfragefreie Start-/Isolationsqualifikation. Daraus folgen keine historische I12-Host-/Matrix-/Oracle-Kampagne und kein neues `I12_COMPLETE`. Coverage wählt 964 Fälle / 558 Ausführungen, unbestätigt. Alle 21 Inventar-/Coverage-Kontrollen bestanden einschließlich Ausnahmezulassung/-guards; die bestehende 101-Kern-Überlaufkontrolle bleibt. Quellrollen umfassen 45 geprüfte Fixtures. Das aktuelle generierte Archiv meldet 5541 erhaltene Definitionen; die Quellhash-Verifikation läuft noch.
+
+Die frühere lokale Sammlung mit 65 Fällen bestand mit 94 generischen Quellen (28 Python/66 nativ), 13 Go-Quellen und 327 Rohreports. Ihre lokale Changed-Line-Schnittmenge im Dirty-Stand stieg von 1935 auf 4489 abgedeckte generische Zeilen (+2554). Dies sind lokale Beobachtungen, keine serverseitigen Coverage-Prozente.
+
+Am veröffentlichten Head `6026cb7d72947e0f7c0ab4d5f72ce180ae2c7557` importierte CI tatsächlich die bisherige Auswahl mit 56 Coverage-Fällen: alle neun Go-Reports, 77 generische Quellen und 120 CFamily-Übersetzungseinheiten. Compute-Engine-Task `AaFzJIJFF1KaAz-ccBDH` wurde erfolgreich abgeschlossen und veröffentlichte Analyse `f68c295c-a7b7-499c-b7e3-b59b7a734cb4`. Beobachtete Serverwerte waren 5,3 % New-Code-Coverage, 3,6 % Gesamt-Coverage, 40.481 neue abzudeckende Zeilen und 38.331 nicht abgedeckte neue Zeilen bei 28 Befunden. Das eigene `SONAR_TOKEN` bestand die CI-Authentifizierung vor Provisionierung. AutoScan ist nach dem authentifizierten Wechsel zur CI-Analyse jetzt AUS. Dies belegt tatsächlichen Import an diesem Head, keine Abnahme des geänderten Inventars oder finalen Heads.
+
+PR #382 bleibt Draft / `remediation_required`. Die unveränderte Schwelle von 80 % New-Code-Coverage, null Pflichtbefunde und erfolgreiche terminale Pflichtchecks müssen am tatsächlichen finalen Head nachgewiesen werden. Finaler Erfolg, Ready-Status oder `verified_pr` werden nicht behauptet.
+
+
+Die frühere Offline-Auswahl mit 756 Fällen bestand alle acht privaten Batches (385 Ausführungen); alle 21 Inventar-/Coverage-Kontrollen bestanden. Der Lauf `integrated-offline-control-fixed` bestand alle 37 Fälle in 34 Ausführungen ohne Skips: 16 integrierte Envoy-/lighttpd-/Apache-Orchestrierungsfälle mit tatsächlichen Validatoren und simulierten externen Übergängen, 18 Helper-/Security-Fälle einschließlich zweier statischer Publisher-Verträge und drei Cache-Fälle. Dies ist Offline-Evidence, niemals Hostqualifikation. Rohe Python-Beobachtungen des früheren Laufs mit 756 Fällen schneiden 8102 lokal geänderte Zeilen; dies ist weder der Sonar-Nenner noch ein Nachweis von 80 % Coverage. Eine kohärente tatsächliche Sammlung mit 964 Fällen, CI am sauberen Head und das unveränderte 80%-Gate stehen weiter aus.
+
+
+## Abgeleitete Wartungsmetadaten und offene Voraussetzungen
+
+Wartung darf genau zwei Begleitdateien ableiten: `config/testing/active-cases.json` (nur vorhandene SHA-Felder) und `reports/testing/test-selection-archive.generated.json` (nur `inventory_sha256`). Selektoren, Fälle, Profile, Quellpfade und Subtestmetadaten dürfen sich dadurch nicht ändern. Rekonstruktion aus vertrauenswürdiger Basis muss vor Staging, Veröffentlichung oder Wiederverwendung exakte Bytes und regulären Stage-0-Modus `100644` reproduzieren. Die primäre Allowlist des Actions-Publishers bleibt unverändert. Drei fokussierte Regressionen bestehen jetzt: Ein zukünftiges Go-Minor 1.28 ist zulässig, Rollback erhält fremde Änderungen einer Begleitdatei und stellt eigene Begleitdateien größer als 4 KiB wieder her.
+
+Vier `go.mod`-Deklarationen sowie `requirements-ci.lock`, `requirements-ci-build.lock`, `requirements-dev.txt` sind sieben nicht ausführbare Abhängigkeitsdeklarationen, keine Collector-Quellbindungen. Go-Modul-/Sum-Dateien und die drei Requirements bleiben durch tatsächliche Build-Identität und Quell-Snapshots vor/nach dem Lauf gebunden. Dies vermeidet Metadaten-Churn durch Dependency-Updates, ohne Controller- oder ausführbare Codebindungen zu entfernen.
+
+Das Sonar-Jobbudget beträgt für die ausdrücklich größere Auswahl nun 120 statt 45 Minuten; einzelne 600-Sekunden-Grenzen und die Ein-Sekunden-Timingassertion bleiben unverändert. Beobachtete Profile verringerten 429 AST-Parses auf 41 und 6841 Quell-Lesezugriffe auf wenige Hundert. Die frühere Messung von 15,723 s hatte neun gleichzeitige Workloads, die spätere mit 1,788 s erfolgte im Leerlauf: Diese unterschiedlichen Bedingungen belegen keinen kontrollierten Geschwindigkeitsgewinn.
+
+Nach der Fertigmeldung des Nutzers listen beobachtete Dependabot-Secret-Metadaten genau einen Namen: `SONAR_TOKEN`. Der frühere Zustand ohne Namen/mit offener Secret-Einrichtung ist historisch und auf Metadatenebene erledigt. Kein Tokenwert wurde gelesen; weder Live-Bot-Authentifizierung noch ein erfolgreicher Dependabot-PR werden behauptet. Dieser Ausführungsnachweis benötigt weiterhin separat autorisierte Wartungsprüfungen am Default-Branch; die aktuelle PR-Authentifizierung ist ein getrenntes Ergebnis. [GitHubs Regeln für Dependabot auf Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions) beschreiben diesen getrennten Secret-Kontext. Diese Dokumentation ändert weder Secrets noch Provider-Einstellungen.
+
+## Security-Auswirkung
+
+Den vollständigen Katalog vor Ausführung validieren und eigene Prozessgruppen bei Timeout/Terminierung aufräumen. Unsichere Report-/Quellpfade und veränderte Artefakte ablehnen. Kindprozess-Tracing erhält UID/Präfix/Isolation und zeichnet ausschließlich Quellzeilenzähler auf. CI validiert ihr bestehendes Credential am festen Sonar-Ursprung ohne Secret-Ausgabe. Statische/Security-Prüfabsichten und geschützte Namespace-Grenzen bleiben wirksam. Die neue Scanner-Action ist unveränderlich gepinnt; Signaturprüfung bleibt aktiviert.
+
+## Runtime-Evidence
+
+Lokale Beobachtungen belegen ausschließlich die ausgewählte Unit-/Native-/Kontrollschicht und echte Profiler-Ausgaben. Aktuelle CRS-/No-CRS-/NGINX-Host-Fälle benötigen eigene Hosted-Artefakte. Historische I12-Ergebnisse behalten ihre ursprünglichen Revisionen; kein Build-/Scanner-/Konfigurationsergebnis erzeugt neue Host- oder Lifecycle-Qualifikation. Kein `I12_COMPLETE` wird behauptet.
+
+## Bekannte Einschränkungen
+
+Reine Zeilenmessung liefert keine Branch-Coverage. Isolierte Python-Kinder, solche mit bereinigter Umgebung/anderem Präfix/anderer UID/beendete Kinder und nicht ausgeführte Host-Pfade können ungemessen bleiben. Extrahierte native Snippets und externe SDK-Ausführung werden keinen Parent-Quellen zugeschrieben. Lokale Quoten gemessener Dateien sind keine Sonar-Projekt-/New-Code-Coverage; Erzeugung, Import und terminale Servermetriken sind getrennte Aussagen.
+
+## Verbleibende Risiken
+
+Die reduzierte automatische Auswahl verliert bewusst Spezialabdeckung; Abschluss und generiertes Archiv dokumentieren die Disposition. Profilnachweise übertragen sich nie auf Nachbarprofile. Bestehende 80% New-Code-Coverage und alle anderen Pflichtbedingungen bestimmen weiterhin Ready. Spätere vertrauenswürdige Master-Updater-Läufe und tatsächlich erzeugte Wartungs-PRs benötigen separate Masterintegrationsfreigabe.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+Keine historische I12-Kampagne, vollständige MRTS-Suite, archivierten breiten Kataloge, beschränkten Plattform-Scans, Master-Merges, Releases oder Deployments: außerhalb der Aufgabenfreigabe. Erhaltene On-demand-Quellen sind kein neuer PASS. Aus Konfiguration oder Simulation wird keine Default-Branch-Live-Veröffentlichung abgeleitet.
+
+## Finaler Diff- und Review-Status
+
+Unabhängige Prüfung untersuchte Default-Auswahl, Report-/Quellgrenzen und Erhaltung ursprünglicher Tests. Die frühere Prüfung reiner Hook-Erhaltung umfasste 436 vorhandene Quellen. Spätere ausdrücklich autorisierte Offline-Fixture-Änderungen erhalten ihre Assertions und sind oben beschrieben; der frühere reine Hook-Vergleich ist historisch, keine Aussage über den neuen finalen Quellstand. Aktuelle PR-Evidence muss finalen SHA, terminale Pflichtchecks/Sonar, Blocker und Ready-Zustand nennen. Dieser Record allein erklärt kein `verified_pr`.
+
+Am veröffentlichten Head `6ede6d91d2feab6f887fbe977033f26c49f9c993` scheiterte die Hosted-Coverage-Sammlung vor dem Scannerimport: `BackendDecodingTests` wollte Fixtures unter einem nur lokal vorhandenen Speicherverzeichnis erzeugen. Sein Setup nutzt jetzt die private temporäre Root des Runners, ohne die Decoding-Assertions zu ändern. Die drei korrigierten lokalen Folgebatches bestanden 65 Ausführungen / 99 expandierte Fälle ohne Skips, darunter 41 neu zugelassene Offline-Artefaktprüfungen. Apache-Negativfixtures verändern nun das tatsächlich unabhängig gebundene Quellledger und den Hash des gemappten SDK-Images; kein simuliertes Ergebnis gilt als Build- oder Hostnachweis. Die unterbrochene lokale Sammlung am sauberen Head ist unvollständig und kein Importnachweis. Eine neue Sammlung am sauberen Head und Serveranalyse bleiben erforderlich.
+
+## Integration von master #420
+
+Der reguläre Merge enthält master `9f44647593bac7947113558c6ad183ab118e80af`. Vollständiger Parent-Scope, explizite Scanner-Konfiguration, generisches JSON-/YAML-Opt-in und getrennte C++20/23-Advisory-Projekte bleiben erhalten. CFamily-Fixtures bleiben für tatsächliche statische Analyse MAIN; ihr geprüfter Fixture-Zweck und ihre Aufrufernachweise bleiben erhalten. Dreißig exakte Python-Fixtures bleiben Analyse-TEST-Quellen. C++17 ist erforderlich; C++20/23 verwenden dieselben unveränderlichen, vollständig geprüften Reports in Advisory-Jobs mit Leserechten. Keine zusätzlichen Go-/Native-Szenarien oder historischen I12-Kampagnen werden ausgewählt.
+
+Der Merge ergänzt 66 ausdrücklich gezählte Offline-Kontrollen in 40 Ausführungen: 14 Scope-Fälle, 16 Artefakt-Identitätsfälle mit tatsächlichen Dateien, 17 Workflow-Grenzfälle und 19 CFamily-Codec-/Snapshot-/Klassifikationsinputs. Diese und die 21 vorhandenen Zulassungs-/Importkontrollen bestanden lokal ohne Skips. Vollständige Properties-/Quellrollen-/Python-Verträge und actionlint bestanden. Acht CFamily-Suffixe verwenden jetzt einen gemeinsamen Coverage-/Snapshot-Vertrag einschließlich aller acht versionierten `.hpp`-Dateien. Die beiden versionierten Python-Kontrollen unter `.codex/bin` bleiben unter dem bestehenden Privacy-Filter ungemessen; sie bleiben im Sonar-Scope.
+
+Die letzte Analyse am veröffentlichten Head bleibt historisch `3baaffb7b5dd30f05fc9d81ea58da5bd06a2244f`: CE `AaF0MvFOdkEpBguA0kSU`, Analyse `c460fc88-86c3-48eb-87da-e795b94b0990`, 12,9 % Gesamt-/31,0583536721 % New-Code-Coverage (45.070 neue Zeilen; 31.072 nicht abgedeckt), 17 Befunde, null neue Duplikation/Hotspots. Neun Go-Reports und 139 generische Dateien wurden importiert; 118 CFamily-Einheiten wurden im bisherigen Scope analysiert. Dies verifiziert weder den zusammengeführten vollständigen Scope mit 185 Einheiten noch dessen finales Gate. Die unveränderten Anforderungen von 80 % und null Befunden stehen aus. Unveröffentlichte Arbeit vor der Pause bleibt getrennt gesichert und wird nach diesem Merge abgeglichen.

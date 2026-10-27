@@ -95,7 +95,7 @@ class P1P4VectorCatalogTests(unittest.TestCase):
 
         body_limit = self.vectors["p2_body_limit"]
         self.assertGreater(body_limit["request"]["headers"]["Content-Length"], 32)
-        self.assertEqual(body_limit["expected"]["response_status"], 413)
+        self.assertEqual(body_limit["expected"]["response_status"], 403)
 
         empty = self.vectors["p2_empty_body"]
         self.assertEqual(empty["request"]["headers"]["Content-Length"], 0)
@@ -121,6 +121,13 @@ class P1P4VectorCatalogTests(unittest.TestCase):
             "connector_documented_deterministic_strict_action",
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

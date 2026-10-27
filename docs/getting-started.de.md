@@ -27,9 +27,15 @@ nicht zusammenhängende Systeminstallation ist kein Ersatz.
 make quick-check
 ```
 
-Dies validiert Repository-Verträge, Dokumentation und ausgewählte strukturelle
-Prüfungen. Es baut nicht jeden Host, führt nicht den gesamten Connector-Traffic
-aus und erzeugt keine kanonische Lifecycle-Evidence.
+Dies validiert statische Repository-Verträge und zugelassene funktionale
+Teilmengen des einzigen [Aktivinventars](../config/testing/active-cases.json).
+Die Kerngrenze beträgt 100 vollständig expandierte Verhaltensfälle; der Nutzer autorisierte zusätzlich ausdrücklich 793 getrennt gezählte geschützte Offline-Python-Fälle. Insgesamt sind es 893 Fälle / 499 Ausführungen bei unveränderter Connector-E2E-Auswahl. Mit
+<code>make check-active-inventory</code> wird die vollständige Auswahl vor einem
+Teststart geprüft. <code>make test</code> führt die aktive Auswahl aus und
+benötigt ihre echten Compiler-, SDK- und Hostvoraussetzungen. Gruppen-/Fallfilter
+und Standardaliase sind Teilmengen, keine vollständige Profilqualifikation.
+Details zu Archiv, verlorener Abdeckung und getrennten Profilen stehen unter
+[Tests und Nachweise](testing-and-evidence.de.md).
 
 ## Nächsten Guide auswählen
 
@@ -40,12 +46,14 @@ aus und erzeugt keine kanonische Lifecycle-Evidence.
 | Evidence ausführen oder deuten | [Tests und Nachweise](testing-and-evidence.de.md) |
 | Limits, Datenschutz, Origin oder Betrieb prüfen | [Betrieb und Sicherheit](operations-and-security.de.md) |
 
-Für einen ausgewählten Aggregatlauf wird eine dateisystemsichere, nicht geheime
-Run-ID verwendet:
+Nur für eine separat autorisierte Spezialprüfung bleibt folgendes breiteres
+Aggregatbeispiel erhalten. Es liegt außerhalb automatischer Standardauswahl,
+benötigt <code>ON_DEMAND_TESTS=1</code> und eröffnet keine geschlossene I12-
+Kampagne. Eine dateisystemsichere, nicht geheime Run-ID verwenden:
 
 ```sh
 run_id="core-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-all-connectors
+ON_DEMAND_TESTS=1 NO_CRS_RUN_ID="$run_id" make full-lifecycle-all-connectors
 NO_CRS_RUN_ID="$run_id" make check-six-connector-core-completion
 ```
 

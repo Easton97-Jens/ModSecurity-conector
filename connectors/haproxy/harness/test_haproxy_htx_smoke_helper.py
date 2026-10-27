@@ -49,6 +49,15 @@ SYNCHRONIZED_UPSTREAM_SPEC.loader.exec_module(SYNCHRONIZED_UPSTREAM)
 
 
 class HAProxyHTXSmokeHelperTest(unittest.TestCase):
+    def test_fixture_creation_requires_explicit_engine_limit_and_action(self) -> None:
+        with self.assertRaisesRegex(TypeError, "response_body_limit"):
+            HELPER.write_rules("unused", "unused", response_body_limit_action="Reject")
+        with self.assertRaisesRegex(TypeError, "response_body_limit_action"):
+            HELPER.write_rules("unused", "unused", response_body_limit=8)
+        with self.assertRaisesRegex(ValueError, "explicit positive response limit"):
+            HELPER.write_rules("unused", "unused", request_body_limit=32, request_body_no_files_limit=32, request_body_limit_action="Reject", response_body_limit=0,
+                               response_body_limit_action="Reject")
+
     def test_runtime_uses_explicit_framework_root_and_preserves_default(self) -> None:
         runtime = RUNTIME_PATH.read_text(encoding="utf-8")
         self.assertIn(
@@ -69,7 +78,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             runtime,
         )
         self.assertIn(
-            'helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER"',
+            'helper write-rules --path "$rules_file" --canonical-rules "$CANONICAL_RULES_FOR_HELPER" --request-body-limit 32 --request-body-no-files-limit 32 --request-body-limit-action Reject --response-body-limit 1048576 --response-body-limit-action Reject',
             runtime,
         )
 
@@ -198,7 +207,7 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             canonical_rules = root / "canonical-rules.conf"
             canonical_rules.write_text(CANONICAL_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8")
             certificate.write_text("private test certificate", encoding="utf-8")
-            self.assertEqual(HELPER.write_rules(str(root), str(rules), str(canonical_rules)), 0)
+            self.assertEqual(HELPER.write_rules(str(root), str(rules), str(canonical_rules), request_body_limit=32, request_body_no_files_limit=32, request_body_limit_action="Reject", response_body_limit=1048576, response_body_limit_action="Reject"), 0)
             self.assertEqual(
                 HELPER.write_config(
                     str(root), str(config), 18080, 18081, str(rules), str(certificate),
@@ -213,7 +222,9 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             generated_rules = rules.read_text(encoding="utf-8")
             self.assertEqual(
                 generated_rules,
-                HELPER.canonical_rules_content(root, str(canonical_rules)),
+                HELPER.canonical_rules_content(root, str(canonical_rules))
+                + "\nSecRequestBodyLimit 32\nSecRequestBodyNoFilesLimit 32\nSecRequestBodyLimitAction Reject\n"
+                + "\nSecResponseBodyLimit 1048576\nSecResponseBodyLimitAction Reject\n",
             )
             for rule_id in (1100001, 1100002, 1100101, 1100201, 1100301):
                 self.assertIn(f"id:{rule_id}", generated_rules)
@@ -747,6 +758,13 @@ class HAProxyHTXSmokeHelperTest(unittest.TestCase):
             self.assertTrue(set(record).issubset(COLLECTOR.APPROVED_RAW_EVENT_KEYS))
             self.assertNotIn("no-crs-response-body-marker", events.read_text(encoding="utf-8"))
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

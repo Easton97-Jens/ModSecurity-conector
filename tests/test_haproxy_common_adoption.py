@@ -79,6 +79,59 @@ class HaproxyCommonAdoptionCheckerTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_predicted_pre_ack_action_is_rejected_despite_comment(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            replace_once(runtime, 'actual_action = "";', 'actual_action = "deny";')
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write('\n/* actual_action = ""; */\n')
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy pre-ACK response metadata leaves actual host action and transport unobserved",
+        )
+
+    def test_predicted_pre_ack_transport_is_rejected_despite_comment(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            guard = 'JSON_FIELD_STRING("transport_result", "not_observable");'
+            replace_once(runtime, guard,
+                         'JSON_FIELD_STRING("transport_result", "status_returned");')
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write(f'\n/* {guard} */\n')
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy pre-ACK response metadata leaves actual host action and transport unobserved",
+        )
+
+    def test_removed_metadata_renderer_call_is_rejected_despite_foreign_decoys(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            call = ("decision_log_render_metadata(file, state, request, decision,\n"
+                    "        modsecurity_processed, decision_text, phase4_disruptive);")
+            replace_once(runtime, call, "/* renderer omitted */")
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write(f"\n/* {call} */\nstatic void foreign_renderer_decoy(void) {{\n{call}\n}}\n")
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy mandatory decision writer invokes the metadata renderer with current operation state",
+        )
+
+    def test_predicted_common_event_action_is_rejected_despite_safe_renderer(self) -> None:
+        def mutate(mapper: Path) -> None:
+            runtime = mapper.with_name("haproxy_spop_diagnostic_runtime.c")
+            action = 'phase4_requested_action(decision, decision_text), "",'
+            replace_once(runtime, action, action.replace('""', '"deny"'))
+            with runtime.open("a", encoding="utf-8") as source:
+                source.write(f"\n/* {action} */\n")
+
+        self._assert_rejected(
+            mutate,
+            "HAProxy pre-ACK response metadata leaves actual host action and transport unobserved",
+        )
+
     def test_removed_preallocation_host_rejection_is_rejected_despite_decoys(self) -> None:
         def mutate(mapper: Path) -> None:
             replace_once(
@@ -234,6 +287,13 @@ class HaproxyCommonAdoptionCheckerTests(unittest.TestCase):
             "engine configuration treats Common merge and validation return 1 as success",
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

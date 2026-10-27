@@ -1,4 +1,5 @@
 #include "msconnector/decision.h"
+#include "msconnector/decision_action.h"
 #include "msconnector/event.h"
 #include "msconnector/http_status.h"
 #include <string.h>
@@ -35,25 +36,32 @@ void msconnector_decision_init(msconnector_decision *decision) {
 }
 
 const char *msconnector_decision_kind_name(msconnector_decision_kind kind) { return kind_action(kind); }
-int msconnector_decision_is_disruptive(const msconnector_decision *decision) { return decision != 0 && decision->disruptive != 0; }
+int msconnector_decision_is_disruptive(const msconnector_decision *decision) {
+    return decision != 0 && (decision->disruptive != 0 ||
+        msconnector_decision_action_from_decision(decision) == MSCONNECTOR_DECISION_ACTION_ERROR);
+}
 int msconnector_decision_is_deny(const msconnector_decision *decision) { return decision != 0 && decision->kind == MSCONNECTOR_DECISION_KIND_DENY; }
 int msconnector_decision_is_redirect(const msconnector_decision *decision) { return decision != 0 && decision->kind == MSCONNECTOR_DECISION_KIND_REDIRECT; }
 int msconnector_decision_is_drop(const msconnector_decision *decision) { return decision != 0 && decision->kind == MSCONNECTOR_DECISION_KIND_DROP; }
 int msconnector_decision_is_connection_abort(const msconnector_decision *decision) { return decision != 0 && decision->kind == MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT; }
-int msconnector_decision_is_allow(const msconnector_decision *decision) { return decision != 0 && decision->kind == MSCONNECTOR_DECISION_KIND_ALLOW; }
+int msconnector_decision_is_allow(const msconnector_decision *decision) {
+    return decision != 0 &&
+        msconnector_decision_action_from_decision(decision) == MSCONNECTOR_DECISION_ACTION_ALLOW;
+}
 int msconnector_decision_http_status(const msconnector_decision *decision) { return decision == 0 ? 0 : decision->http_status; }
 int msconnector_decision_is_body_limit(const msconnector_decision *decision) {
     return decision != 0 &&
         decision->body_limit == 1 &&
         decision->kind == MSCONNECTOR_DECISION_KIND_DENY &&
         decision->status == MSCONNECTOR_STATUS_BLOCKED &&
-        decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
-        decision->http_status == 413 &&
+        ((decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+          (decision->http_status == 403 || decision->http_status == 413)) ||
+         (decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY && decision->http_status == 403)) &&
         decision->redirect_url == 0 &&
         (decision->rule_id == 0 || decision->rule_id[0] == '\0') &&
         decision->disruptive != 0 &&
         msconnector_intervention_is_disruptive(&decision->intervention) &&
-        decision->intervention.status == 413 &&
+        decision->intervention.status == decision->http_status &&
         decision->intervention.redirect_url == 0;
 }
 
@@ -69,10 +77,16 @@ void msconnector_decision_set_deny(msconnector_decision *decision, int http_stat
     decision->http_status = normalized; decision->rule_id = rule_id; decision->reason = reason;
     decision->disruptive = 1; decision->intervention = msconnector_intervention_make(1, normalized, 0, reason);
 }
-void msconnector_decision_set_body_limit(msconnector_decision *decision, const char *reason) {
-    msconnector_decision_set_deny(decision, 413, 0, reason);
+void msconnector_decision_set_body_limit(msconnector_decision *decision, int native_status, const char *reason) {
+    msconnector_decision_set_deny(decision, native_status, 0, reason);
     if (decision == 0) { return; }
     decision->phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    decision->body_limit = 1;
+}
+void msconnector_decision_set_response_body_limit(msconnector_decision *decision, const char *reason) {
+    msconnector_decision_set_deny(decision, 403, 0, reason);
+    if (decision == 0) { return; }
+    decision->phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     decision->body_limit = 1;
 }
 void msconnector_decision_set_redirect(msconnector_decision *decision, int http_status, const char *url, const char *rule_id, const char *reason) {
@@ -120,6 +134,9 @@ static const char *blocked_message_id(const msconnector_decision *decision) {
 }
 
 static const char *decision_message_id(const msconnector_decision *decision) {
+    if (msconnector_decision_action_from_decision(decision) == MSCONNECTOR_DECISION_ACTION_ERROR) {
+        return MSCONN_EVENT_INTERNAL_ERROR;
+    }
     switch (decision->kind) {
     case MSCONNECTOR_DECISION_KIND_DENY:
         if (msconnector_decision_is_body_limit(decision)) {
@@ -143,14 +160,22 @@ static const char *decision_message_id(const msconnector_decision *decision) {
 
 int msconnector_decision_to_event(const msconnector_decision *decision, msconnector_event *event, const char *connector, const char *transaction_id) {
     const char *message_id;
+    int technical_error;
     if (decision == 0 || event == 0) { return 0; }
     message_id = decision_message_id(decision);
     if (message_id == 0) { msconnector_event_init(event); return 0; }
+    technical_error = strcmp(message_id, MSCONN_EVENT_INTERNAL_ERROR) == 0;
     msconnector_event_init(event);
     event->meta.connector = connector; event->meta.transaction_id = transaction_id;
-    event->decision.phase = decision->phase; event->decision.status = decision->status;
-    event->decision.action = kind_action(decision->kind); event->decision.requested_action = kind_action(decision->kind); event->decision.actual_action = kind_action(decision->kind);
-    event->decision.rule_id = decision->rule_id; event->decision.reason = decision->reason;
+    event->decision.phase = decision->phase;
+    event->decision.status = technical_error ? MSCONNECTOR_STATUS_ERROR : decision->status;
+    event->decision.action = technical_error ? "error" : kind_action(decision->kind);
+    event->decision.requested_action = event->decision.action;
+    /* A decision is a request to the host, not evidence that the host has
+     * completed it. The observing adapter supplies actual_action later. */
+    event->decision.actual_action = "";
+    event->decision.rule_id = technical_error ? "" : decision->rule_id;
+    event->decision.reason = decision->reason;
     event->http.http_status = decision->http_status;
     event->http.http_reason_phrase = msconnector_http_status_reason_phrase(decision->http_status);
     event->http.http_default_message = msconnector_http_status_default_message(decision->http_status);

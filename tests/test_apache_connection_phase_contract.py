@@ -32,19 +32,29 @@ class ApacheConnectionPhaseContractTests(unittest.TestCase):
             intervention = branch.index("it = process_intervention(msr->t, r);")
             self.assertLess(call, gate)
             self.assertLess(gate, intervention)
-            self.assertIn("return apache_fail_closed", branch[gate:intervention])
+            self.assertIn("return apache_native_failed", branch[gate:intervention])
 
     def test_failure_gate_logs_and_precedes_normal_request_processing(self) -> None:
-        fail_closed = function_region(self.source, "static int apache_fail_closed(")
-        self.assertIn("libmodsecurity operation failed", fail_closed)
+        fail_closed = function_region(self.source, "static int apache_fail_closed_with_cause(")
+        self.assertIn("ModSecurity: operation failed: %s", fail_closed)
         self.assertIn("HTTP_INTERNAL_SERVER_ERROR", fail_closed)
+        native = function_region(self.source, "static int apache_native_failed(")
+        self.assertIn("return apache_fail_closed_with_cause(r, operation,", native)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE", native)
         for branch in (self.early, self.late):
             gate = branch.index(") != 1)")
             intervention = branch.index("it = process_intervention(msr->t, r);")
             failure_path = branch[gate:intervention]
-            self.assertIn("apache_fail_closed", failure_path)
-            self.assertIn("return apache_fail_closed", failure_path)
+            self.assertIn("apache_native_failed", failure_path)
+            self.assertIn("return apache_native_failed", failure_path)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

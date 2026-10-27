@@ -430,6 +430,7 @@ def dynamic_config(upstream_port: int, auth_port: int, companion_socket: Path) -
       forwardAuth:
         address: http://127.0.0.1:{auth_port}/authorize
         trustForwardHeader: false
+        preserveRequestMethod: true
         # Keep the logical forwardAuth P2 contract explicit and bounded.
         forwardBody: true
         maxBodySize: 4096
@@ -453,11 +454,15 @@ def dynamic_config(upstream_port: int, auth_port: int, companion_socket: Path) -
 """
 
 
-def validate_forwardauth_p2_contract(
-    dynamic_text: str, service_text: str
-) -> None:
-    """Reject a forwardAuth/service pair that silently disables or loosens P2."""
+def validate_forwardauth_p2_contract(dynamic_text: str) -> None:
+    """Reject a forwardAuth host configuration that disables or loosens P2."""
 
+    methods = re.findall(r"(?m)^\s{8}preserveRequestMethod:\s*(\S+)\s*$", dynamic_text)
+    if methods != ["true"]:
+        raise RuntimeError("forwardAuth requires preserveRequestMethod: true")
+    forwarded = re.findall(r"(?m)^\s{8}trustForwardHeader:\s*(\S+)\s*$", dynamic_text)
+    if forwarded != ["false"]:
+        raise RuntimeError("forwardAuth requires trustForwardHeader: false")
     if "        forwardBody: true" not in dynamic_text:
         raise RuntimeError("forwardAuth P2 requires forwardBody: true")
     body_size = re.search(r"(?m)^\s{8}maxBodySize:\s*(\d+)\s*$", dynamic_text)
@@ -465,11 +470,6 @@ def validate_forwardauth_p2_contract(
         raise RuntimeError("forwardAuth P2 requires maxBodySize")
     if int(body_size.group(1)) != FORWARDAUTH_P2_BODY_LIMIT:
         raise RuntimeError("forwardAuth maxBodySize must equal 4096")
-    if "request_body_mode=buffered" not in service_text:
-        raise RuntimeError("forwardAuth P2 requires request_body_mode=buffered")
-    service_size = re.search(r"(?m)^request_body_limit=(\d+)\s*$", service_text)
-    if service_size is None or int(service_size.group(1)) != FORWARDAUTH_P2_BODY_LIMIT:
-        raise RuntimeError("forwardAuth request_body_limit must equal 4096")
 
 
 def http_status(url: str, headers: dict[str, str] | None = None) -> int:
@@ -498,14 +498,14 @@ def wait_for_tcp(port: int, process: subprocess.Popen[bytes], label: str) -> Non
     raise RuntimeError(f"{label} did not listen on port {port}: {last_error}")
 
 
-def wait_for_traefik(port: int, process: subprocess.Popen[bytes]) -> None:
-    """Wait for the entrypoint socket without sending a routed probe request.
+def wait_for_traefik(port: int, process: subprocess.Popen[bytes]) -> int:
+    """Wait for transport/provider startup and return the canonical allow result.
 
     The smoke router intentionally covers ``/`` and its forwardAuth/response
     companion path.  A synthetic ``/ready`` request would therefore exercise
     the transaction contract and can fail for reasons unrelated to process
-    startup.  Socket readiness is the only startup fact needed here; the
-    subsequent allow/block requests are the behavioral probes.
+    startup. Reuse the first routed canonical allow response after the provider
+    becomes available, so startup never adds a different HTTP/WAF input.
     """
 
     deadline = time.monotonic() + 12
@@ -532,8 +532,10 @@ def wait_for_traefik(port: int, process: subprocess.Popen[bytes]) -> None:
         if process.poll() is not None:
             raise RuntimeError(f"Traefik exited early with code {process.returncode}")
         try:
-            if http_status(f"http://127.0.0.1:{port}/ready") != 404:
-                return
+            status = http_status(f"http://127.0.0.1:{port}/allowed",
+                                 {"X-Request-Id": "traefik-forwardauth-allow"})
+            if status != 404:
+                return status
         except Exception:
             pass
         time.sleep(0.2)
@@ -732,10 +734,7 @@ def run(args: argparse.Namespace) -> int:
     auth_port = free_port()
     traefik_port = free_port()
     dynamic_text = dynamic_config(upstream_port, auth_port, companion_socket)
-    validate_forwardauth_p2_contract(
-        dynamic_text,
-        service_config.read_text(encoding="utf-8"),
-    )
+    validate_forwardauth_p2_contract(dynamic_text)
     traefik_config.write_text(dynamic_text, encoding="utf-8")
 
     upstream = http.server.ThreadingHTTPServer(("127.0.0.1", upstream_port), UpstreamHandler)
@@ -801,11 +800,7 @@ def run(args: argparse.Namespace) -> int:
                     stdout=traefik_stdout,
                     stderr=traefik_stderr,
                 )
-                wait_for_traefik(traefik_port, traefik_process)
-                allowed_status = http_status(
-                    f"http://127.0.0.1:{traefik_port}/allowed",
-                    {"X-Request-Id": "traefik-forwardauth-allow"},
-                )
+                allowed_status = wait_for_traefik(traefik_port, traefik_process)
                 wait_for_private_socket(companion_socket, service_process)
                 blocked_status = http_status(
                     f"http://127.0.0.1:{traefik_port}/blocked",

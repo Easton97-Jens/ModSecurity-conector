@@ -31,7 +31,7 @@ class UpdatePythonVersionTests(unittest.TestCase):
     def test_spec_loaded_adapter_uses_shared_core(self) -> None:
         self.assertTrue(uses_shared_core(updater))
 
-    def _root_with_version(self, root: Path, version: str = "3.14.6") -> Path:
+    def _root_with_version(self, root: Path, version: str = "3.15.6") -> Path:
         root.mkdir(parents=True, exist_ok=True)
         (root / ".python-version").write_text(f"{version}\n", encoding="utf-8")
         write_project_pins(root, python_version=version)
@@ -51,72 +51,73 @@ class UpdatePythonVersionTests(unittest.TestCase):
 
     def test_selects_highest_stable_patch_while_ignoring_prerelease_and_wrong_minor(self):
         metadata = [
-            release("Python 3.14.0"),
-            release("Python 3.14.6"),
-            release("Python 3.14.99rc1", prerelease=True),
-            release("Python 3.15.99"),
-            release("Python 3.14.8"),
+            release("Python 3.15.0"),
+            release("Python 3.15.6"),
+            release("Python 3.15.99rc1", prerelease=True),
+            release("Python 3.16.99"),
+            release("Python 3.14.99"),
+            release("Python 3.15.8"),
         ]
-        self.assertEqual(str(updater.resolve_latest_stable_version(metadata=metadata)), "3.14.8")
+        self.assertEqual(str(updater.resolve_latest_stable_version(metadata=metadata)), "3.15.8")
 
     def test_zero_patch_is_a_valid_canonical_stable_version(self):
-        metadata = [release("Python 3.14.0")]
-        self.assertEqual(str(updater.resolve_latest_stable_version(metadata=metadata)), "3.14.0")
+        metadata = [release("Python 3.15.0")]
+        self.assertEqual(str(updater.resolve_latest_stable_version(metadata=metadata)), "3.15.0")
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.0")
+            root = self._root_with_version(Path(temporary), "3.15.0")
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.14.0", "--json"],
+                ["--update", "--expected-version", "3.15.0", "--json"],
                 metadata=metadata,
             )
 
         self.assertEqual(result, 0)
         self.assertEqual(record["status"], "current")
-        self.assertEqual(record["latest_version"], "3.14.0")
+        self.assertEqual(record["latest_version"], "3.15.0")
         self.assertIs(record["update_available"], False)
         self.assertIs(record["changed"], False)
 
     def test_check_reports_update_available_in_stable_json(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.6")
+            root = self._root_with_version(Path(temporary), "3.15.6")
             result, record = self._run_cli(
                 root,
                 ["--check", "--json"],
-                metadata=[release("Python 3.14.7")],
+                metadata=[release("Python 3.15.7")],
             )
 
         self.assertEqual(result, 0)
         self.assertEqual(record["status"], "update_available")
-        self.assertEqual(record["current_version"], "3.14.6")
-        self.assertEqual(record["latest_version"], "3.14.7")
+        self.assertEqual(record["current_version"], "3.15.6")
+        self.assertEqual(record["latest_version"], "3.15.7")
         self.assertIs(record["update_available"], True)
         self.assertNotIn("changed", record)
 
     def test_check_reports_current_in_stable_json(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.7")
+            root = self._root_with_version(Path(temporary), "3.15.7")
             result, record = self._run_cli(
                 root,
                 ["--check", "--json"],
-                metadata=[release("Python 3.14.7")],
+                metadata=[release("Python 3.15.7")],
             )
 
         self.assertEqual(result, 0)
         self.assertEqual(record["status"], "current")
-        self.assertEqual(record["current_version"], "3.14.7")
-        self.assertEqual(record["latest_version"], "3.14.7")
+        self.assertEqual(record["current_version"], "3.15.7")
+        self.assertEqual(record["latest_version"], "3.15.7")
         self.assertIs(record["update_available"], False)
 
     def test_update_replaces_version_atomically_and_reports_changed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.6")
+            root = self._root_with_version(Path(temporary), "3.15.6")
             target = root / ".python-version"
             original_mode = target.stat().st_mode & 0o777
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.14.7", "--json"],
-                metadata=[release("Python 3.14.7")],
+                ["--update", "--expected-version", "3.15.7", "--json"],
+                metadata=[release("Python 3.15.7")],
             )
             content = target.read_text(encoding="utf-8")
             updated_mode = target.stat().st_mode & 0o777
@@ -125,18 +126,18 @@ class UpdatePythonVersionTests(unittest.TestCase):
         self.assertEqual(record["status"], "update_available")
         self.assertIs(record["update_available"], True)
         self.assertIs(record["changed"], True)
-        self.assertEqual(content, "3.14.7\n")
+        self.assertEqual(content, "3.15.7\n")
         self.assertEqual(updated_mode, original_mode)
 
     def test_update_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.7")
+            root = self._root_with_version(Path(temporary), "3.15.7")
             target = root / ".python-version"
             before = target.stat()
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.14.7", "--json"],
-                metadata=[release("Python 3.14.7")],
+                ["--update", "--expected-version", "3.15.7", "--json"],
+                metadata=[release("Python 3.15.7")],
             )
             after = target.stat()
 
@@ -148,45 +149,45 @@ class UpdatePythonVersionTests(unittest.TestCase):
 
     def test_leading_zero_current_version_fails_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.00")
+            root = self._root_with_version(Path(temporary), "3.15.00")
             result, record = self._run_cli(
                 root,
                 ["--check", "--json"],
-                metadata=[release("Python 3.14.7")],
+                metadata=[release("Python 3.15.7")],
             )
             content = (root / ".python-version").read_text(encoding="utf-8")
 
         self.assertEqual(result, 1)
         self.assertEqual(record["status"], "error")
-        self.assertEqual(content, "3.14.00\n")
+        self.assertEqual(content, "3.15.00\n")
 
     def test_update_rejects_downgrade(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.7")
+            root = self._root_with_version(Path(temporary), "3.15.7")
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.14.6", "--json"],
-                metadata=[release("Python 3.14.6")],
+                ["--update", "--expected-version", "3.15.6", "--json"],
+                metadata=[release("Python 3.15.6")],
             )
             content = (root / ".python-version").read_text(encoding="utf-8")
 
         self.assertEqual(result, 1)
         self.assertEqual(record["status"], "error")
-        self.assertEqual(content, "3.14.7\n")
+        self.assertEqual(content, "3.15.7\n")
 
     def test_expected_version_mismatch_rejects_update_output(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self._root_with_version(Path(temporary), "3.14.6")
+            root = self._root_with_version(Path(temporary), "3.15.6")
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.14.8", "--json"],
-                metadata=[release("Python 3.14.7")],
+                ["--update", "--expected-version", "3.15.8", "--json"],
+                metadata=[release("Python 3.15.7")],
             )
             content = (root / ".python-version").read_text(encoding="utf-8")
 
         self.assertEqual(result, 1)
         self.assertEqual(record["status"], "error")
-        self.assertEqual(content, "3.14.6\n")
+        self.assertEqual(content, "3.15.6\n")
 
     def test_expected_version_must_be_an_exact_supported_series(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -194,7 +195,7 @@ class UpdatePythonVersionTests(unittest.TestCase):
             opener = FakeOpener(FakeResponse(b"[]"))
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.15.1", "--json"],
+                ["--update", "--expected-version", "3.16.1", "--json"],
                 opener=opener,
             )
 
@@ -208,7 +209,7 @@ class UpdatePythonVersionTests(unittest.TestCase):
             opener = FakeOpener(FakeResponse(b"[]"))
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.14.00", "--json"],
+                ["--update", "--expected-version", "3.15.00", "--json"],
                 opener=opener,
             )
 
@@ -217,8 +218,8 @@ class UpdatePythonVersionTests(unittest.TestCase):
         self.assertEqual(opener.requests, [])
 
     def test_exact_version_parsers_reject_non_ascii_digits(self):
-        non_ascii_patch = "3.14.\u0661"
-        malformed_release = release("Python 3.14.\u0661")
+        non_ascii_patch = "3.15.\u0661"
+        malformed_release = release("Python 3.15.\u0661")
 
         with self.assertRaises(updater.VersionError):
             updater.parse_stable_version(non_ascii_patch)
@@ -228,11 +229,11 @@ class UpdatePythonVersionTests(unittest.TestCase):
             updater.resolve_latest_stable_version(metadata=[malformed_release])
 
     def test_stable_version_parser_regression_matrix(self) -> None:
-        for value in ("3.14.6", "3.14.7"):
+        for value in ("3.15.1", "3.15.6", "3.15.7"):
             with self.subTest(value=value):
                 self.assertEqual(str(updater.parse_stable_version(value)), value)
 
-        for value in ("3.14.06", "3.14.-1", "3.15.0", "3.14.\u0661"):
+        for value in ("3.15.06", "3.15.-1", "3.16.0", "3.14.9", "3.15.\u0661"):
             with self.subTest(value=value), self.assertRaises(updater.VersionError):
                 updater.parse_stable_version(value)
 
@@ -294,7 +295,7 @@ class UpdatePythonVersionTests(unittest.TestCase):
 
     def test_schema_with_unpublished_or_malformed_records_is_rejected(self):
         with self.subTest("unpublished"):
-            unpublished_release = release("Python 3.14.7", published=False)
+            unpublished_release = release("Python 3.15.7", published=False)
             with self.assertRaises(updater.MetadataError):
                 updater.resolve_latest_stable_version(metadata=[unpublished_release])
         with self.subTest("non-array"):
@@ -303,25 +304,25 @@ class UpdatePythonVersionTests(unittest.TestCase):
         with self.subTest("bad-boolean"):
             with self.assertRaises(updater.MetadataError):
                 updater.resolve_latest_stable_version(
-                    metadata=[{"name": "Python 3.14.7", "is_published": "true", "pre_release": False}]
+                    metadata=[{"name": "Python 3.15.7", "is_published": "true", "pre_release": False}]
                 )
 
     def test_symlink_target_is_refused_without_touching_its_destination(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             destination = root / "outside-version"
-            destination.write_text("3.14.6\n", encoding="utf-8")
+            destination.write_text("3.15.6\n", encoding="utf-8")
             (root / ".python-version").symlink_to(destination)
             result, record = self._run_cli(
                 root,
-                ["--update", "--expected-version", "3.14.7", "--json"],
-                metadata=[release("Python 3.14.7")],
+                ["--update", "--expected-version", "3.15.7", "--json"],
+                metadata=[release("Python 3.15.7")],
             )
             destination_content = destination.read_text(encoding="utf-8")
 
         self.assertEqual(result, 1)
         self.assertEqual(record["status"], "error")
-        self.assertEqual(destination_content, "3.14.6\n")
+        self.assertEqual(destination_content, "3.15.6\n")
 
     def test_symlinked_root_path_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -332,7 +333,7 @@ class UpdatePythonVersionTests(unittest.TestCase):
             result, record = self._run_cli(
                 root_link,
                 ["--check", "--json"],
-                metadata=[release("Python 3.14.7")],
+                metadata=[release("Python 3.15.7")],
             )
 
         self.assertEqual(result, 1)
@@ -346,6 +347,13 @@ class UpdatePythonVersionTests(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertEqual(record["status"], "error")
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

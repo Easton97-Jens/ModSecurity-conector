@@ -44,22 +44,19 @@ int msconnector_envoy_ext_authz_response_companion_init(
     companion->ttl_ms = ttl_ms;
     companion->max_header_count = MSCONNECTOR_MAX_HEADER_COUNT;
     companion->max_header_bytes = MSCONNECTOR_MAX_TOTAL_HEADER_BYTES;
-    companion->max_response_body_bytes = MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE;
     return 1;
 }
 
 int msconnector_envoy_ext_authz_response_companion_set_limits(
     msconnector_envoy_ext_authz_response_companion *companion,
     size_t max_header_count,
-    size_t max_header_bytes,
-    size_t max_response_body_bytes)
+    size_t max_header_bytes)
 {
     if (companion == NULL || max_header_count == 0U ||
-        max_header_bytes == 0U || max_response_body_bytes == 0U) {
+        max_header_bytes == 0U) {
         return 0;
     }
     companion->max_header_count = max_header_count;
     companion->max_header_bytes = max_header_bytes;
-    companion->max_response_body_bytes = max_response_body_bytes;
     return 1;
 }
