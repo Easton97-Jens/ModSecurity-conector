@@ -279,6 +279,8 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     errors: list[str] = []
     required = (
         "Create private read-only candidate guard",
+        "Install selected Apache native lifecycle prerequisites",
+        "sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev",
         "Prepare reviewed Python dependency before runtime protection",
         "python3 ci/tools/install-ci-dependencies.py --ci-toolcache --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock",
         "python3 -m pip check",
@@ -299,6 +301,10 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         "id: prepare-readonly-candidate-sandbox",
         "id: run-readonly-candidate-namespace",
         "continue-on-error: true",
+        'namespace_status=0 namespace_output="$(sudo -n python3',
+        ')" || namespace_status=$?',
+        'printf \'%s\\n\' "$namespace_output"',
+        'if [ "$namespace_status" -ne 0 ]; then exit "$namespace_status" fi',
         READONLY_SUBMODULE_NAMESPACE_COMPLETE,
         "Verify candidate source inventory and external outputs",
         READONLY_SUBMODULE_VERIFY_GATE,
@@ -379,6 +385,14 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         errors.append("physical verification must follow a failed candidate but not failed preparation")
 
     setup_index = normalized.find(READONLY_SUBMODULE_SANDBOX_CALL)
+    interpreter_index = normalized.find("Verify Python interpreter contract")
+    native_index = normalized.find("Install selected Apache native lifecycle prerequisites")
+    native_install_index = normalized.find("sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev")
+    baseline_index = normalized.find(SUBMODULE_CANDIDATE_BASELINE_CALL)
+    if min(interpreter_index, native_index, native_install_index, baseline_index) < 0 or not (
+        interpreter_index < native_index < native_install_index < baseline_index
+    ):
+        errors.append("Apache native prerequisites must follow the interpreter contract and precede baseline capture")
     contract_index = normalized.find("Validate Framework component-pin data contract")
     dependency_index = normalized.find("Prepare reviewed Python dependency before runtime protection")
     dependency_install_index = normalized.find("python3 ci/tools/install-ci-dependencies.py --ci-toolcache")
@@ -389,6 +403,14 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     ):
         errors.append("reviewed dependency preparation must follow candidate data validation and precede runtime protection")
     namespace_index = normalized.find(READONLY_SUBMODULE_NAMESPACE_CALL)
+    status_index = normalized.find(')" || namespace_status=$?', namespace_index)
+    output_index = normalized.find('printf \'%s\\n\' "$namespace_output"', namespace_index)
+    failure_index = normalized.find('if [ "$namespace_status" -ne 0 ]; then exit "$namespace_status" fi', namespace_index)
+    completion_index = normalized.find('case "$namespace_output" in', namespace_index)
+    if min(namespace_index, status_index, output_index, failure_index, completion_index) < 0 or not (
+        namespace_index < status_index < output_index < failure_index < completion_index
+    ):
+        errors.append("namespace output must be printed before preserving a failed candidate status and checking completion")
     verification_index = normalized.find("Verify candidate source inventory and external outputs")
     result_index = normalized.find("Enforce isolated candidate result after verification")
     cleanup_index = normalized.find("Clean up private read-only candidate guard")
@@ -586,6 +608,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         '"GIT_CONFIG_GLOBAL": str(root / "gitconfig")',
         '"GITHUB_ACTIONS": "true"',
         '"BUILD_ROOT": str(root / "build")',
+        '"APACHE_C_STANDARDS_OUT": str(root / "build/apache-c-standards")',
         '"VERIFIED_RUN_ROOT": str(root / "verified-run")',
         '"CACHE_ROOT": str(root / "cache")',
         '"VERIFIED_EVIDENCE_ROOT": str(root / "evidence")',
@@ -2838,6 +2861,62 @@ jobs:
                 self.assertIn(module, contract_target)
         self.assertTrue((ROOT / SUBMODULE_CANDIDATE_STATE_HELPER).is_file())
 
+    def test_submodule_namespace_failure_keeps_diagnostics_status_and_cleanup(self) -> None:
+        workflow = self.workflow("update-submodules.yml")
+        steps = yaml.safe_load(workflow)["jobs"]["validate-submodule-update"]["steps"]
+        candidate_step = next(step for step in steps
+                              if step.get("name") == "Run quick check in the private read-only namespace")
+        cases = (("success", 0, READONLY_SUBMODULE_NAMESPACE_COMPLETE, 0),
+                 ("candidate failure", 17, "native fixture failed\n" + READONLY_SUBMODULE_NAMESPACE_COMPLETE, 17),
+                 ("missing completion", 0, "candidate stopped without completion", 1))
+        for name, candidate_status, output, expected_status in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                mock_bin = root / "bin"; mock_bin.mkdir()
+                namespace_root = root / "namespace parents"; namespace_root.mkdir()
+                created_paths = root / "created-paths.log"
+                sudo_log = root / "sudo.log"
+                mock_sudo = mock_bin / "sudo"
+                mock_sudo.write_text("\n".join((
+                    "#!/bin/sh", "set -eu", 'printf \'%s\\n\' "$*" >> "$MOCK_SUDO_LOG"',
+                    'test "$1" = -n', "shift", 'case "$1" in',
+                    "  mktemp)",
+                    '    path="$(/usr/bin/mktemp -d "$MOCK_NAMESPACE_ROOT/namespace.XXXXXX")"',
+                    '    printf \'%s\\n\' "$path" >> "$MOCK_CREATED_PATHS"',
+                    '    printf \'%s\\n\' "$path"', "    ;;",
+                    "  chown|chmod) exit 0 ;;",
+                    '  rmdir) shift; exec /usr/bin/rmdir "$@" ;;',
+                    "  python3)",
+                    '    test "$2" = ci/tools/run-readonly-submodule-validation-namespace.py',
+                    '    printf \'%s\\n\' "$MOCK_NAMESPACE_STDOUT"',
+                    '    printf \'%s\\n\' "namespace-stderr-diagnostic" >&2',
+                    '    exit "$MOCK_NAMESPACE_STATUS" ;;',
+                    '  *) echo "unexpected mocked sudo command: $*" >&2; exit 99 ;;',
+                    "esac", "",
+                )), encoding="utf-8")
+                mock_sudo.chmod(0o700)
+                environment = {
+                    **os.environ,
+                    "PATH": str(mock_bin) + os.pathsep + os.defpath,
+                    "MOCK_SUDO_LOG": str(sudo_log), "MOCK_CREATED_PATHS": str(created_paths),
+                    "MOCK_NAMESPACE_ROOT": str(namespace_root), "MOCK_NAMESPACE_STDOUT": output,
+                    "MOCK_NAMESPACE_STATUS": str(candidate_status),
+                    "GITHUB_WORKSPACE": str(root / "source space"),
+                    "SUBMODULE_PATH": "modules/ModSecurity-test-Framework",
+                    "VALIDATION_WRITE_ROOT": str(root / "guard space"),
+                    "EXPECTED_PYTHON": "/selected runtime/bin/python",
+                }
+                environment.pop("BASH_ENV", None)
+                result = subprocess.run(["/bin/bash", "--noprofile", "--norc", "-ceu", candidate_step["run"]],
+                                        env=environment, capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, expected_status, result.stderr)
+                self.assertIn(output, result.stdout)
+                self.assertIn("namespace-stderr-diagnostic", result.stderr)
+                self.assertTrue(created_paths.is_file(), result.stderr)
+                created = Path(created_paths.read_text(encoding="utf-8").splitlines()[-1])
+                self.assertFalse(created.exists())
+                self.assertIn(f"rmdir -- {created}", sudo_log.read_text(encoding="utf-8"))
+
     def test_update_submodules_separates_validation_from_publishing(self) -> None:
         workflow = self.workflow("update-submodules.yml")
         jobs = job_blocks(workflow)
@@ -2998,6 +3077,12 @@ jobs:
         """Run the exact workflow prelude with a test-local sudo implementation."""
         workflow_payload = yaml.safe_load(self.workflow("update-submodules.yml"))
         steps = workflow_payload["jobs"]["validate-submodule-update"]["steps"]
+        native_name = "Install selected Apache native lifecycle prerequisites"
+        native_step = next(step for step in steps if step["name"] == native_name)
+        self.assertEqual(set(native_step), {"name", "run"})
+        self.assertEqual(normalize_shell_script(native_step["run"]),
+                         "set -euo pipefail sudo apt-get update sudo apt-get install "
+                         "--no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev")
         dependency_name = "Prepare reviewed Python dependency before runtime protection"
         dependency_step = next(step for step in steps if step["name"] == dependency_name)
         self.assertEqual(set(dependency_step), {"name", "run"})
@@ -3006,6 +3091,8 @@ jobs:
                          "--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock "
                          "python3 -m pip check")
         names = [step.get("name") for step in steps]
+        self.assertLess(names.index("Verify Python interpreter contract"), names.index(native_name))
+        self.assertLess(names.index(native_name), names.index("Capture immutable Parent validation baseline"))
         self.assertLess(names.index("Validate Framework component-pin data contract"),
                         names.index(dependency_name))
         self.assertLess(names.index(dependency_name), names.index("Create private read-only candidate guard"))
@@ -3030,6 +3117,7 @@ trap cleanup_namespace_parent EXIT
 namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"
 sudo -n chown root:modsecurity-validator "$namespace_parent"
 sudo -n chmod 0750 "$namespace_parent"
+namespace_status=0
 """
         self.assertTrue(separator)
         self.assertEqual(prelude, expected_prelude)

@@ -218,7 +218,18 @@ beobachtete CI- und Delivery-Evidence.
 ### Schreibgeschützte Candidate-Validierung des Framework-Submodules
 
 `update-submodules.yml` trennt die Candidate-Validierung von der
-Veröffentlichung. Sein Job `validate-submodule-update` erstellt ein frisches
+Veröffentlichung. Sein Validator installiert nach dem Python-Interpretervertrag
+und vor Aufnahme der unveränderlichen Quellbasis dieselben Voraussetzungen
+`build-essential apache2-dev libmodsecurity-dev` wie die normalen Quick-Check-
+Jobs. Die ausgewählten Apache-Lebenszyklustests kompilieren mit echten Apache-/
+APR-/ModSecurity-Headern und APR-Bibliotheken; ihre Assertions benötigen diese
+Voraussetzungen. Werkzeuge und Header sind anschließend über die vorhandenen
+schreibgeschützten Runtime-Mounts verfügbar. Der feste Wert
+`APACHE_C_STANDARDS_OUT` zeigt auf `/external/build/apache-c-standards`, sodass
+der Apache-C17-Check nicht seinen Standardausgabepfad unter dem fehlenden `/var`
+verwendet. Kein zusätzliches Hostverzeichnis wird sichtbar oder beschreibbar.
+
+Sein Job `validate-submodule-update` erstellt ein frisches
 `mktemp -d`-direktes Child
 `/tmp/modsecurity-readonly-namespace.XXXXXX` unter dem sticky `/tmp`, setzt
 dieses Parent anschließend exakt auf `root:modsecurity-validator` mit Modus
@@ -289,6 +300,14 @@ ohne Berücksichtigung von `PYTHONPATH`; fehlgeschlagener Import oder unerwartet
 LibYAML-Erweiterung stoppt die Validierung vor `quick-check`. Im Validator-
 Ausgabebaum werden weder Abhängigkeiten installiert noch Builder-Umgebungen
 erstellt. Dessen strenge Rechte- und Escape-Link-Prüfungen bleiben unverändert.
+
+Der Workflow gibt erfasstes Namespace-stdout bei Fehlern ebenso wie bei Erfolg
+aus; stderr bleibt direkt sichtbar. Er erhält den ursprünglichen Fehlercode,
+bevor er den Abschlussmarker prüft. Ein ausgegebener Marker kann einen
+fehlgeschlagenen Kandidaten nicht erfolgreich machen. Root-seitige Quell-/
+Ausgabeprüfung und beide Cleanup-Pfade laufen weiter nach ihren bestehenden
+Gates. So bleiben bei künftigen Fehlern Test-/Compilerdiagnosen sichtbar, bevor
+temporäre Ausgaben entfernt werden.
 
 Dies ersetzt Host-Ahnen-ACL-Handling: Der Candidate erhält keinen Host-seitigen
 Traverse- oder Lese-Grant nur, um `RUNNER_TEMP` zu erreichen. Parent, Framework

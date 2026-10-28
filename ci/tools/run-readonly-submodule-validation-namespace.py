@@ -601,6 +601,7 @@ def _candidate_environment(
         "GITHUB_WORKSPACE": str(source),
         "FRAMEWORK_ROOT": str(source / framework_relative), "VALIDATOR_EXTERNAL_ROOT": str(root),
         "BUILD_ROOT": str(root / "build"),
+        "APACHE_C_STANDARDS_OUT": str(root / "build/apache-c-standards"),
         "VALIDATION_WRITE_ROOT": str(guard), "VERIFIED_RUN_ROOT": str(root / "verified-run"),
         "VERIFIED_STATE_ROOT": str(root / "verified-run/state"), "VERIFIED_BUILD_ROOT": str(root / "verified-run/build"),
         "VERIFIED_SOURCE_ROOT": str(root / "verified-run/source"), "VERIFIED_TMP_ROOT": str(root / "verified-run/tmp"),

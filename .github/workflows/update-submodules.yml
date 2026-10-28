@@ -168,6 +168,12 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
+
       - name: Capture immutable Parent validation baseline
         run: |
           set -euo pipefail
@@ -352,6 +358,7 @@ jobs:
           namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"
           sudo -n chown root:modsecurity-validator "$namespace_parent"
           sudo -n chmod 0750 "$namespace_parent"
+          namespace_status=0
           namespace_output="$(sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
@@ -360,8 +367,11 @@ jobs:
             --validator-user modsecurity-validator \
             --validator-group modsecurity-validator \
             --python "$EXPECTED_PYTHON" \
-            --namespace-parent "$namespace_parent")"
+            --namespace-parent "$namespace_parent")" || namespace_status=$?
           printf '%s\n' "$namespace_output"
+          if [ "$namespace_status" -ne 0 ]; then
+            exit "$namespace_status"
+          fi
           case "$namespace_output" in
             *READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE*) ;;
             *)
