@@ -57,6 +57,13 @@ Transportkapazität, erklärt abgewiesene entfernte Optionen, nennt den
 Phase-4-Source-Standard `off` und dokumentiert aktive Tests sowie explizite
 Spezialauswahl, ohne I12 erneut zu eröffnen.
 
+Das abschließende Review korrigiert außerdem den veralteten `safe`-Standard
+im Repository-Konzept auf den tatsächlichen gemeinsamen `off`-Standard aus
+`common/include/msconnector/options.h`. Das Konzept behält Detailarchitektur
+und datierte Beobachtungen, trennt historisches Prüf-/Testplatzierungsmaterial
+nun aber ausdrücklich von Live-Status und aktueller aktiver Auswahl. Die
+engine-eigene Request-/Response-Policy bleibt unverändert.
+
 Der reine Herkunftszweck von `licenses/` bleibt erhalten: Upstream-Herkunft,
 aufgezeichnete Revisions-/Lizenzbasis, aufbewahrte Hinweise und lokale
 Unterschiede. Originale Upstream-Dateien LICENSE/AUTHORS/CHANGES werden nicht
@@ -87,6 +94,7 @@ Der abgeglichene PR-Diff gegen den ausgewählten master enthält diese Dokumente
 - `docs/operations-and-security.md` / `docs/operations-and-security.de.md`
 - `docs/reference/glossary.md` / `docs/reference/glossary.de.md`
 - `docs/reference/with-crs-no-mrts-profile-contract.md` / `docs/reference/with-crs-no-mrts-profile-contract.de.md`
+- `docs/repository-concept.md` / `docs/repository-concept.de.md`
 - `examples/README.md` / `examples/README.de.md`
 - `licenses/README.md` / `licenses/README.de.md`
 - `licenses/apache/ORIGIN.md` / `licenses/apache/ORIGIN.de.md`
@@ -113,11 +121,11 @@ Hosted-Lint für Abgleich-Head
 `34dffc40f31cdb870e64283ebaee32b8cdd44bca` führte
 `python ci/checks/documentation/check-bilingual-docs.py` aus und meldete fehlende
 kanonische Change-Record-Abschnitts-/Identitätsbezeichnungen in diesem neuen
-Record. Der Nachfolger korrigiert diese Bezeichnungen und trennt die
-Pflichtabschnitte, ohne den Checker zu ändern. Derselbe beobachtete Lint-Job
-meldete aktuelle generierte Konfigurationsausgaben und eine bestandene
-Semantikprüfung der Konfigurationsreferenzen. Das sind Ergebnisse dieses
-Abgleich-Heads, kein vorweggenommener Erfolg des Nachfolgers.
+Record. Commit `1d161212124ad882064f8acfcefb721c67bc3d1d` korrigiert diese
+Bezeichnungen und trennt die Pflichtabschnitte, ohne den Checker zu ändern.
+Seine beobachteten Workflows `lint` und `quick-framework-check` wurden vor der
+abschließenden Konzept-/Default-Korrektur erfolgreich abgeschlossen. Das sind
+Ergebnisse des früheren Heads, kein vorweggenommener Erfolg des Nachfolgers.
 Repository-native lokale Testbefehle werden nicht behauptet.
 
 ## Security-Auswirkung
@@ -182,8 +190,9 @@ autorisiert weder eine I12-Kampagne noch zusätzliche On-demand-Suiten.
 Der Abgleich nutzt einen Merge mit zwei Eltern auf dem vorhandenen
 Dokumentations-Branch, erhält die bisherige PR-Historie und enthält die exakt
 geprüfte master-Revision. Es gab weder Force-Push noch PR-Merge oder
-Branchlöschung. Der beobachtete Change-Record-Formatfehler wird durch einen
-normalen Nachfolge-Commit behoben.
+Branchlöschung. Der Change-Record-Formatfehler wurde in einem normalen
+Nachfolger behoben; die finale Konzeptkorrektur erhält das aktuelle
+Detailreferenzmaterial.
 
 Vor Freigabe finalen Diff und CI des finalen Heads prüfen. Eine erfolgreiche
 Dokumentationsänderung ist keine Produktions- oder Vollprotokollzertifizierung.

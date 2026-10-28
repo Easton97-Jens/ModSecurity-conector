@@ -54,6 +54,13 @@ transport capacity, explains rejected removed options, identifies the shared
 Phase-4 source default `off`, and documents active testing and specialist
 opt-in without reopening I12 work.
 
+Final review also corrects the stale `safe` default in the repository concept
+to the actual shared `off` default in `common/include/msconnector/options.h`.
+The concept keeps its detailed architecture and dated observations, but now
+explicitly separates historical assessment/test-placement material from live
+status and the current active selection. Its engine-owned request/response
+policy remains unchanged.
+
 The provenance-only purpose of `licenses/` remains: upstream origin, recorded
 revision/license basis, retained notices, and local differences. Original
 upstream LICENSE/AUTHORS/CHANGES files are not rewritten, and no repository-wide
@@ -83,6 +90,7 @@ The reconciled PR diff against the selected master contains these documents:
 - `docs/operations-and-security.md` / `docs/operations-and-security.de.md`
 - `docs/reference/glossary.md` / `docs/reference/glossary.de.md`
 - `docs/reference/with-crs-no-mrts-profile-contract.md` / `docs/reference/with-crs-no-mrts-profile-contract.de.md`
+- `docs/repository-concept.md` / `docs/repository-concept.de.md`
 - `examples/README.md` / `examples/README.de.md`
 - `licenses/README.md` / `licenses/README.de.md`
 - `licenses/apache/ORIGIN.md` / `licenses/apache/ORIGIN.de.md`
@@ -107,12 +115,12 @@ the PR as mergeable.
 Hosted lint for reconciliation head
 `34dffc40f31cdb870e64283ebaee32b8cdd44bca` ran
 `python ci/checks/documentation/check-bilingual-docs.py` and reported missing
-canonical Change Record section/identity labels in this new record. The
-successor corrects those labels and separates the required sections without
-changing the checker. The same observed lint job reported current generated
-configuration outputs and a passing configuration-reference semantics check.
-Those are results for that reconciliation head, not a pre-claimed pass for the
-successor. No repository-native local test command is claimed.
+canonical Change Record section/identity labels in this new record. Commit
+`1d161212124ad882064f8acfcefb721c67bc3d1d` corrects those labels and separates
+the required sections without changing the checker. Its observed `lint` and
+`quick-framework-check` workflows completed successfully before the final
+concept/default correction. Those are prior-head results, not a pre-claimed
+pass for the successor. No repository-native local test command is claimed.
 
 ## Security impact
 
@@ -169,8 +177,9 @@ pass. No I12 campaign or extra on-demand suite is authorized by this record.
 
 Reconciliation uses a two-parent merge on the existing documentation branch,
 retains the prior PR history, and includes the exact verified master revision.
-No force-push, PR merge, or branch deletion was performed. The observed
-Change Record format error is repaired in a normal successor commit.
+No force-push, PR merge, or branch deletion was performed. The Change Record
+format error was repaired in a normal successor, and the final concept
+correction retains the current detailed reference material.
 
 Review the final diff and final-head CI before readiness. A successful
 documentation change is not production or all-protocol certification.
