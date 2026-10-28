@@ -39397,7 +39397,7 @@
     },
     {
       "path": ".github/workflows/update-submodules.yml",
-      "sha256": "5f60eb699d01c1fe543f9b048f929d639f84b118f1b3a4127adcd2915c079571"
+      "sha256": "ab1d2a243626e98311dafc541ae94203aaadaf8d791758ec821e492d3e583cef"
     },
     {
       "path": ".github/workflows/update-workflow-tools.yml",
@@ -39949,7 +39949,7 @@
     },
     {
       "path": "ci/tooling/project-versions.lock.json",
-      "sha256": "3981782d6ea6acc7e087a851709df220c83677bfeb92ee7836d1ec4e90b8d3b9"
+      "sha256": "880b1d19b6d78e52a1588033ce794a35d09e58040b8af763d90fcdb9f99c0d34"
     },
     {
       "path": "ci/tooling/security-tools.lock.yml",
@@ -39993,7 +39993,7 @@
     },
     {
       "path": "ci/tools/sync-framework-component-versions.py",
-      "sha256": "5e42001731d792601dfdc69154ada71a755bb800bc10c8a705ed69712f479790"
+      "sha256": "454a0e67653a080ff0a072c7ce5719a94a4bebeef57a9246fcfb6b8e5d98bb9e"
     },
     {
       "path": "ci/tools/sync-project-versions.py",
@@ -40585,7 +40585,7 @@
     },
     {
       "path": "connectors/envoy/config/envoy-ext-proc-versions.env",
-      "sha256": "07830f7e8ef26ec5e4b8e9b35c42f28f63e5716963aeac092d3de003189df2a3"
+      "sha256": "ae64e47dd674e0f6d4f277ee1789d9b8fdb208477afe7571ee034ab1b3a20f0d"
     },
     {
       "path": "connectors/envoy/config/lib/tls_yaml_render.sh",
@@ -41441,7 +41441,7 @@
     },
     {
       "path": "tests/test_ci_security_workflows.py",
-      "sha256": "840fda39043d3114bf7ffe7a981d07dafa3abcc4900b648c71e56b7eca05e3ba"
+      "sha256": "b6c4a166049e7d36e17916cdf09bcfa727393f505452e0fbdccde7d58095801d"
     },
     {
       "path": "tests/test_compiler_guides.py",
@@ -41693,7 +41693,7 @@
     },
     {
       "path": "tests/test_update_framework_versions.py",
-      "sha256": "1a2f8a163b84176641ade9592e3710516bc0f2f463699fd1fc0d9627f8e08768"
+      "sha256": "65629d0274d00f4bab1d389dc9fefbdadc68a6ab94be2e8a0713587b9f0efbc9"
     },
     {
       "path": "tests/test_update_go_components.py",

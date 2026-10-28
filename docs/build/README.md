@@ -216,6 +216,21 @@ then available through the existing read-only runtime mounts. The fixed
 Apache C17 check does not attempt its default output below the absent `/var`.
 No additional host directory becomes visible or writable.
 
+The publisher synchronizes its fixed component targets together with exactly
+two derived companions: `config/testing/active-cases.json` and
+`reports/testing/test-selection-archive.generated.json`. It admits the complete
+inventory before mutation and includes both companions in the same rollback
+transaction as the primary targets. Only existing source SHA fields and the
+archive's `inventory_sha256` may change; existing archive `source_sha256` fields
+may also follow proven changes to registered test sources. Case IDs, selectors,
+profiles, source paths and archived definitions remain fixed. A separate
+`--verify-companions --base` reconstruction from trusted master proves exact
+primary and companion bytes before staging and again with `--staged` afterwards.
+Changed companions must remain regular `100644` files with modification status
+`M`. The existing one-updater-commit rule still governs reuse of an open update
+branch: a manually repaired PR with an additional commit requires reviewed
+integration before that branch can be reused automatically.
+
 Its `validate-submodule-update` job creates a fresh `mktemp -d`
 `/tmp/modsecurity-readonly-namespace.XXXXXX` direct child under sticky `/tmp`,
 then makes that parent exactly `root:modsecurity-validator` mode `0750` before

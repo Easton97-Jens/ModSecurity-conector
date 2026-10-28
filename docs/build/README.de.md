@@ -229,6 +229,23 @@ schreibgeschützten Runtime-Mounts verfügbar. Der feste Wert
 der Apache-C17-Check nicht seinen Standardausgabepfad unter dem fehlenden `/var`
 verwendet. Kein zusätzliches Hostverzeichnis wird sichtbar oder beschreibbar.
 
+Der Publisher synchronisiert seine festen Komponenten-Ziele zusammen mit exakt
+zwei abgeleiteten Begleitdateien: `config/testing/active-cases.json` und
+`reports/testing/test-selection-archive.generated.json`. Er lässt vor Änderungen
+das vollständige Inventar zu und nimmt beide Begleitdateien in dieselbe
+Rollback-Transaktion wie die primären Ziele auf. Nur vorhandene Quell-SHA-Felder
+und `inventory_sha256` des Archivs dürfen sich ändern; vorhandene
+`source_sha256`-Felder des Archivs dürfen ebenfalls nachgewiesenen Änderungen
+registrierter Testquellen folgen. Fall-IDs, Selektoren, Profile, Quellpfade und
+archivierte Definitionen bleiben fest. Eine getrennte Rekonstruktion mit
+`--verify-companions --base` aus dem vertrauenswürdigen Master beweist vor dem
+Staging die exakten primären und abgeleiteten Bytes und danach erneut mit
+`--staged`. Geänderte Begleitdateien müssen reguläre `100644`-Dateien mit
+Änderungsstatus `M` bleiben. Die bestehende Regel für exakt einen Updater-Commit
+bestimmt weiterhin die Wiederverwendung eines offenen Update-Branches: Ein
+manuell reparierter PR mit einem zusätzlichen Commit erfordert eine geprüfte
+Integration, bevor der Branch automatisch wiederverwendet werden kann.
+
 Sein Job `validate-submodule-update` erstellt ein frisches
 `mktemp -d`-direktes Child
 `/tmp/modsecurity-readonly-namespace.XXXXXX` unter dem sticky `/tmp`, setzt
