@@ -40009,7 +40009,7 @@
     },
     {
       "path": "ci/tools/verify-framework-candidate-contract.py",
-      "sha256": "33cc6b5bbe7079b0092cc57265228a5508ff45164f73d9c9a86a8ef1eda7a28a"
+      "sha256": "d812dc1e644038eac7d0fb2eba03e4693d9fd6228ecbef55ed70d1687a4f9a98"
     },
     {
       "path": "common/include/msconnector/adapter.h",
@@ -40605,7 +40605,7 @@
     },
     {
       "path": "connectors/envoy/ext_proc/go.mod",
-      "sha256": "9a52853f5e3839f500655c1d6cc8785b7cd379da55fe8e9a6374ac8ff0ece7c6"
+      "sha256": "0c2ed5aa5fbed8565e17d584bc61e7b0a7ad062d65cecbaae379c622adbd5c98"
     },
     {
       "path": "connectors/envoy/ext_proc/internal/processor/body_limit_host_action_test.go",
@@ -41713,7 +41713,7 @@
     },
     {
       "path": "tests/test_verify_framework_candidate_contract.py",
-      "sha256": "24dbd6c825f02e3a80ec728d90f0916e29aa8b4cef4da430dbce2c2cd74e024d"
+      "sha256": "4961f950f33007bd9ef3efef1e23429396005a787524b6e6bd4f3eb20d632c40"
     },
     {
       "path": "tests/version_updater_test_support.py",

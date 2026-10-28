@@ -672,13 +672,23 @@ def _verify_unprotected_nginx_handoff(root: Path, values: dict[str, str]) -> Non
         _root_relative_path(root, NGINX_EXACT_HEAD_WORKFLOW_PATH),
         "NGINX exact-head workflow",
     )
-    archive = _unique_match(
-        re.compile(r'(?m)^\s*--nginx-archive "\$NGINX_DOWNLOAD_DIR/(?P<value>nginx-[0-9.]+\.tar\.gz)" \\$'),
-        exact_head,
-        "NGINX exact-head archive argument",
-    )
-    if archive != values["release_asset_name"]:
-        raise ContractError("NGINX exact-head archive argument does not match handoff")
+    # The hosted inventory runner consumes the provisioned runtime rather than
+    # a separate --nginx-archive argument. Keep the complete reviewed tuple and
+    # Parent provenance policy across its explicit env -i boundary.
+    for name in (*NGINX_FIELDS, *PARENT_OWNED_NGINX_FIELDS):
+        forwarding = re.compile(
+            rf'(?m)^[ \t]*(?:[A-Z][A-Z0-9_]*="[^"\r\n]*"[ \t]+)*'
+            rf'{re.escape(name)}="\${re.escape(name)}"(?=[ \t\\]|$)',
+            re.ASCII,
+        )
+        if (
+            len(_candidate_field_writes(exact_head, name)) != 1
+            or len(list(forwarding.finditer(exact_head))) != 1
+        ):
+            raise ContractError(
+                f"NGINX exact-head runtime handoff mismatch at "
+                f"{NGINX_EXACT_HEAD_WORKFLOW_PATH}:{name}; must forward exactly once"
+            )
 
 
 def _verify_parent_nginx_policy(root: Path) -> None:
