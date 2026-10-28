@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "358839dedcdfefaf882dcb62e38c3648d44bbe0a6e7d1b33e4643cc092d156cd",
-  "on_demand_definition_count": 6194,
+  "inventory_sha256": "d4c089023fc603f24c5e7353227163039e2b0afb7d6cbb740f5e7570c9808e70",
+  "on_demand_definition_count": 6200,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
   "sources": [
@@ -2941,6 +2941,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_ci_security_contracts_run_the_local_submodule_git_regressions",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_submodule_namespace_failure_keeps_diagnostics_status_and_cleanup",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_update_submodules_separates_validation_from_publishing",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_framework_publisher_companion_raw_modes_are_fail_closed",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_framework_gitlink_staging_contract_normalizes_layout_only",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_framework_gitlink_raw_diff_contract_is_functional",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_workflow_tool_updater_is_the_sole_parent_only_action_maintainer",
@@ -2952,7 +2953,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "840fda39043d3114bf7ffe7a981d07dafa3abcc4900b648c71e56b7eca05e3ba"
+      "source_sha256": "1de0f8d398a5efc88241a5bf830a5a578af9db3870ab5123af7f0332cea75f4f"
     },
     {
       "contains_selected_definitions": [],
@@ -9373,10 +9374,15 @@
         "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_rollback_preserves_concurrent_in_place_edits",
         "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_rollback_preserves_concurrent_metadata_changes",
         "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_changed_project_lock_rejected_before_component_replacements",
-        "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_project_publishers_share_tooling_directory_lock"
+        "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_project_publishers_share_tooling_directory_lock",
+        "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_update_preserves_admitted_selection_and_native_archive",
+        "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_publication_rejects_forged_sources_selection_and_modes",
+        "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_sync_rejects_stale_companions_before_primary_writes",
+        "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_companion_failure_rolls_back_primary_and_companions",
+        "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_postwrite_admission_failure_rolls_back_transaction"
       ],
       "source": "tests/test_update_framework_versions.py",
-      "source_sha256": "1a2f8a163b84176641ade9592e3710516bc0f2f463699fd1fc0d9627f8e08768"
+      "source_sha256": "65629d0274d00f4bab1d389dc9fefbdadc68a6ab94be2e8a0713587b9f0efbc9"
     },
     {
       "contains_selected_definitions": [

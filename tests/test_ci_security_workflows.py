@@ -53,7 +53,7 @@ LOCKED_ACTION_USE = re.compile(
     r"(?P<prefix>uses:\s+[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?@)"
     r"(?P<sha>[a-f0-9]{40})(?:\s+#\s*v[^\n]+)?"
 )
-SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "e5430e380eb92f98060835cef70f0552506e2ffc149c513d629cb6f15d1422f5"
+SUBMODULE_PUBLISHER_NORMALIZED_SHA256 = "cd15b994b60eb68be42bca984054bab125c7be661c3baf7410f0528b34e29fea"
 SONAR_NATIVE_WORKFLOW_NORMALIZED_SHA256 = "12cac10473c7c8ba2366289d92009de69608e4fe63e4cb69fbe98f8d877173f5"
 SUBMODULE_PUBLISHER_APP_TOKEN_ACTION = "actions/create-github-app-token"
 SUBMODULE_PUBLISHER_APP_TOKEN_INPUTS = {
@@ -3693,7 +3693,20 @@ namespace_status=0
         self.assertIn("sync-framework-component-versions.py", publisher)
         self.assertIn("--sync", publisher)
         self.assertIn("--check", publisher)
-        self.assertEqual(publisher.count('--framework-sha "$CANDIDATE_SHA"'), 2)
+        self.assertEqual(publisher.count('--framework-sha "$CANDIDATE_SHA"'), 4)
+        self.assertEqual(publisher.count("--verify-companions"), 2)
+        self.assertEqual(publisher.count('--base "$MASTER_HEAD"'), 2)
+        self.assertEqual(publisher.count("--staged"), 1)
+        for companion in ("config/testing/active-cases.json",
+                          "reports/testing/test-selection-archive.generated.json"):
+            self.assertEqual(publisher.count(companion), 3)
+        first_proof = publisher.index("--verify-companions")
+        staged_proof = publisher.rindex("--verify-companions")
+        staging = publisher.index('git -c core.hooksPath=/dev/null add --')
+        self.assertLess(publisher.index("python3 scripts/generate_compiler_guides.py"), first_proof)
+        self.assertLess(first_proof, staging)
+        self.assertLess(staging, staged_proof)
+        self.assertLess(staged_proof, publisher.index('git write-tree'))
         self.assertIn("verify-framework-candidate-contract.py", publisher)
         self.assertIn('--candidate-sha "$CANDIDATE_SHA"', publisher)
         self.assertEqual(
@@ -3762,6 +3775,45 @@ namespace_status=0
         self.assertNotIn("GH_TOKEN", outcome)
         self.assertNotIn("secrets.", outcome)
         self.assertNotIn("continue-on-error", outcome)
+
+    def test_framework_publisher_companion_raw_modes_are_fail_closed(self) -> None:
+        payload = yaml.safe_load(self.workflow("update-submodules.yml"))
+        steps = payload["jobs"]["create-submodule-update-pr"]["steps"]
+        script = next(step["run"] for step in steps
+                      if "require_only_allowed_update_paths() {" in step.get("run", ""))
+        guards = []
+        for name in ("require_only_allowed_update_paths", "require_expected_update_raw"):
+            match = re.search(r"(?ms)^" + name + r"\(\) \{\n.*?^\}", script)
+            self.assertIsNotNone(match)
+            guards.append(match.group(0))
+        command = ("set -euo pipefail\n" + "\n".join(guards)
+                   + '\nrequire_only_allowed_update_paths "$CHANGED_PATHS"'
+                   + '\nrequire_expected_update_raw "$RAW_DIFF"\n')
+        framework = "modules/ModSecurity-test-Framework"
+        companions = ("config/testing/active-cases.json",
+                      "reports/testing/test-selection-archive.generated.json")
+        gitlink = f':160000 160000 {"a" * 40} {"b" * 40} M\t{framework}'
+
+        def admitted(rows: list[tuple[str, str, str, str]]) -> bool:
+            raw = [gitlink] + [f':{old} {new} {"c" * 40} {"d" * 40} {status}\t{path}'
+                               for old, new, status, path in rows]
+            result = subprocess.run(
+                ["bash", "-c", command], text=True, capture_output=True, timeout=10,
+                env={**os.environ, "SUBMODULE_PATH": framework,
+                     "CHANGED_PATHS": "\n".join([framework] + [row[3] for row in rows]),
+                     "RAW_DIFF": "\n".join(raw)},
+            )
+            return result.returncode == 0
+
+        self.assertTrue(admitted([]))
+        self.assertTrue(admitted([("100644", "100644", "M", path) for path in companions]))
+        for path in companions:
+            for old, new, status in (("100644", "100755", "M"), ("100755", "100644", "M"),
+                                     ("100644", "120000", "M"), ("000000", "100644", "A"),
+                                     ("100644", "000000", "D")):
+                with self.subTest(path=path, old=old, new=new, status=status):
+                    self.assertFalse(admitted([(old, new, status, path)]))
+        self.assertFalse(admitted([("100644", "100644", "M", "config/testing/other.json")]))
 
     def test_framework_gitlink_staging_contract_normalizes_layout_only(self) -> None:
         one_line = (

@@ -543,6 +543,8 @@ jobs:
                 -e scripts/generate_compiler_guides.py \
                 -e tests/test_compiler_guides.py \
                 -e ci/tooling/project-versions.lock.json \
+                -e config/testing/active-cases.json \
+                -e reports/testing/test-selection-archive.generated.json \
                 -e ci/checks/evidence/check-runtime-producer-readiness.py \
                 -e .github/workflows/test-full-smoke-sequential.yml \
                 -e .github/workflows/nginx-root-broker.yml \
@@ -583,6 +585,15 @@ jobs:
                   if ($1 == ":160000" && $2 == "160000" && $5 == "M") {
                     gitlinks += 1
                   } else {
+                    invalid = 1
+                  }
+                  next
+                }
+
+                $6 == "config/testing/active-cases.json" ||
+                $6 == "reports/testing/test-selection-archive.generated.json" {
+                  records += 1
+                  if ($1 != ":100644" || $2 != "100644" || $5 != "M") {
                     invalid = 1
                   }
                   next
@@ -980,6 +991,13 @@ jobs:
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CANDIDATE_SHA"
           python3 scripts/generate_compiler_guides.py
+          # Reconstruct exact primary and companion bytes from trusted master.
+          python3 ci/tools/sync-framework-component-versions.py \
+            --verify-companions \
+            --base "$MASTER_HEAD" \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common" \
+            --framework-sha "$CANDIDATE_SHA"
           git -c core.hooksPath=/dev/null add -- \
             connectors/envoy/config/envoy-ext-proc-versions.env \
             ci/provisioning/components/prepare-runtime-components.py \
@@ -992,6 +1010,8 @@ jobs:
             scripts/generate_compiler_guides.py \
             tests/test_compiler_guides.py \
             ci/tooling/project-versions.lock.json \
+            config/testing/active-cases.json \
+            reports/testing/test-selection-archive.generated.json \
             ci/checks/evidence/check-runtime-producer-readiness.py \
             .github/workflows/test-full-smoke-sequential.yml \
             .github/workflows/nginx-root-broker.yml \
@@ -1013,6 +1033,14 @@ jobs:
             docs/build/compilers/traefik.de.md \
             docs/build/compilers/lighttpd.md \
             docs/build/compilers/lighttpd.de.md
+
+          python3 ci/tools/sync-framework-component-versions.py \
+            --verify-companions \
+            --base "$MASTER_HEAD" \
+            --staged \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common" \
+            --framework-sha "$CANDIDATE_SHA"
 
           changed_paths="$(
             git diff \
@@ -1112,7 +1140,7 @@ jobs:
           - Proposed Framework gitlink: $CANDIDATE_SHA
           - Validation: the isolated read-only quick check passed.
           - Component pins: synchronized from the candidate's statically parsed ci/lib/common.sh and rechecked before staging.
-          - Changed paths: Framework gitlink plus the registered Parent component-pin contracts only.
+          - Changed paths: Framework gitlink, registered Parent component-pin contracts, and exactly two independently verified inventory companions.
           - Merge: no automatic merge.
           EOF
 
