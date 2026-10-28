@@ -218,11 +218,22 @@ Lokale Nutzung verlangt ein aufgabeneigenes Virtual Environment. Hosted-Workflow
 übergeben `--ci-toolcache` nur für den gewählten `actions/setup-python`-Interpreter;
 der Python-Candidate-Validator übergibt zusätzlich seine unabhängig geprüfte
 `--expected-version`. Standard bleibt die kanonische `.python-version`.
-Die beiden Parent-Jobs mit bestehender Framework-Lockdatei übergeben
+Parent-Jobs mit bestehender Framework-Lockdatei übergeben
 `--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
 dies weist Abhängigkeits-/Versionsdrift zurück und erhält PyYAML `6.0.3`, während
 der Parent das geprüfte Python-3.15-Artefakt verantwortet. Framework-/MRTS-Repositories
 und Gitlinks bleiben unverändert; dies ist keine Framework-Runtime-Qualifizierung.
+
+Für die schreibgeschützte Submodul-Validierung ruft der normale Runner diesen
+vertrauenswürdigen Parent-Installer nach der Kandidatendatenprüfung und vor der
+Sandbox-Erstellung im geschützten Modus `--ci-toolcache` auf. Der Framework-Lock
+wird nur als Daten geparst; bei der Vorbereitung läuft kein Kandidatencode.
+Die Runtime mit der geprüften reinen Python-Abhängigkeit wird anschließend
+schreibgeschützt eingebunden. Nach dem Privilegienwechsel prüft der Kandidat
+die Abhängigkeit durch einen isolierten `-I`-Import und führt danach
+`quick-check` mit dem ursprünglich gewählten Interpreter aus. Innerhalb von
+`/external` werden keine Abhängigkeiten oder Builder-Ausgaben hinzugefügt;
+dessen Rechte- und Symlink-Schutz bleiben unverändert.
 
 ## Eingeschränkter Python-3.15-Patch-Updater
 

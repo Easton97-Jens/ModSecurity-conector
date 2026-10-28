@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import inspect
+import json
 import os
 from pathlib import Path
 import pwd
@@ -604,7 +605,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             "umask 077", "CapEff", "NoNewPrivs", "GITHUB_WORKSPACE/.git", "FRAMEWORK_ROOT/.git",
             "VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe", "/dev/.readonly-validator-device-probe", "/usr/bin/sudo",
             "/usr/bin/mount -o remount,rw", "VALIDATOR_EXTERNAL_ROOT/write-probe",
-            "-m pip install", "exec make", "safe.directory", "expect_blocked mv",
+            '"$PYTHON" -I -c "import yaml; assert not yaml.__with_libyaml__"',
+            "exec make", "safe.directory", "expect_blocked mv",
             "expect_blocked rm", "expect_blocked chmod", "for target in /tmp /var /home /root /run /sys /dev/shm",
             "validator retained an inherited descriptor", 'test -e "$descriptor" || continue', "test -c /dev/null", "validator sees an unexpected device",
             "python_runtime_bin=$(dirname \"$PYTHON\")", "runtime-write-probe", "runtime-directory-probe",
@@ -617,6 +619,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         self.assertNotIn('exec make PYTHON="$PYTHON" BUILD_ROOT=', program)
         self.assertNotIn("eval ", program)
         self.assertNotIn("awk ", program)
+        self.assertNotIn("-m pip install", program)
+        self.assertNotIn("-m venv", program)
         syntax = subprocess.run(
             ["/bin/bash", "--noprofile", "--norc", "-n", "-c", program],
             check=False,
@@ -624,6 +628,59 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
+
+    def test_dependency_preflight_failure_stops_make_and_preserves_selected_python(self) -> None:
+        """Only a successful isolated import may reach make with the selected runtime."""
+        program = HELPER._candidate_script()
+        bootstrap = program[program.index('touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"'):]
+        boundary_program = "#!" + sys.executable + "\n" + '''
+import json
+import os
+from pathlib import Path
+import sys
+
+phase = "make" if Path(sys.argv[0]).name == "make" else "preflight"
+with Path(os.environ["BOOTSTRAP_TRACE"]).open("a") as output:
+    output.write(json.dumps({"phase": phase, "argv": sys.argv,
+                             "python": os.environ["PYTHON"]}) + "\\n")
+if phase == "preflight":
+    if sys.argv[1:] != ["-I", "-c", "import yaml; assert not yaml.__with_libyaml__"]:
+        raise SystemExit(44)
+    raise SystemExit(int(os.environ["IMPORT_STATUS"]))
+'''
+        cases = (("prepared dependency", 0, ["preflight", "make"]),
+                 ("dependency import failure", 23, ["preflight"]))
+        for name, status, phases in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                external = root / "external space"
+                external.mkdir()
+                binaries = root / "bin"
+                binaries.mkdir()
+                selected_python = binaries / "selected-python"
+                for executable in (selected_python, binaries / "make"):
+                    executable.write_text(boundary_program, encoding="utf-8")
+                    executable.chmod(0o700)
+                trace = root / "trace.jsonl"
+                environment = {
+                    "PATH": str(binaries) + os.pathsep + os.defpath,
+                    "PYTHON": str(selected_python), "VALIDATOR_EXTERNAL_ROOT": str(external),
+                    "GITHUB_WORKSPACE": str(root), "PYTHONPATH": str(external / "python-packages"),
+                    "BOOTSTRAP_TRACE": str(trace), "IMPORT_STATUS": str(status),
+                    "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1",
+                }
+                result = subprocess.run(
+                    ["/bin/bash", "--noprofile", "--norc", "-ceu", bootstrap],
+                    env=environment, capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(result.returncode, status, result.stderr)
+                events = [json.loads(line) for line in trace.read_text().splitlines()]
+                self.assertEqual([event["phase"] for event in events], phases)
+                self.assertEqual(events[0]["argv"], [str(selected_python), "-I", "-c",
+                                 "import yaml; assert not yaml.__with_libyaml__"])
+                self.assertTrue(all(event["python"] == str(selected_python) for event in events))
+                if "make" in phases:
+                    self.assertEqual(events[1]["argv"][1:], ["PYTHON=" + str(selected_python), "quick-check"])
 
     def test_candidate_proc_status_parser_preserves_capability_and_no_new_privs_checks(self) -> None:
         program = HELPER._candidate_script()

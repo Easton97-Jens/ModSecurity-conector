@@ -205,11 +205,21 @@ Local use requires a task-owned virtual environment. Hosted workflows pass
 `--ci-toolcache` only for the selected `actions/setup-python` interpreter;
 the Python candidate validator additionally passes its independently checked
 `--expected-version`. The default remains the canonical `.python-version`.
-The two Parent jobs consuming Framework's existing lock pass
+Parent jobs consuming Framework's existing lock pass
 `--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
 this rejects dependency/version drift and preserves PyYAML `6.0.3` while the
 Parent owns the reviewed Python-3.15 artifact. Framework/MRTS repositories and
 gitlinks stay unchanged; this is not Framework runtime qualification.
+
+For read-only submodule validation, the ordinary runner invokes this trusted
+Parent installer in guarded `--ci-toolcache` mode after candidate data checks
+and before sandbox creation. The Framework lock is only parsed as data; no
+candidate code runs during preparation. The runtime containing the verified
+pure-Python dependency is then bound read-only. After dropping privileges, the
+candidate verifies the dependency with an isolated `-I` import before running
+`quick-check` using the original selected interpreter. No dependency install or
+builder output is added inside `/external`, whose permission and symlink guards
+remain unchanged.
 
 ## Constrained Python 3.15 patch updater
 

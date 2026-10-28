@@ -277,14 +277,27 @@ Im Namespace setzt der Candidate vor jeder Ausgabe `umask 077` und führt das
 unveränderte `make quick-check` unter dieser dedizierten Identität ohne Login-
 oder Sudo-Berechtigung aus.
 
+Nach der Kandidatendatenprüfung und vor der Sandbox-Erstellung bereitet der
+normale Runner PyYAML mit dem unveränderten vertrauenswürdigen Parent-
+Abhängigkeitsinstaller im geschützten Modus `--ci-toolcache` vor. Er übergibt
+`--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`, um den
+Kandidaten-Lock als Daten zu prüfen, und führt `python3 -m pip check` aus.
+Jedes Quell- und Build-Tool-Artefakt bleibt hash-gepinnt. Die gewählte Runtime
+wird anschließend wie bisher schreibgeschützt eingebunden. Im Jail importiert
+das ursprünglich gewählte Python mit `-I` das vorbereitete reine Python-PyYAML
+ohne Berücksichtigung von `PYTHONPATH`; fehlgeschlagener Import oder unerwartete
+LibYAML-Erweiterung stoppt die Validierung vor `quick-check`. Im Validator-
+Ausgabebaum werden weder Abhängigkeiten installiert noch Builder-Umgebungen
+erstellt. Dessen strenge Rechte- und Escape-Link-Prüfungen bleiben unverändert.
+
 Dies ersetzt Host-Ahnen-ACL-Handling: Der Candidate erhält keinen Host-seitigen
 Traverse- oder Lese-Grant nur, um `RUNNER_TEMP` zu erreichen. Parent, Framework
 und unterstützte Ausgaben werden nur über diese Namespace-Views bereitgestellt;
 Root-seitiges Source-Inventar und Root-seitige Output-Verifikation beschränken
 legitime Ausgaben auf das exakte physische
-`--write-root`/`external`-Containment. Der Validator behält absichtlich
-Netzwerkzugriff, weil hash-pinned `pip`-Installation eine funktionale
-Anforderung ist; dies ist keine Behauptung von Netzwerk- oder Egress-Isolation.
+`--write-root`/`external`-Containment. Der Validator behält seinen vorhandenen
+Netzwerkzugriff; Abhängigkeitsdownloads erfolgen bei der vertrauenswürdigen
+Runner-Vorbereitung. Diese Änderung ergänzt keine Netzwerk- oder Egress-Isolation.
 Das Jail ist eine Grenze für Dateisystem und geerbte Deskriptoren und keine
 Behauptung vollständiger Host- oder Kernel-Isolation.
 

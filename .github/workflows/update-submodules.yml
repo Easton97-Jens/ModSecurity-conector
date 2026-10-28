@@ -287,6 +287,13 @@ jobs:
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CURRENT_GITLINK_SHA"
 
+      - name: Prepare reviewed Python dependency before runtime protection
+        run: |
+          set -euo pipefail
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
+
       - name: Create private read-only candidate guard
         id: create-readonly-candidate-sandbox-guard
         run: |

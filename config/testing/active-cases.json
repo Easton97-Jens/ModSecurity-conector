@@ -39397,7 +39397,7 @@
     },
     {
       "path": ".github/workflows/update-submodules.yml",
-      "sha256": "80b40c8182a7637443694b482d8c171115171bdc736473ba46c6ba2e0bc03042"
+      "sha256": "f93b715fc260588487a3e687fb57cd38cfbc7f74196bc3789d451a3791f9614d"
     },
     {
       "path": ".github/workflows/update-workflow-tools.yml",
@@ -39989,7 +39989,7 @@
     },
     {
       "path": "ci/tools/run-readonly-submodule-validation-namespace.py",
-      "sha256": "a178600304b387fce9c33e89192c989a7b55204e5ead6a7fedb55457dbe662a7"
+      "sha256": "5f5422b1c755c035b06e9ba3c2bd7edb99b5eda291764c76c6588e00754f7529"
     },
     {
       "path": "ci/tools/sync-framework-component-versions.py",
@@ -41305,11 +41305,11 @@
     },
     {
       "path": "docs/security/ci-security-tooling.de.md",
-      "sha256": "06a1c5304ee5ced3e3c464e67b7c537b0e8d1ce96718546a21adadf23ad4780e"
+      "sha256": "00985e1d09125cd83f160ff2a3ce88a04c92a550bb4be7316e6375e396e4ed9e"
     },
     {
       "path": "docs/security/ci-security-tooling.md",
-      "sha256": "4be85daa7e07e596d88882a30969a4a7258df30071bed5c7c4ad011257d2eb5f"
+      "sha256": "dec663035f2ce7c1e7fd234a4bca2dd6fe0ba7518789557401d713f03057bc2f"
     },
     {
       "path": "reports/audits/apache-i12-20261015/case-ledger.json",
@@ -41441,7 +41441,7 @@
     },
     {
       "path": "tests/test_ci_security_workflows.py",
-      "sha256": "dfff28472364078b62e0edad04a3ebd91b72b86d6dfac95f080e17f2f3ad218e"
+      "sha256": "5eca90d4a2208281b4e728ba9f4091bf93e85a50ba91c4921a10c8e56567f466"
     },
     {
       "path": "tests/test_compiler_guides.py",
@@ -41629,7 +41629,7 @@
     },
     {
       "path": "tests/test_run_readonly_submodule_validation_namespace.py",
-      "sha256": "f65a304b05167fb7cf5fae888e0fec7ede21ef25e7869a5af2af69f8a2b61435"
+      "sha256": "0317fb2ee60d4530fcc8b4dad2e901bb4891224caf281cb9291df76cfe930179"
     },
     {
       "path": "tests/test_runtime_event_sink_failures.py",

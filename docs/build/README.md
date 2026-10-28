@@ -257,14 +257,27 @@ explicit fixed environment rather than an inherited runner environment. Within
 the namespace the candidate applies `umask 077` before output and runs the
 unchanged `make quick-check` as that dedicated, non-login, non-sudo identity.
 
+After candidate data validation and before sandbox creation, the ordinary runner
+prepares PyYAML with the unchanged trusted Parent dependency installer in guarded
+`--ci-toolcache` mode. It passes
+`--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock` to
+validate the candidate lock as data and runs `python3 -m pip check`. Every source
+and build-tool artifact remains hash-pinned. The selected runtime is then bound
+read-only as before. Inside the jail, the original selected Python uses `-I` to
+import the prepared pure-Python PyYAML without considering `PYTHONPATH`; a failed
+import or unexpected LibYAML extension stops validation before `quick-check`.
+No dependency installation or builder virtual environment is created in the
+validator output tree. Its strict permission and escaping-link checks remain
+unchanged.
+
 This replaces host-ancestor ACL handling: the candidate does not receive a
 host-level traversal or read grant merely to reach `RUNNER_TEMP`. Parent,
 Framework, and supported output are presented only through those namespace
 views; root-side source inventory and root-side output verification constrain
 legitimate output to the exact physical `--write-root`/`external` containment.
-The validator intentionally retains network access because hash-pinned `pip`
-installation is a functional requirement; this is not a claim of network or
-egress isolation. The jail is a filesystem and inherited-descriptor boundary,
+The validator retains its existing network access; dependency downloads occur
+during trusted runner preparation. This change adds no network or egress
+isolation. The jail is a filesystem and inherited-descriptor boundary,
 not a claim of complete host or kernel isolation.
 
 The host checkout is not a lock target. The historical root-owned checkout
