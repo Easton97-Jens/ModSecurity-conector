@@ -20,7 +20,7 @@
 apr_status_t msc_cleanup_request_transaction(void *data);
 void msc_discard_response_brigade(msc_t *msr);
 
-apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status);
+apr_status_t send_error_bucket(const msc_t *msr, ap_filter_t *f, int status);
 
 
 #endif  /* _SRC_MSC_UTILS__ */

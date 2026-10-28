@@ -102,6 +102,7 @@ build-starter:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_metadata.sh
 
 self-test: build-starter
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	"$(BRIDGE_BIN)" --self-test
 
 self-test-envoy-bridge: self-test
@@ -175,6 +176,10 @@ serve-envoy-ext-proc: build-envoy-ext-proc prepare-envoy-ext-proc-runtime-config
 # native Envoy ext_proc gRPC filter and the real Common/libmodsecurity bridge.
 # It still does not promote connector capabilities by itself.
 runtime-smoke-envoy-ext-proc: build-envoy-ext-proc
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then \
+		[ "$${MSCONNECTOR_CRS_RUNTIME:-0}" = 1 ] || { echo "FAIL: specialist native lifecycle requires explicit ON_DEMAND_TESTS=1" >&2; exit 2; }; \
+		python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.crs.envoy; \
+	fi
 	EXT_PROC_BIN="$(EXT_PROC_BIN)" EXT_PROC_CONFIG="$(EXT_PROC_CONFIG)" \
 	BUILD_ROOT="$(BUILD_ROOT)" RUNTIME_ROOT="$(EXT_PROC_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
@@ -185,16 +190,19 @@ runtime-smoke-envoy-ext-proc: build-envoy-ext-proc
 # connection close after the first body byte and remains non-promoting even
 # when its ext_proc completion sidecar is present.
 transport-cancel-smoke-envoy-ext-proc:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error transport-cancel specialist campaign requires explicit ON_DEMAND_TESTS=1))
 	$(MAKE) ENVOY_TRANSPORT_CANCEL_PROBE=1 runtime-smoke-envoy-ext-proc
 
 build-modsecurity-bridge: build-envoy-connector
 
 check-envoy-config: build-envoy-connector check-envoy-ext-proc-config prepare-envoy-ext-proc-config
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.config.envoy; fi
 	SERVICE_BIN="$(SERVICE_BIN)" CONFIG_FILE="$(CONFIG_FILE)" RULES_FILE="$(RULES_FILE)" \
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
 	sh config/check_envoy_config.sh
 
 start-smoke-envoy: build-envoy-connector
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required))
 	SERVICE_BIN="$(SERVICE_BIN)" CONFIG_FILE="$(CONFIG_FILE)" RULES_FILE="$(RULES_FILE)" \
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
 	ENVOY_BIN="$(ENVOY_BIN)" PYTHON="$(PYTHON)" sh harness/start_envoy_connector.sh
@@ -205,6 +213,7 @@ serve-envoy-connector: build-envoy-connector
 	sh harness/serve_envoy_connector.sh
 
 runtime-smoke-envoy: build-envoy-connector
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.no-crs.envoy; fi
 	SERVICE_BIN="$(SERVICE_BIN)" BUILD_ROOT="$(BUILD_ROOT)" CONFIG_FILE="$(CONFIG_FILE)" \
 	RULES_FILE="$(RULES_FILE)" RUNTIME_ROOT="$(ENVOY_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
@@ -216,9 +225,14 @@ no-crs-baseline-envoy: runtime-smoke-envoy
 # This opt-in companion check is deliberately separate from the P1 default
 # smoke target.  The runner enables its P3/P4 assertions only when the
 # matching response-phase rule fixture is selected explicitly.
+ifeq ($(ON_DEMAND_TESTS),1)
 response-phase-smoke-envoy: override RULES_FILE := $(abspath $(CURDIR)/../../common/rules/modsecurity_response_companion_smoke.conf)
 response-phase-smoke-envoy: override export MSCONNECTOR_RESPONSE_PHASE_SMOKE := 1
 response-phase-smoke-envoy: runtime-smoke-envoy
+else
+response-phase-smoke-envoy:
+	$(error specialist response-phase profile requires explicit ON_DEMAND_TESTS=1 authorization)
+endif
 
 self-test-modsecurity: check-envoy-config
 

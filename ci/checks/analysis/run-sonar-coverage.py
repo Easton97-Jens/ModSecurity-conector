@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """Produce genuine, revision-bound Parent coverage in a fresh external directory.
 
-This is a selected Sonar assessment, not a hosted-runtime qualification or a
+This is an explicitly on-demand Sonar assessment, not a hosted-runtime qualification or a
 claim that every existing test executes. Test ownership and coverage are separate.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
+import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import stat
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -20,6 +24,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 RCFILE = ROOT / "ci/sonar-coverage.ini"
+ACTIVE_INVENTORY_SOURCE = "ci/lib/active_test_inventory.py"
 GO_PACKAGE_PATTERN = "./..."
 # Explicit requirements: analysis scope, revision provenance, private artifacts,
 # report input classification, and engine inventory. No discovery of unrelated
@@ -46,7 +51,7 @@ GO_TESTS = {
         "TestClientFramesBoundedOrderedOperations",
         "TestProcessStreamsChunksAndCleansUpAtResponseEOS",
         "TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot",
-        "TestCheckRejects33ByteBodyWith413",
+        "TestCheckForwards33ByteBodyWithoutConnectorPolicy",
         "TestCheckPreservesValidatedRedirect",
         "TestProcessMissingMetadataFailsClosed503",
         "TestJSONLObserverRejectsFinalSymlink",
@@ -114,9 +119,9 @@ def publish_python_report(output: Path, env: dict[str, str]) -> dict[str, object
     """Merge real parallel runs, retaining the earlier selected-test data."""
     env["COVERAGE_FILE"] = str(output / "python.data")
     coverage = [sys.executable, "-m", "coverage"]
-    run([*coverage, "combine", "--append", f"--rcfile={RCFILE}"], env=env)
+    run([*coverage, "combine", "--append", "--keep", f"--rcfile={RCFILE}"], env=env)
     report = output / "python.xml"
-    run([*coverage, "xml", f"--rcfile={RCFILE}", "-o", str(report)], env=env)
+    run([*coverage, "xml", "--keep-combined", f"--rcfile={RCFILE}", "-o", str(report)], env=env)
     source_files = validate_python_report(report)
     # subprocess collection can add an empty Cobertura source element. Every
     # filename above was checked against the project root, so one explicit '.'
@@ -132,26 +137,229 @@ def publish_python_report(output: Path, env: dict[str, str]) -> dict[str, object
             "selectors": list(PYTHON_TESTS)}
 
 
+def admitted_offline_inventory():
+    """Use the existing Parent admission API; never discover extra tests."""
+    name = "sonar_coverage_inventory"
+    specification = importlib.util.spec_from_file_location(name, ROOT / ACTIVE_INVENTORY_SOURCE)
+    if specification is None or specification.loader is None:
+        raise ValueError("cannot load the authoritative Parent inventory admission")
+    module = importlib.util.module_from_spec(specification)
+    previous = sys.modules.get(name)
+    sys.modules[name] = module
+    try:
+        specification.loader.exec_module(module)
+        inventory = module.load_inventory(ROOT)
+        if not inventory.offline_case_ids:
+            raise ValueError("coverage requires explicitly admitted offline Python cases")
+        selected = module.select_executions(inventory, case_ids=inventory.offline_case_ids, on_demand=True)
+        return inventory, selected
+    finally:
+        if previous is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = previous
+
+
+def offline_partitions(selected: tuple[dict, ...]) -> tuple[tuple[dict, ...], tuple[dict, ...]]:
+    """Retain timing assertions while measuring only the normal offline units."""
+    measured, timing = [], []
+    for execution in selected:
+        if execution["selector"]["kind"] != "python" or "offline-unit" not in execution["groups"]:
+            raise ValueError("coverage offline selection must contain admitted Python units only")
+        destination = timing if "offline-timing" in execution["groups"] else measured
+        destination.append(execution)
+    return tuple(measured), tuple(timing)
+
+
+def offline_command(selected: tuple[dict, ...], output: Path, env: dict[str, str],
+                    *, measured: bool) -> tuple[list[str], dict[str, str]]:
+    """Use the same exact inventory runner with isolated coverage startup."""
+    if not selected:
+        raise ValueError("offline coverage selection must not be empty")
+    child_env = dict(env)
+    child_env.pop("ON_DEMAND_TESTS", None)
+    # coverage7.17's installed startup hook consults exactly these two values.
+    # Measured CLI starts fresh from RCFILE; timing Python has neither startup.
+    child_env.pop("COVERAGE_PROCESS_START", None)
+    child_env.pop("COVERAGE_PROCESS_CONFIG", None)
+    command = [sys.executable]
+    if measured:
+        command.extend(["-m", "coverage", "run", f"--rcfile={RCFILE}", "--parallel-mode"])
+    else:
+        child_env.pop("COVERAGE_FILE", None)
+    command.extend(["ci/tools/run-active-tests.py", "--on-demand", "--strict-skips", "--output-root", str(output)])
+    for execution in selected:
+        command.extend(["--execution", execution["id"]])
+    return command, child_env
+
+
+def parallel_python_files(output: Path) -> set[Path]:
+    return set(output.glob("python.data.*"))
+
+
+def python_child_witness_line() -> int:
+    """Locate an actual body statement that only the guarded child executes."""
+    tree = ast.parse((ROOT / ACTIVE_INVENTORY_SOURCE).read_bytes())
+    child = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                 and node.name == "python_child")
+    return next(node.lineno for node in child.body if isinstance(node, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == "summary" for target in node.targets))
+
+
+def read_python_coverage_data(path: Path):
+    from coverage import CoverageData
+
+    data = CoverageData(basename=str(path))
+    data.read()
+    return data
+
+
+def child_file_has_witness(path: Path, witness: int) -> bool:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("Python coverage input must be a regular parallel data file")
+    data = read_python_coverage_data(path)
+    if not data.has_arcs():
+        raise ValueError("offline subprocess coverage must retain branch observations")
+    for filename in data.measured_files():
+        source = Path(filename)
+        if source.is_absolute():
+            source = source.relative_to(ROOT)
+        if source.as_posix() == ACTIVE_INVENTORY_SOURCE:
+            return witness in (data.lines(filename) or [])
+    return False
+
+
+def child_coverage_witnesses(files: set[Path], expected: int) -> list[str]:
+    """Require actual branch data in distinct child files, not parent imports."""
+    witness = python_child_witness_line()
+    children = [path.name for path in sorted(files) if child_file_has_witness(path, witness)]
+    if len(children) != expected:
+        raise ValueError(f"offline subprocess coverage has {len(children)} measured children; expected {expected}")
+    return children
+
+
+
+def retain_child_coverage(output: Path, names: list[str]) -> list[dict[str, object]]:
+    """Keep exact verified raw bytes outside coverage's automatic combine glob."""
+    retained = output / "child-witness"
+    retained.mkdir(mode=0o700)
+    records = []
+    for name in names:
+        if re.fullmatch(r"python\.data\.[A-Za-z0-9_.-]+", name, flags=re.ASCII) is None:
+            raise ValueError("invalid child coverage data basename")
+        records.append(retain_child_file(output / name, retained / name))
+    return records
+
+
+def retain_child_file(source: Path, destination: Path) -> dict[str, object]:
+    """Read a non-link owned file and create an exclusive private byte copy."""
+    descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as incoming:
+        before = os.fstat(incoming.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_uid != os.geteuid():
+            raise ValueError("child coverage data must be an owned single-link regular file")
+        digest = hashlib.sha256()
+        size = 0
+        target = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(target, "wb") as outgoing:
+            while chunk := incoming.read(1024 * 1024):
+                outgoing.write(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+            outgoing.flush()
+            os.fsync(outgoing.fileno())
+        after = os.fstat(incoming.fileno())
+        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+                after.st_size, after.st_mtime_ns, after.st_ctime_ns) or size != before.st_size:
+            destination.unlink()
+            raise ValueError("child coverage data changed during retention")
+    return {"path": f"child-witness/{destination.name}", "sha256": digest.hexdigest(), "size_bytes": size}
+
+
+def run_offline_partition(inventory, selected: tuple[dict, ...], output: Path,
+                          env: dict[str, str], *, measured: bool) -> dict:
+    """Run admitted IDs and verify their real terminal inventory summary."""
+    output.mkdir(mode=0o700)
+    command, child_env = offline_command(selected, output, env, measured=measured)
+    run(command, env=child_env)
+    summaries = list(output.glob("active-tests-*/summary.json"))
+    if len(summaries) != 1:
+        raise ValueError("offline assessment requires one actual runner summary")
+    summary = json.loads(summaries[0].read_text(encoding="utf-8"))
+    expected_ids = [item["id"] for item in selected]
+    expected_cases = [case["id"] for item in selected for case in item["cases"]]
+    if (summary.get("inventory_sha256") != inventory.digest
+            or summary.get("selected_execution_ids") != expected_ids
+            or summary.get("selected_case_ids") != expected_cases
+            or summary.get("selected_core_case_ids")):
+        raise ValueError("offline assessment summary differs from the admitted Python exceptions")
+    results = summary.get("results", [])
+    if [item.get("execution_id") for item in results] != expected_ids:
+        raise ValueError("offline assessment lost an admitted execution result")
+    if any(item.get("status") != "passed" for item in results):
+        raise ValueError("offline assessment contains a blocked or failed case")
+    return {"summary": str(summaries[0]), "execution_ids": expected_ids, "case_ids": expected_cases}
+
+
+def offline_python_coverage(output: Path, env: dict[str, str]) -> dict:
+    """Run the retained specialist assessment with its admitted on-demand IDs."""
+    inventory, selected = admitted_offline_inventory()
+    measured, timing = offline_partitions(selected)
+    result = {"inventory_sha256": inventory.digest, "measured": None, "unmeasured_timing": None}
+    if measured:
+        before = parallel_python_files(output)
+        result["measured"] = run_offline_partition(
+            inventory, measured, output / "offline-measured", env, measured=True)
+        files = parallel_python_files(output) - before
+        names = child_coverage_witnesses(files, len(measured))
+        artifacts = retain_child_coverage(output, names)
+        retained_files = {output / item["path"] for item in artifacts}
+        child_coverage_witnesses(retained_files, len(measured))
+        result["child_data_files"] = [item["path"] for item in artifacts]
+        result["child_data_artifacts"] = artifacts
+        result["new_parallel_data_files"] = len(files)
+    if timing:
+        before = parallel_python_files(output)
+        result["unmeasured_timing"] = run_offline_partition(
+            inventory, timing, output / "offline-timing", env, measured=False)
+        if parallel_python_files(output) != before:
+            raise ValueError("offline timing cases unexpectedly produced coverage data")
+    return result
+
+
 def python_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
     env["COVERAGE_FILE"] = str(output / "python.data")
     coverage = [sys.executable, "-m", "coverage"]
     run([*coverage, "run", f"--rcfile={RCFILE}", "--parallel-mode",
          "ci/checks/analysis/check-sonar-scope.py"], env=env)
+    # The caller explicitly opted into this specialist assessment. Scope its
+    # module-discovery opt-in to this unittest child only;
+    # the scope CLI, report writers and other producers retain the original env.
+    test_env = dict(env, ON_DEMAND_TESTS="1")
     run([*coverage, "run", f"--rcfile={RCFILE}", "--parallel-mode", "-m",
-         "unittest", "-v", *PYTHON_TESTS], env=env)
-    return publish_python_report(output, env)
+         "unittest", "-v", *PYTHON_TESTS], env=test_env)
+    offline = offline_python_coverage(output, env)
+    result = publish_python_report(output, env)
+    result["offline_python"] = offline
+    return result
 
 
 def finalize_python(output_root: Path, env: dict[str, str], revision: str,
                     *, allow_dirty: bool = False) -> dict[str, object]:
     """Only combine CLI-integration coverage from the same completed revision."""
+    offline = None
     for language in ("python", "go", "native"):
         manifest = json.loads((output_root / language / "manifest.json").read_text(encoding="utf-8"))
         if manifest.get("revision") != revision:
             raise ValueError(f"{language} coverage revision does not match the checkout")
         if manifest.get("uncommitted_changes") and not allow_dirty:
             raise ValueError(f"{language} coverage was produced from uncommitted changes")
-    return publish_python_report(output_root / "python", env)
+        if language == "python":
+            offline = manifest.get("coverage", {}).get("offline_python")
+    result = publish_python_report(output_root / "python", env)
+    if offline is not None:
+        result["offline_python"] = offline
+    return result
 
 
 def go_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
@@ -231,8 +439,12 @@ def main() -> int:
                         help="external temporary parent with a short path for Unix sockets")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="local development only; mark reports as uncommitted evidence")
+    parser.add_argument("--on-demand", action="store_true",
+                        help="explicitly run this specialist coverage assessment outside the default suite")
     args = parser.parse_args()
     try:
+        if not args.on_demand:
+            raise ValueError("specialist coverage requires explicit --on-demand; automatic CI uses the default inventory")
         if not args.output_root.is_absolute():
             raise ValueError("output root must be absolute")
         output_root = args.output_root.resolve()

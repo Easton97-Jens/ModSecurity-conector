@@ -16,6 +16,8 @@ reports without an explicit repository-policy decision or user decision.
   workstream and its paired documentation. It records supplied evidence only;
   runtime gaps and the current Draft PR #348 delivery state remain explicit.
 
+- [CR-20261013-pr382-consolidated](CR-20261013-pr382-consolidated.md) | [Deutsch](CR-20261013-pr382-consolidated.de.md) — user-authorized consolidation of the 122 EN/DE pairs added in PR #382; complete historical evidence remains available through immutable Git links. Existing `origin/master` records are retained; current remediation and open I12 evidence are recorded separately.
+
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
   | [Deutsch](CR-20260919-submodule-updater-workflows-capability.de.md) — the
   current user requested this Parent-only correction for GitHub Actions run

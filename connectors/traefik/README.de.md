@@ -2,6 +2,19 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+Automatische Tests wählen ausschließlich
+[config/testing/active-cases.json](../../config/testing/active-cases.json) mit
+projektweit höchstens 100 expandierten Verhaltensfällen.
+<code>make -C connectors/traefik test-engine-service</code> wählt die zugelassene
+Gruppe <code>traefik-python</code>;
+<code>make -C connectors/traefik test-native-middleware</code> wählt
+<code>traefik</code>. Diese Aliase sind keine vollständigen alten Suiten oder
+Profilqualifikationen. Die unten erhaltenen breiteren Smoke-, Selbsttest- und
+nativen Hostkampagnen benötigen explizit <code>ON_DEMAND_TESTS=1</code>, einen
+aktuellen Zusatzauftrag und echte Toolchain-/SDK-/Hostvoraussetzungen. Das Flag
+gehört nicht in automatische Defaults und eröffnet keine geschlossene I12-
+Kampagne. Native-UDS- und forwardAuth/Observer-Nachweise bleiben getrennt.
+
 
 Status: ForwardAuth-Kompatibilitäts-Smoke plus eine nicht beworbene Host-Probe für native lokale Plugins
 Laufzeitstatus: gezielte lokale Traefik/Common-Runtime-Zulassung 200/Block 403
@@ -56,11 +69,16 @@ Konfigurationsfehler; Observer- oder Korrelationsfehler sind fail-closed. Dies
 ist Source-/Component-Wiring mit Status `implemented_not_asserted`, kein
 Live-Host-Nachweis.
 
+Die forwardAuth-Vorlagen setzen `preserveRequestMethod: true` und
+`trustForwardHeader: false`. Traefik sendet die Originalmethode und erzeugt
+Forwarding-Metadaten aus dem eingehenden Request neu; vom Client gelieferte
+Forwarding-Header werden nicht maßgeblich. Diese Option wird mit Traefik
+3.7.13 geprüft; ältere Hostversionen benötigen eine separate Kompatibilitätsprüfung.
+
 Die eingecheckte forwardAuth-Konfiguration aktiviert Request-seitiges P2
 ausdrücklich mit `forwardBody: true` und `maxBodySize: 4096`. Die
-C-Dienstkonfiguration muss `request_body_mode=buffered` mit demselben
-4096-Byte-Common-Limit verwenden; das Start-Harness lehnt Templates ohne eine
-Einstellung oder mit einem anderen Dienstmodus ab. Dies ist begrenzte,
+Der C-Dienst übergibt den Authorization-Body inkrementell an native P2;
+das Start-Harness lehnt Host-Templates ohne die beiden Einstellungen ab. Dies ist begrenzte,
 gepufferte Host-Semantik und kein inkrementelles Request-Body-Streaming; bis
 frische echte Host-Evidence vorliegt, bleibt der Status
 `configured_not_exercised`.
@@ -142,7 +160,7 @@ akzeptiert.
 TRAEFIK_ENGINE_SOCKET_TEST_PARENT=/absolute/private/short-socket-parent \
 MODSECURITY_INCLUDE_DIR=/local/include \
 MODSECURITY_LIB_DIR=/local/lib \
-make -C connectors/traefik test-engine-service
+ON_DEMAND_TESTS=1 make -C connectors/traefik test-engine-service
 ```
 
 Der fokussierte Test startet nur den lokalen Engine-Service und ist kein Traefik-
@@ -183,6 +201,10 @@ Engine-Naht und sammelt niemals eine vollständige Response. Der Source-Default
 ist bewusst Pass-through; die isolierte Host-Probe wählt die separat gebaute
 persistente UDS-Common/libmodsecurity-Engine.
 
+Der normale Testalias führt nur zugelassene Regressionen aus, nicht die
+vollständige alte Go-Paketsuite. Diese bleibt für einen separaten Zusatzauftrag
+mit <code>ON_DEMAND_TESTS=1</code> erhalten.
+
 Führen Sie nur die lokalen Quellprüfungen aus mit:
 
 ```sh
@@ -208,7 +230,7 @@ TRAEFIK_ENGINE_SOCKET_PARENT=/absolute/private/short-socket-parent \
 MODSECURITY_INCLUDE_DIR=/absolute/include \
 MODSECURITY_LIB_DIR=/absolute/lib \
 MSCONNECTOR_RULES_FILE=/absolute/no-crs-baseline.conf \
-make -C connectors/traefik runtime-smoke-traefik-native
+ON_DEMAND_TESTS=1 make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
 `TRAEFIK_ENGINE_SOCKET_PARENT` ist der private Elternpfad für das kurzlebige
@@ -348,7 +370,7 @@ connectors/traefik/build/build-starter.sh
 Führen Sie den lokalen Decision-Service-Starter-Selbsttest aus mit:
 
 ```sh
-make -C connectors/traefik self-test-decision-service
+ON_DEMAND_TESTS=1 make -C connectors/traefik self-test-decision-service
 ```
 
 Ein erfolgreicher Selbsttest beweist nur die lokale Entscheidungslogik für
@@ -357,17 +379,21 @@ Laufzeit-, `forwardAuth`-, CRS- oder libmodsecurity-Validierung.
 
 ## Tests
 
-Es wird kein lokaler Ordner `connectors/traefik/tests` verwendet. Ausführbare Tests sind
-Framework-eigene.
+Ein lokaler Ordner `connectors/traefik/tests` wird nicht verwendet. Das Framework
+besitzt wiederverwendbare Katalogdefinitionen; Parent besitzt Go-/Native-/
+Integrationstests und ihre aktive Auswahl. Normale <code>make test-no-crs</code>-
+und <code>make test-with-crs</code>-Aliase wählen zugelassene Runtime-Teilmengen,
+keine vollständigen Framework-Kataloge oder Profile. Die Belege behalten ihre
+tatsächlichen Quell-/Lauf-/Profilbindungen; ein erfolgreicher Komponententest
+qualifiziert keinen Hostpfad.
 
-Framework-eigene Pfade und Ziele zur Verwendung nach einem echten Traefik-Build und der Nutzung
-werden umgesetzt:
+Erhaltene Framework-Pfade und ausdrücklich angeforderte breitere Befehle:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
-- `make test-no-crs`
-- `make test-with-crs`
-- `make smoke-common`
+- `ON_DEMAND_TESTS=1 make test-no-crs`
+- `ON_DEMAND_TESTS=1 make test-with-crs`
+- `ON_DEMAND_TESTS=1 make smoke-common`
 
 Der Starter selbst beansprucht kein No-CRS-, With-CRS-, RESPONSE_BODY-, Negativ-,
 Pass-Through-, Audit/Log- oder Traefik-Laufzeitergebnis. Die separate native
@@ -391,7 +417,7 @@ Herkunfts- und Transaktionskonzepte stammen aus `common/include/msconnector/`.
 Laufzeit-Smoke-Belege werden über `common/scripts/write_smoke_result.py`
 geschrieben; Traefik unterhält daher keinen eigenen JSON-Ergebnisschreiber.
 
-`make smoke-traefik` lädt den Framework-Common-Smoke-Wrapper, der wiederum
+`ON_DEMAND_TESTS=1 make smoke-traefik` lädt den Framework-Common-Smoke-Wrapper, der wiederum
 `modules/ModSecurity-test-Framework/ci/lib/common.sh` lädt. Laufzeitabhängigkeiten
 sind nicht global installiert, und der Harness setzt nicht voraus, dass `traefik`
 im globalen `PATH` vorhanden ist.
@@ -407,7 +433,7 @@ Die Binärsuche von Traefik verwendet:
 Beispiel:
 
 ```sh
-TRAEFIK_BIN=/lokaler/pfad/traefik make smoke-traefik
+TRAEFIK_BIN=/lokaler/pfad/traefik ON_DEMAND_TESTS=1 make smoke-traefik
 ```
 
 Lokaler Bereitstellungshelfer:
@@ -426,7 +452,7 @@ sie lokal bereit:
 
 ```sh
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
-make smoke-traefik
+ON_DEMAND_TESTS=1 make smoke-traefik
 ```
 
 Der Standard-Smoke belegt die lokale Traefik-Laufzeit, die generierte
@@ -437,8 +463,8 @@ Behalten Sie für den optionalen gezielten libmodsecurity-Smoke dieselbe lokale
 Traefik-Binärdatei bei und wählen Sie das libmodsecurity-Entscheidungs-Backend:
 
 ```sh
-DECISION_BACKEND=libmodsecurity make smoke-traefik
-make smoke-traefik-modsecurity
+DECISION_BACKEND=libmodsecurity ON_DEMAND_TESTS=1 make smoke-traefik
+ON_DEMAND_TESTS=1 make smoke-traefik-modsecurity
 ```
 
 Dieser Modus löst lokale libmodsecurity-Header/-Bibliotheken aus den von
@@ -453,9 +479,9 @@ Der minimale CRS-Smoke verwendet dieselbe lokale Traefik-Laufzeit und das
 libmodsecurity-Backend, schaltet aber den Regelsatz auf CRS um:
 
 ```sh
-DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-traefik
-make smoke-traefik-crs
-make smoke-traefik-crs-secondary
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs ON_DEMAND_TESTS=1 make smoke-traefik
+ON_DEMAND_TESTS=1 make smoke-traefik-crs
+ON_DEMAND_TESTS=1 make smoke-traefik-crs-secondary
 ```
 
 Die CRS-Quelle der Wahrheit bleibt `common.sh` (`CRS_REPO_URL`, `CRS_GIT_REF`,
@@ -485,8 +511,8 @@ das Ergebnis FAIL, nicht PASS oder BLOCKED.
 Alle offenen Connector-CRS-Smokes können ausgeführt werden mit:
 
 ```sh
-make smoke-open-connectors-crs
-make smoke-open-connectors-crs-secondary
+ON_DEMAND_TESTS=1 make smoke-open-connectors-crs
+ON_DEMAND_TESTS=1 make smoke-open-connectors-crs-secondary
 ```
 
 Traefik-Quellmetadaten sind in `common.sh` zentralisiert: `TRAEFIK_VERSION=3.7.10`,
@@ -503,7 +529,7 @@ und `missing_dependencies=["traefik"]`. Belege werden nach
 `$VERIFIED_RUN_ROOT/traefik-smoke/` geschrieben; wenn `VERIFIED_RUN_ROOT` nicht
 gesetzt ist, gilt `$BUILD_ROOT/results/traefik-smoke/` als Fallback.
 
-Wenn eine lokale Binärdatei aufgelöst wird, darf `make smoke-traefik` erst PASS
+Wenn eine lokale Binärdatei aufgelöst wird, darf `ON_DEMAND_TESTS=1 make smoke-traefik` erst PASS
 liefern, nachdem ein echter HTTP-Smoke durch Traefik für eine erlaubte Anfrage
 Status 200 und für eine blockierte Anfrage Status 403 beobachtet hat. Dieser
 PASS beansprucht weiterhin keine Produktionsbereitschaft, vollständige
@@ -586,10 +612,9 @@ Runtime. Eine reine Request-Route benötigt für Phase 4 weiterhin den
 unterstützten Response-Observer beziehungsweise Companion; die Wahl eines
 Modus erzeugt keinen fehlenden Response-Pfad.
 
-Alte Connector-/Runtime-Budget-Einstellungen dürfen aus
-Kompatibilitätsgründen weiter parsebar bleiben, dürfen eine Response aber nicht
-allein deshalb abweisen oder abbrechen, weil eine alte Inspection-Bytezahl
-überschritten wurde. Unabhängige Allokations-, Pufferspeicher-,
+Kumulierte Connector-/Runtime-Response-Größeneinstellungen wurden entfernt;
+unbekannte alte Schlüssel werden beim Konfigurationsladen abgewiesen.
+Unabhängige Allokations-, Pufferspeicher-,
 Chunk-/Message-/Frame-, Timeout-, Überlauf- und Transportlimits bleiben in
 jedem Modus aktiv. Ein puffernder Sidecar darf deshalb weiterhin eine Response
 ablehnen, die nicht in seinen begrenzten Host-Speicher passt; das ist
@@ -598,3 +623,16 @@ Host-Kapazität und keine WAF-Inspection-Policy.
 Der [connectorübergreifende Vertrag zur Eigentümerschaft von Response-Limits](../../docs/phase4-mode-budget.de.md)
 beschreibt den genauen Geltungsbereich, die Kompatibilitätsgrenze und die
 Grenzen der Validierung.
+
+## Native Body-Policy und verbleibende Hostgrenzen
+
+Request-Limit/-Aktion gehören ausschließlich zu `SecRequestBodyLimit` und
+`SecRequestBodyLimitAction`, Response-Limit/-Aktion ausschließlich zu
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction`. Der Connector ergänzt
+keine Body-Größenoption, keinen Default und keine kumulierte Durchsetzung.
+Begrenzte IO-Blöcke und geprüfte Zähler wählen kein Engine-Limit und keine Aktion.
+
+Der forwardAuth-Host puffert weiterhin den Authorization-Body: Smoke
+`maxBodySize=4096`, Composite `maxBodySize=33`; Composite `maxResponseBodySize=32768`
+begrenzt außerdem die Authorization-Response. Diese Einschränkungen bleiben;
+native UDS-Middleware ist ein getrenntes Streaming-Profil.

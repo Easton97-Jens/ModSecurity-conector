@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import inspect
+import json
 import os
 from pathlib import Path
 import pwd
@@ -376,6 +377,10 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         self.assertEqual(environment["CXX"], "/usr/bin/g++-15")
         self.assertEqual(environment["GITHUB_ACTIONS"], "true")
         self.assertEqual(environment["BUILD_ROOT"], "/tmp/task/external/build")
+        self.assertEqual(
+            environment["APACHE_C_STANDARDS_OUT"],
+            "/tmp/task/external/build/apache-c-standards",
+        )
         self.assertEqual(environment["VALIDATION_WRITE_ROOT"], "/tmp/task")
         self.assertNotIn("SUDO", " ".join(environment))
         self.assertEqual(
@@ -386,7 +391,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 "PYTHONPYCACHEPREFIX", "PYTHONUSERBASE", "PYTHONPATH", "PYTHONNOUSERSITE",
                 "PYTHONDONTWRITEBYTECODE", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM",
                 "GIT_OPTIONAL_LOCKS", "GITHUB_ACTIONS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "VALIDATOR_EXTERNAL_ROOT",
-                "BUILD_ROOT",
+                "BUILD_ROOT", "APACHE_C_STANDARDS_OUT",
                 "VALIDATION_WRITE_ROOT", "VERIFIED_RUN_ROOT", "VERIFIED_STATE_ROOT", "VERIFIED_BUILD_ROOT",
                 "VERIFIED_SOURCE_ROOT", "VERIFIED_TMP_ROOT", "VERIFIED_LOG_ROOT", "CACHE_ROOT",
                 "VERIFIED_COMPONENT_CACHE", "CONNECTOR_COMPONENT_CACHE", "VERIFIED_EVIDENCE_ROOT",
@@ -604,7 +609,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             "umask 077", "CapEff", "NoNewPrivs", "GITHUB_WORKSPACE/.git", "FRAMEWORK_ROOT/.git",
             "VALIDATION_WRITE_ROOT/.readonly-validator-guard-probe", "/dev/.readonly-validator-device-probe", "/usr/bin/sudo",
             "/usr/bin/mount -o remount,rw", "VALIDATOR_EXTERNAL_ROOT/write-probe",
-            "-m pip install", "exec make", "safe.directory", "expect_blocked mv",
+            '"$PYTHON" -I -c "import yaml; assert not yaml.__with_libyaml__"',
+            "exec make", "safe.directory", "expect_blocked mv",
             "expect_blocked rm", "expect_blocked chmod", "for target in /tmp /var /home /root /run /sys /dev/shm",
             "validator retained an inherited descriptor", 'test -e "$descriptor" || continue', "test -c /dev/null", "validator sees an unexpected device",
             "python_runtime_bin=$(dirname \"$PYTHON\")", "runtime-write-probe", "runtime-directory-probe",
@@ -617,6 +623,8 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         self.assertNotIn('exec make PYTHON="$PYTHON" BUILD_ROOT=', program)
         self.assertNotIn("eval ", program)
         self.assertNotIn("awk ", program)
+        self.assertNotIn("-m pip install", program)
+        self.assertNotIn("-m venv", program)
         syntax = subprocess.run(
             ["/bin/bash", "--noprofile", "--norc", "-n", "-c", program],
             check=False,
@@ -624,6 +632,59 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
+
+    def test_dependency_preflight_failure_stops_make_and_preserves_selected_python(self) -> None:
+        """Only a successful isolated import may reach make with the selected runtime."""
+        program = HELPER._candidate_script()
+        bootstrap = program[program.index('touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"'):]
+        boundary_program = "#!" + sys.executable + "\n" + '''
+import json
+import os
+from pathlib import Path
+import sys
+
+phase = "make" if Path(sys.argv[0]).name == "make" else "preflight"
+with Path(os.environ["BOOTSTRAP_TRACE"]).open("a") as output:
+    output.write(json.dumps({"phase": phase, "argv": sys.argv,
+                             "python": os.environ["PYTHON"]}) + "\\n")
+if phase == "preflight":
+    if sys.argv[1:] != ["-I", "-c", "import yaml; assert not yaml.__with_libyaml__"]:
+        raise SystemExit(44)
+    raise SystemExit(int(os.environ["IMPORT_STATUS"]))
+'''
+        cases = (("prepared dependency", 0, ["preflight", "make"]),
+                 ("dependency import failure", 23, ["preflight"]))
+        for name, status, phases in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                external = root / "external space"
+                external.mkdir()
+                binaries = root / "bin"
+                binaries.mkdir()
+                selected_python = binaries / "selected-python"
+                for executable in (selected_python, binaries / "make"):
+                    executable.write_text(boundary_program, encoding="utf-8")
+                    executable.chmod(0o700)
+                trace = root / "trace.jsonl"
+                environment = {
+                    "PATH": str(binaries) + os.pathsep + os.defpath,
+                    "PYTHON": str(selected_python), "VALIDATOR_EXTERNAL_ROOT": str(external),
+                    "GITHUB_WORKSPACE": str(root), "PYTHONPATH": str(external / "python-packages"),
+                    "BOOTSTRAP_TRACE": str(trace), "IMPORT_STATUS": str(status),
+                    "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1",
+                }
+                result = subprocess.run(
+                    ["/bin/bash", "--noprofile", "--norc", "-ceu", bootstrap],
+                    env=environment, capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(result.returncode, status, result.stderr)
+                events = [json.loads(line) for line in trace.read_text().splitlines()]
+                self.assertEqual([event["phase"] for event in events], phases)
+                self.assertEqual(events[0]["argv"], [str(selected_python), "-I", "-c",
+                                 "import yaml; assert not yaml.__with_libyaml__"])
+                self.assertTrue(all(event["python"] == str(selected_python) for event in events))
+                if "make" in phases:
+                    self.assertEqual(events[1]["argv"][1:], ["PYTHON=" + str(selected_python), "quick-check"])
 
     def test_candidate_proc_status_parser_preserves_capability_and_no_new_privs_checks(self) -> None:
         program = HELPER._candidate_script()
@@ -821,9 +882,9 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
 
         if not mapped(account.pw_uid, "uid_map") or not mapped(group.gr_gid, "gid_map"):
             self.skipTest("dedicated unprivileged identity capability is unavailable")
-        # The fixture is intentionally below the host's sticky /tmp.  A jail
-        # that merely bind-mounts /source would still leave this path visible.
-        with tempfile.TemporaryDirectory(dir="/tmp", prefix="readonly-namespace-") as raw:
+        # Honor the configured external task temporary root.  A jail that
+        # merely bind-mounts /source would still leave the physical host path visible.
+        with tempfile.TemporaryDirectory(prefix="readonly-namespace-") as raw:
             root = Path(raw); os.chmod(root, 0o755)
             source = root / "source"; framework = source / "modules" / "framework"
             framework.mkdir(parents=True); (source / ".git" / "modules").mkdir(parents=True)
@@ -937,6 +998,13 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
             self.assertEqual(resolved, system_python)
             self.assertIsNone(HELPER._hosted_python_runtime_root(resolved))
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

@@ -171,6 +171,10 @@ printf 'artifact=%s\n' "$ENGINE_BIN"
 printf 'modsecurity_library=%s\n' "$modsecurity_library"
 
 if [ "$MODE" = test ]; then
+    [ "${ON_DEMAND_TESTS:-0}" = 1 ] || {
+        echo "FAIL: engine self-test corpus requires explicit ON_DEMAND_TESTS=1" >&2
+        exit 2
+    }
     if [ -z "${TRAEFIK_ENGINE_SOCKET_TEST_PARENT:-}" ]; then
         echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT is required for the private UDS self-test" >&2
         exit 77

@@ -462,6 +462,26 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 self.assertEqual(before, self.parent_bytes())
                 target.write_text(original, encoding="utf-8")
 
+        target = self.root / VERIFIER.NGINX_EXACT_HEAD_WORKFLOW_PATH
+        original = target.read_text(encoding="utf-8")
+        for name in (*VERIFIER.NGINX_FIELDS, *VERIFIER.PARENT_OWNED_NGINX_FIELDS):
+            expected = f'{name}="${name}"'
+            self.assertEqual(original.count(expected), 1)
+            replacements = ("", expected + " " + expected, f'{name}="unreviewed"', "# " + expected)
+            for replacement in replacements:
+                with self.subTest(name=name, replacement=replacement):
+                    target.write_text(
+                        original.replace(expected, replacement, 1), encoding="utf-8"
+                    )
+                    before = self.parent_bytes()
+                    with self.assertRaisesRegex(
+                        VERIFIER.ContractError,
+                        f"{VERIFIER.NGINX_EXACT_HEAD_WORKFLOW_PATH}:{name}",
+                    ):
+                        VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
+                    self.assertEqual(before, self.parent_bytes())
+                    target.write_text(original, encoding="utf-8")
+
     def test_unsafe_candidate_expression_fails_before_parent_projection(self) -> None:
         self.write_common(
             CANDIDATE_COMMON.replace(
@@ -506,6 +526,13 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             2,
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

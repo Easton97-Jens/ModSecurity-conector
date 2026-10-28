@@ -14,6 +14,7 @@
  */
 
 #include <ngx_config.h>
+#include <limits.h>
 #include <stdint.h>
 
 #ifndef MODSECURITY_DDEBUG
@@ -25,7 +26,6 @@
 #include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
-#include "msconnector/phase4_budget.h"
 
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 
@@ -38,7 +38,7 @@ static ngx_int_t ngx_http_modsecurity_resolv_header_connection(ngx_http_request_
 static ngx_int_t ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_str_t name, off_t offset);
 static ngx_int_t ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, off_t offset);
 static ngx_int_t ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, int original_status,
+    const ngx_http_modsecurity_conf_t *mcf, int original_status,
     const char *wanted, const char *actual);
 
 ngx_http_modsecurity_header_out_t ngx_http_modsecurity_headers_out[] = {
@@ -111,10 +111,10 @@ ngx_http_modsecurity_header_out_t ngx_http_modsecurity_headers_out[] = {
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
 int
-ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, ngx_str_t *name, ngx_str_t *value)
+ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, const ngx_str_t *name, const ngx_str_t *value)
 {
     ngx_http_modsecurity_ctx_t     *ctx;
-    ngx_http_modsecurity_conf_t    *mcf;
+    const ngx_http_modsecurity_conf_t    *mcf;
     ngx_http_modsecurity_header_t  *hdr;
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
@@ -156,7 +156,7 @@ ngx_http_modsecurity_resolv_header_server(ngx_http_request_t *r, ngx_str_t name,
     static char ngx_http_server_full_string[] = NGINX_VER;
     static char ngx_http_server_string[] = "nginx";
 
-    ngx_http_core_loc_conf_t *clcf = NULL;
+    const ngx_http_core_loc_conf_t *clcf = NULL;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_str_t value;
 
@@ -281,7 +281,7 @@ ngx_http_modsecurity_resolv_header_last_modified(ngx_http_request_t *r, ngx_str_
     (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     u_char buf[1024];
-    u_char *p;
+    const u_char *p;
     ngx_str_t value;
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
@@ -312,7 +312,7 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
 {
     (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
-    ngx_http_core_loc_conf_t *clcf = NULL;
+    const ngx_http_core_loc_conf_t *clcf = NULL;
     char *connection = NULL;
     ngx_str_t value;
 
@@ -428,7 +428,7 @@ ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, o
     (void)offset;
 #if (NGX_HTTP_GZIP)
     ngx_http_modsecurity_ctx_t *ctx = NULL;
-    ngx_http_core_loc_conf_t *clcf = NULL;
+    const ngx_http_core_loc_conf_t *clcf = NULL;
 
     clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
     if (r->gzip_vary && clcf->gzip_vary) {
@@ -459,11 +459,11 @@ ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, o
  */
 static ngx_int_t
 ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, int original_status,
+    const ngx_http_modsecurity_conf_t *mcf, int original_status,
     const char *wanted, const char *actual)
 {
     msconnector_event event;
-    ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
+    const ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
 
     if (mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
@@ -509,7 +509,7 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
 {
     ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
-    ngx_table_elt_t *header;
+    const ngx_table_elt_t *header;
     ngx_uint_t i;
 
     for (i = 0; ngx_http_modsecurity_headers_out[i].name.len; i++) {
@@ -561,7 +561,7 @@ static ngx_int_t
 ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_uint_t status, int ret)
 {
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     const char *wanted;
     msconnector_nginx_intervention_disposition disposition;
 
@@ -606,19 +606,6 @@ ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
         ret);
 }
 
-/* Keep metadata accounting consistent with the body planner. SIZE_MAX is an
- * arithmetic ceiling only; it is never a response allocation request. */
-static size_t
-ngx_http_modsecurity_response_body_limit(
-    const ngx_http_modsecurity_conf_t *mcf)
-{
-    if (mcf == NULL) {
-        return 0U;
-    }
-    return msconnector_phase4_effective_body_limit(
-        mcf->phase4_mode, mcf->common_config.phase4_body_limit);
-}
-
 ngx_int_t
 ngx_http_modsecurity_header_filter_init(void)
 {
@@ -635,12 +622,13 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     ngx_http_modsecurity_ctx_t *ctx;
     int ret = 0;
     ngx_uint_t status;
-    char *http_response_ver;
-    ngx_pool_t *old_pool;
-    ngx_http_modsecurity_conf_t *mcf;
+    const char *http_response_ver;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
+    const ngx_http_modsecurity_conf_t *mcf;
     size_t response_header_count;
     size_t response_header_bytes;
-    char *response_content_type = NULL;
+    const char *response_content_type = NULL;
+    ngx_http_modsecurity_engine_call_measurement measurement;
 
 
 /* XXX: if NOT_MODIFIED, do we need to process it at all?  see xslt_header_filter() */
@@ -713,14 +701,14 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             r->pool);
     }
     /* The contract tracks body bytes for overflow/lifecycle integrity only;
-     * libModSecurity owns response-inspection limits in every P4 mode. */
-    if (mcf == NULL || response_content_type == (char *)-1 ||
+     * libModSecurity owns response-inspection limits in every P4 mode. Check
+     * the host's wider status before converting it to the Engine/Common int. */
+    if (mcf == NULL || status > INT_MAX || response_content_type == (char *)-1 ||
         ngx_http_modsecurity_response_header_metrics(r, &response_header_count,
             &response_header_bytes) != NGX_OK ||
         msconnector_transaction_contract_record_response_metadata(
             &ctx->contract, (int)status, response_content_type,
-            response_header_count, response_header_bytes,
-            ngx_http_modsecurity_response_body_limit(mcf)) !=
+            response_header_count, response_header_bytes) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         ctx->response_headers_processing_failed = 1;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -751,7 +739,31 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             "ModSecurity: invalid canonical P3 transition");
         return NGX_ERROR;
     }
-    ret = msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    ctx->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+    if (ngx_http_modsecurity_engine_call_begin(r,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS, &measurement) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS, ctx->contract.error_class,
+            NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return NGX_ERROR;
+    }
+    ret = msc_process_response_headers(ctx->modsec_transaction, (int)status, http_response_ver);
+    if (ngx_http_modsecurity_engine_call_finish(r,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS, &measurement, ret) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        ctx->response_headers_processing_failed = 1;
+        /* Valid over-budget P3 calls already wrote timing plus a single
+         * technical timeout. Clock failures need their own sealed cause. */
+        if (ctx->contract.error_class !=
+                MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT) {
+            (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+                MSCONNECTOR_PHASE_RESPONSE_HEADERS, ctx->contract.error_class,
+                NGX_HTTP_INTERNAL_SERVER_ERROR);
+        }
+        return NGX_ERROR;
+    }
     if (ret != 1) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
         ctx->response_headers_processing_failed = 1;
@@ -764,6 +776,10 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         }
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: native response header processing failed");
+        (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+            MSCONNECTOR_PHASE_RESPONSE_HEADERS,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE,
+            NGX_HTTP_INTERNAL_SERVER_ERROR);
         return NGX_ERROR;
     }
     if (ngx_http_modsecurity_contract_complete(ctx,

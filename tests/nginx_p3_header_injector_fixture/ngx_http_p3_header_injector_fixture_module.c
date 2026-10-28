@@ -152,7 +152,7 @@ ngx_http_p3_header_injector_handler(ngx_http_request_t *r)
 static ngx_int_t
 ngx_http_p3_header_injector_filter(ngx_http_request_t *r)
 {
-    ngx_http_p3_header_injector_loc_conf_t *conf;
+    const ngx_http_p3_header_injector_loc_conf_t *conf;
     ngx_http_p3_header_injector_request_state_t *state;
     ngx_http_p3_header_fixture_mode mode;
     ngx_int_t first_result;
@@ -205,7 +205,7 @@ ngx_http_p3_header_injector_post_read(ngx_http_request_t *r)
     state->request = r;
     state->mode.len = 0U;
     state->mode.data = NULL;
-    ngx_http_set_ctx(r, state, ngx_http_p3_header_injector_fixture_module);
+    ngx_http_set_ctx(r, state, ngx_http_p3_header_injector_fixture_module)
     cleanup->handler = ngx_http_p3_header_injector_cleanup;
     cleanup->data = state;
     return NGX_DECLINED;
@@ -215,7 +215,7 @@ static void
 ngx_http_p3_header_injector_cleanup(void *data)
 {
     ngx_http_p3_header_injector_request_state_t *state = data;
-    ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_ctx_t *ctx;
 
     if (state == NULL || state->request == NULL || state->mode.data == NULL) {
         return;
@@ -238,7 +238,7 @@ static void
 ngx_http_p3_header_injector_log_outcome(ngx_http_request_t *r,
     const ngx_str_t *mode, ngx_int_t first_result, ngx_int_t retry_result)
 {
-    ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_ctx_t *ctx;
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
     if (ctx == NULL) {
@@ -297,7 +297,7 @@ ngx_http_p3_header_injector_set_mode(ngx_conf_t *cf, ngx_command_t *cmd,
 {
     ngx_http_p3_header_injector_loc_conf_t *fixture = conf;
     ngx_http_core_loc_conf_t *core;
-    ngx_str_t *value;
+    const ngx_str_t *value;
 
     (void) cmd;
     if (fixture->mode.data != NULL) {

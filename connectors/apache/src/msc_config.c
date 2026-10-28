@@ -35,14 +35,12 @@ static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_dcfg,
     const char *p1);
 static const char *msc_config_phase4_log(cmd_parms *cmd, void *_dcfg,
     const char *p1);
-static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_dcfg,
-    const char *p1);
 
 const command_rec module_directives[] =
 {
     AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_MODSECURITY,
-        msc_config_modsec_state,
+        &msc_config_modsec_state,
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "The argument must be either 'On' or 'Off'"
@@ -50,7 +48,7 @@ const command_rec module_directives[] =
 
     AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_RULES,
-        msc_config_load_rules,
+        &msc_config_load_rules,
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Please ensure that the arugment is specified correctly, including line continuations."
@@ -58,7 +56,7 @@ const command_rec module_directives[] =
 
     AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_RULES_FILE,
-        msc_config_load_rules_file,
+        &msc_config_load_rules_file,
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Load ModSecurity rules from a file"
@@ -66,7 +64,7 @@ const command_rec module_directives[] =
 
     AP_INIT_TAKE2(
         MSCONNECTOR_DIRECTIVE_RULES_REMOTE,
-        msc_config_load_rules_remote,
+        &msc_config_load_rules_remote,
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Load ModSecurity rules from a remote server"
@@ -90,7 +88,7 @@ const command_rec module_directives[] =
 
     AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG,
-        msc_config_use_error_log,
+        &msc_config_use_error_log,
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Enable or disable forwarding libmodsecurity log messages to the Apache error log"
@@ -98,7 +96,7 @@ const command_rec module_directives[] =
 
     AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_PHASE4_MODE,
-        msc_config_phase4_mode,
+        &msc_config_phase4_mode,
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Phase 4 handling mode: off, safe, or strict"
@@ -111,14 +109,6 @@ const command_rec module_directives[] =
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Write Phase 4 connector decisions as JSON lines"
-    ),
-
-    AP_INIT_TAKE1(
-        MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT,
-        msc_config_phase4_body_limit,
-        NULL,
-        RSRC_CONF | ACCESS_CONF,
-        "Bound Apache connector response-body buffering for Phase 4"
     ),
 
     { .name = NULL }
@@ -296,23 +286,6 @@ static const char *msc_config_phase4_log(cmd_parms *cmd, void *_cnf,
 }
 
 
-static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_cnf,
-    const char *p1)
-{
-    msc_conf_t *cnf = (msc_conf_t *) _cnf;
-    (void)cmd;
-    size_t value;
-
-    if (!msconnector_parse_size(p1, &value) || value == 0U)
-    {
-        return "modsecurity_phase4_body_limit must be a positive integer";
-    }
-
-    cnf->common_config.phase4_body_limit = value;
-    return NULL;
-}
-
-
 static apr_status_t msc_rules_set_cleanup(void *data)
 {
     if (data != NULL)
@@ -351,7 +324,7 @@ static int msc_merge_directory_rules(msc_conf_t *destination,
 }
 
 static int msc_merge_common_directory_config(msc_conf_t *destination,
-    msc_conf_t *parent, msc_conf_t *child, apr_pool_t *pool)
+    const msc_conf_t *parent, const msc_conf_t *child, apr_pool_t *pool)
 {
     char error[256];
 

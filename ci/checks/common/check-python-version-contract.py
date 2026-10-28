@@ -9,6 +9,8 @@ workflow content; unsupported/ambiguous contract shapes fail closed.
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import hashlib
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -19,10 +21,13 @@ import textwrap
 from typing import Iterable, Mapping, Sequence
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from workflow_action_pins import read_action_reference  # noqa: E402
+
+
 CANONICAL_VERSION_FILE = ".python-version"
-SETUP_PYTHON_ACTION = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
-SETUP_PYTHON_RELEASE_COMMENT = "# v7.0.0"
-SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION} {SETUP_PYTHON_RELEASE_COMMENT}"
+SETUP_PYTHON_REFERENCE = read_action_reference(Path(__file__).resolve().parents[3], "actions/setup-python")
+SETUP_PYTHON_ACTION, SETUP_PYTHON_RELEASE_COMMENT = SETUP_PYTHON_REFERENCE.split(" ", 1)
 VERIFIER_NAME = "Verify Python interpreter contract"
 CANDIDATE_VERIFIER_NAME = "Verify Python candidate interpreter contract"
 VERIFIER_PATH = "ci/checks/common/check-python-interpreter-contract.py"
@@ -40,6 +45,7 @@ UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
 UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
 UPDATE_WORKFLOW_TOOLS_WORKFLOW = "update-workflow-tools.yml"
 CI_SECURITY_WORKFLOW_LINT_WORKFLOW = "ci-security-workflow-lint.yml"
+CI_SECURITY_CODEQL_WORKFLOW = "ci-security-codeql.yml"
 PROTECTED_NGINX_BROKER_CALLER_WORKFLOW = "run-protected-nginx-root-broker.yml"
 PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW = (
     "Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@"
@@ -76,6 +82,14 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "actionlint"),
         JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "apr-util-provenance"),
         JobIdentity(CI_SECURITY_WORKFLOW_LINT_WORKFLOW, "zizmor"),
+        JobIdentity("ci-findings-regressions.yml", "nginx-b09-regression"),
+        JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "trusted-go-version"),
+        JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "traefik-go"),
+        JobIdentity(CI_SECURITY_CODEQL_WORKFLOW, "bounded-c-cpp"),
+        JobIdentity("validate-go-candidate.yml", "go-candidate"),
+        JobIdentity("test-connectors-with-crs-no-mrts.yml", "connector-mode"),
+        JobIdentity("test-connectors-with-crs-no-mrts.yml", "aggregate-with-crs-no-mrts"),
+        JobIdentity("test-nginx-exact-head.yml", "nginx-exact-head"),
         JobIdentity("lint.yml", "scaffold-lint"),
         JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
         JobIdentity("open-connectors-smoke.yml", "open-connectors-smoke"),
@@ -120,7 +134,7 @@ EXPECTED_IMMUTABLE_REUSABLE_PYTHON_JOBS: Mapping[JobIdentity, str] = {
 }
 
 # Local reusable callers do not themselves execute Python, but their calls are
-# conservatively classified as Python-bearing. Keep the one approved caller in
+# conservatively classified as Python-bearing. Keep approved caller identities in
 # a separate closed mapping so its callee jobs retain the normal strict setup
 # and verifier contract above.
 EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS: Mapping[JobIdentity, str] = {
@@ -128,6 +142,16 @@ EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS: Mapping[JobIdentity, str] = {
         "./.github/workflows/reusable-five-connectors-profile.yml"
     ),
 }
+
+# This protected bootstrap deliberately uses a root-owned system interpreter
+# only inside its cleared, unprivileged namespace. Its complete dedicated
+# source trust contract is required instead of normal setup-python execution.
+TRUSTED_SYSTEM_PYTHON_JOB = JobIdentity(
+    "run-trusted-lighttpd-namespace-dispatch.yml", "trusted-lighttpd-namespace"
+)
+TRUSTED_SYSTEM_WORKFLOW_SHA256 = "fdf678e477c10203b1e6707852267c478cfbf9b47a02e5f22efaff00ef2a14d6"
+EXPECTED_SYSTEM_PYTHON_JOBS = frozenset({TRUSTED_SYSTEM_PYTHON_JOB})
+
 
 # This is intentionally an exact pair, not a filename/job-name pattern.  It
 # does not permit ambient Python: the candidate version and setup-python path
@@ -474,10 +498,10 @@ def is_ascii_decimal(value: str) -> bool:
     return bool(value) and all("0" <= character <= "9" for character in value)
 
 
-def is_exact_python_314_version(value: str) -> bool:
-    """Return whether *value* is the accepted ``3.14.N`` version shape."""
+def is_exact_python_315_version(value: str) -> bool:
+    """Return whether *value* is the accepted ``3.15.N`` version shape."""
 
-    prefix = "3.14."
+    prefix = "3.15."
     if not value.startswith(prefix):
         return False
     patch = value.removeprefix(prefix)
@@ -487,9 +511,9 @@ def is_exact_python_314_version(value: str) -> bool:
 
 
 def parse_exact_version(value: str, source: str) -> str:
-    if not is_exact_python_314_version(value):
+    if not is_exact_python_315_version(value):
         raise ContractInputError(
-            f"{source} must be an exact Python 3.14.N version; got {value!r}"
+            f"{source} must be an exact Python 3.15.N version; got {value!r}"
         )
     return value
 
@@ -1606,7 +1630,7 @@ def normal_setup_violations(job: Job, setup: Step) -> list[str]:
         errors.append("setup-python must use check-latest: false")
     if "python-version" in with_values:
         errors.append("normal Python jobs must not use python-version selectors")
-    if any("3.14" in line or "matrix" in line for line in selector_lines(job)):
+    if any("3.15" in line or "matrix" in line for line in selector_lines(job)):
         errors.append("normal Python jobs must not use a literal or matrix Python selector")
     if has_python_matrix_selector(job):
         errors.append(
@@ -1672,7 +1696,7 @@ def candidate_setup_violations(job: Job, setup: Step) -> list[str]:
         errors.append("candidate setup-python must not use python-version-file")
     if with_values.get("check-latest") != "false":
         errors.append("candidate setup-python must use check-latest: false")
-    if any("3.14" in line or "matrix" in line for line in selector_lines(job)):
+    if any("3.15" in line or "matrix" in line for line in selector_lines(job)):
         errors.append("candidate job must not use literal or matrix Python selectors")
     if has_python_matrix_selector(job):
         errors.append(
@@ -1887,12 +1911,44 @@ def local_reusable_caller_violations(
                 f"local reusable Python caller has an unexpected execution shape: "
                 f"{identity.display()}"
             )
-        if job.scalar("uses") != reference:
+        if job.scalar("uses") not in {reference, "$/" + reference.removeprefix("./")}:
             violations.append(
                 f"local reusable Python caller must use exactly {reference}: "
                 f"{identity.display()}"
             )
     return violations
+
+
+def trusted_namespace_source_errors(root: Path, identity: JobIdentity) -> list[str]:
+    """Bind the system interpreter exception to its reviewed source and trust checks."""
+    contract_path = Path(__file__).resolve().parents[3] / "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py"
+    if contract_path.is_symlink() or not contract_path.is_file():
+        raise ContractInputError("trusted namespace source contract must be a regular file")
+    specification = importlib.util.spec_from_file_location("trusted_namespace_source_contract", contract_path)
+    if specification is None or specification.loader is None:
+        raise ContractInputError("cannot load the trusted namespace source contract")
+    contract = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(contract)
+    # This function only inspects source text; importing does not run tests.
+    source = (root / ".github/workflows" / identity.workflow).read_bytes()
+    errors: list[str] = []
+    if hashlib.sha256(source).hexdigest() != TRUSTED_SYSTEM_WORKFLOW_SHA256:
+        errors.append("trusted system Python workflow differs from the reviewed profile")
+    errors.extend(contract.trusted_dispatch_errors(source.decode("utf-8")))
+    return [f"{identity.display()}: {error}" for error in errors]
+
+
+def system_python_job_violations(
+    root: Path, jobs: dict[JobIdentity, Job], expected: frozenset[JobIdentity]
+) -> list[str]:
+    """Reuse the complete dedicated source contract for the fixed bootstrap."""
+    errors: list[str] = []
+    for identity in sorted(expected):
+        if identity != TRUSTED_SYSTEM_PYTHON_JOB or identity not in jobs:
+            errors.append(f"required trusted system Python job is absent or unapproved: {identity.display()}")
+            continue
+        errors.extend(trusted_namespace_source_errors(root, identity))
+    return errors
 
 
 def unlisted_python_job_violations(
@@ -1902,6 +1958,7 @@ def unlisted_python_job_violations(
     expected_immutable_reusable_jobs: Mapping[JobIdentity, str],
     expected_local_reusable_callers: Mapping[JobIdentity, str],
     detected: set[JobIdentity],
+    expected_system_python_jobs: frozenset[JobIdentity],
 ) -> list[str]:
     """Reject detected Python jobs absent from the explicit inventory."""
 
@@ -1912,6 +1969,7 @@ def unlisted_python_job_violations(
             or identity == expected_candidate_job
             or identity in expected_immutable_reusable_jobs
             or identity in expected_local_reusable_callers
+            or identity in expected_system_python_jobs
         ):
             continue
         violations.append(
@@ -1931,6 +1989,7 @@ def evaluate_workflow_contract(
     expected_candidate_job: JobIdentity | None = CANDIDATE_VALIDATION_JOB,
     expected_immutable_reusable_jobs: Mapping[JobIdentity, str] | None = None,
     expected_local_reusable_callers: Mapping[JobIdentity, str] | None = None,
+    expected_system_python_jobs: Iterable[JobIdentity] | None = None,
 ) -> tuple[str, list[str], set[JobIdentity]]:
     """Evaluate source-only workflow policy and return version, violations, inventory."""
 
@@ -1942,6 +2001,7 @@ def evaluate_workflow_contract(
     violations.extend(workflow_violations)
 
     expected = frozenset(expected_normal_jobs)
+    expected_system = frozenset(EXPECTED_SYSTEM_PYTHON_JOBS if expected_system_python_jobs is None else expected_system_python_jobs)
     expected_reusable = dict(
         EXPECTED_IMMUTABLE_REUSABLE_PYTHON_JOBS
         if expected_immutable_reusable_jobs is None
@@ -1956,6 +2016,7 @@ def evaluate_workflow_contract(
         missing_inventory_violations(jobs, expected, expected_candidate_job, expected_reusable)
     )
     detected = detected_python_jobs(jobs)
+    violations.extend(system_python_job_violations(root, jobs, expected_system))
     violations.extend(expected_normal_job_violations(jobs, expected, detected))
     violations.extend(candidate_job_violations(jobs, expected_candidate_job, detected))
     violations.extend(immutable_reusable_job_violations(jobs, expected_reusable, detected))
@@ -1970,6 +2031,7 @@ def evaluate_workflow_contract(
             expected_reusable,
             expected_local_callers,
             detected,
+            expected_system,
         )
     )
 
@@ -1988,7 +2050,7 @@ def parser() -> argparse.ArgumentParser:
     )
     argument_parser.add_argument(
         "--previous-version",
-        metavar="3.14.N",
+        metavar="3.15.N",
         help="previous canonical version; reject a downgrade unless explicitly allowed",
     )
     argument_parser.add_argument(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import importlib.util
 import json
 import os
 import re
@@ -14,15 +15,13 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, TextIO, TypeVar
+from typing import Callable, TextIO
 
 
 MAX_METADATA_BYTES = 2 * 1024 * 1024
 MAX_VERSION_FILE_BYTES = 64
 NETWORK_TIMEOUT_SECONDS = 15
 _UNSET = object()
-
-VersionT = TypeVar("VersionT")
 
 
 class UpdaterError(RuntimeError):
@@ -255,7 +254,7 @@ def version_target(root: Path, version_filename: str) -> Path:
     return target
 
 
-def read_current_version_with_stat(
+def read_current_version_with_stat[VersionT](
     root: Path,
     *,
     version_filename: str,
@@ -309,7 +308,7 @@ def read_current_version_with_stat(
     return parse_stable_version(text), opened_stat
 
 
-def read_current_version(
+def read_current_version[VersionT](
     root: Path,
     *,
     version_filename: str,
@@ -325,7 +324,7 @@ def read_current_version(
     return current
 
 
-def atomic_update_version(
+def atomic_update_version[VersionT](
     root: Path,
     current: VersionT,
     resolved: VersionT,
@@ -461,7 +460,11 @@ def _replacement_unchanged(
     try:
         text, metadata = read_current_version_with_stat(
             root, version_filename=filename,
-            parse_stable_version=lambda value: value, max_bytes=4096,
+            # This is the exact already-admitted transaction output, including
+            # inventory/archive companions larger than the small version lock.
+            # Its length bounds the rollback read without dropping inode/body
+            # protection against a concurrent replacement.
+            parse_stable_version=lambda value: value, max_bytes=len(expected_body),
         )
     except UpdaterError:
         return False
@@ -545,15 +548,44 @@ def update_project_toolchain(root: Path, current: object, resolved: object, *, f
         candidate[TOOLCHAIN_FIELDS[filename]] = str(resolved)
         body = (json.dumps(candidate, indent=2) + "\n").encode("utf-8")
         _parse_project_lock(body.decode("utf-8"))
+        view_body = f"{resolved}\n".encode()
+        companion_updates = maintenance_companion_updates(
+            root, {filename: view_body, PROJECT_VERSION_LOCK: body})
         replace_project_files(root, [
-            (filename, f"{resolved}\n".encode(), view, view_stat, parser, 64),
+            (filename, view_body, view, view_stat, parser, 64),
+            *companion_updates,
             (PROJECT_VERSION_LOCK, body, pins, lock_stat, _parse_project_lock, 4096),
         ])
     finally:
         os.close(descriptor)
 
 
-def execute_update(
+def maintenance_companion_updates(root: Path, proposed: dict[str, bytes]) -> list[tuple]:
+    """Prepare hash-only companions inside the existing checked transaction.
+
+    The fixed sibling helper admits the entire pre-update selection. Isolated
+    updater algorithm fixtures without either companion remain plain fixtures;
+    real publishers separately require trusted-base companion verification.
+    """
+    path = Path(__file__).resolve().parents[1] / "ci/lib/active_inventory_updates.py"
+    spec = importlib.util.spec_from_file_location("language_inventory_updates", path)
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+        snapshot = module.capture_update(root, frozenset(proposed))
+        outputs = module.planned_companions(root, snapshot, proposed)
+        result = []
+        for name, value in outputs.items():
+            before = module.read_regular(root, name)
+            if value != before:
+                result.append((name, value, json.loads(before), (root / name).lstat(), json.loads,
+                               module.MAX_BYTES))
+        return result
+    except (OSError, ValueError) as error:
+        raise TargetError("maintenance inventory companions cannot be derived safely") from error
+
+
+def execute_update[VersionT](
     mode: str,
     *,
     root: Path | None,

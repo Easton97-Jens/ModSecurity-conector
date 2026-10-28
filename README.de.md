@@ -2,145 +2,181 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-Dieses Repository enthält connector-eigenen Source, ausgewählte
-Host-Integrationsrouten, Lifecycle-Wrapper, Konfiguration und
-Evidence-Consumer für libmodsecurity-basierte Server-Connectoren.
-Wiederverwendbare Case-Kataloge, Schemas und Framework-Runner liegen im
-Submodule <code>modules/ModSecurity-test-Framework</code>.
+libModSecurity mit Apache, NGINX, HAProxy, Envoy, Traefik oder lighttpd verbinden:
+Dieses Repository stellt die Hostintegrationen, gemeinsame Runtime,
+Konfigurationsbeispiele, Build-Steuerung und Werkzeuge zur Verhaltensprüfung
+bereit. Die ModSecurity Engine wertet Regeln aus; der jeweilige Connector
+liefert die Hostdaten und übersetzt eine Engine-Entscheidung in eine vom Host
+unterstützte Aktion.
 
-Das Repository dokumentiert sechs ausgewählte HTTP/1.1-Kernrouten. Ihr
-Ergebnis ist laufabhängig: Source-Wiring, Builds, Capability-Deklarationen und
-Config-Checks sind für sich allein keine Evidence-Ergebnisse.
+**Neu im Projekt?** Mit [Einstieg](docs/getting-started.de.md) beginnen und danach
+unter [Beispiele](examples/README.de.md) einen Host wählen. **Bestehende Einrichtung
+aktualisieren?** Vor der Wiederverwendung alter Konfigurationen
+[Migration und aktuelles Verhalten](docs/migration.de.md) lesen: Connector-eigene
+Request-/Response-Body-Größenoptionen wurden entfernt, und die
+Standard-Testauswahl wurde geändert.
 
-## Ausgewählte Connector-Routen
+## Host und Profil wählen
 
-| Connector | Ausgewähltes Full-Lifecycle-Profil | Aufgezeichneter Integrationsmodus | Einstiegspunkt |
-|---|---|---|---|
-| Apache | <code>native-httpd-module</code> | <code>native-httpd-module</code> | [Connector-Guide](docs/connectors/README.de.md) / [Source](connectors/apache/README.de.md) |
-| NGINX | <code>native-nginx-http-module</code> | <code>native-nginx-http-module</code> | [Connector-Guide](docs/connectors/README.de.md) / [Source](connectors/nginx/README.de.md) |
-| HAProxy | <code>native-htx-filter</code> | <code>native-htx-filter</code> | [Connector-Guide](docs/connectors/README.de.md) / [Source](connectors/haproxy/README.de.md) |
-| Envoy | <code>ext_proc</code> | <code>ext_proc</code> | [Connector-Guide](docs/connectors/README.de.md) / [Source](connectors/envoy/README.de.md) |
-| Traefik | <code>native-middleware</code> | <code>native-traefik-middleware</code> | [Connector-Guide](docs/connectors/README.de.md) / [Source](connectors/traefik/README.de.md) |
-| lighttpd | <code>patched-native</code> | <code>patched-native-lighttpd</code> | [Connector-Guide](docs/connectors/README.de.md) / [Source](connectors/lighttpd/README.de.md) |
+Es gibt sechs Hostfamilien und zehn logische Connector-Profile. Ein Profil
+bezeichnet eine bestimmte Integrationstopologie und garantiert nicht, dass
+jedes Protokoll oder jeder späte Eingriff unterstützt wird.
 
-Der Profilwert ist die Identität des Root-Lifecycle-Targets. Der
-aufgezeichnete Integrationsmodus ist der beschreibende Wert, der mit dem
-effektiven Run-Profil geschrieben wird. Details, alternative
-Compatibility-Begriffe und Grenzen stehen in der
-[Connector-Dokumentation](docs/connectors/README.de.md).
+| Hostfamilie | Logische Profile | Einstieg |
+| --- | --- | --- |
+| Apache | `apache` | [Guide](docs/connectors/apache.de.md) / [Beispiele](examples/apache/README.de.md) |
+| NGINX | `nginx` | [Guide](docs/connectors/nginx.de.md) / [Beispiele](examples/nginx/README.de.md) |
+| HAProxy | `haproxy-htx`, `haproxy-spoe-spop` | [Guide](docs/connectors/haproxy.de.md) / [Beispiele](examples/haproxy/README.de.md) |
+| Envoy | `envoy-ext-proc`, `envoy-ext-authz` | [Guide](docs/connectors/envoy.de.md) / [Beispiele](examples/envoy/README.de.md) |
+| Traefik | `traefik-native-uds`, `traefik-forwardauth` | [Guide](docs/connectors/traefik.de.md) / [Beispiele](examples/traefik/README.de.md) |
+| lighttpd | `lighttpd-patched`, `lighttpd-stock` | [Guide](docs/connectors/lighttpd.de.md) / [Beispiele](examples/lighttpd/README.de.md) |
 
-## Architektur
+Direkte/native Integrationen und Autorisierungswege sind nicht austauschbar.
+SPOE/SPOP, ext_authz und forwardAuth benötigen für Response-Phasen den
+dokumentierten Response-Companion oder Observer. Dieser hebt die Grenzen für
+Request-Stichproben oder gepufferte Requests des Autorisierungswegs nicht auf.
+Patched-Native-lighttpd und sein Stock-Sidecar sind getrennte Lösungen und
+keine Fallback-Modi.
 
-~~~mermaid
-flowchart LR
-    Client[HTTP client] --> Host[Selected connector host]
-    Host --> Adapter[Connector adapter or bridge]
-    Adapter --> Common[Common runtime / libmodsecurity]
-    Common --> Host
-    Host --> Raw[Invocation-local raw artifacts]
-    Raw --> Finalize[Normalize and finalize]
-    Finalize --> Evidence[Run-scoped canonical evidence]
-    Evidence --> Validate[Evidence validators and reports]
-~~~
-
-Der Host ist Apache, NGINX, HAProxy, Envoy, Traefik oder lighttpd. Die
-ausgewählte Route bestimmt ihre Request-/Response-Sichtbarkeit und
-Phasengrenze. Roh-Runtime-Ausgabe ist nicht automatisch kanonische Evidence;
-Finalisierung und Validierung binden Artefakte an Connector, Profil, Rules und
-Run-ID.
+Der [Connector-Index](docs/connectors/README.de.md) unterscheidet logische
+Profil-IDs, Profilnamen der Root-Lifecycle-Targets und aufgezeichnete
+Integrationsmodi. Die [Body-Inspection-Matrix](docs/body-inspection-review-matrix.de.md)
+beschreibt die tatsächlichen Grenzen aller zehn Profile.
 
 ## Schnellstart
 
-Initialisieren Sie das Framework-Submodule und prüfen Sie dann seinen Ort:
+Git, Make und die im [Build-Guide](docs/build/README.de.md) beschriebenen
+Voraussetzungen verwenden. Toolchain- und Framework-Revisionen folgen dem
+eingecheckten [Vertrag für Versions-Pins](docs/reference/version-pins.de.md),
+nicht der zufällig neuesten Version auf dem Rechner.
 
-~~~sh
-git submodule update --init --recursive
+```sh
+git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
+cd ModSecurity-conector
 make check-framework
-~~~
-
-<code>FRAMEWORK_ROOT</code> verwendet standardmäßig
-<code>modules/ModSecurity-test-Framework</code>. Setzen Sie ihn nur bei einem
-vertrauenswürdigen vorhandenen Framework-Checkout, zum Beispiel:
-
-~~~sh
-make check-framework FRAMEWORK_ROOT="/srv/src/ModSecurity-test-Framework"
-~~~
-
-<code>/srv/src/ModSecurity-test-Framework</code> ist ein Beispiel für einen
-<em>externen Source-Root</em>: einen vom Benutzer ausgewählten absoluten
-Checkout außerhalb dieses Repositorys. Es ist kein literaler oder
-entwicklerspezifischer Pfad. Eine fehlende Framework-Voraussetzung erzeugt
-Exit-Code <code>77</code>.
-
-Führen Sie den lokalen Struktur-/Dokumentationscheck aus:
-
-~~~sh
+make check-active-inventory
 make quick-check
-~~~
+```
 
-Dieser validiert repository-orientierte Checks; er führt nicht jeden
-Connector-Host aus und erzeugt keine Full-Lifecycle-Evidence.
+Bei einem vorhandenen Clone ohne Submodule zuerst
+`git submodule update --init --recursive` ausführen. `FRAMEWORK_ROOT` zeigt
+normalerweise auf `modules/ModSecurity-test-Framework`; nur mit einem
+vertrauenswürdigen passenden Checkout überschreiben.
 
-## Build- und Testüberblick
+`make check-active-inventory` prüft das gesamte ausgewählte Testinventar,
+ohne Tests zu starten. `make quick-check` führt statische Prüfungen und
+zugelassene funktionale Teilmengen aus. Keiner der Befehle qualifiziert jeden
+Host und jedes Profil für den Betrieb. `make test` führt die aktive Auswahl
+aus und benötigt deren tatsächliche Compiler-, SDK- und Hostvoraussetzungen.
+Fehlende Voraussetzungen dürfen nicht als Erfolg dargestellt werden.
 
-| Ziel | Beginnen mit | Wichtige Grenze |
-|---|---|---|
-| Eine ausgewählte Route bauen | <code>make build-nginx</code> | Build-Erfolg ist keine Runtime-Evidence |
-| Ausgewählte Konfiguration prüfen | <code>make check-config-nginx</code> | Config-Load ist keine Traffic-Ausführung |
-| Einen fokussierten Smoke ausführen | <code>make runtime-smoke-nginx</code>, wo bereitgestellt | Ein Smoke ist keine Full-Lifecycle-Promotion |
-| Einen ausgewählten Aggregate-Candidate-Run erzeugen | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-all-connectors</code> | Run-ID ist ein Beispiel für ein sicheres Token, kein Outcome-Claim |
-| Finalisierte Evidence validieren | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make check-six-connector-core-completion</code> | Read-only-Gate; Exit <code>0</code> ist auf diesen Gate-Vertrag begrenzt |
+## Befehle nach Aufgabe
 
-Die exakten Eingaben, Ausgaben, Target-Bedeutungen, Statuswerte, Exit-Codes und
-Platzhalter stehen unter [Build](docs/build/README.de.md) und
-[Tests und Nachweise](docs/testing-and-evidence.de.md).
+Befehle im Repository-Hauptverzeichnis ausführen. Das Root-`Makefile` ist die
+Befehlsreferenz; die verlinkten Guides beschreiben Voraussetzungen und Ausgaben.
 
-## Evidence-Grenze
+| Aufgabe | Befehl oder Guide | Aussage des Ergebnisses |
+| --- | --- | --- |
+| Checkout prüfen | `make quick-check` | Statische Verträge und ausgewählte funktionale Teilmengen |
+| Testauswahl ohne Ausführung prüfen | `make check-active-inventory` | Zulässigkeit des vollständigen aktiven Inventars |
+| Standard-Testauswahl ausführen | `make test` | Ergebnisse der tatsächlich ausgewählten und ausgeführten Fälle |
+| Eine Integration bauen | `make build-nginx` | Build-Erfolg dieser Route, kein Traffic-Verhalten |
+| Hostkonfiguration validieren | `make check-config-apache` | Laden der Konfiguration, kein P1–P4-Laufzeitnachweis |
+| Dokumentationspaare und Links prüfen | `make check-bilingual-docs` / `make check-doc-links` | Konsistenz der Dokumentation |
+| Einen aufgezeichneten Lauf einordnen | [Tests und Nachweise](docs/testing-and-evidence.de.md) | Exaktes Profil, Regeln, Run-ID, Artefakte und Einschränkungen |
 
-Evidence wird unter einem externen Runtime-/Evidence-Baum abgelegt,
-normalerweise <code>EVIDENCE_ROOT/connector/run-id</code>. Die Namen
-<code>connector</code> und <code>run-id</code> sind konzeptionelle
-Komponenten, keine literalen Verzeichnisnamen: Connector ist einer der sechs
-Namen der Tabelle und Run-ID ein dateisystemsicheres Token wie
-<code>six-core-20260712T120000Z</code>.
+Normale lokale und CI-Tests verwenden eine gemeinsame maßgebliche Auswahl:
+[config/testing/active-cases.json](config/testing/active-cases.json). Die
+Kerngrenze von 100 Fällen und die getrennt autorisierte geschützte
+Offline-Python-Ausnahme werden getrennt gezählt; die Ausnahme ergänzt keine
+Connector-E2E-Fälle. Für Fallzahlen das Inventar und dessen Prüfausgabe
+verwenden, statt aus einem Befehlsnamen vollständige Abdeckung abzuleiten.
 
-Keine Aussage hier behauptet:
+Full-Lifecycle-Kampagnen sind Spezialarbeit und nicht der automatische nächste
+Schritt. Sie benötigen einen gesonderten aktuellen Auftrag und
+`ON_DEMAND_TESTS=1`. Das Flag ist keine allgemeine Umgehung und eröffnet keine
+abgeschlossene I12-Arbeit erneut. Geschützte NGINX-Hostprüfungen behalten ihren
+separat kontrollierten Ausführungsweg für den exakten Commit.
 
-- Production Readiness oder Production Hardening;
-- CRS-Verifikation oder CRS-Vollständigkeit;
-- vollständige HTTP/2- oder HTTP/3-Verifikation;
-- vollständige Matrix-Abdeckung; oder
-- Strict-Verifikation für alle Connectoren.
+## Body-Inspection und Phase 4
 
-Strict Late Intervention, erweiterte Transports, CRS-Verhalten und Extended
-Matrices bleiben getrennte Evidence-gesteuerte Arbeit. Lesen Sie die aktuellen
-[Testing-Reports](reports/README.de.md) und den
-[Guide für Tests und Nachweise](docs/testing-and-evidence.de.md), bevor Sie einen Ergebnis-Claim
-erheben.
+| Phase | An die Engine gelieferte Daten |
+| --- | --- |
+| P1 | Request-Header |
+| P2 | Request-Body |
+| P3 | Response-Header |
+| P4 | Response-Body |
+
+**Body-Inspection-Limits gehören zu libModSecurity.** Request-Policy mit
+`SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit` und
+`SecRequestBodyLimitAction` konfigurieren; Response-Policy mit
+`SecResponseBodyLimit` und `SecResponseBodyLimitAction`. Body-Zugriff und
+Response-MIME-Auswahl bleiben ebenfalls Engine-Einstellungen. Ohne explizite
+Engine-Direktiven gilt die native Engine-Semantik; der Connector darf keine
+Ersatzstandards einfügen oder Eingaben auf einen selbst gewählten
+Inspection-Präfix kürzen.
+
+| Phase-4-Modus | Bedeutung | Bedeutet nicht |
+| --- | --- | --- |
+| `off` | Native Interventions-/Fehlerbehandlung ohne zusätzliche Safe-/Strict-Late-Action-Policy | Engine oder Response-Inspection sind deaktiviert |
+| `safe` | Unterstützte vorsichtige Behandlung einer Entscheidung nach Beginn der Response-Ausgabe | Native Reject-Ergebnisse oder echte Verarbeitungsfehler dürfen ignoriert werden |
+| `strict` | Unterstützte strikte späte Hostaktion des ausgewählten Profils | Jedes Profil kann eine bereits begonnene Response abbrechen |
+
+`all` ist ein Beispiellayout und kein vierter Phase-4-Modus. Eine
+Strict-Konfiguration kann bereits beim Start abgewiesen werden, wenn dem
+Profil die benötigte Hostaktion fehlt. Modi wählen niemals ein
+Body-Größenlimit oder eine Engine-Limitaktion.
+
+Alte Einstellungen wie `request_body_limit`, `response_body_limit`,
+`body_limit_action` und `modsecurity_phase4_body_limit` wurden entfernt und
+werden nicht stillschweigend als Kompatibilitätsoptionen akzeptiert. Den
+[Migrationsguide](docs/migration.de.md) und den maßgeblichen
+[Body-Limit-Vertrag](docs/phase4-mode-budget.de.md) beachten.
+Arbeitsbuffer, einzelne Frames/Nachrichten, Metadaten, Timeouts, Dateiprüfungen
+und die dokumentierten Host-Autorisierungslimits bleiben getrennte
+Sicherheitsgrenzen.
+
+## Repository-Übersicht
+
+| Pfad | Inhalt |
+| --- | --- |
+| `common/` | Connector-neutrale Runtime-Verträge und gemeinsame Unterstützung |
+| `connectors/` | Hostspezifischer Source, Integration, Metadaten und Harnesses |
+| `docs/` | Nutzeranleitungen, Architektur, Verträge, Betrieb und Referenzen |
+| `examples/` | Anzupassende und zu validierende Host-/Profilkonfigurationen |
+| `ci/` und `tests/` | Parent-Prüfungen, Steuerung und Regressionstests |
+| `reports/` | Laufbezogene Berichte, aktuelle Zusammenfassungen und historische Aufzeichnungen |
+| `licenses/` | Externe Herkunft, Source-Basen und aufbewahrte Upstream-Hinweise |
+| `modules/ModSecurity-test-Framework/` | Unabhängiges Framework-Submodule mit wiederverwendbaren Fällen, Schemas, Runnern und Normalizern |
+
+Generierte Builds, Cache, Runtime, Logs und Nachweise außerhalb des Checkouts
+halten. Dokumentierte Pfade wie `BUILD_ROOT` und `EVIDENCE_ROOT` sowie nicht
+geheime, dateisystemsichere Run-IDs verwenden. Credentials oder sensible
+Traffic-Bodies gehören niemals in versionierte Beispiele oder Review-Artefakte.
+
+## Ergebnisse, Sicherheit und Herkunft
+
+Ein erfolgreicher Build, Konfigurationscheck, eine Capability-Deklaration, ein
+Smoke-Test oder Scanner belegt nur seinen eigenen Umfang. Diese README
+behauptet keine Produktionsreife, CRS-Vollständigkeit, vollständige HTTP/2-
+oder HTTP/3-Abdeckung, vollständige Matrix oder Strict-Unterstützung aller
+Profile. [Reports](reports/README.de.md) beschreiben aufgezeichnete Läufe;
+[Betrieb und Sicherheit](docs/operations-and-security.de.md) behandelt
+Deployment-Entscheidungen. Schwachstellen gemäß [SECURITY.de.md](SECURITY.de.md)
+melden.
+
+[licenses/](licenses/README.de.md) erklärt die Herkunft ausgewählten externen
+Materials, seine aufgezeichnete Upstream-Basis und die Unterschiede lokaler
+Anpassungen. Das Verzeichnis ist keine Lizenzdeklaration für das gesamte
+Repository. Aufbewahrte Upstream-Hinweise begleiten weiterhin das betreffende
+Material; eine lokale Änderung beseitigt dessen Upstream-Herkunft nicht.
+Dateibezogene Herkunft steht in den passenden `ORIGIN.md`- und
+`SOURCE_MAP.json`-Dateien. Auf diesem Stand gibt es keine Top-Level-`LICENSE`.
 
 ## Dokumentation
 
-- [Dokumentationsindex](docs/README.de.md)
-- [Repository-Konzept](docs/repository-concept.de.md)
-- [Einstieg](docs/getting-started.de.md)
-- [Konfiguration](docs/configuration.de.md)
-- [Variablen](docs/reference/variables.de.md)
-- [Glossar](docs/reference/glossary.de.md)
-- [Build-Guide](docs/build/README.de.md)
-- [Connector-Guide](docs/connectors/README.de.md)
-- [Tests und Nachweise](docs/testing-and-evidence.de.md)
-- [Nachvollziehbarkeit von Änderungen](docs/change-traceability.de.md)
-- Dokumentationspflege: `AGENTS.md` ist eine optionale lokale Anweisungsdatei für
-  Codex und gehört nicht zur versionierten Projektdokumentation. Für sie gibt es
-  keine deutsche Begleitdatei.
-- [Betrieb und Sicherheit](docs/operations-and-security.de.md)
-- [Framework-Modul](modules/ModSecurity-test-Framework/README.de.md)
-
-Repository-eigene English-/German-Dokumentation wird geprüft mit:
-
-~~~sh
-make check-bilingual-docs
-~~~
-
-Generierte Reports müssen über Generator/Source of Truth geändert werden,
-nicht durch manuelle Bearbeitung.
+Der [Dokumentationsindex](docs/README.de.md) verlinkt aktuelle Konfigurations-
+und Body-Inspection-Verträge, Compiler-Guides, aktive Tests, Versions-Pins,
+CI-/Sonar-Analyse, Evidence-Abschlüsse und Betriebshinweise. Englisch und
+Deutsch werden gemeinsam gepflegt. Generierte Referenzen müssen über ihre
+Quelle bzw. ihren Generator geändert werden, nicht isoliert von Hand.

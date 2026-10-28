@@ -1,3 +1,11 @@
+# Parent behavioral defaults use this inventory. The mandatory master-owned
+# Sonar workflow retains its own Python, Go and Common native assessment.
+# Specialist commands require an explicit on-demand invocation; they are not a
+# second automatic catalogue. Static compilation/analysis gates stay independent.
+ACTIVE_TEST_RUNNER = $(PYTHON) ci/tools/run-active-tests.py
+ON_DEMAND_TESTS ?= 0
+export ON_DEMAND_TESTS
+
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 MSCONNECTOR_C_STD ?= c17
 MSCONNECTOR_CFLAGS ?= -std=$(MSCONNECTOR_C_STD) -Wall -Wextra -Werror
@@ -296,7 +304,11 @@ check-protocol-evidence: check-framework
 	$(MAKE) -C "$(FRAMEWORK_ROOT)" check-protocol-evidence CONNECTOR_ROOT="$(CURDIR)" BUILD_ROOT="$(BUILD_ROOT)"
 
 test-protocol-client: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	$(MAKE) -C "$(FRAMEWORK_ROOT)" test-protocol-client CONNECTOR_ROOT="$(CURDIR)" BUILD_ROOT="$(BUILD_ROOT)"
+else
+	$(ACTIVE_TEST_RUNNER) --group protocol
+endif
 
 check-framework-fixture-syntax: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/checks/evidence/check-framework-fixture-syntax.py --framework-root "$(FRAMEWORK_ROOT)"
@@ -337,29 +349,45 @@ check-runtime-producer-readiness: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/checks/evidence/check-runtime-producer-readiness.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)"
 
 check-runtime-path-policy: check-framework
-	"$(FRAMEWORK_PYTHON)" ci/checks/security/check-runtime-path-policy.py
+	$(ACTIVE_TEST_RUNNER) --group runtime-path-policy
 
 check-bilingual-docs:
 	$(PYTHON) ci/checks/documentation/check-bilingual-docs.py
 
 check-ci-security-contract: check-project-versions
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_lint_workflows tests.test_nginx_exact_head_gate_contract tests.test_framework_revision_pins tests.test_project_toolchain_pins tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_ci_security_workflows tests.test_lint_workflows tests.test_nginx_exact_head_gate_contract tests.test_framework_revision_pins tests.test_project_toolchain_pins tests.test_validate_submodule_candidate_state tests.test_update_submodules_local_git tests.test_update_framework_versions tests.test_verify_framework_candidate_contract tests.test_prepare_readonly_submodule_validation_sandbox tests.test_run_readonly_submodule_validation_namespace tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests tests.test_install_ci_dependencies tests.test_python_version_contract.WorkflowActionPinsTest
+else
+	$(ACTIVE_TEST_RUNNER) --group supply-chain
+endif
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool actionlint --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool zizmor --validate-only
 	$(PYTHON) ci/tools/fetch_security_tool.py --tool gitleaks --validate-only
 
 .PHONY: check-bounded-smoke-runtime-contract
 check-bounded-smoke-runtime-contract: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_full_smoke_workflow_contract tests.test_bounded_nginx_cases tests.test_nginx_harness_path_authority tests.test_resolve_traefik_host_binary tests.test_runtime_path_utils tests.test_resolve_lighttpd_host_binary tests.test_trusted_lighttpd_namespace_dispatch_workflow tests.test_apache_process_guard
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
 
 check-variable-documentation:
 	$(PYTHON) ci/checks/documentation/check-variable-documentation.py
 
 check-compiler-guides:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_compiler_guides
+else
+	$(ACTIVE_TEST_RUNNER) --group supply-chain
+endif
 
 check-connector-guides:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_connector_guides
+else
+	$(ACTIVE_TEST_RUNNER) --group supply-chain
+endif
 
 check-analysis-tools:
 	PYTHONDONTWRITEBYTECODE=1 CC="$(CC)" CXX="$(CXX)" sh ci/checks/analysis/check-analysis-tools.sh
@@ -440,6 +468,7 @@ prove-generated-reports:
 	$(MAKE) generate-system-environment-proof
 
 verified-runtime-producers: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase runtime-producers
 
 verified-report-producers: verified-runtime-producers
@@ -460,15 +489,19 @@ verified-report-checks: check-framework
 	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase checks
 
 verified-report-run: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --mode strict
 
 verified-report-run-soft: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --mode soft
 
 verified-report-run-smoke: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --mode soft --profile smoke
 
 verified-full-matrix-job: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required, e.g. CONNECTOR=nginx"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
@@ -477,6 +510,7 @@ verified-full-matrix-job: check-framework
 	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase full-matrix-job --connector "$(CONNECTOR)" --crs "$(CRS)" --mrts "$(MRTS)"
 
 verified-case: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required, e.g. CONNECTOR=nginx"; exit 2; }
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
@@ -486,117 +520,153 @@ verified-case: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-case.py --connector "$(CONNECTOR)" --case "$(CASE)" --crs "$(CRS)" --mrts "$(MRTS)" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --source-root "$(SOURCE_ROOT)" --tmp-root "$(TMP_ROOT)" --verified-run-root "$(VERIFIED_RUN_ROOT)" --python "$(FRAMEWORK_PYTHON)" $$explain_args
 
 verified-native-case: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=unicode_whitespace_normalization_gap"; exit 2; }
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CONNECTOR_ROOT="$(CURDIR)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" VERIFIED_RUN_ROOT="$(VERIFIED_RUN_ROOT)" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-native-case-comparison.py --case "$(CASE)" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --verified-run-root "$(VERIFIED_RUN_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
 
 verified-nginx-case: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-nginx-case/$(CRS)/$(MRTS)/results" NGINX_HARNESS_WORK_ROOT="$(BUILD_ROOT)/verified-nginx-case/$(CRS)-$(MRTS)-nginx" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-nginx-smoke.sh"
 
 verified-apache-case: check-framework prepare-runtime-components
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then \
+		[ "$(CASE):$(CRS):$(MRTS)" = crs_sqli_anomaly_block:with-crs:no-mrts ] || { echo "FAIL: case is outside the active CRS inventory" >&2; exit 2; }; \
+		$(ACTIVE_TEST_RUNNER) --check --execution runtime.crs.apache; \
+	fi
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" SOURCE_ROOT="$(SOURCE_ROOT)" CRS_SOURCE_DIR="$(CRS_SOURCE_DIR)" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)/$(MRTS)/results" APACHE_RUNTIME_LOG_DIR="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/logs/apache-runtime" RUNTIME_BASE="$(BUILD_ROOT)/verified-apache-case/$(CRS)-$(MRTS)-apache/apache-runtime" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh"
 
 verified-haproxy-case: check-framework prepare-runtime-components
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then \
+		[ "$(CASE):$(CRS):$(MRTS)" = crs_sqli_anomaly_block:with-crs:no-mrts ] || { echo "FAIL: case is outside the active CRS inventory" >&2; exit 2; }; \
+		$(ACTIVE_TEST_RUNNER) --check --execution runtime.crs.haproxy; \
+	fi
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" SOURCE_ROOT="$${SOURCE_ROOT}" CRS_SOURCE_DIR="$${CRS_SOURCE_DIR}" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/tmp" FORCE_ALL_CASES=1 MODSECURITY_TEST_VARIANT="$(CRS)" MODSECURITY_MRTS_VARIANT="$(MRTS)" TEST_CASE="$(CASE)" RUN_ONE_CASE=1 CASE_SCOPE=all RESULTS_DIR="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)/$(MRTS)/results" LOG_ROOT="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/logs" RUNTIME_BASE="$(BUILD_ROOT)/verified-haproxy-case/$(CRS)-$(MRTS)-haproxy/haproxy-runtime-cases" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-smoke.sh"
 
 verified-full-matrix-resume: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
 	if [ -z "$$run_id" ]; then run_id="$(FRESH_VERIFIED_RUN_ID)"; fi; \
 	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase full-matrix-resume
 
 smoke-common: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"
 
 smoke-apache: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/apache}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-apache-smoke.sh"
 
 smoke-nginx: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/nginx}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-nginx-smoke.sh"
 
 # Opt-in bounded native lifecycle probe.  It deliberately remains outside the
 # default smoke/test/CI targets and uses the existing Parent -> Framework
 # runtime wrapper so build and path validation are unchanged.
 soak-nginx: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MSCONNECTOR_SMOKE_STAGE=bounded_soak MODSECURITY_TEST_VARIANT=no-crs NO_CRS_BASELINE=1 FORCE_ALL_CASES=1 MODSECURITY_RULE_PREAMBLE_FILE="$(NO_CRS_RULES_FILE)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/no-crs/no-mrts/nginx-soak}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-nginx-smoke.sh"
 
 # Opt-in Valgrind Memcheck diagnostic.  It stays outside default smoke/test/CI
 # targets, uses the existing wrapper, and deliberately defaults to one H1 case
 # and one request worker beneath the external build/runtime root.
 memcheck-nginx: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" MSCONNECTOR_SMOKE_STAGE=bounded_soak NGINX_MEMCHECK=1 VALGRIND_BIN="$${VALGRIND_BIN:-valgrind}" NGINX_PROTOCOL_PROFILE=h1 NGINX_DOWNSTREAM_PROTOCOL=http1 NGINX_UPSTREAM_PROTOCOL=http1 NGINX_SOAK_CASES="$${NGINX_MEMCHECK_CASES:-allow_without_marker}" NGINX_SOAK_DURATION_SECONDS="$${NGINX_MEMCHECK_DURATION_SECONDS:-30}" NGINX_SOAK_CONCURRENCY=1 MODSECURITY_TEST_VARIANT=no-crs NO_CRS_BASELINE=1 FORCE_ALL_CASES=1 MODSECURITY_RULE_PREAMBLE_FILE="$(NO_CRS_RULES_FILE)" NGINX_HARNESS_PARENT="$${NGINX_HARNESS_PARENT:-$(BUILD_ROOT)/nginx-memcheck-harness}" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/no-crs/no-mrts/nginx-memcheck}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-nginx-smoke.sh"
 
 smoke-envoy: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh envoy
 
 smoke-envoy-modsecurity:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-envoy
 
 smoke-envoy-request-body:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_SMOKE_CASE=request_body $(MAKE) smoke-envoy
 
 smoke-envoy-crs:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs $(MAKE) smoke-envoy
 
 smoke-envoy-crs-secondary:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary $(MAKE) smoke-envoy
 
 smoke-haproxy: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/haproxy}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-smoke.sh"
 
 smoke-lighttpd: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh lighttpd
 
 smoke-lighttpd-modsecurity:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-lighttpd
 
 smoke-lighttpd-request-body:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_SMOKE_CASE=request_body $(MAKE) smoke-lighttpd
 
 smoke-lighttpd-crs:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs $(MAKE) smoke-lighttpd
 
 smoke-lighttpd-crs-secondary:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary $(MAKE) smoke-lighttpd
 
 smoke-traefik: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh ci/runtime/lifecycle/run-legacy-open-connector-smoke.sh traefik
 
 smoke-traefik-modsecurity:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-traefik
 
 smoke-traefik-request-body:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_SMOKE_CASE=request_body $(MAKE) smoke-traefik
 
 smoke-traefik-crs:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs $(MAKE) smoke-traefik
 
 smoke-traefik-crs-secondary:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary $(MAKE) smoke-traefik
 
 smoke-open-connectors-crs:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(MAKE) smoke-envoy-crs
 	$(MAKE) smoke-traefik-crs
 	$(MAKE) smoke-lighttpd-crs
 
 smoke-open-connectors-request-body:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(MAKE) smoke-envoy-request-body
 	$(MAKE) smoke-traefik-request-body
 	$(MAKE) smoke-lighttpd-request-body
 
 smoke-open-connectors-crs-secondary:
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(MAKE) smoke-envoy-crs-secondary
 	$(MAKE) smoke-traefik-crs-secondary
 	$(MAKE) smoke-lighttpd-crs-secondary
 
 smoke-new-connectors: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	@$(WITH_RUNTIME_COMPONENTS) sh -eu -c 'set +e; \
 	passed=0; blocked=0; failed=0; \
 	for connector in envoy haproxy lighttpd traefik; do \
@@ -629,19 +699,29 @@ smoke-new-connectors: check-framework prepare-runtime-components
 	exit 0'
 
 smoke-all: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh")
 
-test: test-no-crs test-with-crs
+test: test-active
 
 test-no-crs: check-framework prepare-runtime-components
+ifeq ($(ON_DEMAND_TESTS),1)
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-no-crs
+endif
 
 test-with-crs: check-framework prepare-runtime-components
+ifeq ($(ON_DEMAND_TESTS),1)
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/lib/common.sh"; . "$(CURDIR)/ci/runtime/lifecycle/prepare-fresh-crs-source.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/provisioning/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-smokes.sh"')
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-crs
+endif
 
 # This bounded Apache/NGINX producer does not claim the full-matrix/MRTS
 # inputs required by refresh-all-reports. Its own reports remain mandatory.
 .PHONY: test-smoke-sequential-no-crs test-smoke-sequential-with-crs
+ifeq ($(ON_DEMAND_TESTS),1)
 test-smoke-sequential-no-crs test-smoke-sequential-with-crs: check-framework prepare-runtime-components
 	@set -eu; \
 	variant="$(patsubst test-smoke-sequential-%,%,$@)"; \
@@ -654,6 +734,11 @@ test-smoke-sequential-no-crs test-smoke-sequential-with-crs: check-framework pre
 	VERIFIED_RUN_ID="$$run_id" MODSECURITY_TEST_VARIANT="$$variant" "$(FRAMEWORK_PYTHON)" ci/evidence/reports/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$$smoke_root" --profile bounded-smoke --variant "$$variant" || refresh_rc=$$?; \
 	if [ "$$runtime_rc" -ne 0 ]; then exit "$$runtime_rc"; fi; \
 	exit "$$refresh_rc"
+
+else
+test-smoke-sequential-no-crs test-smoke-sequential-with-crs:
+	$(error specialist smoke catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required)
+endif
 
 # The dedicated Parent runner owns fresh provisioning and evidence validation.
 # Keep only the three newly promoted connectors in this narrow entrypoint.
@@ -671,39 +756,51 @@ mrts-generate: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-generate
 
 mrts-load: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-load
 
 mrts-import: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-import
 
 test-no-mrts: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-no-mrts)
 
 test-with-mrts: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts)
 
 test-with-mrts-feature-demo: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts-feature-demo)
 
 test-mrts-matrix: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-mrts-matrix)
 
 mrts-ftw: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-ftw
 
 runtime-matrix: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-runtime-matrix.sh"
 
 runtime-matrix-all: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/runtime/run-runtime-matrix.sh")
 
 runtime-matrix-all-runtime: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/runtime/run-runtime-matrix.sh"
 
 runtime-matrix-haproxy: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=all sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-runtime-matrix.sh"
 
 full-mrts-runtime-matrix: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/runtime/lifecycle/run-full-mrts-runtime-matrix.sh)
 
 mrts-only-full-run: full-mrts-runtime-matrix
@@ -711,18 +808,22 @@ mrts-only-full-run: full-mrts-runtime-matrix
 full-runtime-matrix: full-matrix-parallel
 
 full-matrix-parallel: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/runtime/lifecycle/run-full-matrix-parallel.sh)
 
 full-matrix-parallel-runtime: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/runtime/lifecycle/run-full-matrix-parallel.sh
 
 full-matrix-single-job-runtime: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required, e.g. CONNECTOR=nginx"; exit 2; }
 	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
 	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-full-matrix-job.py --connector "$(CONNECTOR)" --crs "$(CRS)" --mrts "$(MRTS)" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --timeout-seconds "$(VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS)"
 
 full-matrix-resume-runtime: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" "$(FRAMEWORK_PYTHON)" ci/runtime/lifecycle/run-full-matrix-resume.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --job-timeout-seconds "$(VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS)" --total-timeout-seconds "$(VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS)"
 
 generate-full-runtime-matrix: check-framework
@@ -787,15 +888,19 @@ generate-remaining-failure-analysis: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/evidence/reports/generate-remaining-failure-analysis.py --connector-root "$(CURDIR)"
 
 mrts-native-full-run: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/runtime/lifecycle/run-mrts-native-full.sh)
 
 mrts-native-full-run-runtime: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/runtime/lifecycle/run-mrts-native-full.sh
 
 mrts-native-apache-full: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env MRTS_NATIVE_TARGETS=apache2_ubuntu PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/runtime/lifecycle/run-mrts-native-full.sh
 
 mrts-native-nginx-pr24-full: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env MRTS_NATIVE_TARGETS=nginx-pr24 PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/runtime/lifecycle/run-mrts-native-full.sh
 
 mrts-upstream-infra-check: check-framework
@@ -808,31 +913,51 @@ mrts-upstream-infra-check: check-framework
 	'
 
 test-haproxy-no-crs: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=no-crs sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-runtime-matrix.sh"
 
 test-haproxy-with-crs: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=with-crs sh "$(FRAMEWORK_ROOT)/ci/runtime/run-haproxy-runtime-matrix.sh"
 
 probe-response-body: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" sh "$(FRAMEWORK_ROOT)/ci/runtime/probe-response-body-blocking.sh"
 
 connector-starter-checks: check-framework prepare-runtime-components
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/runtime/run-connector-starter-checks.sh"
 
 # Canonical connector stages. These targets deliberately keep build,
-# configuration loading, request-free startup, runtime traffic, and the
-# capability-driven no-CRS baseline as separate invocations.
+# retained Envoy/Traefik configuration checks and minimal runtime traffic.
+# Separate configuration/start diagnostics remain available only on demand.
 build-apache build-nginx build-haproxy build-envoy build-traefik build-lighttpd: build-%: check-framework
 	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" build
 
-check-config-apache check-config-nginx check-config-haproxy check-config-envoy check-config-traefik check-config-lighttpd: check-config-%: check-framework
+check-config-apache check-config-nginx check-config-haproxy check-config-lighttpd: check-config-%: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone configuration diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required))
 	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" config_load
 
+check-config-envoy check-config-traefik: check-config-%: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
+	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" config_load
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-config-$*
+endif
+
 start-smoke-apache start-smoke-nginx start-smoke-haproxy: start-smoke-%: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh "$*" start_smoke
+else
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
+endif
 
 runtime-smoke-apache runtime-smoke-nginx runtime-smoke-haproxy: runtime-smoke-%: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/runtime/lifecycle/run-no-crs-baseline.sh "$*" minimal_runtime_smoke
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-no-crs-$*
+endif
 
 capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd: capabilities-%: check-framework
 	@run_id="$${NO_CRS_RUN_ID:-$(DEFAULT_VERIFIED_RUN_ID)}"; \
@@ -855,21 +980,27 @@ no-crs-baseline-apache no-crs-baseline-nginx no-crs-baseline-haproxy no-crs-base
 # compatibility routes below can no longer be mislabeled as full-lifecycle
 # evidence merely because they share a connector name.
 full-lifecycle-apache: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-httpd-module FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-apache sh ci/runtime/lifecycle/run-no-crs-baseline.sh apache no_crs_baseline
 
 full-lifecycle-nginx: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-nginx-http-module FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-nginx sh ci/runtime/lifecycle/run-no-crs-baseline.sh nginx no_crs_baseline
 
 full-lifecycle-haproxy-htx: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-htx-filter FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-haproxy-htx sh ci/runtime/lifecycle/run-no-crs-baseline.sh haproxy no_crs_baseline
 
 full-lifecycle-envoy-ext-proc: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=ext_proc FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-envoy-ext-proc sh ci/runtime/lifecycle/run-no-crs-baseline.sh envoy no_crs_baseline
 
 full-lifecycle-traefik-native: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=native-middleware FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-traefik-native sh ci/runtime/lifecycle/run-no-crs-baseline.sh traefik no_crs_baseline
 
 full-lifecycle-lighttpd-patched: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle FULL_LIFECYCLE_HOST_PROFILE=patched-native FULL_LIFECYCLE_EXECUTED_TARGET=full-lifecycle-lighttpd-patched sh ci/runtime/lifecycle/run-no-crs-baseline.sh lighttpd no_crs_baseline
 
 # Preserve the historical user-facing names, but route them only to their
@@ -881,6 +1012,7 @@ full-lifecycle-traefik: full-lifecycle-traefik-native
 full-lifecycle-lighttpd: full-lifecycle-lighttpd-patched
 
 full-lifecycle-all-connectors: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	NO_CRS_ARTIFACT_PROFILE=full_lifecycle sh ci/runtime/lifecycle/run-full-lifecycle-all-connectors.sh
 
 evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd: evidence-check-%: check-framework
@@ -908,22 +1040,31 @@ build-all-connectors: check-framework
 	[ "$$blocked" -eq 0 ] || exit 77
 
 check-config-all-connectors: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	@status=0; blocked=0; \
 	for connector in $(NO_CRS_CONNECTORS); do \
 		sh ci/runtime/lifecycle/run-connector-stage.sh "$$connector" config_load || { rc=$$?; if [ "$$rc" -eq 77 ]; then blocked=1; else status=1; fi; }; \
 	done; \
 	[ "$$status" -eq 0 ] || exit 1; \
 	[ "$$blocked" -eq 0 ] || exit 77
+else
+	$(error all-connector standalone configuration diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
+endif
 
 start-smoke-all-connectors: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	@status=0; blocked=0; \
 	for connector in $(NO_CRS_CONNECTORS); do \
 		sh ci/runtime/lifecycle/run-connector-stage.sh "$$connector" start_smoke || { rc=$$?; if [ "$$rc" -eq 77 ]; then blocked=1; else status=1; fi; }; \
 	done; \
 	[ "$$status" -eq 0 ] || exit 1; \
 	[ "$$blocked" -eq 0 ] || exit 77
+else
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
+endif
 
 runtime-smoke-all-connectors: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	@status=0; blocked=0; run_id="$(NO_CRS_RUN_ID)"; \
 	if [ -z "$$run_id" ]; then run_id="$$(date -u +%Y-%m-%dT%H-%M-%SZ)-$$(git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)"; fi; \
 	for connector in $(NO_CRS_CONNECTORS); do \
@@ -931,6 +1072,9 @@ runtime-smoke-all-connectors: check-framework
 	done; \
 	[ "$$status" -eq 0 ] || exit 1; \
 	[ "$$blocked" -eq 0 ] || exit 77
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-no-crs
+endif
 
 no-crs-baseline-all-connectors: check-framework
 	@status=0; blocked=0; run_id="$(NO_CRS_RUN_ID)"; \
@@ -1081,11 +1225,15 @@ check-no-crs-doc-consistency:
 	"$(PYTHON)" ci/checks/documentation/check-no-crs-doc-consistency.py
 
 check-no-crs-source-normalization:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v \
 		tests.test_collect_no_crs_source \
 		tests.test_full_lifecycle_evidence \
 		tests.test_prepare_runtime_components \
 		tests.test_runtime_component_cache_identity
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
 
 .PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-apache-request-transaction-cleanup check-apache-request-transaction-cleanup-lint check-optional-prerequisite-status check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-haproxy-htx-overlay check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-http-header-fuzz check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-python-version-contract check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
 
@@ -1095,25 +1243,49 @@ build-envoy-connector:
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh envoy build-envoy-connector
 
 check-envoy-config: build-envoy-connector
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh envoy check-envoy-config
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-config-envoy
+endif
 
 start-smoke-envoy: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh envoy start_smoke
+else
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
+endif
 
 runtime-smoke-envoy: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/runtime/lifecycle/run-no-crs-baseline.sh envoy minimal_runtime_smoke
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-no-crs-envoy
+endif
 
 build-traefik-connector:
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh traefik build-traefik-connector
 
 check-traefik-config: build-traefik-connector
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh traefik check-traefik-config
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-config-traefik
+endif
 
 start-smoke-traefik: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh traefik start_smoke
+else
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
+endif
 
 runtime-smoke-traefik: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/runtime/lifecycle/run-no-crs-baseline.sh traefik minimal_runtime_smoke
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-no-crs-traefik
+endif
 
 build-lighttpd-connector:
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh lighttpd build-lighttpd-connector
@@ -1122,16 +1294,29 @@ build-lighttpd-bridge:
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh lighttpd build-lighttpd-bridge
 
 self-test-lighttpd-bridge: build-lighttpd-bridge
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh lighttpd self-test-lighttpd-bridge
 
 check-lighttpd-config: build-lighttpd-connector
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-remaining-connector-target.sh lighttpd check-lighttpd-config
+else
+	$(error standalone configuration diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
+endif
 
 start-smoke-lighttpd: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/runtime/lifecycle/run-connector-stage.sh lighttpd start_smoke
+else
+	$(error standalone request-free startup diagnostics are archived; explicit ON_DEMAND_TESTS=1 is required)
+endif
 
 runtime-smoke-lighttpd: check-framework
+ifeq ($(ON_DEMAND_TESTS),1)
 	EVIDENCE_ROOT="$(RUNTIME_EVIDENCE_ROOT)" sh ci/runtime/lifecycle/run-no-crs-baseline.sh lighttpd minimal_runtime_smoke
+else
+	$(ACTIVE_TEST_RUNNER) --group runtime-no-crs-lighttpd
+endif
 
 build-remaining-connectors: build-envoy-connector build-traefik-connector build-lighttpd-connector
 
@@ -1162,7 +1347,11 @@ check-remaining-connectors-build-wiring:
 
 check-remaining-connectors-start-wiring:
 	$(PYTHON) ci/checks/connectors/all/check-remaining-connectors-start-wiring.py
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_legacy_open_connector_smoke tests.test_envoy_legacy_smoke_evidence
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
 
 check-remaining-connectors-claim-policy:
 	$(PYTHON) ci/checks/connectors/all/check-remaining-connectors-claim-policy.py
@@ -1186,15 +1375,27 @@ check-remaining-connectors-future-c:
 	CONNECTOR_C_STD_PROFILE=c2y sh ci/checks/connectors/all/check-remaining-connectors-c-standards.sh
 
 check-block-status-generator:
+ifeq ($(ON_DEMAND_TESTS),1)
 	$(PYTHON) ci/checks/common/check-block-status-generator.py
+else
+	$(PYTHON) ci/checks/common/check-common-sdk-contract.py
+endif
 
 .PHONY: check-apache-autotools-bootstrap
 check-apache-autotools-bootstrap:
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
 
 check-apache-common-adoption:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) ci/checks/connectors/apache/check-apache-common-adoption.py
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest -v tests.test_apache_common_adoption
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
 
 check-apache-c-standard-wiring:
 	$(PYTHON) ci/checks/connectors/apache/check-apache-c-standard-wiring.py
@@ -1207,30 +1408,93 @@ check-apache-c17:
 
 .PHONY: check-apache-intervention-cleanup
 check-apache-intervention-cleanup:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_intervention_cleanup
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
+
+.PHONY: check-apache-native-response-limit
+check-apache-native-response-limit:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_native_response_limit
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
+
+.PHONY: check-apache-event-sink check-haproxy-spop-event-sink
+check-apache-event-sink:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_event_sink_failures
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
+
+check-haproxy-spop-event-sink:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_haproxy_spop_event_sink_failures
+else
+	$(ACTIVE_TEST_RUNNER) --group haproxy
+endif
 
 check-apache-c17-lint:
 	@APACHE_C_STD_PROFILE=c17 sh ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
 
 check-apache-request-transaction-cleanup:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_transaction_cleanup
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
 
 check-apache-request-transaction-cleanup-lint:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_request_transaction_cleanup
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
+ifeq ($(ON_DEMAND_TESTS),1)
 	"$(PYTHON)" ci/tools/run-check-status.py --check apache_request_transaction_cleanup --allow-blocked-reason apache_development_prerequisite --blocked-if-missing-apache-development -- sh ci/checks/connectors/apache/check-apache-request-transaction-cleanup.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
 
 .PHONY: check-apache-ruleset-cleanup check-apache-ruleset-cleanup-lint
 check-apache-ruleset-cleanup:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_rules_set_cleanup
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
 
 check-apache-ruleset-cleanup-lint:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_apache_rules_set_cleanup
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
+ifeq ($(ON_DEMAND_TESTS),1)
 	"$(PYTHON)" ci/tools/run-check-status.py --check apache_rules_set_cleanup --allow-blocked-reason apache_development_prerequisite --blocked-if-missing-apache-development -- sh ci/checks/connectors/apache/check-apache-rules-set-cleanup.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group apache
+endif
 
 check-optional-prerequisite-status:
+ifeq ($(ON_DEMAND_TESTS),1)
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_optional_prerequisite_status
+else
+	$(ACTIVE_TEST_RUNNER) --group supply-chain
+endif
 
 check-apache-c23:
 	APACHE_C_STD_PROFILE=c23 sh ci/checks/connectors/apache/check-apache-c-standards.sh
@@ -1301,14 +1565,115 @@ check-haproxy-c20:
 check-haproxy-c26:
 	@echo "SKIPPED: c26 is not a C standard mode; use c2y/gnu2y for future C or c++26 for C++."
 
+.PHONY: check-i10-adapter-errors check-i10-common-callers check-i10-haproxy-callers check-i10-envoy-callers check-i10-traefik-callers check-i10-lighttpd-callers
+
+check-i10-adapter-errors: check-i10-common-callers check-i10-haproxy-callers check-i10-envoy-callers check-i10-traefik-callers check-i10-lighttpd-callers
+
+check-i10-common-callers:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i10_service_callers tests.test_runtime_rule_delivery_failure
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
+
+check-i10-haproxy-callers:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_haproxy_i10_host_callers tests.test_haproxy_i10_binding_callers
+else
+	$(ACTIVE_TEST_RUNNER) --group haproxy
+endif
+
+check-i10-envoy-callers:
+ifeq ($(ON_DEMAND_TESTS),1)
+	cd connectors/envoy/ext_proc && GOTOOLCHAIN=local go test -mod=readonly -count=1 -race ./...
+else
+	$(ACTIVE_TEST_RUNNER) --group envoy
+endif
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i10_envoy_mutations tests.test_i10_envoy_finish
+else
+	$(ACTIVE_TEST_RUNNER) --group envoy
+endif
+
+check-i10-traefik-callers:
+ifeq ($(ON_DEMAND_TESTS),1)
+	cd connectors/traefik/native_middleware && GOTOOLCHAIN=local go test -mod=readonly -count=1 -race ./... && GOTOOLCHAIN=local go vet -mod=readonly ./...
+else
+	$(ACTIVE_TEST_RUNNER) --group traefik
+endif
+	cd connectors/traefik/native_middleware && GOTOOLCHAIN=local go vet -mod=readonly ./...
+ifeq ($(ON_DEMAND_TESTS),1)
+	cd connectors/traefik/response_observer && GOTOOLCHAIN=local go test -mod=readonly -count=1 -race ./... && GOTOOLCHAIN=local go vet -mod=readonly ./...
+else
+	$(ACTIVE_TEST_RUNNER) --group traefik
+endif
+	cd connectors/traefik/response_observer && GOTOOLCHAIN=local go vet -mod=readonly ./...
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_traefik_i10_dispatcher tests.test_traefik_i10_mutations
+else
+	$(ACTIVE_TEST_RUNNER) --group traefik
+endif
+
+check-i10-lighttpd-callers:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_lighttpd_i10_adapter_errors
+else
+	$(ACTIVE_TEST_RUNNER) --group lighttpd
+endif
+
 check-common-helpers:
+ifeq ($(ON_DEMAND_TESTS),1)
 	MSCONNECTOR_C_STD="$(MSCONNECTOR_C_STD)" MSCONNECTOR_CFLAGS="$(MSCONNECTOR_CFLAGS)" sh ci/checks/common/check-common-helpers.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
 
 check-common-helpers-c17:
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
 
+.PHONY: check-native-engine-body-inspection
+check-native-engine-body-inspection:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_engine_response_limits
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
+
+.PHONY: check-native-lifecycle-observer
+check-native-lifecycle-observer:
+	@test -n "$$NATIVE_OBSERVER_TEST_OUT" && test -n "$$MODSECURITY_INCLUDE_DIR" && test -n "$$MODSECURITY_LIB_DIR" || { echo "BLOCKED: native lifecycle observer requires an explicit output root and SDK include/library directories"; exit 77; }
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_native_lifecycle_observer
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
+
+.PHONY: check-i09-native-routes
+check-i09-native-routes:
+ifeq ($(ON_DEMAND_TESTS),1)
+	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v tests.test_i09_common_routes tests.test_i09_native_decision tests.test_i09_body_phase tests.test_apache_i09_filter_events tests.test_haproxy_native_results tests.test_haproxy_host_native_results connectors.traefik.tests.test_i09_api_returns connectors.lighttpd.tests.test_i09_api_returns
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
+
 check-common-http-header-fuzz:
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/common/check-common-http-header-fuzz.sh
+else
+	@echo "FAIL: randomized fuzzing is on-demand; use ON_DEMAND_TESTS=1 for an explicitly authorized campaign" >&2
+	@exit 2
+endif
+
+.PHONY: build-codeql-common-scope check-active-inventory test-active
+build-codeql-common-scope:
+	sh ci/checks/analysis/build-codeql-common-scope.sh
+
+check-active-inventory:
+	$(ACTIVE_TEST_RUNNER) --check
+	$(PYTHON) ci/tools/update-test-archive.py --check
+
+test-active:
+	$(ACTIVE_TEST_RUNNER)
 
 check-common-helpers-c23:
 	@flag="$$(python3 ci/provisioning/toolchains/detect-c-standard.py --profile c23 --compiler "$(MSCONNECTOR_COMPILER_ID)")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional C23 check — compiler does not support c23 or c2x"; exit 0; fi; exit "$$rc"; }; \
@@ -1325,7 +1690,11 @@ check-common-helpers-c26:
 	@echo "SKIPPED: c26 is not a C standard mode; use c2y/gnu2y for future C or c++26 for C++."
 
 check-http-authorization-service-timeout:
+ifeq ($(ON_DEMAND_TESTS),1)
 	MSCONNECTOR_C_STD="$(MSCONNECTOR_C_STD)" MSCONNECTOR_CFLAGS="$(MSCONNECTOR_CFLAGS)" sh ci/checks/common/check-http-authorization-service-timeout.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group authorization-timeout
+endif
 
 check-common-sdk-contract:
 	$(PYTHON) ci/checks/common/check-common-sdk-contract.py
@@ -1334,7 +1703,11 @@ check-common-security-contract:
 	$(PYTHON) ci/checks/common/check-common-security-contract.py
 
 check-common-memory-safety:
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/common/check-common-memory-safety.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group memory-safety
+endif
 
 check-common-flow-integrity:
 	$(PYTHON) ci/checks/common/check-common-flow-integrity.py
@@ -1409,14 +1782,19 @@ hostruntime-preflight:
 		$(if $(value HOSTRUNTIME_FIXTURE),--fixture $(call hostruntime_shell_quote,$(value HOSTRUNTIME_FIXTURE)),)
 
 test-hostruntime-preflight:
+ifeq ($(ON_DEMAND_TESTS),1)
 	$(PYTHON) -m unittest -v tests.test_hostruntime_preflight
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
 
 lint: check-framework
+	$(MAKE) check-active-inventory
 	$(MAKE) check-project-versions
 	$(MAKE) test-hostruntime-preflight
-	find ci -type f -name '*.sh' -print0 | xargs -0 -r sh -n
-	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +
-	if command -v bash >/dev/null 2>&1; then find ci -type f -name '*.sh' -print0 | xargs -0 -r bash -n; find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec bash -n {} +; else echo "bash unavailable"; fi
+	find ci -type f -name '*.sh' -print0 | xargs -0 -r -n 1 sh -n
+	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -print0 | xargs -0 -r -n 1 sh -n
+	if command -v bash >/dev/null 2>&1; then find ci -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n; find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n; else echo "bash unavailable"; fi
 	find ci -type f -name '*.py' -print0 | xargs -0 -r env PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile
 	$(MAKE) check-no-crs-source-normalization
 	$(MAKE) check-apache-common-adoption
@@ -1462,10 +1840,22 @@ lint: check-framework
 	$(MAKE) check-connector-guides
 	$(MAKE) check-connector-config-reference
 	sh "$(FRAMEWORK_ROOT)/ci/checks/catalog/check-crs-version-pinning.sh"
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/common/check-common-helpers.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/common/check-adapter-helpers.sh
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
+ifeq ($(ON_DEMAND_TESTS),1)
 	sh ci/checks/common/check-adapter-metadata-drift.sh
-	if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo "actionlint unavailable"; fi
+else
+	$(ACTIVE_TEST_RUNNER) --group common
+endif
+	if command -v actionlint >/dev/null 2>&1; then $(PYTHON) -m ci.tools.lint_installed_workflows; else echo "actionlint unavailable"; fi
 	git diff --check
 
 summary: check-framework
@@ -1508,6 +1898,7 @@ quick-check codex-check: lint
 	git diff --check
 
 smoke-installed installed-readiness: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	sh "$(FRAMEWORK_ROOT)/ci/runtime/smoke-installed.sh"
 
 doctor-install-hints:
@@ -1523,6 +1914,7 @@ doctor-quick: check-framework
 	DOCTOR_MODE=quick sh "$(FRAMEWORK_ROOT)/ci/tools/doctor.sh"
 
 quick-all: check-framework
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error specialist catalog is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	sh "$(FRAMEWORK_ROOT)/ci/tools/quick-all.sh"
 
 cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-check

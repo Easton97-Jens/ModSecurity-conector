@@ -21,6 +21,9 @@ SecRuleEngine Off
 
 ```apache
 SecRequestBodyAccess On
+SecRequestBodyLimit 1048576
+SecRequestBodyNoFilesLimit 1048576
+SecRequestBodyLimitAction Reject
 SecResponseBodyAccess On
 SecResponseBodyMimeType text/plain text/html application/json
 SecResponseBodyLimit 1048576

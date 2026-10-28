@@ -1,5 +1,7 @@
 # NGINX Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: adapter-owned source migration
@@ -75,9 +77,9 @@ selective intake is recorded per file in [the origin map](ORIGIN.md) and
   closed, while `msc_append_request_body()`,
   `msc_request_body_from_file()`, and `msc_append_response_body()` retain
   nonfatal `ProcessPartial` handling because that return signal also denotes
-  engine-level limit handling. That compatibility is separate from the
-  connector-owned Phase-4 body budget: an over-limit current buffer is
-  rejected before it can be forwarded downstream.
+  engine-level limit handling. Engine interventions retain their native
+  meaning; the connector forwards full response chunks without a second
+  inspection budget.
 - [PR #385](https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/385)
   at `471a2a54843bb8f560758a7e75b146db2243ab29` supplies selected
   response-header and pre-commit redirect-replacement handling. A task-local
@@ -119,8 +121,8 @@ remains authoritative.
 This does not relax #384: final `msc_process_response_body()` processing
 remains fail-closed for a result other than `1`, while append/from-file
 `ProcessPartial` handling remains intentionally nonfatal for accepted engine
-chunks. The legacy `modsecurity_phase4_body_limit` value no longer rejects a
-response in `safe` or `strict`; checked byte accounting, integer-overflow
+chunks. The `modsecurity_phase4_body_limit` directive is removed; no mode adds
+a connector-configurable cumulative inspection cap. Checked byte accounting, integer-overflow
 guards and bounded file reads remain active.
 
 ### Historical pre-migration observations
@@ -289,13 +291,66 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_rules_remote` (rejected: remote rule loading is disabled by the common security policy)
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log on|off`
+- `modsecurity_engine_call_budget_ms <milliseconds>` (NGINX-specific selected-call
+  soft budget; decimal integer, inherited default `0` disables measurement)
 - `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>` (native P4 JSONL sink; the connector-owned
   descriptor is opened through the Common no-follow helper and requires a safe
   parent, regular leaf, suitable ownership, and private `0600` mode)
-- `modsecurity_phase4_body_limit <bytes>` (legacy compatibility value;
-  accepted by current configuration parsing but not enforced as a WAF
-  response-inspection limit)
+
+### Native URI metadata, trusted event provenance, and selected-call soft budget
+
+The inspected native source bounds the event URI to a 256-byte buffer including
+the terminating NUL and at most 255 bytes after JSON escaping. Queries become
+`?<redacted>`; this 11-byte marker survives long or heavily escaped prefixes
+(at most 244 prefix bytes for a long ASCII query URI). Redaction and truncation
+flags describe the projection. Other Common fields retain strict validation.
+The fixed JSONL writer buffer remains 4096 bytes; this is not a configurable
+event-size directive or permission to log payload.
+
+Physical event identity can be supplied only through the administrator-owned
+process environment. `MSCONNECTOR_NGINX_EVENT_RUN_ID` and
+`MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID` are optional as a pair; NGINX must
+preserve both in the main context:
+
+```nginx
+env MSCONNECTOR_NGINX_EVENT_RUN_ID;
+env MSCONNECTOR_NGINX_EVENT_TRANSPORT_CASE_ID;
+```
+
+Each value is 1–128 ASCII
+characters from `[A-Za-z0-9_.:-]`. A missing pair leaves existing event output
+unchanged, while a partial or invalid pair rejects that event write. The module
+never reads these values from HTTP headers. When enabled, the writer also adds
+`connection_id` from NGINX's actual connection number and sets
+`connection_reused` after the first request on that connection. These values
+identify one administrator-defined host/campaign process; a separate case ID
+on the same keepalive connection requires a separate NGINX process run.
+Invalid provenance retains the existing call-site semantics: the request
+metadata writer logs a warning and reports no successful write, while the
+enforcement-relevant P3/P4 writer returns `NGX_ERROR`.
+
+`modsecurity_engine_call_budget_ms` accepts decimal milliseconds in `http`,
+`server`, and `location`. Children inherit the parent value; default `0`
+disables measurement. Duplicates in the same context, negative values, unit
+suffixes, and overflow are invalid. Only `msc_process_request_headers()`,
+`msc_process_request_body()`, `msc_process_response_headers()`, and
+`msc_process_response_body()` are measured individually with `CLOCK_MONOTONIC`.
+Elapsed time strictly greater than the budget is checked after the synchronous
+call returns. It cannot interrupt a blocked or hung Engine call and is neither
+a hard deadline nor a transaction-wide budget.
+
+Connection processing, URI processing, body append, logging, header-add APIs,
+intervention APIs, cleanup, and getters are **not measured**. Common phase
+completion requires actual native result exactly `1` and budget acceptance.
+Slow invalid returns such as `0` or `2` remain invalid Engine responses, not
+positive timeout evidence. Common transaction cleanup precedes the native void
+`msc_transaction_cleanup()` call; HTTP status alone proves neither cleanup nor
+completion of that native call.
+
+These are source contracts, not a new native runtime pass. All-required tracking
+retains 97 RequiredIDs with 45 open; the new source/build/runtime tuple is
+`NOT_RUN`. Earlier case evidence does not prove this tuple.
 
 `modsecurity_phase4_mode` defaults to `off`. `minimal` is no longer accepted.
 The removed `modsecurity_phase4_content_types_file` directive must be removed
@@ -313,9 +368,30 @@ instead.
 and the library's own body-limit settings still apply. This is not a claim that
 all error paths are identical to an earlier upstream release.
 
-`modsecurity_phase4_body_limit` keeps its historical parser/default bounds for
-configuration compatibility, but the value is no longer enforced as a
-connector WAF response limit in any valid Phase-4 mode. Use
+The Parent's synchronized native First-Byte proof explicitly selects
+`NGINX_SYNCHRONIZED_PHASE4_MODE=safe` and the existing native Phase-4 log scope
+`server_with_location_override`. The harness retains this literal caller
+policy across the portable case-environment load and applies it only for
+`MSCONNECTOR_FULL_LIFECYCLE_SYNC=1`. Missing, `off`, `strict`, or invalid
+synchronized policy values are rejected before NGINX starts; a synchronized
+override outside that route is also rejected. Ordinary direct smoke defaults
+and case-selected modes remain unchanged. A full test payload alone is not
+success: the proof still requires curl exit `0`, HTTP `200`, and actual native
+Phase-4 evidence. Rule `1100301` remains a disruptive rule; Safe late handling,
+not a changed rule or transport waiver, preserves the committed response.
+
+The Parent's NGINX no-CRS lifecycle stage selects
+`NGINX_PHASE4_LOG_SCOPE=location_if_missing`. After each case is materialized,
+the harness adds one `modsecurity_phase4_log` location directive pointing to
+that case's private `LOG_DIR/phase4.log` only when the generated location
+include has no such directive. Connector-specific Phase-4 fixtures retain
+their own directive; direct harness defaults and the separate First-Byte
+route are unchanged. The name of the directive does not limit the sink to
+Phase 4: native request- and response-phase events use the same descriptor.
+
+`modsecurity_phase4_body_limit` is removed, not silently ignored. Remove it from
+existing configurations; even a formerly valid value is an unknown directive.
+There is no replacement connector-configurable cumulative Phase-4 limit. Use
 `SecResponseBodyLimit` and `SecResponseBodyLimitAction` for ModSecurity
 inspection policy. Integer-overflow checks, file metadata/read checks, and the
 reusable 32768-byte file scratch buffer remain active. An absent runtime
@@ -413,6 +489,32 @@ Relevant framework paths:
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
+The Parent harness's legacy case request requires
+`NGINX_DOWNSTREAM_PROTOCOL=http1`. It sends Curl with `-q --http1.1` as the
+first options, so a user `curlrc` cannot change this bounded H1 request.
+Custom `CURL` wrappers must accept both options. Direct H2/H3 calls to this
+request function are blocked; the separate H2/H3 protocol probe remains
+non-promoting. The focused command test proves the client options, not the
+negotiated version of every runtime request.
+
+Generated empty request headers are sent with Curl's `Header;` notation.
+Passing the materialized `Header: ` unchanged would suppress the header,
+not send a present empty value. A real loopback regression distinguishes
+present-empty from absent, ordinary, and duplicate headers. The Framework's
+`empty_header_value` fixture requires both presence and an empty value to
+match rule `1100503`; HTTP `200` alone is insufficient. The isolated cached
+host probe produced that native event and the unchanged collector/normalizer
+accepted the individual case. Its aggregate remains `FAIL`; no new exact-head
+E2E or full canonical PASS is claimed. See the
+[empty-header Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261001-nginx-empty-header-driver.md).
+
+One isolated `transaction_id_generated_or_fallback` diagnostic observed HTTP
+`200`, an actual audit request line ending in `HTTP/1.1`, a root master with a
+`nobody` worker, native rule `1100502`, and a PASS for that case from the
+unchanged Parent source collector. Its one-case aggregate is `FAIL`; it is not
+canonical or exact-head lifecycle PASS. See the
+[H1 request-binding Change Record](https://github.com/Easton97-Jens/ModSecurity-conector/blob/4639f982a8125f4150394e4d4f2e8af4e690f494/reports/audits/change-records/CR-20261001-nginx-h1-request-binding.md).
+
 Historical generated evidence keeps NGINX `partial`:
 
 - Default runtime smoke: `60/60 PASS`.
@@ -445,6 +547,13 @@ verification is claimed here.
 
 NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. They must also set `MSCONNECTOR_PROFILE_REGISTRY_ROOT` to a root containing `connectors/profile_registry.c` and `connectors/profile_registry.h`. The managed exact-head coordinator supplies a cache-identity-bound staged root. If unset, the config only falls back to `$ngx_addon_dir/../..` when both registry files exist there; that fallback is for direct checkout builds, not copied trees.
 
+Request mapping reports a typed failure status. An invalid server-owned mapped
+pointer or host-pool allocation failure returns HTTP `500`; the existing
+client header-count limit returns HTTP `400`. A zero header-count limit retains
+its existing unlimited meaning. NGINX still owns malformed HTTP and missing
+Host rejection. These technical mapping failures introduce no WAF body limit
+or rule decision.
+
 ## Canonical Phase-4 boundary
 
 NGINX uses a bounded native response-body filter.  Its presence does not prove
@@ -476,9 +585,9 @@ restores the upstream representation before returning; this is an explicit
 fixture boundary, not a claim about every upstream output filter. The mixed
 control retains both representations and uses distinct file backing: the P4
 rule confirms memory-first inspection while the separately recorded forwarded
-body remains NGINX's file backing. Its test configuration selects the existing
-limit solely to exercise within-limit and reject-before-forwarding cases; it
-does not change a product default. Its allocation-error case changes only the
+body remains NGINX's file backing. Each fixture invocation explicitly supplies `--response-body-limit` and
+`--response-body-limit-action`, which configure `SecResponseBodyLimit` and
+`SecResponseBodyLimitAction` in that fixture’s engine rules. Its allocation-error case changes only the
 test binary: the same test-only boundary enables a fixture wrapper for the
 known 32 KiB `ngx_pnalloc` scratch request and records one wrapper hit. It
 neither changes connector code nor enables a production fault-injection switch.
@@ -515,6 +624,10 @@ budget; engine policy and accounting/file-read safety checks continue to apply.
 
 ## Phase-4 mode and response-body limit ownership
 
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
+
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through
@@ -527,9 +640,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+There is no replacement connector inspection-byte setting. Common Runtime
+storage limits are not WAF inspection policy. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not
@@ -537,3 +649,5 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+Request temp files are read from the validated host descriptor with one reusable 32768-byte scratch buffer. Each complete chunk reaches the engine; the scratch size does not limit total request size. Empty terminal and other special NGINX control buffers carry no body bytes and are skipped; the subsequent `msc_process_request_body` call is the native end-of-stream signal. Non-special memory buffers with an invalid range remain a technical error before the native body API. Append-time native Reject is retained through EOS, and append zero continues for native ProcessPartial.

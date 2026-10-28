@@ -3,6 +3,8 @@
 from pathlib import Path
 import unittest
 
+from tests.c_source_contract import function_definition
+
 
 ROOT = Path(__file__).resolve().parents[1]
 NGINX_SRC = ROOT / "connectors" / "nginx" / "src"
@@ -17,7 +19,14 @@ class NginxHeaderIterationContractTest(unittest.TestCase):
         access = ACCESS.read_text(encoding="utf-8")
         response = HEADER_FILTER.read_text(encoding="utf-8")
 
-        self.assertEqual(common.count("ngx_http_modsecurity_next_header("), 1)
+        self.assertIn(
+            "return &(*data)[(*index)++];",
+            function_definition(common, "ngx_http_modsecurity_next_header"),
+        )
+        self.assertIn(
+            "ngx_http_modsecurity_next_header(&part, &data,",
+            function_definition(common, "ngx_http_modsecurity_http3_authority"),
+        )
         self.assertIn("while ((header = ngx_http_modsecurity_next_header(", access)
         self.assertIn("while ((header = ngx_http_modsecurity_next_header(", response)
         self.assertNotIn("ngx_http_modsecurity_advance_request_header_part", access)
@@ -36,6 +45,13 @@ class NginxHeaderIterationContractTest(unittest.TestCase):
         self.assertIn("*data = (*part)->elts;", common)
         self.assertIn("*index = 0U;", common)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

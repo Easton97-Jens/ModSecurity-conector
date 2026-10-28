@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -322,34 +323,30 @@ func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
 
 func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTransaction) *Middleware {
 	t.Helper()
-	return newTestMiddlewareWithRequestBodyLimit(t, next, transaction, defaultMaxRequestBodyBytes)
+	return newTestMiddlewareWithTransaction(t, next, transaction)
 }
 
 func newTestMiddlewareWithTransaction(t *testing.T, next http.Handler, transaction Transaction) *Middleware {
 	t.Helper()
-	return newTestMiddlewareWithRequestBodyLimit(t, next, transaction, defaultMaxRequestBodyBytes)
-}
-
-func newTestMiddlewareWithRequestBodyLimit(t *testing.T, next http.Handler, transaction Transaction, requestBodyLimit int64) *Middleware {
-	t.Helper()
 	config := CreateConfig()
 	config.EngineSocketPath = "/run/msconnector-test.sock"
 	config.MaxRequestChunkBytes = 3
-	config.MaxRequestBodyBytes = requestBodyLimit
 	config.MaxResponseChunkBytes = 2
 	middleware, err := newWithEngine(next, config, "test", &recordingEngine{transaction: transaction})
 	if err != nil {
-		t.Fatalf("newWithEngine() error = %v", err)
+		t.Fatal(err)
 	}
 	return middleware
 }
 
 type commitErrorTransaction struct {
 	*recordingTransaction
-	err error
+	err         error
+	commitCalls int
 }
 
 func (transaction *commitErrorTransaction) SetResponseCommit(context.Context, bool, bool) error {
+	transaction.commitCalls++
 	return transaction.err
 }
 
@@ -401,6 +398,11 @@ func serveResponseScenario(t *testing.T, response http.ResponseWriter, target st
 	t.Helper()
 	middleware := newTestMiddlewareWithTransaction(t, next, transaction)
 	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))
+}
+
+func serveStoppedResponseScenario(t *testing.T, response http.ResponseWriter, target string, next http.Handler, transaction Transaction) {
+	t.Helper()
+	expectHostStop(t, func() { serveResponseScenario(t, response, target, next, transaction) })
 }
 
 func assertResponseIncomplete(t *testing.T, description string, recording *recordingTransaction) {
@@ -521,13 +523,13 @@ func TestMiddlewareDrainsRequestBeforeResponseHeadersWhenHandlerSkipsBody(t *tes
 
 func TestMiddlewareAllowsInLimitRequestBodyBeforeResponseHeaders(t *testing.T) {
 	transaction := &recordingTransaction{}
-	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if _, err := io.ReadAll(request.Body); err != nil {
 			t.Errorf("ReadAll(request.Body) error = %v", err)
 			return
 		}
 		writer.WriteHeader(http.StatusNoContent)
-	}), transaction, int64(len("request")))
+	}), transaction)
 	source := newTrackingRequestBody("request")
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/in-limit", nil)
 	request.ContentLength = int64(len("request"))
@@ -546,11 +548,11 @@ func TestMiddlewareAllowsInLimitRequestBodyBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestMiddlewareRejectsOverLimitBodyDuringSkippedHandlerDrain(t *testing.T) {
+func TestMiddlewareStreamsSkippedRequestBodyWithoutAggregatePolicy(t *testing.T) {
 	transaction := &recordingTransaction{}
-	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
-	}), transaction, 5)
+	}), transaction)
 	source := newTrackingRequestBody("request")
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-drain", nil)
 	request.ContentLength = int64(len("request"))
@@ -558,17 +560,17 @@ func TestMiddlewareRejectsOverLimitBodyDuringSkippedHandlerDrain(t *testing.T) {
 	response := httptest.NewRecorder()
 	middleware.ServeHTTP(response, request)
 
-	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+	assertCompleteRequestStream(t, transaction, response, source, len("request"))
 }
 
-func TestMiddlewareRejectsOverLimitBodyReadByHandlerWithoutFurtherDrain(t *testing.T) {
+func TestMiddlewareStreamsHandlerRequestBodyWithoutAggregatePolicy(t *testing.T) {
 	transaction := &recordingTransaction{}
-	middleware := newTestMiddlewareWithRequestBodyLimit(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if _, err := io.ReadAll(request.Body); !errors.Is(err, ErrRequestRejected) {
-			t.Errorf("ReadAll(request.Body) error = %v, want ErrRequestRejected", err)
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if _, err := io.ReadAll(request.Body); err != nil {
+			t.Errorf("ReadAll(request.Body) error = %v", err)
 		}
 		writer.WriteHeader(http.StatusNoContent)
-	}), transaction, 5)
+	}), transaction)
 	source := newTrackingRequestBody("request")
 	request := httptest.NewRequest(http.MethodPost, "http://example.test/over-limit-handler", nil)
 	request.ContentLength = int64(len("request"))
@@ -576,54 +578,61 @@ func TestMiddlewareRejectsOverLimitBodyReadByHandlerWithoutFurtherDrain(t *testi
 	response := httptest.NewRecorder()
 	middleware.ServeHTTP(response, request)
 
-	assertOverLimitRequestRejectedBeforeP3(t, transaction, response, source, len("request"))
+	assertCompleteRequestStream(t, transaction, response, source, len("request"))
 }
 
-func assertOverLimitRequestRejectedBeforeP3(t *testing.T, transaction *recordingTransaction, response *httptest.ResponseRecorder, source *trackingRequestBody, inputBytes int) {
+func assertCompleteRequestStream(t *testing.T, transaction *recordingTransaction, response *httptest.ResponseRecorder, source *trackingRequestBody, inputBytes int) {
 	t.Helper()
-	if got, want := response.Code, http.StatusRequestEntityTooLarge; got != want {
-		t.Fatalf("status = %d, want body-limit status %d", got, want)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status=%d", response.Code)
 	}
-	if source.readBytes >= inputBytes {
-		t.Fatalf("over-limit source was fully drained: read=%d input=%d", source.readBytes, inputBytes)
+	if source.readBytes != inputBytes || len(transaction.closed) != 1 || !transaction.closed[0].RequestEOS {
+		t.Fatal("request not completely inspected before response")
 	}
-	for _, event := range transaction.events {
-		if event == "response-headers" {
-			t.Fatalf("P3 ran after request body limit rejection: events=%v", transaction.events)
-		}
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].RequestEOS {
-		t.Fatalf("over-limit request incorrectly reached EOS: %#v", transaction.closed)
-	}
-	engineRequestBytes := 0
-	for _, call := range transaction.bodyCalls {
+	assertCompleteRequestCallbacks(t, transaction.bodyCalls, inputBytes)
+	assertRequestCompletedBeforeResponse(t, transaction.events)
+}
+
+func assertCompleteRequestCallbacks(t *testing.T, calls []bodyCall, inputBytes int) {
+	t.Helper()
+	total := 0
+	eos := 0
+	for _, call := range calls {
 		if call.direction == DirectionRequest {
-			engineRequestBytes += call.length
+			total += call.length
+			if call.end {
+				eos++
+			}
 		}
 	}
-	if got, want := engineRequestBytes, 3; got != want {
-		t.Fatalf("over-limit chunk reached engine: engine request bytes=%d, want only first bounded chunk=%d", got, want)
+	if total != inputBytes || eos != 1 {
+		t.Fatalf("engine bytes=%d want=%d EOS=%d want=1", total, inputBytes, eos)
 	}
 }
 
-func TestMiddlewareConfigRejectsOutOfRangeRequestBodyLimit(t *testing.T) {
-	config := CreateConfig()
-	if config.MaxRequestBodyBytes != defaultMaxRequestBodyBytes {
-		t.Fatalf("default max request body bytes = %d, want %d", config.MaxRequestBodyBytes, defaultMaxRequestBodyBytes)
+func assertRequestCompletedBeforeResponse(t *testing.T, events []string) {
+	t.Helper()
+	lastRequest, firstResponse := -1, -1
+	for index, event := range events {
+		if event == "request-body" {
+			lastRequest = index
+		}
+		if event == "response-headers" && firstResponse < 0 {
+			firstResponse = index
+		}
 	}
-	config.MaxRequestBodyBytes = maximumMaxRequestBodyBytes + 1
-	if _, err := normalizedConfig(config); err == nil {
-		t.Fatal("normalizedConfig accepted a request body limit above the finite cap")
+	if lastRequest < 0 || firstResponse <= lastRequest {
+		t.Fatalf("P3 preceded request completion: events=%v", events)
 	}
-	config = CreateConfig()
-	config.MaxRequestBodyBytes = -1
-	if _, err := normalizedConfig(config); err == nil {
-		t.Fatal("normalizedConfig accepted a non-positive request body limit")
-	}
-	config = CreateConfig()
-	config.MaxRequestBodyBytes = 2
-	if _, err := normalizedConfig(config); err == nil {
-		t.Fatal("normalizedConfig accepted a request chunk larger than the aggregate request body limit")
+}
+
+func TestMiddlewareConfigRejectsRemovedRequestBodyOption(t *testing.T) {
+	for _, value := range []int64{0, -1, 2, 1048576} {
+		config := CreateConfig()
+		config.MaxRequestBodyBytes = &value
+		if _, err := normalizedConfig(config); err == nil || !strings.Contains(err.Error(), "was removed") {
+			t.Fatalf("removed option %d: %v", value, err)
+		}
 	}
 }
 
@@ -999,7 +1008,9 @@ func TestReadFromEngineEOSErrorAfterHostCommitDoesNotWriteFailure(t *testing.T) 
 	}), transaction)
 	response := &readerFromResponseWriter{header: make(http.Header)}
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-eos-error", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-eos-error", nil))
+	})
 
 	if !errors.Is(readFromErr, engineErr) {
 		t.Fatalf("ReadFrom() error = %v, want %v", readFromErr, engineErr)
@@ -1096,7 +1107,9 @@ func assertInitialSourceErrorDoesNotInventResponseEOS(t *testing.T, data string,
 	}), transaction)
 	response := &readerFromResponseWriter{header: make(http.Header)}
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-source-error", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-source-error", nil))
+	})
 
 	if !errors.Is(readFromErr, sourceErr) {
 		t.Fatalf("ReadFrom() error = %v, want %v", readFromErr, sourceErr)
@@ -1271,7 +1284,9 @@ func TestIncompleteHostWriteDoesNotInventResponseEOS(t *testing.T) {
 	}), transaction)
 	response := &failingResponseWriter{header: make(http.Header)}
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/disconnect", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/disconnect", nil))
+	})
 
 	if len(transaction.closed) != 1 {
 		t.Fatalf("Close calls = %d, want 1", len(transaction.closed))
@@ -1294,7 +1309,9 @@ func TestEmptyHostWriteDoesNotInventResponseEOS(t *testing.T) {
 	}), transaction)
 	response := &failingResponseWriter{header: make(http.Header)}
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/empty-disconnect", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/empty-disconnect", nil))
+	})
 
 	if !errors.Is(writeErr, io.ErrClosedPipe) {
 		t.Fatalf("Write() error = %v, want %v", writeErr, io.ErrClosedPipe)
@@ -1313,16 +1330,19 @@ func TestResponseCommitErrorDoesNotInventResponseEOS(t *testing.T) {
 	commitErr := errors.New("response commit acknowledgement failed")
 	recording := &recordingTransaction{}
 	transaction := &commitErrorTransaction{recordingTransaction: recording, err: commitErr}
-	var writeErr error
+	handlerContinued := false
 	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		_, writeErr = writer.Write([]byte("body that cannot be committed to the engine"))
+		_, _ = writer.Write([]byte("body that cannot be committed to the engine"))
+		handlerContinued = true
 	}), transaction)
 	response := httptest.NewRecorder()
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/commit-error", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/commit-error", nil))
+	})
 
-	if !errors.Is(writeErr, commitErr) {
-		t.Fatalf("Write() error = %v, want %v", writeErr, commitErr)
+	if handlerContinued {
+		t.Fatal("handler continued after response commit acknowledgement failed")
 	}
 	if got := response.Body.String(); got != "" {
 		t.Fatalf("response body after commit acknowledgement failure = %q, want empty", got)
@@ -1344,7 +1364,9 @@ func TestNoBodyResponseCommitErrorDoesNotInventResponseEOS(t *testing.T) {
 	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), transaction)
 	response := httptest.NewRecorder()
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/empty-commit-error", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/empty-commit-error", nil))
+	})
 
 	if got, want := response.Code, http.StatusOK; got != want {
 		t.Fatalf("response status = %d, want %d", got, want)
@@ -1369,7 +1391,9 @@ func TestDirectResponseEOSErrorAtFinishMarksResponseIncomplete(t *testing.T) {
 	}), transaction)
 	response := httptest.NewRecorder()
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/direct-eos-error", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/direct-eos-error", nil))
+	})
 
 	if len(transaction.closed) != 1 || !transaction.closed[0].ResponseIncomplete || transaction.closed[0].ResponseEOS {
 		t.Fatalf("direct response EOS error did not close incomplete: %#v", transaction.closed)
@@ -1390,23 +1414,31 @@ func TestPreCommitDenialWriteFailureMarksResponseIncomplete(t *testing.T) {
 	}), transaction)
 	response := &failingResponseWriter{header: make(http.Header)}
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/denial-write-error", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/denial-write-error", nil))
+	})
 
 	if len(transaction.closed) != 1 || !transaction.closed[0].ResponseIncomplete || transaction.closed[0].ResponseEOS {
 		t.Fatalf("denial write failure did not close incomplete: %#v", transaction.closed)
 	}
 }
 
-func TestPreCommitDenialCommitErrorMarksResponseIncomplete(t *testing.T) {
+func TestPreCommitDenialDoesNotReenterCommitAfterAppliedOutcome(t *testing.T) {
 	recording := newDeniedResponseRecording()
 	transaction := &commitErrorTransaction{
 		recordingTransaction: recording,
 		err:                  errors.New("denial response commit failed"),
 	}
-	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/denial-commit-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	response := httptest.NewRecorder()
+	serveResponseScenario(t, response, "http://example.test/denial-commit-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte("blocked response"))
 	}), transaction)
-	assertResponseIncomplete(t, "denial commit error", recording)
+	if transaction.commitCalls != 0 || response.Code != http.StatusForbidden || response.Body.String() != "request rejected\n" {
+		t.Fatalf("applied denial = commits %d status %d body %q, want 0 403 complete denial", transaction.commitCalls, response.Code, response.Body.String())
+	}
+	if len(recording.closed) != 1 || recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
+		t.Fatalf("applied denial cleanup = %#v, want one non-incomplete, non-EOS close", recording.closed)
+	}
 }
 
 func TestEvaluationFailureCommitErrorMarksResponseIncomplete(t *testing.T) {
@@ -1456,7 +1488,7 @@ func TestPreCommitDenialAcknowledgementErrorMarksResponseIncomplete(t *testing.T
 		recordingTransaction: recording,
 		appliedErr:           errors.New("outcome acknowledgement failed"),
 	}
-	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/denial-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	serveStoppedResponseScenario(t, httptest.NewRecorder(), "http://example.test/denial-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte("blocked response"))
 	}), transaction)
 	assertResponseIncomplete(t, "denial acknowledgement error", recording)
@@ -1464,12 +1496,12 @@ func TestPreCommitDenialAcknowledgementErrorMarksResponseIncomplete(t *testing.T
 
 func TestLateDecisionAcknowledgementErrorMarksResponseIncomplete(t *testing.T) {
 	recording, transaction := newLateAcknowledgementErrorTransaction(errors.New("late outcome acknowledgement failed"))
-	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	serveStoppedResponseScenario(t, httptest.NewRecorder(), "http://example.test/late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte("one"))
 		_, _ = writer.Write([]byte("two"))
 	}), transaction)
 	assertResponseIncomplete(t, "late acknowledgement error", recording)
-	if got, want := recording.closed[0].LateAction, "log_only"; got != want {
+	if got, want := recording.closed[0].LateAction, ""; got != want {
 		t.Fatalf("late action = %q, want %q", got, want)
 	}
 	for _, call := range recording.bodyCalls {
@@ -1482,7 +1514,7 @@ func TestLateDecisionAcknowledgementErrorMarksResponseIncomplete(t *testing.T) {
 func TestReadFromLateDecisionAcknowledgementErrorDoesNotInventResponseEOS(t *testing.T) {
 	recording, transaction := newLateAcknowledgementErrorTransaction(errors.New("late ReadFrom acknowledgement failed"))
 	response := &readerFromResponseWriter{header: make(http.Header)}
-	serveResponseScenario(t, response, "http://example.test/read-from-late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	serveStoppedResponseScenario(t, response, "http://example.test/read-from-late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		readerFrom, ok := writer.(io.ReaderFrom)
 		if !ok {
 			t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
@@ -1516,19 +1548,22 @@ func TestEngineErrorAfterCommittedResponseDoesNotInventResponseEOS(t *testing.T)
 			return nil
 		},
 	}
-	var writeErr error
+	handlerContinued := false
 	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		if _, err := writer.Write([]byte("ok")); err != nil {
 			t.Fatalf("first Write() error = %v", err)
 		}
-		_, writeErr = writer.Write([]byte("later"))
+		_, _ = writer.Write([]byte("later"))
+		handlerContinued = true
 	}), transaction)
 	response := httptest.NewRecorder()
 
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/engine-error", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/engine-error", nil))
+	})
 
-	if !errors.Is(writeErr, engineErr) {
-		t.Fatalf("second Write() error = %v, want %v", writeErr, engineErr)
+	if handlerContinued {
+		t.Fatal("handler continued after post-commit engine failure")
 	}
 	if got, want := response.Body.String(), "ok"; got != want {
 		t.Fatalf("response body = %q, want %q", got, want)
@@ -1729,4 +1764,36 @@ func (writer *failingResponseWriter) Write(_ []byte) (int, error) {
 		writer.status = http.StatusOK
 	}
 	return 0, io.ErrClosedPipe
+}
+
+func TestRemovedBodyOptionJSONIsRejected(t *testing.T) {
+	for _, key := range []string{
+		"maxRequestBodyBytes", "MaxRequestBodyBytes", "MAXREQUESTBODYBYTES", "mAxReQuEsTbOdYbYtEs",
+		"maxResponseBodyBytes", "MaxResponseBodyBytes", "MAXRESPONSEBODYBYTES", "mAxReSpOnSeBoDyByTeS",
+	} {
+		for _, value := range []string{"null", "0", "1048576"} {
+			t.Run(key+"/"+value, func(t *testing.T) {
+				var config Config
+				err := json.Unmarshal([]byte(`{"`+key+`":`+value+`}`), &config)
+				if err == nil || !strings.Contains(err.Error(), "was removed") {
+					t.Fatalf("key=%s value=%s error=%v", key, value, err)
+				}
+			})
+		}
+	}
+}
+
+func TestRemovedResponseBodyOptionIsRejected(t *testing.T) {
+	for _, value := range []string{"null", "0", "1048576"} {
+		var config Config
+		if err := json.Unmarshal([]byte(`{"maxResponseBodyBytes":`+value+`}`), &config); err == nil || !strings.Contains(err.Error(), "was removed") {
+			t.Fatalf("value=%s error=%v", value, err)
+		}
+	}
+	config := CreateConfig()
+	value := int64(0)
+	config.MaxResponseBodyBytes = &value
+	if err := validateConfigLimits(*config); err == nil {
+		t.Fatal("host decoder legacy response option accepted")
+	}
 }

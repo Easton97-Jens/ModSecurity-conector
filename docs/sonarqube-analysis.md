@@ -2,10 +2,36 @@
 
 **Language:** English | [Deutsch](sonarqube-analysis.de.md)
 
+At published Parent `011cb197`, [run 40392396874](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40392396874) completed SDK preparation and all twelve native build/capture/index/CTU/taint analyses: 611 aggregate compilation units, zero partial units and 100% indexing in each target. Before individual triage, three native gates passed and nine failed. Twenty of 22 workflows passed; the broad C++17/20/23 gates failed. Source review validated 12 Python security issues and 39 native issue instances as false positives; all 36 main/advisory Python instances and 39 native instances are individually resolved as false positive with fresh readback. Original job conclusions remain unchanged. This analysis predates the finite closure commit and is not final-head acceptance. See [central status](pr-382-merge-readiness.md).
+
+Framework revision `03da9353561bf632a1f7bfc71b0a2671ec7aa257` passed all twelve CI workflows and Sonar and is Ready; no Framework merge was performed. Parent keeps Framework gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf`; MRTS is unchanged. Broker PR #422 is already user-authorized and merged at `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`; no further master merge is authorized. Protected manual runtime, connector E2E expansion and historical I12 campaigns were not run.
+
+## Integration into PR #382
+
+The [native target security guide](sonarqube-native-security.md) describes the twelve-target Compilation Database workflow and its observed Hosted analysis. It supplements the broad scan; historical PR #421 records below remain revision-bound.
+
+The automatic selection is now 100 expanded cases / 80 executions, including three guard controls. A further 1893 cases / 839 executions are available only through explicit on-demand selection. Automatic coverage catalogue commands were removed; the retained collector requires `--on-demand`. Coverage is irrelevant to merge by user instruction. Broad source/scanner/gate analysis remains enabled, with only root `modules/**` and root `reports/**` excluded.
+
+The latest user instruction excludes coverage even from merge decisions: `sonar.coverage.exclusions=**` affects coverage only, leaving source, security and duplication analysis intact. The active built-in `Sonar way` gate (ID `9`) and master gate wait remain unchanged; a new-head scan must prove coverage non-applicability, the five retained conditions and required CI. The rejected custom-gate association and full limits are recorded in [PR #382 status](pr-382-merge-readiness.md); full coverage/raw-retention measurement is superseded as an acceptance criterion. [Coverage exclusion parameter](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/project-analysis/setting-analysis-scope/exclude-from-coverage-duplication).
+
+Before the coverage opt-out, at published head `c924e7585fc0bd197fbefa0ba0f8bbc8cb39aea7`, CE task `AaF3r2p9NjdnpZXZdVK3` completed `SUCCESS`; analysis `1ebafbd5-5eb0-4ae0-ab7f-5e0d665f4f02` has gate `ERROR`. New-Code coverage is **26.409132606258282% against 80%**, with 10 open new findings. Exact scan/import bindings, CI and finding dispositions, and current limitations are recorded in [PR #382 status](pr-382-merge-readiness.md).
+
+The earlier 24.791% local changed-Python measurement and its raw-data loss remain separate historical evidence. `xml --keep-combined` and independent SHA/size-bound child witnesses address deletion; full raw-retention proof remains a historical evidence limit and is superseded as an acceptance criterion. Current WIP counts, focused results and delivery limits are recorded in [PR #382 status](pr-382-merge-readiness.md).
+
+The PR #421 source/server/runtime records below, including sections labelled current measured closure, are historical for their explicitly named revisions, especially `d5450cd3`; their 80 Python methods are not current expanded case counts and their successful gates do not qualify PR #382. Toolchain remains Python `3.15.1`, Go `1.27.3`, module language `1.26.9`, setup-python `7.1.0` and Scanner CLI `8.2.0.6438`.
+
+## Deprecations and current security relevance
+
+The [official deprecation announcements](https://docs.sonarsource.com/sonarqube-cloud/deprecations-and-removals#deprecation-announcements) must be checked against actual use: the c924 scanner log shows CLI `8.2.0.6438`, JRE provisioning and Java `21.0.12.1`, rather than Java 17. No deprecated active-user/role APIs, legacy type/severity queries or obsolete build-wrapper property were found in tracked code; this does not call for a repository migration or AI-gate change.
+
+Historical c924 impact-based readback for `SECURITY` with `issueStatuses=OPEN,CONFIRMED` returned one new `S5443` issue with `HIGH` impact and tag `former-hotspot`. This matches the announced conversion of hotspots to security issues: an empty hotspot list therefore does not prove an absence of security findings. Triage uses impacts and issue status instead of legacy type/severity and validates the concrete code path; current dispositions and exact-head results belong to the [PR #382 status](pr-382-merge-readiness.md).
+
 ## Project and analysis method
 
-The Parent repository uses one SonarQube Cloud project,
-`Easton97-Jens_ModSecurity-conector`, in organization `easton97-jens`. The
+The broad Parent analysis uses main SonarQube Cloud project
+`Easton97-Jens_ModSecurity-conector` and two standard-advisory projects in
+organization `easton97-jens`. Separate [native target projects](sonarqube-native-security.md)
+retain their own build contexts and analysis histories. The
 organization key was read from the authenticated project API, not derived from
 the GitHub account name. Every standard variant scans the same maintained Parent components.
 Framework and MRTS remain independent repositories and analysis boundaries.
@@ -17,7 +43,7 @@ These four similarly named mechanisms are distinct:
 | Cloud Automatic Analysis | Runs on Sonar's infrastructure; reads `.sonarcloud.properties`, ignores `sonar-project.properties`, and cannot import coverage. Keep disabled for this project. |
 | CI-based SonarScanner CLI analysis | The selected method: `.github/workflows/sonarqube.yml` runs three full Parent scans using the same `sonar-project.properties`. |
 | CLI automatic configuration | `sonar.scanner.autoconfig.enabled=false` preserves explicit source/test classification. Enabling it would ignore the manual source/test settings and generate warnings. |
-| CFamily AutoConfig / Compilation Database | C/C++ analyzer modes within the CI scan. AutoConfig deduces compilation options; Compilation Database consumes real build commands through `sonar.cfamily.compile-commands`. This project selects AutoConfig. |
+| CFamily AutoConfig / Compilation Database | C/C++ analyzer modes within the CI scan. AutoConfig deduces compilation options; Compilation Database consumes real build commands through `sonar.cfamily.compile-commands`. Broad Parent projects retain AutoConfig; separate native projects use per-target databases. |
 
 The workflow pins the official scan action to
 `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` (`v8.3.0`) and explicitly selects
@@ -41,8 +67,8 @@ no wildcards; the inclusion/exclusion parameters support patterns.
 
 | Language / analyzer | Maintained components | Source / test classification | Build information and limits |
 | --- | --- | --- | --- |
-| Python | `ci/`, `scripts/`, `common/`, connector tools, tracked `.codex/bin/`, `tests/` | Python files under `tests/`, distributed connector test modules, and their test helpers are tests; operational tools remain sources. | `.python-version` pins `3.14.7`; `sonar.python.version=3.14` uses Sonar's required major/minor format. |
-| Go | `connectors/envoy/ext_proc`, `connectors/traefik/native_middleware`, `connectors/traefik/composite_middleware`, `connectors/traefik/response_observer` | `**/*_test.go` are tests; other Go files and each `go.mod` stay in source scope. | Four modules; `.go-version` is `1.27.1`, while the module language directives are `1.26.5`. Coverage generation must run inside each module. |
+| Python | `ci/`, `scripts/`, `common/`, connector tools, tracked `.codex/bin/`, `tests/` | Python files under `tests/`, distributed connector test modules, and their test helpers are tests; operational tools remain sources. | `.python-version` pins `3.15.1`; `sonar.python.version=3.15` uses Sonar's required major/minor format. |
+| Go | `connectors/envoy/ext_proc`, `connectors/traefik/native_middleware`, `connectors/traefik/composite_middleware`, `connectors/traefik/response_observer` | `**/*_test.go` are tests; other Go files and each `go.mod` stay in source scope. | Four modules; `.go-version` is `1.27.3`, while the module language directives are `1.26.9`. Coverage generation must run inside each module. |
 | C / C++ | `common/`, all six connector families, `tests/`, `fuzz/` | All C/C++ code, including tests, fixture modules, and fuzz harnesses, remains source code because CFamily does not support `sonar.tests`. | AutoConfig analyzes scoped translation units; headers require an including translation unit. The targeted evaluator uses C++17. |
 | Shell | `ci/`, `scripts/`, `common/`, connector build/harness scripts | Maintained `.sh` scripts stay sources, including scripts under connector `build/` directories. | Bash/POSIX supported. Automatic recognition of `connectors/apache/build/apxs-wrapper.in` is not established; a scope entry alone does not prove shell analysis. |
 | GitHub Actions | `.github/workflows/` and applicable action definitions | Real workflows are sources; intentionally invalid workflow fixtures are test data. | Dedicated Actions analyzer; generic YAML is not a substitute for workflow semantics. |
@@ -57,25 +83,11 @@ must be derived from the current checkout rather than copied from this snapshot.
 
 ## Scope exclusions and defaults
 
-| Area | Reason and treatment |
-| --- | --- |
-| `modules/ModSecurity-test-Framework/**` | Independent Git submodule, including nested MRTS; Parent analysis does not import or modify its code. |
-| `reports/testing/generated/**` | Generated evidence; maintained generators remain in scope. Other reports and attribution files are not explicitly excluded. |
-| `build/**`, `dist/**`, `ci-artifacts/**`, `verified-runs/**`; local outputs and caches | Root `/build/`, `/dist/`, `/compile_commands.json`, environments, dependency caches, and runtime outputs are already SCM-ignored. Keep SCM exclusions enabled. |
-| Python / Go test inclusion patterns | Classification excludes these files from source indexing and avoids duplicate indexing; it does not exclude them from analysis. |
-| `tests/fixtures/python-version-contract/*.yml`, `tests/fixtures/python-version-contract/*.yaml`, `ci/fixtures/zizmor/*.yml`, `ci/fixtures/workflow-permission-contract/*.yml` | Invalid/unsafe workflow samples and their controls are test data, not executable production workflows. Only these YAML files are excluded; Python/C fixtures remain in scope. |
-
-Do not introduce `**/build/**`: it would hide maintained connector build scripts.
-No connector or complete language is excluded to suppress findings. Go's analyzer
-excludes `vendor` by default; no such maintained tree was found. Scanner defaults,
-SCM ignore rules, file suffixes, size limits, inherited global settings, and
-unreferenced headers can still reduce the actual analyzed set. Inspect scanner
-logs and server file/language metrics rather than equating initial scope with
-confirmed analysis. CI command-line properties override configuration-file
-values, which in turn override project UI values; organization/global exclusions
-must also be checked when troubleshooting missing files.
+The prepared local scope excludes only root `modules/**` and root `reports/**` from both MAIN and TEST. All other Parent directories remain included, including `ci/evidence/reports/`, connector build scripts and YAML fixtures. `sonar.scm.exclusions.disabled=true` prevents SCM ignore rules from silently reducing this scope. Python/Go TEST classification and all CFamily MAIN classification are preserved. The post-master tracked partition is 1662 MAIN + 503 TEST + 367 root-report entries + one Framework gitlink = 2533 entries; 25 nested report generators remain MAIN. This proves configured source scope, not semantic analyzer support or execution for every format; local scope changes still require a new published-head scan.
 
 ## CFamily build fidelity
+
+The historical c924 scan used AutoConfig with 185 translation units: function quality 98.01%, with errors in 61/3067 functions, and statement quality 98.27%, with errors in 810/46710 statements. C/C++ taint analysis was explicitly `DISABLED`; this is not full C/C++ security evidence. The official [analysis modes](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/analysis-modes) recommend Compilation Database for the highest analysis quality; [taint requirements](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/languages/c-family/customizing-the-analysis#taint-analysis) must still be met separately. The subsequently authorized [native workflow](sonarqube-native-security.md) supplements this broad scan with twelve independent target contexts; development builds do not prove Hosted analysis. No AI-gate or MISRA changes follow from this guidance.
 
 The tracked Parent inventory at `9f44647593bac7947113558c6ad183ab118e80af`
 contains 136 native translation units: 135 C and one C++. This includes native
@@ -83,7 +95,8 @@ tests, fixtures, fuzz code and CI probes. Existing `make compile-db-nginx-c17`
 and `make compile-db-cpp17` capture only the NGINX/Common declaration and targeted
 evaluator. Selecting those partial databases would remove other Parent units
 from CFamily analysis. AutoConfig and the scope guard's database restriction
-therefore remain until a real full-Parent build contract can be verified.
+therefore remain for the broad Parent scan. Independently scoped native projects
+supplement it without combining unrelated targets or removing the broad source scope.
 
 | Component | Real build context that a complete database must retain |
 | --- | --- |
@@ -164,18 +177,20 @@ compiler jobs are removed.
 
 ## CI, tests, and coverage
 
+The collector details below describe the retained explicit `--on-demand` path, not automatic CI catalogue execution. Source analysis and gate waiting continue independently.
+
 The workflow checks out `${{ github.event.pull_request.head.sha || github.sha }}`
 with full history and uses that revision for `sonar.scm.revision`. The existing
 `SONAR_TOKEN` is exposed only to the scanner step. Fork pull requests cannot
 receive it; no privileged `pull_request_target` execution is introduced.
 
 Test classification, test execution, coverage generation and analyzer import
-remain separate operations. `ci/checks/analysis/run-sonar-coverage.py` produces
+remain separate operations. With explicit `--on-demand`, `ci/checks/analysis/run-sonar-coverage.py` produces
 real reports in fresh per-language directories below an external `--output-root`.
 It records the SHA, checks checkout stability and requires a clean checkout for
 CI. `--allow-dirty` is only for local development and marks reports as containing
-uncommitted changes. No empty replacement reports or coverage exclusions hide
-production-code gaps. A short external `--temp-root` avoids Unix-socket path
+uncommitted changes. No empty replacement reports are generated. The explicit coverage-only opt-out
+above leaves production source analysis intact. A short external `--temp-root` avoids Unix-socket path
 limits in tests.
 
 Python uses the existing hash-pinned `coverage==7.17.0` dependency in an isolated
@@ -220,7 +235,8 @@ zeroes, and 71 gcov reports across 62 repository files, including all 58 Common
 C files. The selected Go tests passed with module coverage of 27.5%, 65.3%,
 69.0% and 61.6% in table order. Repeated Go block rows from different test
 binaries must be merged rather than summed. These observations used local
-Python `3.14.4` and Go `1.27.3`; CI pins remain Python `3.14.7` and Go `1.27.1`.
+Python `3.14.4` and Go `1.27.3`; that PR #421 source used CI pins Python
+`3.14.7` and Go `1.27.1`. The PR #382 integration pins are listed above.
 They are development evidence, not final-commit import or gate proof.
 
 The selection does not execute every Parent test, alternate platform,
@@ -257,7 +273,7 @@ The workflow follows the [official scan Action interface](https://github.com/Son
 | --- | --- |
 | C / C++ | Supported AutoConfig include settings and native `.gcov` import; partial compilation databases are not substituted for full Parent scope. AutoConfig cannot provide C/C++ taint analysis. |
 | Go | The pinned Go 1.27 toolchain is supported. Each module keeps its `go.mod`, `*_test.go` classification and standard `-coverprofile` reports generated before scanning. |
-| Python | `sonar.python.version=3.14` uses major.minor; genuine Cobertura XML uses relative source filenames with branch and subprocess measurement. |
+| Python | `sonar.python.version=3.15` uses major.minor; genuine Cobertura XML uses relative source filenames with branch and subprocess measurement. |
 | Shell | Bash and POSIX are the officially supported dialects. Retain actual shebangs, `.sh`/`.bash` source scope and behavior checks; local syntax success does not prove Sonar parsing. |
 | Workflows / JSON / YAML | Dedicated Actions analysis and the documented generic JSON/YAML opt-in remain enabled; negative workflow fixtures retain their bounded treatment. |
 

@@ -3,21 +3,17 @@ checked_at: "2026-08-08"
 
 # These values are revalidated against official upstream tag or release APIs.
 pinned_actions:
-  sonarsource/sonarqube-scan-action:
-    version: v8.3.0
-    commit_sha: d209202bc7d53ff1cc128f7f907dac145c9d6ae9
-    upstream: https://github.com/sonarsource/sonarqube-scan-action
   actions/checkout:
     version: v7.0.1
     commit_sha: 3d3c42e5aac5ba805825da76410c181273ba90b1
     upstream: https://github.com/actions/checkout
   actions/create-github-app-token:
-    version: v3.2.0
-    commit_sha: bcd2ba49218906704ab6c1aa796996da409d3eb1
+    version: v3.3.0
+    commit_sha: 64ab729a6294000f5aa4a4bc0b73d1f32bc45510
     upstream: https://github.com/actions/create-github-app-token
   actions/setup-python:
-    version: v7.0.0
-    commit_sha: 5fda3b95a4ea91299a34e894583c3862153e4b97
+    version: v7.1.0
+    commit_sha: 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
     upstream: https://github.com/actions/setup-python
   actions/setup-go:
     version: v7.0.0
@@ -36,8 +32,8 @@ pinned_actions:
     commit_sha: 9000827ccba6bdab643e8b6fd33ac0654aef8333
     upstream: https://github.com/actions/download-artifact
   github/codeql-action:
-    version: v4.38.3
-    commit_sha: 24c54180a607b1449ed407dd24f251e4e9147c8d
+    version: v4.39.1
+    commit_sha: 9b3254085494b55a0f7c4c2b3d2d52cc712ce370
     upstream: https://github.com/github/codeql-action
   google/osv-scanner-action:
     version: v2.7.0
@@ -47,6 +43,10 @@ pinned_actions:
     version: v2.5.0
     commit_sha: fa7117db83c52d787ae5a89f350999701505d78e
     upstream: https://github.com/ossf/scorecard-action
+  SonarSource/sonarqube-scan-action:
+    version: v8.3.0
+    commit_sha: d209202bc7d53ff1cc128f7f907dac145c9d6ae9
+    upstream: https://github.com/SonarSource/sonarqube-scan-action
 
 tools:
   actionlint:

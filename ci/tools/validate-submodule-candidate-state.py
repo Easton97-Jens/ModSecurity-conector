@@ -633,7 +633,8 @@ def main(argv: Sequence[str]) -> int:
             f"{key}={json.dumps(value, ensure_ascii=True, separators=(',', ':'))}"
             for key, value in sorted(error.details.items())
         )
-        print(f"ERROR:{error.code}" + (f" {details}" if details else ""), file=sys.stderr)
+        suffix = f" {details}" if details else ""
+        print(f"ERROR:{error.code}{suffix}", file=sys.stderr)
         return 1
     except (OSError, ValueError):
         print("ERROR:VALIDATOR_INTERNAL_ERROR", file=sys.stderr)

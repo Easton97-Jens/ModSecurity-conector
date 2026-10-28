@@ -15,6 +15,7 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 
 from runtime_path_utils import prepare_verified_runtime_artifact_root, runtime_artifact_path
+from first_byte_binding import verify_binding
 
 
 def load_object(path: Path) -> dict[str, Any]:
@@ -24,7 +25,7 @@ def load_object(path: Path) -> dict[str, Any]:
     return value
 
 
-def has_phase4_rule(path: Path) -> bool:
+def has_phase4_rule(path: Path, transaction_id: str | None = None) -> bool:
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         if not line.strip():
             continue
@@ -33,6 +34,8 @@ def has_phase4_rule(path: Path) -> bool:
         except json.JSONDecodeError:
             continue
         if not isinstance(record, dict):
+            continue
+        if transaction_id is not None and record.get("transaction_id") != transaction_id:
             continue
         if str(record.get("rule_id") or "") == "1100301" and str(record.get("phase") or "").replace("-", "_") in {"4", "response_body", "phase4"}:
             return True
@@ -71,8 +74,18 @@ def main(argv: list[str] | None = None) -> int:
     }
     if any(evidence.get(key) != expected for key, expected in required.items()):
         raise ValueError("first-byte evidence is not a successful real-host no-buffer observation")
-    if not has_phase4_rule(phase4_log):
-        raise ValueError("Phase-4 rule 1100301 was not observed in the host log")
+    binding_fields: dict[str, Any] = {}
+    if args.connector == "nginx":
+        binding_path = runtime_artifact_path(
+            runtime_root, Path(str(first_byte_evidence) + ".binding.json"),
+            "first-byte binding", must_exist=True,
+        )
+        binding = load_object(binding_path)
+        event = verify_binding(binding, phase4_log, first_byte_evidence, runtime_root)
+        binding_fields = {"first_byte_binding_path": str(binding_path),
+                          "transaction_id": event["transaction_id"]}
+    if not has_phase4_rule(phase4_log, binding_fields.get("transaction_id")):
+        raise ValueError("Phase-4 rule 1100301 was not observed for the bound host transaction")
     rows = [
         {
             "case_id": case_id,
@@ -82,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
             "observed_rule_ids": [1100301],
             "connector_phase4_log_path": str(phase4_log),
             "first_byte_evidence_path": str(first_byte_evidence),
+            **binding_fields,
             "reason": "real host synchronized upstream barrier; payload-free metadata only",
         }
         for case_id in (

@@ -42,18 +42,20 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         self.assertNotIn("server_name", MAPPER)
         self.assertNotIn("headers_in.server", MAPPER)
 
-    def test_request_body_has_content_length_chunk_and_file_caps(self) -> None:
-        self.assertIn("common_config.request_body_limit", ACCESS)
-        self.assertIn("request_body_bytes_seen > limit", ACCESS)
-        self.assertIn("chunk_size > limit - ctx->request_body_bytes_seen", ACCESS)
-        self.assertIn("ngx_file_info(", ACCESS)
-        self.assertIn("ngx_file_size(&file_info)", ACCESS)
-        self.assertIn("NGX_HTTP_REQUEST_ENTITY_TOO_LARGE", ACCESS)
+    def test_request_body_preserves_technical_file_and_overflow_guards(self) -> None:
+        self.assertNotIn("common_config.request_body_limit", ACCESS)
+        self.assertIn("SIZE_MAX - chunk_size", ACCESS)
+        self.assertIn("ngx_fd_info(file->fd, &file_info)", ACCESS)
+        self.assertIn("ngx_is_file(&file_info)", ACCESS)
+        self.assertIn("ngx_file_size(&file_info) != file_size", ACCESS)
+        self.assertIn("ngx_pnalloc(r->pool, 32768U)", ACCESS)
+        self.assertIn("ngx_read_file(file, ctx->scratch_buffers.request_file_scratch", ACCESS)
 
     def test_native_ingestion_failures_remain_fail_closed(self) -> None:
         self.assertIn("ret = msc_append_request_body", ACCESS)
-        self.assertIn("ret = msc_request_body_from_file", ACCESS)
-        self.assertIn("if (ret != 1)", ACCESS)
+        self.assertNotIn("msc_request_body_from_file", ACCESS)
+        self.assertIn("if (!msconnector_native_body_append_can_continue(ret))", ACCESS)
+        self.assertIn("ngx_http_modsecurity_capture_request_body_intervention(r)", ACCESS)
 
     def test_mapper_failure_stops_initialization_before_header_sink(self) -> None:
         mapper = ACCESS.split(
@@ -64,8 +66,35 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         )[1].split("static ngx_int_t", 1)[0]
 
         self.assertIn("validation failed", mapper)
-        self.assertIn("return NGX_HTTP_BAD_REQUEST", mapper)
+        self.assertIn("ngx_int_t mapper_status = NGX_HTTP_INTERNAL_SERVER_ERROR;", mapper)
+        self.assertIn("&mapper_status, mapper_error, sizeof(mapper_error)", mapper)
+        self.assertIn("return mapper_status;", mapper)
+        self.assertNotIn("return NGX_HTTP_BAD_REQUEST", mapper)
         self.assertNotIn("validation skipped", mapper)
+        request_mapper = function_definition(MAPPER, "ngx_http_modsecurity_map_request")
+        self.assertIn(
+            "if (failure_status != NULL) {\n"
+            "        *failure_status = NGX_HTTP_INTERNAL_SERVER_ERROR;\n"
+            "    }",
+            request_mapper,
+        )
+        self.assertLess(
+            request_mapper.index("*failure_status = NGX_HTTP_INTERNAL_SERVER_ERROR;"),
+            request_mapper.index("if (r == NULL || out == NULL || contract == NULL)"),
+        )
+        self.assertIn(
+            "if (contract->max_header_count > 0U &&\n"
+            "        (header_count > contract->max_header_count ||\n"
+            "            (authority.len > 0U && header_count == contract->max_header_count))) {\n"
+            "        if (failure_status != NULL) {\n"
+            "            *failure_status = NGX_HTTP_BAD_REQUEST;\n"
+            "        }\n"
+            '        ngx_http_modsecurity_mapper_error(error, error_len, "too many headers");\n'
+            "        return 0;\n"
+            "    }",
+            request_mapper,
+        )
+        self.assertEqual(request_mapper.count("*failure_status = NGX_HTTP_BAD_REQUEST;"), 1)
         self.assertIn(
             "rc = ngx_http_modsecurity_validate_common_request_mapper(r);",
             initialize,
@@ -359,6 +388,13 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
             reference_de,
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

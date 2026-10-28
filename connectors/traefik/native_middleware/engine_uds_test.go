@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 )
 
 type udsTestResult struct {
+	code   byte
 	action byte
 	status int
 }
@@ -111,7 +113,7 @@ func startUDSTestServer(t *testing.T, results map[byte]udsTestResult) (string, *
 func writeUDSTestResult(writer io.Writer, command byte, result udsTestResult) error {
 	payload := make([]byte, 14)
 	payload[0] = command
-	payload[1] = udsResultOK
+	payload[1] = result.code
 	payload[2] = result.action
 	binary.BigEndian.PutUint16(payload[4:6], uint16(result.status))
 	return writeUDSTestFrame(writer, udsOpcodeResult, payload)
@@ -821,7 +823,9 @@ func TestUDSEngineDoesNotAcknowledgeAnUnconfirmedHostWrite(t *testing.T) {
 	})
 	middleware := newUDSTestMiddleware(t, socketPath, http.NotFoundHandler())
 	response := &failingDecisionResponseWriter{header: make(http.Header)}
-	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/p1", nil))
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/p1", nil))
+	})
 	if got, want := response.status, http.StatusForbidden; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
 	}
@@ -952,4 +956,189 @@ func (writer *failingDecisionResponseWriter) Write(_ []byte) (int, error) {
 		writer.status = http.StatusOK
 	}
 	return 0, errors.New("injected response writer failure")
+}
+
+func TestUDSTechnicalResultReachesProductiveMiddleware(t *testing.T) {
+	for _, opcode := range []byte{udsOpcodeBegin, udsOpcodeRequestChunk, udsOpcodeRequestEOS, udsOpcodeResponseHead, udsOpcodeResponseBody, udsOpcodeResponseEOS, udsOpcodeResponseCommit, udsOpcodeFinish, udsOpcodeDestroy, udsOpcodeOutcome} {
+		t.Run(fmt.Sprint(opcode), func(t *testing.T) {
+			runUDSTechnicalResult(t, opcode)
+		})
+	}
+}
+
+// This integration requires the real C service with explicit native request
+// and response limits of 10 bytes and the selected Reject/ProcessPartial
+// policy. A protocol double cannot establish when native Reject materializes.
+func TestUDSEngineNativeBodyPolicy(t *testing.T) {
+	socketPath := os.Getenv("TRAEFIK_UDS_NATIVE_TEST_SOCKET")
+	if socketPath == "" {
+		t.Skip("requires a private real Common/libModSecurity UDS service")
+	}
+	policy := os.Getenv("TRAEFIK_UDS_NATIVE_TEST_POLICY")
+	if policy != "Reject" && policy != "ProcessPartial" {
+		t.Fatal("native fixture policy must be Reject or ProcessPartial")
+	}
+	t.Run("native-append-after-eos", func(t *testing.T) {
+		runUDSNativeAppendAfterEOS(t, socketPath)
+	})
+	for _, direction := range []Direction{DirectionRequest, DirectionResponse} {
+		for _, combinedEOS := range []bool{false, true} {
+			for _, oversized := range []bool{false, true} {
+				name := fmt.Sprintf("%v/combined-eos-%t/oversized-%t", direction, combinedEOS, oversized)
+				t.Run(name, func(t *testing.T) {
+					runUDSNativeBodyPolicyCase(t, socketPath, policy, direction, combinedEOS, oversized)
+				})
+			}
+		}
+	}
+}
+
+func runUDSNativeAppendAfterEOS(t *testing.T, socketPath string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	opened, err := newUnixSocketEngine(socketPath).Open(ctx, Metadata{Method: http.MethodPost, RequestURI: "/append-after-eos", HTTPVersion: "HTTP/1.1", Hostname: "example.test", ClientAddress: "127.0.0.1", ClientPort: 12345, ServerAddress: "127.0.0.1", ServerPort: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transaction := opened.(*unixSocketTransaction)
+	defer transaction.Close(ctx, Summary{})
+	if _, err := transaction.ProcessHeaders(ctx, DirectionRequest, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	_, err = transaction.ProcessBody(ctx, DirectionRequest, []byte("late"), true)
+	if !errors.Is(err, errUDSEngineRejected) {
+		t.Fatalf("native append-after-EOS error = %v, want lifecycle rejection", err)
+	}
+	if transaction.connection != nil || !transaction.closed {
+		t.Fatal("native failed append retained its connection or active lifecycle")
+	}
+	if err := transaction.CloseChecked(ctx, Summary{}); err != nil {
+		t.Fatalf("terminal cleanup = %v", err)
+	}
+}
+
+func runUDSNativeBodyPolicyCase(t *testing.T, socketPath, policy string, direction Direction, combinedEOS, oversized bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	engine := newUnixSocketEngine(socketPath)
+	opened, err := engine.Open(ctx, Metadata{Method: http.MethodPost, RequestURI: "/native-body-policy", HTTPVersion: "HTTP/1.1", Hostname: "example.test", ClientAddress: "127.0.0.1", ClientPort: 12345, ServerAddress: "127.0.0.1", ServerPort: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transaction := opened.(*unixSocketTransaction)
+	defer transaction.Close(ctx, Summary{})
+	decision, err := transaction.ProcessHeaders(ctx, DirectionRequest, []Header{{Name: "content-type", Value: "text/plain"}}, direction == DirectionResponse)
+	if err != nil || decision.disruptive() {
+		t.Fatalf("request headers = %+v, %v", decision, err)
+	}
+	if direction == DirectionResponse {
+		decision, err = transaction.ProcessResponseHeaders(ctx, http.StatusOK, "HTTP/1.1", []Header{{Name: "content-type", Value: "text/plain"}})
+		if err != nil || decision.disruptive() {
+			t.Fatalf("response headers = %+v, %v", decision, err)
+		}
+	}
+	decision = processUDSNativeBodyPolicy(t, ctx, transaction, direction, combinedEOS, oversized)
+	assertUDSNativeBodyPolicyDecision(t, decision, policy, oversized)
+	if direction == DirectionRequest && !decision.disruptive() {
+		completeUDSNativeControlResponse(t, ctx, transaction)
+	}
+	if err := transaction.CloseChecked(ctx, Summary{}); err != nil {
+		t.Fatalf("native Finish/Destroy = %v", err)
+	}
+	if !transaction.closed || transaction.connection != nil {
+		t.Fatal("native transaction retained its connection after Finish/Destroy")
+	}
+}
+
+func completeUDSNativeControlResponse(t *testing.T, ctx context.Context, transaction *unixSocketTransaction) {
+	t.Helper()
+	if _, err := transaction.ProcessResponseHeaders(ctx, http.StatusOK, "HTTP/1.1", nil); err != nil {
+		t.Fatalf("control response headers = %v", err)
+	}
+	if _, err := transaction.ProcessBody(ctx, DirectionResponse, nil, true); err != nil {
+		t.Fatalf("control response EOS = %v", err)
+	}
+}
+
+func processUDSNativeBodyPolicy(t *testing.T, ctx context.Context, transaction *unixSocketTransaction, direction Direction, combinedEOS, oversized bool) Decision {
+	t.Helper()
+	body := []byte("small")
+	if oversized {
+		body = []byte("abcdefghijklmnop")
+	}
+	decision, err := transaction.ProcessBody(ctx, direction, body, combinedEOS)
+	if err != nil {
+		t.Fatalf("body append = %v", err)
+	}
+	if !combinedEOS {
+		if decision.disruptive() {
+			t.Fatalf("successful native append unexpectedly decided before EOS: %+v", decision)
+		}
+		decision, err = transaction.ProcessBody(ctx, direction, nil, true)
+		if err != nil {
+			t.Fatalf("body EOS = %v", err)
+		}
+	}
+	return decision
+}
+
+func assertUDSNativeBodyPolicyDecision(t *testing.T, decision Decision, policy string, oversized bool) {
+	t.Helper()
+	if oversized && policy == "Reject" {
+		if decision.Action != ActionDeny || decision.Status != http.StatusForbidden {
+			t.Fatalf("native Reject decision = %+v, want Deny 403", decision)
+		}
+	} else if decision.disruptive() {
+		t.Fatalf("legitimate native control decision = %+v, want Allow", decision)
+	}
+}
+
+func runUDSTechnicalResult(t *testing.T, opcode byte) {
+	t.Helper()
+	results := map[byte]udsTestResult{opcode: {code: 1}}
+	if opcode == udsOpcodeOutcome {
+		results[udsOpcodeBegin] = udsTestResult{action: udsActionDeny, status: 403}
+	}
+	path, server := startUDSTestServer(t, results)
+	config := CreateConfig()
+	config.EngineSocketPath = path
+	handler, err := New(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200); _, _ = w.Write([]byte("original")) }), config, "uds-error")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest("GET", "http://example.test/", nil)
+	if opcode == udsOpcodeRequestChunk {
+		request = httptest.NewRequest("POST", "http://example.test/", strings.NewReader("body"))
+	}
+	call := func() { handler.ServeHTTP(recorder, request) }
+	if udsFailureBeforeCommit(opcode) {
+		call()
+		if recorder.Code != 500 {
+			t.Fatalf("status=%d", recorder.Code)
+		}
+	} else {
+		expectHostStop(t, call)
+	}
+	assertUDSTerminalFailure(t, server.wait(t), opcode)
+}
+
+func udsFailureBeforeCommit(opcode byte) bool {
+	switch opcode {
+	case udsOpcodeBegin, udsOpcodeRequestChunk, udsOpcodeRequestEOS, udsOpcodeResponseHead:
+		return true
+	default:
+		return false
+	}
+}
+
+func assertUDSTerminalFailure(t *testing.T, calls []udsTestCall, opcode byte) {
+	t.Helper()
+	for i, call := range calls {
+		if call.opcode == opcode && i != len(calls)-1 {
+			t.Fatalf("operation after terminal failure: %#v", calls)
+		}
+	}
 }

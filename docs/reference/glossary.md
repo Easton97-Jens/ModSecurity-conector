@@ -2,6 +2,18 @@
 
 **Language:** English | [Deutsch](glossary.de.md)
 
+## Quick orientation
+
+Use this glossary when a repository term is unfamiliar. The most important
+distinctions are: **host family** versus **logical profile**, **source/config
+state** versus **runtime evidence**, and **Phase-4 policy** versus the
+ModSecurity engine's own response-body inspection settings.
+
+Terms such as PASS, BLOCKED, profile ID, integration mode, run ID, canonical
+evidence, companion, observer, UDS, EOS, HTX, and P1–P4 have repository-specific
+meaning; use the definitions here instead of inferring them from everyday
+language.
+
 This glossary defines repository terms. It does not replace the short local
 explanation required where a term first appears in a command, configuration,
 or evidence guide.

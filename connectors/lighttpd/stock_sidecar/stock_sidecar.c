@@ -1,9 +1,9 @@
+#define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
 #include "stock_sidecar.h"
 
 #include "msconnector_runtime.h"
-#include "msconnector/phase4_budget.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/generic_mapper.h"
 #include "msconnector/late_intervention.h"
@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <openssl/sha.h>
+#include <openssl/rand.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -26,6 +27,8 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/file.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -37,6 +40,8 @@
 #define SIDECAR_DEFAULT_TIMEOUT_MS 10000U
 #define SIDECAR_BACKLOG 64
 #define SIDECAR_MAX_PARALLEL 16U
+#define SIDECAR_DEFAULT_SPOOL_CAPACITY (256U * 1024U * 1024U)
+#define SIDECAR_DEFAULT_SPOOL_FREE_RESERVE (64U * 1024U * 1024U)
 #define SIDECAR_RECEIPT_HEX_SIZE (SHA256_DIGEST_LENGTH * 2U)
 #define SIDECAR_RECEIPT_BINDING_SIZE 64U
 
@@ -44,14 +49,33 @@ typedef struct sidecar_options {
     const char *config;
     const char *listen;
     const char *upstream;
+    const char *spool_directory;
+    int spool_directory_fd;
+    size_t spool_capacity_bytes;
+    size_t spool_free_reserve_bytes;
     uint64_t timeout_ms;
 } sidecar_options;
+
+/* Technical disk admission, independent of the engine's inspection policy.
+ * Reservations remain owned until their preallocated descriptor is closed. */
+typedef struct sidecar_spool_budget {
+    pthread_mutex_t lock;
+    size_t reserved;
+    size_t capacity;
+    size_t free_reserve;
+} sidecar_spool_budget;
+
+typedef struct sidecar_owned_socket_stop {
+    int attempted;
+    int succeeded;
+} sidecar_owned_socket_stop;
 
 typedef struct sidecar_runtime_context {
     const sidecar_options *options;
     msconnector_runtime *runtime;
     unsigned int active;
     pthread_mutex_t lock;
+    sidecar_spool_budget spool_budget;
 } sidecar_runtime_context;
 
 typedef struct sidecar_worker {
@@ -643,16 +667,25 @@ static int sidecar_write_error(int fd, int status, const sidecar_deadline *deadl
         sidecar_send_all(fd, (const unsigned char *)response, (size_t)length, deadline);
 }
 
+/* One connection owner records the syscall attempt before entering it.
+ * Reentry retains both failed and successful outcomes without retry. */
+static int sidecar_shutdown_owned_socket(int fd, sidecar_owned_socket_stop *stop) {
+    if (stop->attempted) return stop->succeeded;
+    stop->attempted = 1;
+    stop->succeeded = shutdown(fd, SHUT_RDWR) == 0;
+    return stop->succeeded;
+}
+
 static int sidecar_write_decision(int fd, const msconnector_decision *decision,
-                                  const sidecar_deadline *deadline) {
+                                  const sidecar_deadline *deadline,
+                                  sidecar_owned_socket_stop *stop) {
     msconnector_decision_action action = msconnector_decision_action_from_decision(decision);
     const char *location = decision->redirect_url;
     char response[1024];
     int length;
     if (action == MSCONNECTOR_DECISION_ACTION_DROP ||
         action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION) {
-        (void)shutdown(fd, SHUT_RDWR);
-        return 1;
+        return sidecar_shutdown_owned_socket(fd, stop);
     }
     if (location != NULL && (strchr(location, '\r') != NULL || strchr(location, '\n') != NULL ||
                              strlen(location) > 700U)) return 0;
@@ -691,26 +724,29 @@ static msconnector_late_intervention_action sidecar_phase4_action(
         response_committed, phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
 }
 
-/* A disruptive engine decision is already terminal before the host attempts
- * its response.  If the peer disconnects during that response, do not try to
- * overwrite the rule decision with a second terminal failure: retain its
- * rule correlation and record the observed host action as an abort. */
+/* Delivery failure alone is no proof of an abort. The connection owner
+ * records an owned-socket stop only after shutdown succeeds. */
 static void sidecar_record_decision_delivery_failure(
+    int client, sidecar_owned_socket_stop *stop,
     msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
     msconnector_error *error) {
     if (transaction == NULL || decision == NULL) return;
-    (void)msconnector_runtime_transaction_record_host_action(
-        transaction, decision, MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION,
-        0, "connection_aborted", 1, error);
+    (void)msconnector_runtime_transaction_fail(transaction,
+        MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, error);
+    if (!sidecar_shutdown_owned_socket(client, stop)) return;
+    (void)msconnector_runtime_transaction_record_failure_host_action(
+        transaction, 0, 1, error);
 }
 
 static void sidecar_record_failure_action(
+    int client, sidecar_owned_socket_stop *stop,
     msconnector_runtime_transaction *transaction,
     int visible_http_status,
     int response_written,
     msconnector_error *error) {
     if (transaction == NULL) return;
+    if (!response_written && !sidecar_shutdown_owned_socket(client, stop)) return;
     (void)msconnector_runtime_transaction_record_failure_host_action(
         transaction, response_written ? visible_http_status : 0,
         response_written ? 0 : 1, error);
@@ -857,7 +893,8 @@ typedef struct sidecar_exchange_payload {
     size_t response_size;
     sidecar_headers request_headers;
     sidecar_headers response_headers;
-    unsigned char *request_body;
+    int request_spool_fd;
+    size_t spool_reservation;
     size_t body_read;
 } sidecar_exchange_payload;
 
@@ -871,9 +908,11 @@ typedef struct sidecar_request_endpoints {
 typedef struct sidecar_exchange_dependencies {
     const sidecar_options *options;
     msconnector_runtime *runtime;
+    sidecar_spool_budget *spool_budget;
 } sidecar_exchange_dependencies;
 
 typedef struct sidecar_exchange_state {
+    sidecar_owned_socket_stop client_stop;
     int client;
     /* Transaction request endpoints borrow these values until cleanup. */
     sidecar_request_endpoints endpoints;
@@ -881,8 +920,6 @@ typedef struct sidecar_exchange_state {
     sidecar_deadline deadline;
     size_t header_limit;
     size_t count_limit;
-    size_t request_limit;
-    size_t response_limit;
     sidecar_exchange_payload payload;
     msconnector_runtime_transaction *transaction;
     msconnector_decision decision;
@@ -931,9 +968,8 @@ static void sidecar_exchange_state_init(sidecar_exchange_state *state, int clien
     state->deadline.at_ms = sidecar_now_ms() + options->timeout_ms;
     state->header_limit = msconnector_runtime_total_header_limit(runtime);
     state->count_limit = msconnector_runtime_header_count_limit(runtime);
-    state->request_limit = msconnector_runtime_request_body_limit(runtime);
-    state->response_limit = msconnector_runtime_response_body_limit(runtime);
     state->upstream = -1;
+    state->payload.request_spool_fd = -1;
     state->failure_status = 502;
     state->failure_origin = SIDECAR_FAILURE_CONNECTOR;
 }
@@ -983,38 +1019,261 @@ static int sidecar_read_final_response_headers(sidecar_exchange_state *state) {
 static int sidecar_runtime_limits_supported(const msconnector_runtime *runtime) {
     return runtime != NULL &&
         msconnector_runtime_header_count_limit(runtime) <= MSCONNECTOR_MAX_HEADER_COUNT &&
-        msconnector_runtime_total_header_limit(runtime) <= MSCONNECTOR_MAX_TOTAL_HEADER_BYTES &&
-        msconnector_runtime_request_body_limit(runtime) <= MSCONNECTOR_MAX_BODY_BUFFER_SIZE &&
-        msconnector_runtime_response_body_limit(runtime) <=
-            MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE;
+        msconnector_runtime_total_header_limit(runtime) <= MSCONNECTOR_MAX_TOTAL_HEADER_BYTES;
+}
+
+/* Request data remains private and unlinked while native P2 runs.  Replay
+ * starts only after its actual allow result; RAM use is one fixed IO chunk. */
+static int sidecar_open_request_spool(int directory_fd) {
+    unsigned char random[16];
+    char name[sizeof("request-") + sizeof(random) * 2U];
+    static const char hex[] = "0123456789abcdef";
+    struct stat info;
+    int descriptor;
+    if (directory_fd < 0 || RAND_bytes(random, sizeof(random)) != 1) return -1;
+    memcpy(name, "request-", 8U);
+    for (size_t index = 0U; index < sizeof(random); ++index) {
+        name[8U + index * 2U] = hex[random[index] >> 4U];
+        name[9U + index * 2U] = hex[random[index] & 15U];
+    }
+    name[sizeof(name) - 1U] = '\0';
+    descriptor = openat(directory_fd, name,
+        O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (descriptor < 0) return -1;
+    if (unlinkat(directory_fd, name, 0) != 0) {
+        close(descriptor);
+        (void)unlinkat(directory_fd, name, 0);
+        return -1;
+    }
+    if (fstat(descriptor, &info) != 0 || !S_ISREG(info.st_mode) ||
+        info.st_uid != geteuid() || (info.st_mode & 0777) != 0600 || info.st_nlink != 0) {
+        close(descriptor);
+        return -1;
+    }
+    return descriptor;
+}
+
+static int sidecar_spool_ancestor_pair_safe(int parent_fd, int child_fd) {
+    struct stat parent;
+    struct stat child;
+    if (fstat(parent_fd, &parent) != 0 || fstat(child_fd, &child) != 0 ||
+        (parent.st_uid != geteuid() && parent.st_uid != 0) ||
+        (child.st_uid != geteuid() && child.st_uid != 0)) return 0;
+    return (parent.st_mode & (S_IWGRP | S_IWOTH)) == 0 ||
+        ((parent.st_mode & S_ISVTX) != 0 && child.st_uid == geteuid());
+}
+
+static int sidecar_spool_directory_is_private(int directory_fd) {
+    struct stat info;
+    return fstat(directory_fd, &info) == 0 && info.st_uid == geteuid() &&
+        (info.st_mode & 0777) == 0700;
+}
+
+/* Walk through pinned no-follow descriptors; a pathname replacement cannot
+ * redirect later request file creation into another directory. */
+static int sidecar_open_spool_directory(const char *path) {
+    char copy[4096];
+    const char *component;
+    int directory_fd;
+    if (path == NULL || strlen(path) >= sizeof(copy) ||
+        !msconnector_runtime_private_directory_ancestors_are_safe(path)) return -1;
+    memcpy(copy, path, strlen(path) + 1U);
+    directory_fd = open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (directory_fd < 0) return -1;
+    component = copy + 1U;
+    while (*component != '\0') {
+        char *separator = strchr(component, '/');
+        int next;
+        if (separator != NULL) *separator = '\0';
+        next = openat(directory_fd, component,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        if (next < 0 || !sidecar_spool_ancestor_pair_safe(directory_fd, next)) {
+            if (next >= 0) close(next);
+            close(directory_fd);
+            return -1;
+        }
+        close(directory_fd);
+        directory_fd = next;
+        if (separator == NULL) break;
+        component = separator + 1U;
+    }
+    if (!sidecar_spool_directory_is_private(directory_fd)) {
+        close(directory_fd);
+        return -1;
+    }
+    /* The lifetime lock prevents independent processes from bypassing the
+     * aggregate admission budget in the same pinned directory. */
+    if (flock(directory_fd, LOCK_EX | LOCK_NB) != 0) {
+        close(directory_fd);
+        return -1;
+    }
+    struct statvfs filesystem;
+    if (fstatvfs(directory_fd, &filesystem) != 0 ||
+        filesystem.f_frsize == 0 || (filesystem.f_flag & ST_RDONLY) != 0) {
+        close(directory_fd);
+        return -1;
+    }
+    /* Readiness proves private file creation, including read-only filesystem
+     * failures, without retaining a filename or a descriptor. */
+    int probe = sidecar_open_request_spool(directory_fd);
+    if (probe < 0) { close(directory_fd); return -1; }
+    close(probe);
+    return directory_fd;
+}
+
+static int sidecar_prepare_spool_directory(sidecar_options *options) {
+    char parent[4096];
+    const char *path = options->spool_directory;
+    if (path == NULL) {
+        char *separator;
+        if (options->config == NULL || strlen(options->config) >= sizeof(parent)) return 0;
+        memcpy(parent, options->config, strlen(options->config) + 1U);
+        separator = strrchr(parent, '/');
+        if (separator == NULL || separator == parent) return 0;
+        *separator = '\0';
+        path = parent;
+    }
+    options->spool_directory_fd = sidecar_open_spool_directory(path);
+    return options->spool_directory_fd >= 0;
+}
+
+/* Checked arithmetic uses unprivileged available blocks, never f_bfree. */
+static int sidecar_spool_space(int fd, size_t requested, size_t reserve,
+                               size_t *rounded) {
+    struct statvfs filesystem;
+    if (fstatvfs(fd, &filesystem) != 0) return 0;
+    if ((filesystem.f_flag & ST_RDONLY) != 0 || filesystem.f_frsize == 0 ||
+        filesystem.f_frsize > SIZE_MAX || filesystem.f_bavail > SIZE_MAX) {
+        errno = EOVERFLOW;
+        return 0;
+    }
+    size_t block = (size_t)filesystem.f_frsize;
+    size_t blocks = requested / block;
+    if (requested % block != 0) ++blocks;
+    if (blocks > SIZE_MAX / block || (size_t)filesystem.f_bavail > SIZE_MAX / block) {
+        errno = EOVERFLOW;
+        return 0;
+    }
+    *rounded = blocks * block;
+    size_t available = (size_t)filesystem.f_bavail * block;
+    if (available < reserve || *rounded > available - reserve) {
+        errno = ENOSPC;
+        return 0;
+    }
+    return 1;
+}
+
+static void sidecar_release_request_spool(sidecar_exchange_state *state) {
+    sidecar_spool_budget *budget = state->dependencies.spool_budget;
+    if (state->payload.request_spool_fd >= 0) {
+        /* Release the actual disk extent before making capacity reusable. */
+        close(state->payload.request_spool_fd);
+        state->payload.request_spool_fd = -1;
+    }
+    if (state->payload.spool_reservation != 0U) {
+        (void)pthread_mutex_lock(&budget->lock);
+        budget->reserved -= state->payload.spool_reservation;
+        state->payload.spool_reservation = 0U;
+        (void)pthread_mutex_unlock(&budget->lock);
+    }
+}
+
+static int sidecar_admit_request_spool(sidecar_exchange_state *state) {
+    sidecar_spool_budget *budget = state->dependencies.spool_budget;
+    size_t requested = state->payload.request_headers.content_length;
+    size_t rounded = 0U;
+    off_t length = (off_t)requested;
+    int result = 0;
+    int allocation_error;
+    /* No body chunk is passed to the engine until disk admission succeeds.
+     * Regular-file allocation is synchronous; deadline checks bound the
+     * exchange before/after it, but cannot cancel a blocked filesystem call. */
+    state->failure_status = 503;
+    if (length < 0 || (uintmax_t)length != (uintmax_t)requested) {
+        errno = EOVERFLOW;
+        return 0;
+    }
+    if (sidecar_remaining(&state->deadline) == 0) return 0;
+    (void)pthread_mutex_lock(&budget->lock);
+    if (sidecar_remaining(&state->deadline) == 0 ||
+        !sidecar_spool_space(state->dependencies.options->spool_directory_fd,
+            requested, budget->free_reserve, &rounded)) goto done;
+    if (budget->reserved > budget->capacity || rounded > budget->capacity - budget->reserved) {
+        errno = ENOSPC;
+        goto done;
+    }
+    state->payload.request_spool_fd = sidecar_open_request_spool(
+        state->dependencies.options->spool_directory_fd);
+    if (state->payload.request_spool_fd < 0) goto done;
+    allocation_error = posix_fallocate(state->payload.request_spool_fd, 0, length);
+    if (allocation_error != 0) { errno = allocation_error; goto done; }
+    /* Other filesystem users can consume space between the first check and
+     * allocation. A failed post-check rolls the new extent back by close. */
+    size_t ignored;
+    if (!sidecar_spool_space(state->dependencies.options->spool_directory_fd,
+            0U, budget->free_reserve, &ignored) ||
+        sidecar_remaining(&state->deadline) == 0) goto done;
+    budget->reserved += rounded;
+    state->payload.spool_reservation = rounded;
+    state->failure_status = 502;
+    result = 1;
+done:
+    if (!result && state->payload.request_spool_fd >= 0) {
+        int saved_errno = errno;
+        close(state->payload.request_spool_fd);
+        state->payload.request_spool_fd = -1;
+        errno = saved_errno;
+    }
+    (void)pthread_mutex_unlock(&budget->lock);
+    return result;
 }
 
 static int sidecar_read_request_body(sidecar_exchange_state *state) {
+    unsigned char chunk[SIDECAR_IO_CHUNK];
     while (state->payload.body_read < state->payload.request_headers.content_length) {
         size_t received;
+        size_t written = 0U;
         size_t wanted = state->payload.request_headers.content_length - state->payload.body_read;
-        if (wanted > SIDECAR_IO_CHUNK) {
-            wanted = SIDECAR_IO_CHUNK;
+        if (wanted > sizeof(chunk)) wanted = sizeof(chunk);
+        if (!sidecar_recv_some(state->client, chunk, wanted, &state->deadline, &received)) {
+            state->failure_origin = SIDECAR_FAILURE_CLIENT; return 0;
         }
-        if (!sidecar_recv_some(state->client, state->payload.request_body + state->payload.body_read,
-                               wanted, &state->deadline, &received)) {
-            state->failure_origin = SIDECAR_FAILURE_CLIENT;
-            return 0;
+        if (msconnector_runtime_transaction_append_request_body_chunk(state->transaction,
+                chunk, received, &state->error) != 1) {
+            state->failure_status = msconnector_runtime_error_http_status(state->dependencies.runtime,
+                state->error.code); return 0;
         }
-        if (!msconnector_runtime_transaction_append_request_body_chunk(
-                state->transaction, state->payload.request_body + state->payload.body_read, received,
-                &state->error)) {
-            state->failure_status = msconnector_runtime_error_http_status(
-                state->dependencies.runtime, state->error.code);
-            return 0;
+        while (written < received) {
+            ssize_t count = write(state->payload.request_spool_fd, chunk + written, received - written);
+            if (count < 0 && errno == EINTR) continue;
+            if (count <= 0) { state->failure_status = 503; return 0; }
+            written += (size_t)count;
         }
         state->payload.body_read += received;
+    }
+    return 1;
+}
+static int sidecar_replay_request_body(const sidecar_exchange_state *state) {
+    unsigned char chunk[SIDECAR_IO_CHUNK];
+    size_t replayed = 0U;
+    if (state->payload.body_read == 0U) return 1;
+    if (lseek(state->payload.request_spool_fd, 0, SEEK_SET) < 0) return 0;
+    while (replayed < state->payload.body_read) {
+        size_t wanted = state->payload.body_read - replayed;
+        ssize_t count;
+        if (wanted > sizeof(chunk)) wanted = sizeof(chunk);
+        count = read(state->payload.request_spool_fd, chunk, wanted);
+        if (count < 0 && errno == EINTR) continue;
+        if (count <= 0 || (size_t)count > wanted || !sidecar_send_all(state->upstream,
+                chunk, (size_t)count, &state->deadline)) return 0;
+        replayed += (size_t)count;
     }
     return 1;
 }
 
 static int sidecar_read_response_body(sidecar_exchange_state *state) {
     unsigned char chunk[SIDECAR_IO_CHUNK];
+    if (state->handled) return 0;
     while (state->payload.body_read < state->payload.response_headers.content_length) {
         size_t received;
         size_t wanted = state->payload.response_headers.content_length - state->payload.body_read;
@@ -1025,9 +1284,9 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
             state->failure_origin = SIDECAR_FAILURE_UPSTREAM;
             return 0;
         }
-        if (!msconnector_runtime_transaction_append_response_body_chunk(
+        if (msconnector_runtime_transaction_append_response_body_chunk(
                 state->transaction, chunk, received,
-                &state->error)) {
+                &state->error) != 1) {
             state->failure_origin = SIDECAR_FAILURE_CONNECTOR;
             return 0;
         }
@@ -1043,8 +1302,8 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
                 return 0;
             }
         }
-        if (!msconnector_runtime_transaction_set_response_commit_state_checked(
-                state->transaction, 1, 1, &state->error)) {
+        if (msconnector_runtime_transaction_set_response_commit_state_checked(
+                state->transaction, 1, 1, &state->error) != 1) {
             state->failure_status = msconnector_runtime_error_http_status(
                 state->dependencies.runtime, state->error.code);
             return 0;
@@ -1055,8 +1314,8 @@ static int sidecar_read_response_body(sidecar_exchange_state *state) {
 }
 
 static void sidecar_finish_decision(sidecar_exchange_state *state) {
-    if (!sidecar_write_decision(state->client, &state->decision, &state->deadline)) {
-        sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
+    if (!sidecar_write_decision(state->client, &state->decision, &state->deadline, &state->client_stop)) {
+        sidecar_record_decision_delivery_failure(state->client, &state->client_stop, state->transaction, &state->decision,
                                                   &state->error);
     } else {
         sidecar_record_action(state->transaction, &state->decision, &state->error);
@@ -1085,8 +1344,8 @@ static int sidecar_forward_response(sidecar_exchange_state *state) {
         return 0;
     }
     state->client_response_started = 1;
-    if (!msconnector_runtime_transaction_set_response_commit_state_checked(
-            state->transaction, 1, 0, &state->error)) {
+    if (msconnector_runtime_transaction_set_response_commit_state_checked(
+            state->transaction, 1, 0, &state->error) != 1) {
         state->failure_status = msconnector_runtime_error_http_status(
             state->dependencies.runtime, state->error.code);
         return 0;
@@ -1371,40 +1630,40 @@ static int sidecar_exchange_request(sidecar_exchange_state *state) {
     request.server.port = state->endpoints.server_port;
     request.headers = state->payload.request_headers.items;
     request.header_count = state->payload.request_headers.count;
-    if (!msconnector_runtime_transaction_begin(state->dependencies.runtime, &request, NULL,
+    if (msconnector_runtime_transaction_begin_request_stream(state->dependencies.runtime, &request, NULL,
                                                &state->transaction, &state->decision,
-                                               &state->error)) {
+                                               &state->error) != 1) {
         return 0;
     }
     if (msconnector_decision_is_disruptive(&state->decision)) {
         sidecar_finish_decision(state);
         return 0;
     }
-    if (state->payload.request_headers.content_length > state->request_limit) {
-        int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
-            MSCONNECTOR_ERROR_BODY_TOO_LARGE);
-        int written;
-        (void)msconnector_runtime_transaction_fail(state->transaction,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &state->error);
-        written = sidecar_write_error(state->client, status, &state->deadline);
-        sidecar_record_failure_action(state->transaction, status, written, &state->error);
-        (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
-        state->handled = 1;
-        return 0;
-    }
-    if (state->payload.request_headers.content_length > 0U) {
-        state->payload.request_body = malloc(state->payload.request_headers.content_length);
-        if (state->payload.request_body == NULL) return 0;
-        if (!sidecar_read_request_body(state)) return 0;
-    }
-    if (!msconnector_runtime_transaction_finish_request_body(state->transaction,
+    if (state->payload.request_headers.content_length > 0U &&
+        (!sidecar_admit_request_spool(state) || !sidecar_read_request_body(state))) return 0;
+    if (msconnector_runtime_transaction_finish_request_body(state->transaction,
                                                               &state->decision,
-                                                              &state->error)) return 0;
+                                                              &state->error) != 1) return 0;
     if (msconnector_decision_is_disruptive(&state->decision)) {
         sidecar_finish_decision(state);
         return 0;
     }
     return 1;
+}
+
+static int sidecar_finish_strict_response(sidecar_exchange_state *state) {
+    if (sidecar_shutdown_owned_socket(state->client, &state->client_stop)) {
+        (void)msconnector_runtime_transaction_record_host_action(
+            state->transaction, &state->decision,
+            MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION,
+            0, "connection_aborted", 1, &state->error);
+    } else {
+        sidecar_record_decision_delivery_failure(state->client, &state->client_stop,
+            state->transaction, &state->decision, &state->error);
+    }
+    (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
+    state->handled = 1;
+    return 0;
 }
 
 static int sidecar_exchange_response(sidecar_exchange_state *state) {
@@ -1426,36 +1685,21 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
             return 0;
         }
         if (!sidecar_write_upstream_request(state->upstream, request_line,
-                &state->payload.request_headers, state->payload.request_body, state->payload.body_read,
+                &state->payload.request_headers, NULL, 0U,
                 &state->deadline)) {
             state->failure_origin = SIDECAR_FAILURE_UPSTREAM;
             return 0;
         }
     }
+    if (!sidecar_replay_request_body(state)) { state->failure_origin = SIDECAR_FAILURE_UPSTREAM; return 0; }
     if (!sidecar_read_final_response_headers(state)) return 0;
-    if (!state->payload.response_headers.no_body &&
-        state->payload.response_headers.content_length >
-            msconnector_phase4_effective_body_limit(
-                msconnector_runtime_phase4_mode(state->dependencies.runtime),
-                state->response_limit)) {
-        int status = msconnector_runtime_error_http_status(state->dependencies.runtime,
-            MSCONNECTOR_ERROR_BODY_TOO_LARGE);
-        int written;
-        (void)msconnector_runtime_transaction_fail(state->transaction,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &state->error);
-        written = sidecar_write_error(state->client, status, &state->deadline);
-        sidecar_record_failure_action(state->transaction, status, written, &state->error);
-        (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
-        state->handled = 1;
-        return 0;
-    }
     memset(&response, 0, sizeof(response));
     response.status = state->payload.response_headers.status_code;
     response.http_version = state->payload.response_headers.version;
     response.headers = state->payload.response_headers.items;
     response.header_count = state->payload.response_headers.count;
-    if (!msconnector_runtime_transaction_process_response_headers(state->transaction,
-            &response, &state->decision, &state->error)) return 0;
+    if (msconnector_runtime_transaction_process_response_headers(state->transaction,
+            &response, &state->decision, &state->error) != 1) return 0;
     state->response_blocked = msconnector_decision_is_disruptive(&state->decision);
     if (state->response_blocked) {
         sidecar_finish_decision(state);
@@ -1464,8 +1708,8 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
     if (!sidecar_forward_response(state)) return 0;
     state->payload.body_read = 0U;
     if (!state->payload.response_headers.no_body && !sidecar_read_response_body(state)) return 0;
-    if (!msconnector_runtime_transaction_finish_response_body(state->transaction,
-            &state->decision, &state->error)) return 0;
+    if (msconnector_runtime_transaction_finish_response_body(state->transaction,
+            &state->decision, &state->error) != 1) return 0;
     if (msconnector_decision_is_disruptive(&state->decision)) {
         enum msconnector_phase4_mode phase4_mode =
             msconnector_runtime_phase4_mode(state->dependencies.runtime);
@@ -1479,23 +1723,18 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
                 state->transaction, &state->decision,
                 MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
                 state->payload.response_headers.status_code, "log_only", 0,
-                &state->error);
+                &state->error) == 1;
         }
         action = sidecar_phase4_action(state->client_response_started, phase4_mode);
         if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION) {
-            (void)shutdown(state->client, SHUT_RDWR);
-            sidecar_record_decision_delivery_failure(state->transaction, &state->decision,
-                                                      &state->error);
-            (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
-            state->handled = 1;
-            return 0;
+            return sidecar_finish_strict_response(state);
         }
         if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY) {
-            (void)msconnector_runtime_transaction_record_host_action(
-                state->transaction, &state->decision,
-                MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
-                state->payload.response_headers.status_code, "log_only", 0,
-                &state->error);
+            if (msconnector_runtime_transaction_record_host_action(
+                    state->transaction, &state->decision,
+                    MSCONNECTOR_DECISION_ACTION_LOG_ONLY,
+                    state->payload.response_headers.status_code, "log_only", 0,
+                    &state->error) != 1) return 0;
         } else {
             sidecar_record_action(state->transaction, &state->decision, &state->error);
         }
@@ -1505,39 +1744,56 @@ static int sidecar_exchange_response(sidecar_exchange_state *state) {
 
 static void sidecar_exchange_error(sidecar_exchange_state *state) {
     int status;
+    msconnector_error completion_error;
     int response_written = 0;
+    if (state->handled) return;
+    state->handled = 1;
+    msconnector_error_init(&completion_error);
+    /* A later deadline must not replace the first typed failure or its status.
+     * Completion APIs use scratch diagnostics to retain that original error. */
+    if (state->failure_status == 503) {
+        status = 503;
+    } else if (state->error.code != MSCONNECTOR_ERROR_NONE) {
+        status = msconnector_runtime_error_http_status(state->dependencies.runtime,
+            state->error.code);
+    } else if (sidecar_remaining(&state->deadline) == 0) {
+        status = 504;
+    } else {
+        status = state->transaction == NULL ? 502 : state->failure_status;
+    }
     if (state->transaction == NULL) {
-        (void)sidecar_write_error(state->client,
-            sidecar_remaining(&state->deadline) == 0 ? 504 : 502, &state->deadline);
+        (void)sidecar_write_error(state->client, status, &state->deadline);
         return;
     }
-    status = sidecar_remaining(&state->deadline) == 0 ? 504 : state->failure_status;
-    if (sidecar_remaining(&state->deadline) == 0) {
-        (void)msconnector_runtime_transaction_timeout(state->transaction, &state->error);
+    if (state->failure_status != 503 && state->error.code == MSCONNECTOR_ERROR_NONE &&
+            sidecar_remaining(&state->deadline) == 0) {
+        (void)msconnector_runtime_transaction_timeout(state->transaction, &completion_error);
     } else {
         (void)msconnector_runtime_transaction_fail(state->transaction,
-            sidecar_failure_error_class(state->failure_origin), &state->error);
+            sidecar_failure_error_class(state->failure_origin), &completion_error);
     }
     if (!state->client_response_started) {
         response_written = sidecar_write_error(state->client, status, &state->deadline);
     }
-    sidecar_record_failure_action(state->transaction, status, response_written, &state->error);
-    (void)msconnector_runtime_transaction_finish(state->transaction, &state->error);
+    sidecar_record_failure_action(state->client, &state->client_stop, state->transaction, status, response_written, &completion_error);
+    (void)msconnector_runtime_transaction_finish(state->transaction, &completion_error);
 }
 
 static int sidecar_exchange(int client, const sidecar_options *options,
-                            msconnector_runtime *runtime) {
+                            msconnector_runtime *runtime, sidecar_spool_budget *budget) {
     sidecar_exchange_state state;
     msconnector_runtime_transaction_snapshot receipt_snapshot;
     int receipt_ready = 0;
     sidecar_exchange_state_init(&state, client, options, runtime);
-    if (!(sidecar_exchange_request(&state) && sidecar_exchange_response(&state)) &&
-        !state.handled) {
+    state.dependencies.spool_budget = budget;
+    state.result = sidecar_exchange_request(&state) && sidecar_exchange_response(&state);
+    if (!state.result && !state.handled) {
         sidecar_exchange_error(&state);
     }
     if (state.transaction != NULL) {
         receipt_ready = msconnector_runtime_transaction_finalize_and_snapshot(
-            &state.transaction, &receipt_snapshot, &state.error);
+            &state.transaction, &receipt_snapshot, &state.error) == 1;
+        if (!receipt_ready) state.result = 0;
     }
     if (state.upstream >= 0) close(state.upstream);
     if (receipt_ready) {
@@ -1545,295 +1801,28 @@ static int sidecar_exchange(int client, const sidecar_options *options,
                 MSCONNECTOR_TRANSACTION_DECISION_ALLOW &&
                 receipt_snapshot.contract.action == MSCONNECTOR_DECISION_ACTION_ALLOW &&
                 receipt_snapshot.contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE ?
-            sidecar_write_allow_receipt(&receipt_snapshot,
-                state.payload.response_headers.status_code) :
-            sidecar_write_non_allow_receipt(&receipt_snapshot);
+            state.result && sidecar_write_allow_receipt(&receipt_snapshot,
+                state.payload.response_headers.status_code) : 0;
+        if (!state.result) (void)sidecar_write_non_allow_receipt(&receipt_snapshot);
     }
     msconnector_runtime_transaction_destroy(&state.transaction);
     sidecar_headers_release(&state.payload.request_headers);
     sidecar_headers_release(&state.payload.response_headers);
-    free(state.payload.request_body);
+    sidecar_release_request_spool(&state);
     free(state.payload.response_block);
     free(state.payload.request_block);
+    if (!sidecar_shutdown_owned_socket(client, &state.client_stop)) state.result = 0;
     return state.result;
 }
 
-/* The exchange above deliberately keeps each phase in a separate bounded
- * helper.  This is the host adapter's transaction boundary: request parsing
- * and P1/P2 complete before upstream I/O, and response P3/P4 complete before
- * the response is committed to the client. */
-#if 0
-static int sidecar_exchange_legacy(int client, const sidecar_options *options,
-                            msconnector_runtime *runtime) {
-    sidecar_deadline deadline = { sidecar_now_ms() + options->timeout_ms };
-    size_t header_limit = msconnector_runtime_total_header_limit(runtime);
-    size_t count_limit = msconnector_runtime_header_count_limit(runtime);
-    size_t request_limit = msconnector_runtime_request_body_limit(runtime);
-    size_t response_limit = msconnector_runtime_response_body_limit(runtime);
-    char *request_block = NULL;
-    char *response_block = NULL;
-    size_t request_size = 0U;
-    size_t response_size = 0U;
-    sidecar_headers request_headers;
-    sidecar_headers response_headers;
-    msconnector_runtime_transaction *transaction = NULL;
-    msconnector_decision decision;
-    msconnector_error error;
-    unsigned char *request_body = NULL;
-    unsigned char *response_body = NULL;
-    size_t body_read = 0U;
-    int upstream = -1;
-    int result = 0;
-    int request_is_head = 0;
-    int response_blocked = 0;
-    int client_response_started = 0;
-    int failure_status = 502;
-    sidecar_failure_origin failure_origin = SIDECAR_FAILURE_CONNECTOR;
-    memset(&request_headers, 0, sizeof(request_headers));
-    memset(&response_headers, 0, sizeof(response_headers));
-    if (!sidecar_read_header_block(client, &deadline, header_limit, &request_block, &request_size)) {
-        (void)sidecar_write_error(client, 400, &deadline);
-        goto cleanup;
-    }
-    if (!sidecar_parse_headers(request_block, request_size, header_limit, count_limit, 1, 0, &request_headers)) {
-        (void)sidecar_write_error(client, 400, &deadline);
-        goto cleanup;
-    }
-    if (request_headers.chunked || request_headers.upgrade) {
-        (void)sidecar_write_error(client, 400, &deadline);
-        goto cleanup;
-    }
-    {
-        msconnector_request request;
-        const char *host = "";
-        request_is_head = strcasecmp(request_headers.method, "HEAD") == 0;
-        {
-            for (size_t i = 0U; i < request_headers.count; ++i) {
-                if (strcasecmp(request_headers.items[i].name, "Host") == 0) {
-                    host = request_headers.items[i].value;
-                    break;
-                }
-            }
-        }
-        memset(&request, 0, sizeof(request));
-        request.method = request_headers.method;
-        request.uri = request_headers.uri;
-        request.http_version = request_headers.version;
-        request.hostname = host;
-        request.headers = request_headers.items;
-        request.header_count = request_headers.count;
-        request.body.data = NULL;
-        request.body.size = 0U;
-        if (!msconnector_runtime_transaction_begin(runtime, &request, NULL, &transaction,
-                                                    &decision, &error)) goto runtime_error;
-        if (msconnector_decision_is_disruptive(&decision)) {
-            if (!sidecar_write_decision(client, &decision, &deadline)) {
-                sidecar_record_decision_delivery_failure(transaction, &decision, &error);
-                (void)msconnector_runtime_transaction_finish(transaction, &error);
-                goto cleanup;
-            }
-            sidecar_record_action(transaction, &decision, &error);
-            (void)msconnector_runtime_transaction_finish(transaction, &error);
-            goto cleanup;
-        }
-    }
-    if (request_headers.content_length > request_limit) {
-        int response_written;
-        failure_status = msconnector_runtime_error_http_status(runtime,
-            MSCONNECTOR_ERROR_BODY_TOO_LARGE);
-        (void)msconnector_runtime_transaction_fail(transaction,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &error);
-        response_written = sidecar_write_error(client, failure_status, &deadline);
-        sidecar_record_failure_action(transaction, failure_status, response_written, &error);
-        (void)msconnector_runtime_transaction_finish(transaction, &error);
-        goto cleanup;
-    }
-    if (request_headers.content_length > 0U) {
-        request_body = malloc(request_headers.content_length);
-        if (request_body == NULL) goto transaction_error;
-        while (body_read < request_headers.content_length) {
-            size_t received;
-            size_t wanted = request_headers.content_length - body_read;
-            if (wanted > SIDECAR_IO_CHUNK) wanted = SIDECAR_IO_CHUNK;
-            if (!sidecar_recv_some(client, request_body + body_read, wanted, &deadline, &received)) { failure_origin = SIDECAR_FAILURE_CLIENT; goto transaction_error; }
-            if (!msconnector_runtime_transaction_append_request_body_chunk(transaction, request_body + body_read, received, &error)) {
-                failure_status = msconnector_runtime_error_http_status(runtime, error.code);
-                goto transaction_error;
-            }
-            body_read += received;
-        }
-    }
-    if (!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error)) goto transaction_error;
-    if (msconnector_decision_is_disruptive(&decision)) {
-        if (!sidecar_write_decision(client, &decision, &deadline)) {
-            sidecar_record_decision_delivery_failure(transaction, &decision, &error);
-            (void)msconnector_runtime_transaction_finish(transaction, &error);
-            goto cleanup;
-        }
-        sidecar_record_action(transaction, &decision, &error);
-        (void)msconnector_runtime_transaction_finish(transaction, &error);
-        goto cleanup;
-    }
-    upstream = sidecar_connect(options->upstream, &deadline);
-    if (upstream < 0) { failure_origin = SIDECAR_FAILURE_UPSTREAM; goto transaction_error; }
-    {
-        char request_line[600];
-        (void)snprintf(request_line, sizeof(request_line), "%s %s HTTP/1.1\r\n",
-                       request_headers.method, request_headers.uri);
-        if (!sidecar_write_upstream_request(upstream, request_line, &request_headers, request_body, body_read, &deadline)) { failure_origin = SIDECAR_FAILURE_UPSTREAM; goto transaction_error; }
-    }
-    if (!sidecar_read_header_block(upstream, &deadline, header_limit, &response_block, &response_size)) {
-        failure_origin = SIDECAR_FAILURE_UPSTREAM;
-        goto transaction_error;
-    }
-    if (!sidecar_parse_headers(response_block, response_size, header_limit, count_limit, 0,
-                               request_is_head, &response_headers) || response_headers.chunked ||
-        response_headers.upgrade) {
-        failure_origin = SIDECAR_FAILURE_PROTOCOL;
-        goto transaction_error;
-    }
-    if (response_headers.content_length > response_limit) {
-        int response_written;
-        failure_status = msconnector_runtime_error_http_status(runtime, MSCONNECTOR_ERROR_BODY_TOO_LARGE);
-        (void)msconnector_runtime_transaction_fail(transaction,
-            MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &error);
-        response_written = sidecar_write_error(client, failure_status, &deadline);
-        sidecar_record_failure_action(transaction, failure_status, response_written, &error);
-        (void)msconnector_runtime_transaction_finish(transaction, &error);
-        goto cleanup;
-    }
-    {
-        msconnector_response response;
-        memset(&response, 0, sizeof(response));
-        response.status = response_headers.status_code;
-        response.http_version = response_headers.version;
-        response.headers = response_headers.items;
-        response.header_count = response_headers.count;
-        if (!msconnector_runtime_transaction_process_response_headers(transaction, &response, &decision, &error)) {
-            failure_origin = SIDECAR_FAILURE_CONNECTOR;
-            goto transaction_error;
-        }
-        response_blocked = msconnector_decision_is_disruptive(&decision);
-        if (response_blocked) {
-            if (!sidecar_write_decision(client, &decision, &deadline)) {
-                sidecar_record_decision_delivery_failure(transaction, &decision, &error);
-                (void)msconnector_runtime_transaction_finish(transaction, &error);
-                goto cleanup;
-            }
-            sidecar_record_action(transaction, &decision, &error);
-            (void)msconnector_runtime_transaction_finish(transaction, &error);
-            goto cleanup;
-        }
-    }
-    if (response_headers.content_length > 0U && !response_headers.no_body) {
-        response_body = malloc(response_headers.content_length);
-        if (response_body == NULL) goto transaction_error;
-        body_read = 0U;
-        while (body_read < response_headers.content_length) {
-            size_t received;
-            size_t wanted = response_headers.content_length - body_read;
-            if (wanted > SIDECAR_IO_CHUNK) wanted = SIDECAR_IO_CHUNK;
-            if (!sidecar_recv_some(upstream, response_body + body_read, wanted, &deadline, &received)) {
-                failure_origin = SIDECAR_FAILURE_UPSTREAM;
-                goto transaction_error;
-            }
-            if (!msconnector_runtime_transaction_append_response_body_chunk(transaction, response_body + body_read, received, &error)) {
-                failure_origin = SIDECAR_FAILURE_CONNECTOR;
-                goto transaction_error;
-            }
-            body_read += received;
-        }
-    }
-    if (!msconnector_runtime_transaction_finish_response_body(transaction, &decision, &error)) goto transaction_error;
-    if (response_blocked || msconnector_decision_is_disruptive(&decision)) {
-        if (!sidecar_write_decision(client, &decision, &deadline)) {
-            sidecar_record_decision_delivery_failure(transaction, &decision, &error);
-            (void)msconnector_runtime_transaction_finish(transaction, &error);
-            goto cleanup;
-        }
-        sidecar_record_action(transaction, &decision, &error);
-    } else {
-        char status_line[64];
-        size_t response_body_size = response_headers.no_body ? 0U :
-            response_headers.content_length;
-        (void)snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d Proxied\r\n",
-                       response_headers.status_code);
-        if (!sidecar_write_upstream_response_headers(client, status_line,
-                                                     &response_headers, &deadline)) {
-            failure_origin = SIDECAR_FAILURE_CLIENT;
-            goto transaction_error;
-        }
-        client_response_started = 1;
-        if (!msconnector_runtime_transaction_set_response_commit_state_checked(transaction, 1, 0,
-                                                                                &error)) {
-            failure_status = msconnector_runtime_error_http_status(runtime, error.code);
-            goto transaction_error;
-        }
-        if (response_body_size > 0U) {
-            size_t bytes_sent = 0U;
-            if (!sidecar_send_all_observed(client, response_body, response_body_size,
-                                           &deadline, &bytes_sent)) {
-                if (bytes_sent > 0U) {
-                    (void)msconnector_runtime_transaction_set_response_commit_state_checked(
-                        transaction, 1, 1, &error);
-                }
-                failure_origin = SIDECAR_FAILURE_CLIENT;
-                goto transaction_error;
-            }
-            if (!msconnector_runtime_transaction_set_response_commit_state_checked(transaction, 1, 1,
-                                                                                    &error)) {
-                failure_status = msconnector_runtime_error_http_status(runtime, error.code);
-                goto transaction_error;
-            }
-        }
-    }
-    (void)msconnector_runtime_transaction_finish(transaction, &error);
-    result = 1;
-    goto cleanup;
-runtime_error:
-    if (transaction != NULL) {
-        int status = sidecar_remaining(&deadline) == 0 ? 504 : 502;
-        int response_written;
-        if (sidecar_remaining(&deadline) == 0) (void)msconnector_runtime_transaction_timeout(transaction, &error);
-        else (void)msconnector_runtime_transaction_fail(transaction,
-            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &error);
-        response_written = sidecar_write_error(client, status, &deadline);
-        sidecar_record_failure_action(transaction, status, response_written, &error);
-        (void)msconnector_runtime_transaction_finish(transaction, &error);
-    } else {
-        (void)sidecar_write_error(client, sidecar_remaining(&deadline) == 0 ? 504 : 502, &deadline);
-    }
-    goto cleanup;
-transaction_error:
-    if (transaction != NULL) {
-        int status = sidecar_remaining(&deadline) == 0 ? 504 : failure_status;
-        int response_written = 0;
-        if (sidecar_remaining(&deadline) == 0) (void)msconnector_runtime_transaction_timeout(transaction, &error);
-        else (void)msconnector_runtime_transaction_fail(transaction,
-            sidecar_failure_error_class(failure_origin), &error);
-        if (!client_response_started) {
-            response_written = sidecar_write_error(client, status, &deadline);
-        }
-        sidecar_record_failure_action(transaction, status, response_written, &error);
-        (void)msconnector_runtime_transaction_finish(transaction, &error);
-    }
-cleanup:
-    if (upstream >= 0) close(upstream);
-    msconnector_runtime_transaction_destroy(&transaction);
-    sidecar_headers_release(&request_headers);
-    sidecar_headers_release(&response_headers);
-    free(request_body);
-    free(response_body);
-    free(response_block);
-    return result;
-}
-#endif
+
 
 static void *sidecar_worker_main(void *argument) {
     sidecar_worker *worker = argument;
     sidecar_runtime_context *context = worker->context;
-    (void)sidecar_exchange(worker->client, context->options, context->runtime);
-    (void)shutdown(worker->client, SHUT_RDWR);
+    (void)sidecar_exchange(worker->client, context->options, context->runtime, &context->spool_budget);
+    /* Exchange owns the single shutdown attempt for normal, rejected and
+     * failed requests. Close only releases the descriptor. */
     close(worker->client);
     (void)pthread_mutex_lock(&context->lock);
     --context->active;
@@ -1845,12 +1834,22 @@ static void *sidecar_worker_main(void *argument) {
 static int sidecar_parse_args(int argc, char **argv, sidecar_options *options) {
     memset(options, 0, sizeof(*options));
     options->timeout_ms = SIDECAR_DEFAULT_TIMEOUT_MS;
+    options->spool_directory_fd = -1;
+    options->spool_capacity_bytes = SIDECAR_DEFAULT_SPOOL_CAPACITY;
+    options->spool_free_reserve_bytes = SIDECAR_DEFAULT_SPOOL_FREE_RESERVE;
     for (size_t i = 1U; i < (size_t)argc; i += 2U) {
         if (i + 1U >= (size_t)argc) return 0;
         if (strcmp(argv[i], "--config") == 0) options->config = argv[i + 1U];
         else if (strcmp(argv[i], "--listen") == 0) options->listen = argv[i + 1U];
         else if (strcmp(argv[i], "--upstream") == 0) options->upstream = argv[i + 1U];
-        else if (strcmp(argv[i], "--timeout-ms") == 0) {
+        else if (strcmp(argv[i], "--spool-directory") == 0) options->spool_directory = argv[i + 1U];
+        else if (strcmp(argv[i], "--spool-capacity-bytes") == 0) {
+            if (!sidecar_decimal(argv[i + 1U], &options->spool_capacity_bytes) ||
+                options->spool_capacity_bytes == 0U) return 0;
+        } else if (strcmp(argv[i], "--spool-free-reserve-bytes") == 0) {
+            if (!sidecar_decimal(argv[i + 1U], &options->spool_free_reserve_bytes) ||
+                options->spool_free_reserve_bytes == 0U) return 0;
+        } else if (strcmp(argv[i], "--timeout-ms") == 0) {
             size_t value;
             if (!sidecar_decimal(argv[i + 1U], &value) || value == 0U) return 0;
             options->timeout_ms = value;
@@ -1943,14 +1942,23 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
         msconnector_runtime_destroy(&runtime);
         return 78;
     }
+    if (!sidecar_prepare_spool_directory(&options)) {
+        (void)fprintf(stderr, "private request spool unavailable; supply --spool-directory with a canonical effective-UID-owned 0700 writable directory\n");
+        msconnector_runtime_destroy(&runtime);
+        return 78;
+    }
     listener = sidecar_listener(options.listen);
     if (listener < 0) {
+        close(options.spool_directory_fd);
         msconnector_runtime_destroy(&runtime);
         return 69;
     }
     memset(&context, 0, sizeof(context));
     context.options = &options;
     context.runtime = runtime;
+    context.spool_budget.capacity = options.spool_capacity_bytes;
+    context.spool_budget.free_reserve = options.spool_free_reserve_bytes;
+    (void)pthread_mutex_init(&context.spool_budget.lock, NULL);
     (void)pthread_mutex_init(&context.lock, NULL);
     (void)signal(SIGPIPE, SIG_IGN);
     int accept_status = 0;
@@ -1966,6 +1974,8 @@ int msconnector_stock_sidecar_main(int argc, char **argv) {
     }
     close(listener);
     sidecar_wait_for_workers(&context);
+    close(options.spool_directory_fd);
+    (void)pthread_mutex_destroy(&context.spool_budget.lock);
     (void)pthread_mutex_destroy(&context.lock);
     msconnector_error_init(&error);
     msconnector_runtime_destroy(&runtime);

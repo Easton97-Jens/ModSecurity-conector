@@ -11,7 +11,7 @@ jobs:
   apache-autotools-bootstrap:
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -42,8 +42,14 @@ jobs:
             libtool \
             make
       - name: Verify Apache intervention cleanup source contract
-        run: python3 -m unittest -v tests.test_apache_intervention_cleanup
-      - name: Verify Apache Autotools bootstrap from tracked source only
+        run:  python3 ci/tools/run-active-tests.py --group apache
+      - name: Verify Apache native and APR lifecycle failures
+        run:  python3 ci/tools/run-active-tests.py --group apache
+      - name: Verify native response limits before EOS and after commit
+        run: make check-apache-native-response-limit
+      - name: Verify Apache physical event sink and caller failures
+        run: make check-apache-event-sink
+      - name: Execute selected Apache contracts (specialist bootstrap is on demand)
         env:
           APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}
           MODSECURITY_PREFIX: /usr
@@ -52,7 +58,7 @@ jobs:
   apache-structure:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -60,7 +66,7 @@ jobs:
           persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -68,6 +74,11 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
       - name: Initialize runner temp paths
         run: |
           set -eu
@@ -97,9 +108,11 @@ jobs:
           test -f config/testing/import-status.json
           test -f docs/testing-and-evidence.md
           grep -q 'Status:' connectors/apache/TODO.md
+      - name: Verify Apache collector and existing adoption mutations
+        run:  python3 ci/tools/run-active-tests.py --group apache
       - name: Syntax and dry-run checks
         run: |
           make setup-dev
           sh -n connectors/apache/harness/run_apache_smoke.sh
-          make -n smoke-apache
+          make -n check-active-inventory
           make quick-check

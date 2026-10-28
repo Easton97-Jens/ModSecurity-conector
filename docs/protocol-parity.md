@@ -7,7 +7,35 @@ evidence for HTTP/2 and HTTP/3 lifecycle parity across the six selected
 connectors. It is not a completion claim. HTTP/1.1 remains the regression
 baseline.
 
-## Update on 2026-10-24: master synchronization and NGINX issue #401
+## Update on 2026-10-28: current master and CI remediation
+
+This increment incorporates `master` revision
+`c5993ed9a7b59fc0bd58f105595ec79f596c88d6` through a normal merge,
+preserving the published PR history. Apache's negotiated P3 protocol now uses
+master's native-phase success check. NGINX retains the typed mapper errors and
+counts its synthetic HTTP/3 Host against the same received-header limit.
+Traefik combines incomplete-response/EOS handling with master's checked close,
+terminal-error and `http.ErrAbortHandler` behavior.
+
+The five failed structure/lint jobs on `ab3d4d27` shared a stale Apache checker
+expectation. The checker now requires both negotiated protocol and the native
+success guard; negative mutations cover bypasses. The NGINX checker and its
+mutations likewise enforce the combined raw/synthetic header limit. Sonar issue
+`AaF3fXFNfuQxuJn35iQJ` (`c:S859`) is addressed with a local mutable Host-name
+array instead of a const-dropping cast.
+
+Fresh local validation passed: both adoption checkers, 21 selected Python
+scenarios and 44 selected Traefik cases with the race detector. One stale
+source assertion failed initially and passed after alignment with the merged
+limit guard. The 100-case active inventory is unchanged apart from source
+digests; its admission check and regenerated archive consistency check passed.
+The Python checks used the existing local Python 3.14.4; hosted CI uses the
+repository's interpreter contract. Independent source review found no new
+validated security issue. Current-head hosted CI and Sonar validation remain
+pending at this revision. The earlier test deferral is superseded for CI repair;
+full H1/H2/H3 runtime qualification remains incomplete.
+
+## Historical update on 2026-10-24: master synchronization and NGINX issue #401
 
 PR #348 incorporates `master` revision
 `42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` through a normal merge. Envoy

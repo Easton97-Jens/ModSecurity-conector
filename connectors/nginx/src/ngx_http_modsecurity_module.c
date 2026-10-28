@@ -23,6 +23,8 @@
 #include "connectors/profile_registry.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "ngx_http_modsecurity_response_body_limit.h"
+#include "ngx_http_modsecurity_cleanup_observation.h"
 #include "msconnector/config.h"
 #include "msconnector/config_parser.h"
 #include "msconnector/directive_adapter.h"
@@ -33,6 +35,7 @@
 #include "msconnector/rule_id.h"
 #include "stdio.h"
 #include <ctype.h>
+#include <inttypes.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
 
@@ -50,14 +53,14 @@ static void ngx_http_modsecurity_cleanup_rules(void *data);
 static void ngx_http_modsecurity_cleanup_phase4_log(void *data);
 static char *ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static char *ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static char *ngx_conf_set_engine_call_budget(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
+static int ngx_http_modsecurity_process_redirect_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ModSecurityIntervention *intervention);
-static ngx_int_t ngx_http_modsecurity_process_status_intervention(
+    const ModSecurityIntervention *intervention);
+static int ngx_http_modsecurity_process_status_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ModSecurityIntervention *intervention, ngx_int_t early_log);
+    const ModSecurityIntervention *intervention, ngx_int_t early_log);
 static ngx_int_t ngx_http_modsecurity_contract_record_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     const ModSecurityIntervention *intervention);
@@ -82,6 +85,137 @@ int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
         ? NGX_OK : NGX_ERROR;
 }
 
+/* Budget telemetry contains only actual clock/API metadata. The phase-specific
+ * caller retains the existing technical error writer and host terminal action.
+ * Nothing here interrupts an Engine call or claims a hard deadline. */
+static ngx_int_t
+ngx_http_modsecurity_engine_call_log_budget(ngx_http_request_t *r,
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase,
+    const ngx_http_modsecurity_engine_call_measurement *measurement,
+    int native_result)
+{
+    msconnector_event event;
+    ngx_http_modsecurity_event_request_metadata_t metadata;
+    char reason[160];
+    int length;
+
+    if (mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
+    length = snprintf(reason, sizeof(reason),
+        "budget_ms=%" PRIu64 ";elapsed_ns=%" PRIu64
+        ";native_return=%d;common_completed=0",
+        measurement->budget_ns / UINT64_C(1000000),
+        measurement->elapsed_ns, native_result);
+    if (length < 0 || (size_t)length >= sizeof(reason)) return NGX_ERROR;
+    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    msconnector_event_init(&event);
+    event.meta.message_id = "MSCONN_ENGINE_CALL_BUDGET";
+    event.meta.message = "Synchronous Engine call exceeded post-return budget.";
+    event.meta.event = "engine_call_budget_exceeded";
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    event.meta.transaction_id = ctx->contract.transaction_id;
+    event.decision.phase = phase;
+    event.decision.status = MSCONNECTOR_STATUS_ERROR;
+    event.decision.action = "error";
+    event.decision.requested_action = "error";
+    event.decision.rule_id = "";
+    event.decision.reason = reason;
+    event.http.http_status = NGX_HTTP_GATEWAY_TIME_OUT;
+    event.http.transport_result = "not_observable";
+    event.request.method = metadata.method;
+    event.request.uri = metadata.uri;
+    event.flags.eos_seen = phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        ctx->native_response_body_eos;
+    if (ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "budget")
+            != NGX_OK) return NGX_ERROR;
+    /* P1/P2 and P4 have existing terminal error writers. P3's header filter
+     * returns directly, so pair its timing observation here with the same
+     * strict Common technical taxonomy rather than inventing a rule deny. */
+    if (phase != MSCONNECTOR_PHASE_RESPONSE_HEADERS) return NGX_OK;
+    event.meta.message_id = MSCONN_EVENT_ENGINE_TIMEOUT;
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
+    event.meta.event = "engine_timeout";
+    event.decision.reason = "engine_timeout";
+    event.flags.timeout_stage = msconnector_phase_name(phase);
+    event.flags.headers_sent = r->header_sent ? 1 : 0;
+    event.flags.response_committed = event.flags.headers_sent;
+    return ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "budget");
+}
+
+ngx_int_t
+ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r,
+    enum msconnector_phase phase,
+    ngx_http_modsecurity_engine_call_measurement *measurement)
+{
+    ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_conf_t *mcf;
+    struct timespec start;
+
+    if (r == NULL || measurement == NULL ||
+        phase < MSCONNECTOR_PHASE_REQUEST_HEADERS ||
+        phase > MSCONNECTOR_PHASE_LOGGING) return NGX_ERROR;
+    ctx = ngx_http_modsecurity_get_module_ctx(r);
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (ctx == NULL || !ctx->contract_initialized || mcf == NULL) return NGX_ERROR;
+    if (mcf->engine_call_budget_ms == NGX_CONF_UNSET_UINT ||
+        (mcf->engine_call_budget_ms != 0U &&
+         clock_gettime(CLOCK_MONOTONIC, &start) != 0) ||
+        ngx_http_modsecurity_engine_budget_begin(measurement,
+            (uint64_t)mcf->engine_call_budget_ms,
+            mcf->engine_call_budget_ms == 0U ? NULL : &start) < 0) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: Engine budget clock initialization failed");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
+    enum msconnector_phase phase,
+    ngx_http_modsecurity_engine_call_measurement *measurement,
+    int native_result)
+{
+    ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_conf_t *mcf;
+    struct timespec end;
+    int result;
+
+    if (r == NULL || measurement == NULL) return NGX_ERROR;
+    ctx = ngx_http_modsecurity_get_module_ctx(r);
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (ctx == NULL || !ctx->contract_initialized || mcf == NULL) return NGX_ERROR;
+    if (measurement->enabled && clock_gettime(CLOCK_MONOTONIC, &end) != 0) {
+        result = -1;
+    } else {
+        result = ngx_http_modsecurity_engine_budget_finish(measurement,
+            measurement->enabled ? &end : NULL);
+    }
+    if (result < 0) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: Engine budget clock completion failed");
+        return NGX_ERROR;
+    }
+    /* These phase-processing APIs succeed only with exactly one. Let their
+     * unchanged native-result gate classify a slow invalid return; elapsed
+     * time must not hide an actual failed/undocumented Engine response. */
+    if (result != 2 || native_result != 1) return NGX_OK;
+    if (msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT, 0U) !=
+        MSCONNECTOR_TRANSACTION_TRANSITION_OK) return NGX_ERROR;
+    (void)ngx_http_modsecurity_engine_call_log_budget(r, mcf, ctx, phase,
+        measurement, native_result);
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        "ModSecurity: synchronous Engine call exceeded post-return budget");
+    return NGX_ERROR;
+}
+
 /* Keep native redirect/status delivery as a small host translation. The
  * shared contract owns the canonical terminal meaning and rejects a missing
  * required rule correlation before NGINX emits a host-visible decision. */
@@ -98,12 +232,13 @@ ngx_http_modsecurity_contract_record_intervention(ngx_http_request_t *r,
     if (!ctx->contract_initialized) {
         return NGX_OK;
     }
-    if (ctx->native_request_body_limit_rejection) {
+    if (ctx->native_request_body_limit_rejection ||
+        ctx->native_response_body_limit_rejection) {
         if (msconnector_transaction_contract_fail(&ctx->contract,
                 MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, 0U) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: canonical request body limit decision is invalid");
+                "ModSecurity: canonical body limit decision is invalid");
             return NGX_ERROR;
         }
         return NGX_OK;
@@ -166,7 +301,7 @@ ngx_http_modsec_pcre_free(void *ptr)
 ngx_pool_t *
 ngx_http_modsecurity_pcre_malloc_init(ngx_pool_t *pool)
 {
-    ngx_pool_t  *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
 
     if (pcre_malloc != ngx_http_modsec_pcre_malloc) {
         ngx_http_modsec_pcre_pool = pool;
@@ -222,14 +357,15 @@ ngx_inline char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p)
     return str;
 }
 
-static ngx_int_t
+static int
 ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention)
+    ngx_http_modsecurity_ctx_t *ctx, const ModSecurityIntervention *intervention)
 {
     ngx_str_t location_value;
     ngx_table_elt_t *location;
+    ngx_table_elt_t *headers;
     const u_char *redirect_url;
-    size_t i;
+    u_char location_name[] = "Location";
 
     if (r->header_sent) {
         dd("Headers are already sent. Cannot perform the redirection at this point.");
@@ -240,7 +376,7 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
      * conventions, independently of the phase that produced the redirect. */
     location_value.len = ngx_strlen(intervention->url);
     redirect_url = (const u_char *) intervention->url;
-    for (i = 0; i < location_value.len; i++) {
+    for (size_t i = 0; i < location_value.len; i++) {
         if (redirect_url[i] == '\r' || redirect_url[i] == '\n') {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "modsecurity intervention redirect URL contains CR or LF");
@@ -270,6 +406,22 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_http_clear_location(r);
+    /* NGINX leaves a relative upstream Location in the output list without
+     * indexing it at headers_out.location.  Replace every old active
+     * Location only for this connector-owned redirect, including entries
+     * in chained list parts; the newly pushed entry is not initialized yet. */
+    for (ngx_list_part_t *part = &r->headers_out.headers.part; part != NULL;
+            part = part->next) {
+        headers = part->elts;
+        for (ngx_uint_t j = 0; j < part->nelts; j++) {
+            if (&headers[j] != location && headers[j].hash != 0 &&
+                headers[j].key.len == sizeof("Location") - 1U &&
+                ngx_strncasecmp(headers[j].key.data, location_name,
+                    sizeof("Location") - 1U) == 0) {
+                headers[j].hash = 0;
+            }
+        }
+    }
     /* The redirect is a body-less replacement for the pending upstream
      * response.  Do not retain entity metadata for bytes that will be
      * discarded by the body filter. */
@@ -296,9 +448,9 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
     return intervention->status;
 }
 
-static ngx_int_t
+static int
 ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention,
+    ngx_http_modsecurity_ctx_t *ctx, const ModSecurityIntervention *intervention,
     ngx_int_t early_log)
 {
     /* Preserve the intervention status in the audit log when an NGINX
@@ -321,16 +473,119 @@ ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
     return intervention->status;
 }
 
+static int
+ngx_http_modsecurity_reject_native_intervention(ngx_http_modsecurity_ctx_t *ctx,
+    msconnector_transaction_error_class cause)
+{
+    if (ctx != NULL) {
+        if (ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            (void)msconnector_transaction_contract_fail(&ctx->contract, cause, 0U);
+        }
+        ctx->last_intervention_status = 0;
+        ctx->last_intervention_rule_id[0] = '\0';
+        ctx->native_request_body_limit_rejection = 0;
+        ctx->native_response_body_limit_rejection = 0;
+        ctx->intervention_triggered = 1;
+    }
+    return NGX_ERROR;
+}
+
+/* Only the direct native boolean result is classified here. The caller owns
+ * the output buffers and releases them once even when the result is invalid. */
+static ngx_int_t
+ngx_http_modsecurity_collect_native_intervention(Transaction *transaction,
+    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention)
+{
+    int native_result;
+
+    if (transaction == NULL || ctx == NULL || intervention == NULL) {
+        return ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+    }
+    ctx->native_request_body_limit_rejection = 0;
+    ctx->native_response_body_limit_rejection = 0;
+    ctx->last_intervention_status = 0;
+    ctx->last_intervention_rule_id[0] = '\0';
+    native_result = msc_intervention(transaction, intervention);
+    if (native_result != 0 && native_result != 1) {
+        return ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+    }
+    return native_result;
+}
+
+/* Safe/Strict Phase 4 owns late dispatch. A successfully collected rule must
+ * not be converted to a technical error by trying to replace committed HTTP
+ * headers first. Off retains the legacy native host-dispatch path. */
+static int
+ngx_http_modsecurity_defer_late_phase4_intervention(const ngx_http_request_t *r,
+    const ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
+{
+    return r->header_sent && ctx->contract.last_completed_phase ==
+        MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE ||
+         mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT);
+}
+
+static void
+ngx_http_modsecurity_extract_intervention_rule_id(ngx_http_modsecurity_ctx_t *ctx,
+    const ModSecurityIntervention *intervention)
+{
+    if (intervention->log != NULL) {
+        (void)msconnector_rule_id_extract_from_message(intervention->log,
+            ctx->last_intervention_rule_id,
+            sizeof(ctx->last_intervention_rule_id));
+    }
+}
+
+ngx_int_t
+ngx_http_modsecurity_capture_request_body_intervention(ngx_http_request_t *r)
+{
+    ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
+    ModSecurityIntervention intervention;
+    msconnector_intervention common;
+    ngx_int_t result;
+
+    ngx_memzero(&intervention, sizeof(intervention));
+    intervention.status = 200;
+    result = ngx_http_modsecurity_collect_native_intervention(
+        ctx != NULL ? ctx->modsec_transaction : NULL, ctx, &intervention);
+    if (result == 1 && intervention.disruptive) {
+        common = msconnector_intervention_make(intervention.disruptive,
+            intervention.status, intervention.url, intervention.log);
+        if (!msconnector_intervention_is_request_body_limit_rejection(
+                MSCONNECTOR_PHASE_REQUEST_BODY, &common)) {
+            result = ngx_http_modsecurity_reject_native_intervention(ctx,
+                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+        } else if (!ctx->request_intervention_pending) {
+            ctx->pending_request_intervention = intervention;
+            ctx->request_intervention_pending = 1;
+            ngx_memzero(&intervention, sizeof(intervention));
+        }
+    }
+    msc_intervention_cleanup(&intervention);
+    return result == NGX_ERROR ? NGX_ERROR : NGX_OK;
+}
+
+static void
+ngx_http_modsecurity_log_native_intervention(ngx_http_request_t *r,
+    const ModSecurityIntervention *intervention)
+{
+    const char *log = intervention->log != NULL ? intervention->log :
+        "(no log message was specified)";
+
+    ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
+}
 
 int
 ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_request_t *r, ngx_int_t early_log)
 {
-    const char *log = NULL;
     ModSecurityIntervention intervention;
     msconnector_intervention common_intervention;
-    ngx_int_t result = 0;
+    int result = 0;
+    ngx_int_t native_result;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
-    ngx_http_modsecurity_conf_t  *mcf;
+    const ngx_http_modsecurity_conf_t  *mcf;
     int request_body_limit_rejection;
 
     ngx_memzero(&intervention, sizeof(intervention));
@@ -338,21 +593,34 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     dd("processing intervention");
 
-    ctx = ngx_http_modsecurity_get_module_ctx(r);
-    if (ctx == NULL)
-    {
-        result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (r == NULL) {
+        result = NGX_ERROR;
         goto cleanup;
     }
-    ctx->native_request_body_limit_rejection = 0;
-
-    if (msc_intervention(transaction, &intervention) == 0) {
+    ctx = ngx_http_modsecurity_get_module_ctx(r);
+    native_result = ngx_http_modsecurity_collect_native_intervention(transaction,
+        ctx, &intervention);
+    if (native_result == NGX_ERROR) {
+        result = NGX_ERROR;
+        goto cleanup;
+    }
+    if (ctx->native_event_phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+        ctx->request_intervention_pending) {
+        msc_intervention_cleanup(&intervention);
+        intervention = ctx->pending_request_intervention;
+        ngx_memzero(&ctx->pending_request_intervention,
+            sizeof(ctx->pending_request_intervention));
+        ctx->request_intervention_pending = 0;
+        native_result = 1;
+    }
+    if (native_result == 0 || !intervention.disruptive) {
         dd("nothing to do");
         goto cleanup;
     }
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (mcf == NULL) {
-        result = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        result = ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
         goto cleanup;
     }
     common_intervention = msconnector_intervention_make(
@@ -363,9 +631,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
             ctx->native_event_phase, &common_intervention);
     ctx->native_request_body_limit_rejection =
         request_body_limit_rejection != 0;
-    intervention.status = request_body_limit_rejection
-        ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE
-        : msconnector_intervention_normalize_status(intervention.url,
+    intervention.status = msconnector_intervention_normalize_status(intervention.url,
             intervention.status, mcf->common_config.default_block_status);
     ctx->last_intervention_status = intervention.status;
     ctx->last_intervention_rule_id[0] = '\0';
@@ -373,10 +639,22 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
     /* Extract only the bounded rule ID before libmodsecurity's message is
      * released.  Phase-4 evidence is metadata-only, so retaining a complete
      * intervention message in the request pool is unnecessary. */
-    if (intervention.log != NULL) {
-        (void)msconnector_rule_id_extract_from_message(intervention.log,
-            ctx->last_intervention_rule_id,
-            sizeof(ctx->last_intervention_rule_id));
+    ngx_http_modsecurity_extract_intervention_rule_id(ctx, &intervention);
+
+    ctx->native_response_body_limit_rejection =
+        ngx_http_modsecurity_is_response_body_limit_rejection(
+            ctx->native_event_phase, &common_intervention,
+            ctx->last_intervention_rule_id) != 0;
+
+    /* Response rules are evaluated by process_response_body at Engine EOS.
+     * Do not turn an unexpected append-time rule into a fabricated completed
+     * Safe intervention. Only the exact native limit failure is valid here. */
+    if (ctx->native_event_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        ctx->contract.last_completed_phase != MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        !ctx->native_response_body_limit_rejection) {
+        result = ngx_http_modsecurity_reject_native_intervention(ctx,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+        goto cleanup;
     }
 
     if (ngx_http_modsecurity_contract_record_intervention(r, ctx, &intervention)
@@ -387,13 +665,20 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
     if (mcf->common_config.use_error_log == MSCONNECTOR_BOOL_ON) {
-        log = intervention.log;
-        if (intervention.log == NULL) {
-          log = "(no log message was specified)";
-        }
-        ngx_log_error(NGX_LOG_ERR, (ngx_log_t *)r->connection->log, 0, "%s", log);
+        ngx_http_modsecurity_log_native_intervention(r, &intervention);
     }
 
+    /* Native response-body Reject is a technical limit failure, not a rule
+     * decision. It must never enter Safe's rule-only log-only path. */
+    if (ctx->native_response_body_limit_rejection) {
+        ctx->intervention_triggered = 1;
+        result = NGX_ERROR;
+        goto cleanup;
+    }
+    if (ngx_http_modsecurity_defer_late_phase4_intervention(r, ctx, mcf)) {
+        result = intervention.status;
+        goto cleanup;
+    }
     if (msconnector_intervention_has_redirect_url(intervention.url))
     {
         result = ngx_http_modsecurity_process_redirect_intervention(r, ctx,
@@ -413,10 +698,143 @@ cleanup:
 }
 
 
+ngx_int_t
+ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
+    const ngx_http_modsecurity_ctx_t *ctx, enum msconnector_phase phase,
+    msconnector_transaction_error_class cause, ngx_int_t http_status)
+{
+    msconnector_event event;
+    const ngx_http_modsecurity_conf_t *mcf;
+    ngx_http_modsecurity_event_request_metadata_t metadata;
+    const char *message_id;
+    const char *event_name;
+
+    if (r == NULL || r->connection == NULL || ctx == NULL) return NGX_ERROR;
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (mcf == NULL || mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
+    switch (cause) {
+    case MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE:
+    case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL:
+        message_id = MSCONN_EVENT_PROTOCOL_ERROR;
+        event_name = "protocol_error";
+        break;
+    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE:
+        message_id = MSCONN_EVENT_INVALID_ENGINE_RESPONSE;
+        event_name = "invalid_engine_response";
+        break;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT:
+        message_id = MSCONN_EVENT_ENGINE_TIMEOUT;
+        event_name = "engine_timeout";
+        break;
+    default:
+        message_id = MSCONN_EVENT_CONNECTOR_ERROR;
+        event_name = "connector_error";
+        break;
+    }
+    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    msconnector_event_init(&event);
+    event.meta.message_id = message_id;
+    event.meta.level = msconnector_event_default_level(message_id);
+    event.meta.message = msconnector_event_default_message(message_id);
+    event.meta.event = event_name;
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    /* Invalid IDs rejected before admission deliberately remain absent. */
+    event.meta.transaction_id = ctx->event_transaction_id.len > 0U
+        ? (const char *)ctx->event_transaction_id.data : "";
+    event.decision.phase = phase;
+    event.decision.status = MSCONNECTOR_STATUS_ERROR;
+    event.decision.action = "error";
+    event.decision.requested_action = "error";
+    event.decision.actual_action = "error";
+    event.http.http_status = (int)http_status;
+    event.http.original_http_status = r->header_sent ? (int)r->headers_out.status : 0;
+    event.http.visible_http_status = event.http.original_http_status;
+    event.http.transport_result = "not_observable";
+    event.request.method = metadata.method;
+    event.request.uri = metadata.uri;
+    event.flags.headers_sent = r->header_sent ? 1 : 0;
+    event.flags.response_committed = event.flags.headers_sent;
+    return ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
+        "technical");
+}
+
+/* Snapshot exact length-delimited request identity while the pool is live.
+ * NGINX runs cleanup callbacks before releasing pool storage, but clears the
+ * request's pool pointer first. The existing writer still bounds/redacts URI. */
+static ngx_int_t
+ngx_http_modsecurity_snapshot_cleanup_metadata(ngx_http_modsecurity_ctx_t *ctx)
+{
+    ngx_http_request_t *r = ctx->r;
+    ngx_str_t values[2];
+    const char **outputs[2] = { &ctx->cleanup_method, &ctx->cleanup_uri };
+    const char *value;
+
+    if (r == NULL || r->pool == NULL) return NGX_ERROR;
+    values[0] = r->method_name;
+    values[1] = r->unparsed_uri;
+    for (size_t index = 0U; index < 2U; ++index) {
+        *outputs[index] = "";
+        if (values[index].len == 0U) continue;
+        if (values[index].data == NULL || values[index].len == (size_t)-1) {
+            return NGX_ERROR;
+        }
+        value = ngx_str_to_char(values[index], r->pool);
+        if (value == NULL || value == (char *)-1) return NGX_ERROR;
+        *outputs[index] = value;
+    }
+    return NGX_OK;
+}
+
+static void
+ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
+    int common_return, int native_cleanup_completed)
+{
+    msconnector_event event;
+    char reason[256];
+    ngx_http_request_t *r;
+    const ngx_http_modsecurity_conf_t *mcf;
+
+    r = ctx->r;
+    if (r == NULL || r->connection == NULL) {
+        return;
+    }
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (mcf == NULL || mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
+        return;
+    }
+    if (!ngx_http_modsecurity_cleanup_observation(&event, reason,
+        sizeof(reason), common_return, &ctx->contract,
+        native_cleanup_completed != 0)) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity cleanup observation construction failed");
+        return;
+    }
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    event.meta.transaction_id = ctx->event_transaction_id.len > 0U
+        ? (const char *)ctx->event_transaction_id.data : "";
+    event.request.method = ctx->cleanup_method;
+    event.request.uri = ctx->cleanup_uri;
+    if (ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
+        "cleanup") != NGX_OK) {
+        /* Cleanup has already completed; its void host hook cannot replace
+         * an earlier response or repeat freed native work. Missing evidence
+         * remains a strict canonical failure, with the write error retained. */
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity cleanup observation write failed");
+    }
+}
+
 void
 ngx_http_modsecurity_cleanup(void *data)
 {
     ngx_http_modsecurity_ctx_t *ctx;
+    int common_return = MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+    int observed_contract;
+    int native_cleanup_completed = 0;
 
     ctx = (ngx_http_modsecurity_ctx_t *) data;
 
@@ -424,14 +842,22 @@ ngx_http_modsecurity_cleanup(void *data)
         return;
     }
 
-    if (ctx->contract_initialized) {
-        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
+    observed_contract = ctx->contract_initialized;
+    if (observed_contract) {
+        common_return = msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
         ctx->contract_initialized = 0;
     }
 
     if (ctx->modsec_transaction != NULL) {
+        msc_intervention_cleanup(&ctx->pending_request_intervention);
+        ctx->request_intervention_pending = 0;
         msc_transaction_cleanup(ctx->modsec_transaction);
         ctx->modsec_transaction = NULL;
+        native_cleanup_completed = 1;
+    }
+    if (observed_contract) {
+        ngx_http_modsecurity_cleanup_log_event(ctx, common_return,
+            native_cleanup_completed);
     }
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -454,7 +880,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     u_char                            *transaction_id_end;
     ngx_pool_cleanup_t                *cln;
     ngx_http_modsecurity_ctx_t        *ctx;
-    ngx_http_modsecurity_conf_t       *mcf;
+    const ngx_http_modsecurity_conf_t       *mcf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
     const msconnector_transaction_profile *profile;
 
@@ -462,6 +888,10 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (ctx == NULL)
     {
         dd("failed to allocate memory for the context.");
+        return NULL;
+    }
+    ctx->r = r;
+    if (ngx_http_modsecurity_snapshot_cleanup_metadata(ctx) != NGX_OK) {
         return NULL;
     }
 
@@ -489,6 +919,10 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
                 (const char *) s.data, s.len)) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "ModSecurity: invalid canonical transaction identifier");
+            (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+                MSCONNECTOR_PHASE_REQUEST_HEADERS,
+                MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL,
+                NGX_HTTP_INTERNAL_SERVER_ERROR);
             return NULL;
         }
         transaction_id = ngx_pnalloc(r->pool, s.len + 1U);
@@ -506,7 +940,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         }
         transaction_id_end = ngx_snprintf(transaction_id, 64U, "%ui-%ui",
             (ngx_uint_t) r->connection->number,
-            (ngx_uint_t) r->connection->requests);
+            r->connection->requests);
         *transaction_id_end = '\0';
         ctx->event_transaction_id.data = transaction_id;
         ctx->event_transaction_id.len = (size_t) (transaction_id_end - transaction_id);
@@ -542,22 +976,27 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (ctx->modsec_transaction == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: failed to create transaction");
-        (void)msconnector_transaction_contract_cleanup(&ctx->contract, 0U);
-        ctx->contract_initialized = 0;
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        (void)ngx_http_modsecurity_log_technical_failure(r, ctx,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS, ctx->contract.error_class,
+            NGX_HTTP_INTERNAL_SERVER_ERROR);
+        ngx_http_modsecurity_cleanup(ctx);
         return NULL;
     }
 
     dd("transaction created");
 
-    ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module);
+    ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module)
 
     cln = ngx_pool_cleanup_add(r->pool, 0);
     if (cln == NULL)
     {
         dd("failed to create the ModSecurity context cleanup");
-        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module);
-        msc_transaction_cleanup(ctx->modsec_transaction);
-        ctx->modsec_transaction = NULL;
+        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module)
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        ngx_http_modsecurity_cleanup(ctx);
         return NULL;
     }
     cln->handler = ngx_http_modsecurity_cleanup;
@@ -588,9 +1027,8 @@ ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r)
          * if module context was reset, the original address
          * can still be found in the cleanup handler
          */
-        ngx_pool_cleanup_t *cln;
-        for (cln = r->pool->cleanup; cln; cln = cln->next) {
-            if (cln->handler == ngx_http_modsecurity_cleanup) {
+        for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
+            if (cln->handler == &ngx_http_modsecurity_cleanup) {
                 ctx = cln->data;
                 break;
             }
@@ -604,10 +1042,10 @@ ngx_conf_set_rules(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
     int                                res;
-    char                              *rules;
-    ngx_str_t                         *value;
+    const char                        *rules;
+    const ngx_str_t                   *value;
     const char                        *error;
-    ngx_pool_t                        *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_conf_t       *mcf = conf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
 
@@ -639,10 +1077,10 @@ ngx_conf_set_rules_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
     int                                res;
-    char                              *rules_set;
-    ngx_str_t                         *value;
+    const char                        *rules_set;
+    const ngx_str_t                   *value;
     const char                        *error;
-    ngx_pool_t                        *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_conf_t       *mcf = conf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
 
@@ -721,8 +1159,8 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    char *mode = ngx_str_to_char(value[1], cf->pool);
+    const ngx_str_t *value = cf->args->elts;
+    const char *mode = ngx_str_to_char(value[1], cf->pool);
     enum msconnector_phase4_mode parsed;
     if (mode == (char *)-1 || mode == NULL) {
         return NGX_CONF_ERROR;
@@ -742,7 +1180,7 @@ ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t *value = cf->args->elts;
     ngx_open_file_t *event_file;
     ngx_pool_cleanup_t *cleanup;
-    char *path;
+    const char *path;
     int fd = -1;
 
     (void)cmd;
@@ -800,8 +1238,8 @@ static char *
 ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    char *flag = ngx_str_to_char(value[1], cf->pool);
+    const ngx_str_t *value = cf->args->elts;
+    const char *flag = ngx_str_to_char(value[1], cf->pool);
     enum msconnector_bool_option parsed;
     char *rc;
 
@@ -823,22 +1261,23 @@ ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
+/* A unit is deliberately not accepted: this host-specific contract is an
+ * integer number of milliseconds, with zero disabling the measurement. */
 static char *
-ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+ngx_conf_set_engine_call_budget(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
-    char *limit = ngx_str_to_char(value[1], cf->pool);
-    size_t parsed = 0U;
+    ngx_int_t parsed;
 
-    if (limit == (char *)-1 || limit == NULL) {
-        return NGX_CONF_ERROR;
+    (void)cmd;
+    if (mcf->engine_call_budget_ms != NGX_CONF_UNSET_UINT) return "is duplicate";
+    parsed = ngx_atoi(value[1].data, value[1].len);
+    if (parsed == NGX_ERROR ||
+        (uint64_t)parsed > UINT64_MAX / UINT64_C(1000000)) {
+        return "invalid value for modsecurity_engine_call_budget_ms";
     }
-    if (!msconnector_parse_size(limit, &parsed)) {
-        return "invalid value for modsecurity_phase4_body_limit";
-    }
-    mcf->common_config.phase4_body_limit = parsed;
+    mcf->engine_call_budget_ms = (ngx_uint_t)parsed;
     return NGX_CONF_OK;
 }
 
@@ -900,9 +1339,9 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT),
+    ngx_string("modsecurity_engine_call_budget_ms"),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
-    ngx_conf_set_phase4_body_limit,
+    ngx_conf_set_engine_call_budget,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL
@@ -956,7 +1395,7 @@ ngx_http_modsecurity_init(ngx_conf_t *cf)
     ngx_http_handler_pt *h_access;
     ngx_http_handler_pt *h_log;
     ngx_http_core_main_conf_t *cmcf;
-    int rc = 0;
+    ngx_int_t rc = 0;
 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
     if (cmcf == NULL)
@@ -1051,7 +1490,7 @@ ngx_http_modsecurity_create_main_conf(ngx_conf_t *cf)
 static char *
 ngx_http_modsecurity_init_main_conf(ngx_conf_t *cf, void *conf)
 {
-    ngx_http_modsecurity_main_conf_t  *mmcf;
+    const ngx_http_modsecurity_main_conf_t  *mmcf;
     msconnector_rule_load_stats        stats;
 
     mmcf = (ngx_http_modsecurity_main_conf_t *) conf;
@@ -1095,6 +1534,7 @@ ngx_http_modsecurity_create_conf(ngx_conf_t *cf)
     conf->transaction_id = NGX_CONF_UNSET_PTR;
     conf->use_error_log = NGX_CONF_UNSET;
     conf->phase4_mode = NGX_CONF_UNSET_UINT;
+    conf->engine_call_budget_ms = NGX_CONF_UNSET_UINT;
     /* These values are inherited with ngx_conf_merge_ptr_value().  They must
      * use NGINX's unset sentinel here: NULL is a valid merged value for the
      * log and causes a child location to suppress a server-level setting. */
@@ -1131,6 +1571,9 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     int rules;
     const char *error = NULL;
 
+    /* The callback context is otherwise used only by debug diagnostics. */
+    (void) cf;
+
     dd("merging loc config [%s] - parent: '%p' child: '%p'",
         ngx_str_to_char(clcf->name, cf->pool), parent,
         child);
@@ -1150,6 +1593,7 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_ptr_value(c->transaction_id, p->transaction_id, NULL);
     ngx_conf_merge_value(c->use_error_log, p->use_error_log, c->common_config.use_error_log);
     ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, (ngx_uint_t) c->common_config.phase4_mode);
+    ngx_conf_merge_uint_value(c->engine_call_budget_ms, p->engine_call_budget_ms, 0U);
     if (c->phase4_log_file == NGX_CONF_UNSET_PTR) {
         if (p->phase4_log_file == NGX_CONF_UNSET_PTR) {
             c->phase4_log_file = NULL;
@@ -1191,7 +1635,7 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 static void
 ngx_http_modsecurity_cleanup_instance(void *data)
 {
-    ngx_pool_t                        *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_main_conf_t  *mmcf;
 
     mmcf = (ngx_http_modsecurity_main_conf_t *) data;
@@ -1207,7 +1651,7 @@ ngx_http_modsecurity_cleanup_instance(void *data)
 static void
 ngx_http_modsecurity_cleanup_rules(void *data)
 {
-    ngx_pool_t                   *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_conf_t  *mcf;
 
     mcf = (ngx_http_modsecurity_conf_t *) data;

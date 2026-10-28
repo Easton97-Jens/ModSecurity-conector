@@ -305,6 +305,32 @@ Kein Security-Finding ist vollständig verifiziert.
 
 ## Finaler Diff- und Review-Status
 
+**Aktualisierung vom 2026-10-28:** Der aktuelle CI-Reparaturauftrag hebt die
+frühere Testzurückstellung auf. Der Branch übernimmt Master
+`c5993ed9a7b59fc0bd58f105595ec79f596c88d6` mit erhaltenem veröffentlichtem
+Head `ab3d4d27`. Sieben Merge-Konflikte in Apache, NGINX, Traefik und beiden
+Archivindizes sind abgeglichen. Apache verbindet ausgehandeltes P3-Protokoll
+mit der Native-Erfolgsprüfung; NGINX zählt den synthetischen Authority-Host
+gegen das typisierte Client-Header-Limit; Traefik erhält geprüftes Close,
+terminale Fehler, Abbruchverhalten und Unterdrückung falschen EOS/FINISH.
+
+Alle fünf fehlgeschlagenen Struktur-/Lint-Jobs teilten das veraltete
+Apache-Checker-Literal. Die korrigierten Apache-/NGINX-Guards bestehen direkt
+und erhalten negative Umgehungsmutationen. Sonar-Issue
+`AaF3fXFNfuQxuJn35iQJ` / `c:S859` wird durch Entfernen des Host-Namens-Casts
+behoben, der `const` entfernt. Die fokussierte Auswahl besteht: 21
+Python-Szenarien und 44 Traefik-Fälle mit Race-Detector. Eine veraltete
+NGINX-Source-Assertion schlug zuerst fehl und bestand nach Korrektur ihrer
+Erwartung. Python verwendete den vorhandenen lokalen Interpreter 3.14.4;
+Hosted-Prüfungen für den aktuellen Head bleiben erforderlich. Acht
+Source-Digests des aktiven Inventars sind ohne Änderung seiner 100 ausgewählten
+Fälle erneuert; das Spezialistenarchiv ist durch seinen Quellgenerator neu
+erzeugt. Inventar-Admission, Archivkonsistenz und Diff-Prüfungen bestehen.
+Unabhängiges begrenztes Quellreview fand kein neues validiertes
+Sicherheitsproblem. Hosted-CI- und Sonar-Ergebnisse des Successors stehen noch
+aus; dies ist weder eine vollständige H1-/H2-/H3-Laufzeitqualifikation noch eine
+Erlaubnis zum Merge nach Master.
+
 **Aktualisierung vom 2026-10-24:** PR #348 wird vom alten Head
 `81ccd883678c83dda8b4fee61a9acc8a4c4c633c` mit aktuellem `origin/master`
 `42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` durch einen normalen Merge

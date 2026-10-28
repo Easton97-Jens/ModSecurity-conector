@@ -2,6 +2,13 @@
 
 **Language:** English | [Deutsch](repository-concept.de.md)
 
+This page defines the target architecture and preserves dated assessment
+observations. Historical run labels and the test-placement inventory below
+are not a live status dashboard or the current default test selection. For
+current setup, removed settings, and active testing, read
+[Migration](migration.md), [Testing and evidence](testing-and-evidence.md),
+and the [body-inspection matrix](body-inspection-review-matrix.md).
+
 ## Authority, scope, and claim discipline
 
 This document is the binding target concept for the product monorepo. It
@@ -86,7 +93,7 @@ How is the product checked for correct, secure, and consistent behavior?
 
 | Boundary | Owner and contents | Does not own | Change destination |
 | --- | --- | --- | --- |
-| Parent repository | Product connector source, `common/`, build systems, connector configuration, packaging/installation material, connector documentation, product contracts, host-specific harness seams, and artifact producers. | A second reusable case catalog, generic normalizer, or general test platform. | This repository. |
+| Parent repository | Product connector source, `common/`, build systems, connector configuration, packaging/installation material, connector documentation, product contracts, host-specific harness seams, and artifact producers. | A second reusable case catalog, generic normalizer, or a general test platform. | This repository. |
 | `modules/ModSecurity-test-Framework` | Reusable test cases, rule catalogs, runner and reusable harness logic, schemas, normalizers, cross-connector comparison, reusable smoke/integration logic, and canonical test-report generation. | Connector implementation, host hook code, host build configuration, or a connector promotion decision. | The Framework repository and its own Change Record. |
 | External host and ModSecurity sources | Pinned or selected upstream host/engine inputs, licenses, provenance, and external runtime dependencies. | Parent product source ownership unless imported with explicit attribution. | The relevant external source process and parent provenance records. |
 | External build, cache, runtime, log, and evidence roots | Invocation-local outputs selected by documented variables such as `BUILD_ROOT`, `EVIDENCE_ROOT`, and `VERIFIED_RUN_ROOT`. | Versioned source, secrets, or durable product documentation. | Outside either checkout. |
@@ -285,12 +292,17 @@ Engine layers. A value at one layer does not implicitly configure another.
 | Control | Source-backed default or selected value | Security effect and classification |
 | --- | --- | --- |
 | `enabled` | Common Runtime default `off`. | It is fail-open with respect to Common enforcement until explicitly enabled; it is not a repository-wide host failure policy. |
-| `request_body_limit`, `response_body_limit`, header limits, and `max_event_json_bytes` | Common Runtime defaults bound body/header/event input. | Bound resource and metadata exposure; a higher value is not safe-buffering proof. |
-| `body_limit_action` | Common Runtime default `reject`. | Rejects an over-limit chunk before engine input; the resulting host response remains connector-specific. |
+| Header limits and `max_event_json_bytes` | Common Runtime defaults bound header/event metadata. | Body working buffers are incremental and do not select a total inspection limit. |
+| `SecResponseBodyLimit` / `SecResponseBodyLimitAction` | Engine rule configuration only; no connector option or default. | libModSecurity alone decides response inspection limit, Reject, and ProcessPartial. |
+| `SecRequestBodyLimit` / `SecRequestBodyLimitAction` / `SecRequestBodyNoFilesLimit` | Engine rule configuration only; no connector option or default. | Native libModSecurity selects request inspection and preserves actual DetectionOnly semantics; bounded authorization host profiles remain separately documented limitations. |
 | `default_block_status` and `default_error_status` | Common Runtime defaults `403` and `500`. | For a disruptive native intervention without a redirect URL, an allowed engine block status is preserved; every other status maps to an allowed `default_block_status`, otherwise `403`. A nonempty redirect URL preserves a 3xx status or maps another status to `302`. This canonicalization does not replace the separate Common `invalid_engine_response` policy and does not prove a uniform fail-closed response. |
-| `response_body_mode` and `phase4_mode` | Common Runtime defaults `none` and `safe`. | No P4 input is processed by default; Safe late behavior is conservative and after commit can be `log_only`, not a universal fail-open/fail-closed policy. Apache follows this shared commit-based rule once its pre-EOS prefix reaches the next filter. |
+| `response_body_mode` and `phase4_mode` | Common Runtime defaults `none` and `off`. | No P4 input is processed by default. `off` preserves native intervention/error handling; explicitly selected `safe` or `strict` governs the supported late action, not body-size limits. Native engine Reject results and genuine errors remain failures. |
 | Envoy `failure_mode_allow` | Selected `ext_proc` templates set `failure_mode_allow: false`. | Selected configuration documents fail-closed processor-reachability handling; it is not evidence for every Envoy deployment. |
 | `rules_remote_key` / `rules_remote_url` and external downloads | Policy A: registered configuration inputs are technically disabled. | Any nonempty remote-rule configuration is rejected before a loader, download, origin fallback, or secret forwarding path; a future policy would require separate review and evidence. |
+
+The shared source defaults are defined in
+`common/include/msconnector/options.h`. An explicitly selected Safe or Strict
+example is not a change to the source default.
 
 The documented selected core reports Safe P4 as requested `deny`, actual
 `log_only`, visible HTTP 200, and no connection abort after a committed

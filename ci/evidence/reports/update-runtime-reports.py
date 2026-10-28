@@ -306,9 +306,14 @@ def runtime_cache_index_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def write_cache_reports_from_local_cache(connector_root: Path, report_dir: Path, cache_root: Path, *, approved_files: tuple[Path, ...] = ()) -> tuple[dict[str, Any], dict[str, Any]]:
+def write_cache_reports_from_local_cache(connector_root: Path, report_dir: Path, cache_root: Path, *, approved_files: tuple[Path, ...] = (),
+                                        build_root: Path | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     global INPUTS
-    INPUTS = EvidenceInputs((connector_root, report_dir, cache_root), files=approved_files)
+    # The caller configures this root; cache manifests cannot extend it.
+    roots = (connector_root, report_dir, cache_root)
+    if build_root is not None:
+        roots += (build_root,)
+    INPUTS = EvidenceInputs(roots, files=approved_files)
     manifest_path = cache_root / "manifest.json"
     build_cache_path = cache_root / "runtime-build-cache.json"
     component_manifest = read_json(manifest_path)
@@ -1269,6 +1274,8 @@ def main() -> int:
     parser.add_argument("--connector-root", required=True)
     parser.add_argument("--cache-root", default=None)
     parser.add_argument("--output-root", default=None)
+    parser.add_argument("--build-root", default=os.environ.get("BUILD_ROOT"),
+                        help="explicit invocation build root for retained diagnostic evidence")
     parser.add_argument("--approved-component-file", action="append", type=Path, default=[],
                         help="explicit operator-approved installed component file outside the managed cache")
     args = parser.parse_args()
@@ -1277,11 +1284,13 @@ def main() -> int:
     output_root = Path(args.output_root).resolve() if args.output_root else connector_root
     report_dir = output_root / GENERATED_ROOT
     cache_root = local_cache_root(args.cache_root)
+    build_root = Path(args.build_root).resolve() if args.build_root else None
     report_dir.mkdir(parents=True, exist_ok=True)
     add_safe_roots(connector_root, report_dir)
     add_safe_roots(cache_root)
     write_cache_reports_from_local_cache(connector_root, report_dir, cache_root,
-                                        approved_files=tuple(args.approved_component_file))
+                                        approved_files=tuple(args.approved_component_file),
+                                        build_root=build_root)
     components = component_inventory(report_dir)
     build_cache = build_cache_inventory(report_dir)
     diagnostics = collect_runtime_diagnostics(components)

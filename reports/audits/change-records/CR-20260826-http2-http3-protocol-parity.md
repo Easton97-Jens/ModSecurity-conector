@@ -288,6 +288,29 @@ fully verified.
 
 ## Final diff and review status
 
+**Update on 2026-10-28:** the current CI-repair request supersedes the earlier
+test deferral. The branch incorporates master
+`c5993ed9a7b59fc0bd58f105595ec79f596c88d6` while preserving the published
+`ab3d4d27` head. Seven merge conflicts are reconciled in Apache, NGINX,
+Traefik and both archive indexes. Apache combines negotiated P3 protocol with
+the native success wrapper; NGINX includes the synthetic authority Host in the
+typed client-header limit; Traefik retains checked close, terminal errors,
+abort behavior and suppression of false EOS/FINISH.
+
+All five failed structure/lint jobs shared the stale Apache checker literal.
+The repaired Apache and NGINX guards pass directly and retain negative bypass
+mutations. Sonar issue `AaF3fXFNfuQxuJn35iQJ` / `c:S859` is addressed by
+removing the const-dropping Host-name cast. The focused selection passes:
+21 Python scenarios and 44 Traefik cases with the race detector. A stale NGINX
+source assertion failed first and passed after its expectation was corrected.
+Python used the existing local 3.14.4 interpreter; current-head hosted checks
+remain required. Eight active-inventory source digests are refreshed without
+changing its 100 selected cases, and the specialist archive is regenerated
+through its source generator. Inventory admission, archive consistency and
+diff checks pass. Independent bounded source review found no new validated
+security issue. Hosted CI and Sonar results for the successor are pending;
+this is not full H1/H2/H3 runtime qualification or permission to merge to master.
+
 **2026-10-24 update:** PR #348 is refreshed from old head
 `81ccd883678c83dda8b4fee61a9acc8a4c4c633c` with current `origin/master`
 `42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` through a normal merge. All nine

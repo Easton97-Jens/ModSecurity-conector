@@ -36,11 +36,11 @@
     },
     "request_body_buffered": {
       "state": "implemented_not_asserted",
-      "reason": "The HAProxy configuration buffers the request and passes a bounded req.body sample to the agent; canonical Phase-2 evidence is pending."
+      "reason": "SPOP admits only a verified complete, frame-representable request sample with explicit framing and matching native host total; unknown/chunked framing and unframed HTTP/2 are unsupported. Full request streaming belongs to the separate native HTX profile."
     },
     "request_body_streaming": {
       "state": "not_implemented",
-      "reason": "The current SPOP message carries one bounded body sample rather than a streaming body protocol."
+      "reason": "The current SPOP message carries one frame-representable body sample rather than a streaming body protocol."
     },
     "response_headers": {
       "state": "implemented_not_asserted",
@@ -60,7 +60,7 @@
     },
     "phase2": {
       "state": "implemented_not_asserted",
-      "reason": "The agent appends the bounded request body and invokes request-body processing; canonical evidence is pending."
+      "reason": "The agent validates complete request framing and typed sample totals before appending the sample and completing native P2 once; unsupported full-sample framing is not admitted. Complete canonical host acceptance remains pending."
     },
     "phase3": {
       "state": "implemented_not_asserted",
@@ -140,7 +140,7 @@
     },
     "request_body_incremental_ingest": {
       "state": "not_implemented",
-      "reason": "The current SPOP request message carries one bounded req.body sample rather than incrementally ingested request chunks."
+      "reason": "The current SPOP request message carries one frame-representable req.body sample rather than incrementally ingested request chunks."
     },
     "response_body_incremental_ingest": {
       "state": "not_implemented",
@@ -160,11 +160,11 @@
     },
     "request_body_limits": {
       "state": "configured_not_exercised",
-      "reason": "The SPOP request-body sample is bounded by configuration, but no canonical host limit case has exercised its behavior."
+      "reason": "libModSecurity exclusively owns request inspection limits and actions. SPOP preserves native outcomes for verified complete frame-representable samples; native HTX is the separate streaming path. Full native-host limit evidence remains required."
     },
     "response_body_limits": {
       "state": "not_implemented",
-      "reason": "No selected HAProxy response-body path exists on which to enforce a response-body limit."
+      "reason": "libModSecurity exclusively owns response inspection limits and Reject/ProcessPartial through SecResponseBodyLimit and SecResponseBodyLimitAction; the connector forwards full chunks with checked counters. Fresh native-host limit evidence remains required."
     },
     "no_full_response_buffering": {
       "state": "not_implemented",

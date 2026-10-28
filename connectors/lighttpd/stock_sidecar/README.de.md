@@ -156,3 +156,47 @@ fail-closed fehl. Das vom Operator bereitgestellte Tupel macht die lokale
 Trust-Grenze explizit; es ist keine kryptografische Abwehr gegen einen
 Same-UID-Akteur, der sowohl die Artefakte als auch den Operator-Input
 kontrolliert.
+
+Die ausgelieferten argv-Dateien wählen separate private, diskgestützte
+Verzeichnisse unter `/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`.
+Ein Profil wird als Service-UID mit
+`python3 connectors/lighttpd/launch_stock_sidecar.py --profile safe` gestartet.
+Der Launcher akzeptiert ausschließlich `all`, `off`, `safe` und `strict`, liest
+deren feste repository-eigene argv-Dateien und startet die installierte native
+Komponente unter `/usr/libexec/msconnector/lighttpd-stock-sidecar`. Beliebige
+Programm- oder argv-Dateipfade und zusätzliche Optionen sind nicht unterstützt.
+Er prüft Eigentümer, Berechtigungen und nativen Artefakttyp und führt das Programm
+über einen festgehaltenen Deskriptor aus. Der Launcher erstellt
+fehlende Spoolverzeichnisse und verwirft unsichere bestehende Pfade ohne Änderung
+ihrer Berechtigungen. Konfigurationsverzeichnisse wie `/etc/lighttpd` dürfen 0755
+behalten; Spoolverzeichnisse müssen der effektiven UID gehören und 0700 haben.
+`--install-root` verlagert den festen Komponentenpfad sowie absolute
+Konfigurations- und Spoolpfade für gestufte Installationen. Externe Builds müssen
+an diesem festen Komponentenpfad bereitgestellt werden. Regel- und
+Ereignispfade im Konfigurationsinhalt sind weiterhin
+an die Installation anzupassen.
+
+`--spool-capacity-bytes` verwendet standardmäßig 268435456 (256 MiB) für die
+Summe offener, auf Dateisystemblöcke gerundeter Reservierungen pro Prozess.
+`--spool-free-reserve-bytes` verwendet standardmäßig 67108864 (64 MiB) für den
+unprivilegiert verfügbaren freien Speicher. Dies sind technische Kapazitäten der
+Disk-Zulassung, unabhängig von nativer WAF-Body-Policy. Nach P1-Allow prüft die
+Zulassung das festgehaltene Dateisystem, allokiert die vollständige deklarierte
+Request-Länge mit `posix_fallocate` und prüft den freien Speicher erneut, bevor
+ein Body-Chunk an die native Engine gelangt. Fehler liefern 503 und einen
+technischen Connector-Ressourcenfehler, niemals ein WAF-BODY_LIMIT-Ereignis.
+Es gibt keinen Sparse-Datei-Fallback. Reservierungen bleiben bis zum Schließen
+des Deskriptors auf jedem Ausgang bestehen, auch bei Replay, Abbruch und
+Receipt-Fehlern. Eine Verzeichnissperre für die Prozesslebensdauer verwirft einen
+zweiten Sidecar für dasselbe Verzeichnis. Deadline-Prüfungen vor und nach der
+Allokation machen synchrone Aufrufe für reguläre Dateien nicht abbrechbar.
+
+Ein Administrator muss root-eigene, nicht beschreibbare Vorfahren bereitstellen,
+bevor ein unprivilegierter Dienst `/var/lib` verwenden kann, beispielsweise mit
+`install -d -o root -g root -m 0755 /var/lib/msconnector /var/lib/msconnector/lighttpd-stock`
+und anschließend `install -d -o SERVICE_UID -g SERVICE_GID -m 0700 /var/lib/msconnector/lighttpd-stock/safe`
+(sowie den weiteren ausgewählten Profilen). Diese Befehle beschreiben die
+Erstbereitstellung; bestehende unsichere Pfade dürfen damit nicht implizit
+repariert werden. Der Launcher erstellt fehlende Kinder nur dort, wo seine
+effektive UID Schreibrechte besitzt; administratorseitig bereitgestellte Pfade
+prüft er ohne Rechteerhöhung.

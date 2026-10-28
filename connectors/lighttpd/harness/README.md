@@ -58,17 +58,15 @@ request as one unchunked `Content-Length` delivery equal to the retained body
 size. It also requires `501` with no new upstream
 connection for `Incremental`, configured `server.stream-request-body`, and
 explicitly enabled body-bearing `Upgrade` plus `gw.upgrade-with-request-body`.
-It also requires configuration loading to reject streaming with
-`body_limit_action=process_partial` before a listener or upstream connection
-exists. A terminal host-side `501` uses logging finalization only: it records
+A terminal host-side `501` uses logging finalization only: it records
 the audit phase exactly once without synthesizing request-body EOS or a
 Phase-2 decision. It is request-body P2 evidence only; it does not promote
 response-body P4, CRS, HTTP/2/HTTP/3, unrestricted streaming, or
 production-readiness claims.
 
-The streaming profile's retained-body bound comes from its positive Common
-`request_body_limit` and rejecting read cycle. This runner does not configure
-or prove an independent `server.max-request-size` host limit.
+The module passes bounded memory/file ranges to native P2 without its own
+cumulative limit. This runner does not configure or prove the independent
+`server.max-request-size` host setting.
 
 ## Response-body backend-close profile
 

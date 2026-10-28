@@ -9,10 +9,12 @@ permissions: {}
 
 jobs:
   scaffold-lint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
     permissions:
       contents: read
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+      checks: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -20,7 +22,7 @@ jobs:
           persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -28,6 +30,14 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install hash-locked CI test dependency
+        run: |
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
       - name: Initialize runner temp paths
         run: |
           set -eu
@@ -60,15 +70,11 @@ jobs:
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
         run: python ci/checks/documentation/check-bilingual-docs.py
-      - name: Verify Phase-4 migration and NGINX security contracts
+      - name: Validate the global expanded inventory before any selected test
+        run: python3 ci/tools/run-active-tests.py --check
+      - name: Execute selected inventory, coverage, supply-chain and Common controls
         if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_phase4_migration_contract tests.test_nginx_native_security_contract tests.test_nginx_upstream_security_contract
-      - name: Verify NGINX adoption checker mutations
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_nginx_common_adoption
-      - name: Verify configuration reference generator regressions
-        if: ${{ !cancelled() }}
-        run: python -m unittest -v tests.test_connector_config_reference tests.test_logical_connector_all_examples
+        run: python3 ci/tools/run-active-tests.py --group inventory --group supply-chain --group common --group protocol
       - name: Verify generated configuration references
         if: ${{ !cancelled() }}
         run: python ci/tools/generate-connector-config-reference.py --check

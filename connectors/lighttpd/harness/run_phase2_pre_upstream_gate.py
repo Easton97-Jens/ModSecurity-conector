@@ -79,6 +79,8 @@ class TaskRuntimeDirectory:
     """A private runtime directory held open by descriptor for its whole use."""
 
     directory_fd: int
+    task_root: Path
+    task_root_identity: tuple[int, int]
 
     @staticmethod
     def _component(name: str) -> None:
@@ -106,7 +108,7 @@ class TaskRuntimeDirectory:
         except Exception:
             os.close(child_fd)
             raise
-        return TaskRuntimeDirectory(child_fd)
+        return TaskRuntimeDirectory(child_fd, self.task_root, self.task_root_identity)
 
     def _open_new(self, name: str) -> int:
         self._component(name)
@@ -163,6 +165,29 @@ class TaskRuntimeDirectory:
     def runtime_path(self, name: str) -> str:
         self._component(name)
         return f"/proc/self/fd/{self.directory_fd}/{name}"
+
+    def event_sink_path(self, name: str) -> str:
+        """Use a verified real directory for Common's no-follow parent walker."""
+        self._component(name)
+        try:
+            pinned = os.fstat(self.directory_fd)
+            directory = Path(os.readlink(f"/proc/self/fd/{self.directory_fd}"))
+            root = ensure_directory(self.task_root, "selected runtime root")
+            directory = ensure_directory(directory, "event sink directory")
+            root_status = root.stat(follow_symlinks=False)
+            directory_status = directory.stat(follow_symlinks=False)
+        except OSError as exc:
+            raise GateFailure("could not verify pinned event sink directory") from exc
+        _require_private_task_directory(pinned, "pinned event sink directory")
+        _require_private_task_directory(root_status, "selected runtime root")
+        _require_private_task_directory(directory_status, "event sink directory")
+        if (root_status.st_dev, root_status.st_ino) != self.task_root_identity:
+            raise GateFailure("selected runtime root identity changed")
+        if not directory.is_relative_to(root):
+            raise GateFailure("event sink directory escaped selected runtime root")
+        if (directory_status.st_dev, directory_status.st_ino) != (pinned.st_dev, pinned.st_ino):
+            raise GateFailure("event sink directory differs from pinned descriptor")
+        return str(directory / name)
 
     def close(self) -> None:
         if self.directory_fd >= 0:
@@ -646,7 +671,6 @@ def write_runtime_inputs(
     upstream_endpoint: LoopbackEndpoint,
     configured_streaming: bool,
     upgrade_request_body: bool,
-    body_limit_action: str = "reject",
 ) -> dict[str, str]:
     document_root = root.child("document-root")
     upload_dir: TaskRuntimeDirectory | None = None
@@ -656,7 +680,7 @@ def write_runtime_inputs(
         root.write_text("events.jsonl", "")
         document_root_path = root.runtime_path("document-root")
         upload_dir_path = root.runtime_path("upload")
-        event_path = root.runtime_path("events.jsonl")
+        event_path = root.event_sink_path("events.jsonl")
         runtime_config = root.runtime_path("msconnector-runtime.conf")
         error_log = root.runtime_path("lighttpd-error.log")
         pid_file = root.runtime_path("lighttpd.pid")
@@ -669,9 +693,6 @@ def write_runtime_inputs(
                 "transaction_id_header=x-modsec-transaction-id",
                 "request_body_mode=streaming",
                 "response_body_mode=none",
-                "request_body_limit=1048576",
-                "response_body_limit=1048576",
-                f"body_limit_action={body_limit_action}",
                 "default_block_status=403",
                 "default_error_status=500",
                 "max_header_count=256",
@@ -694,6 +715,7 @@ def write_runtime_inputs(
             f'server.pid-file = "{pid_file}"',
             f'server.upload-dirs = ( "{upload_dir_path}" )',
             'msconnector.enabled = "enable"',
+            'msconnector.request-body-gate = "pre-upstream"',
             f'msconnector.config-file = "{runtime_config}"',
             "proxy.server = (",
             f'  "/" => ( ( "host" => "{LOOPBACK_HOST}", "port" => {upstream_endpoint.port} ) )',
@@ -840,7 +862,7 @@ def ensure_runtime_root(path: Path) -> TaskRuntimeRoot:
     except Exception:
         os.close(directory_fd)
         raise
-    return TaskRuntimeRoot(directory_fd)
+    return TaskRuntimeRoot(directory_fd, root, (pinned_stat.st_dev, pinned_stat.st_ino))
 
 
 def write_summary(root: TaskRuntimeRoot, summary: dict[str, Any]) -> None:
@@ -1071,50 +1093,6 @@ def run_normal_profile(
         normal_root.close()
 
 
-def run_process_partial_case(
-    inputs: RunnerInputs, summary: dict[str, Any], upstream: ChunkAwareMetadataUpstream
-) -> None:
-    case_root = inputs.root.child("process-partial")
-    try:
-        case_inputs = write_runtime_inputs(
-            case_root,
-            rules_file=inputs.rules_file,
-            host_endpoint=inputs.configured_host_endpoint,
-            upstream_endpoint=inputs.upstream_endpoint,
-            configured_streaming=False,
-            upgrade_request_body=False,
-            body_limit_action="process_partial",
-        )
-        baseline = upstream.accepted_connections()
-        config_check = run_config_check(
-            inputs.binary,
-            inputs.module_dir,
-            case_inputs["config"],
-            pass_fds=case_root.inherited_fds(),
-        )
-        output = config_check.stdout + config_check.stderr
-        error_log = case_root.read_bytes_if_present("lighttpd-error.log")
-        if error_log is not None:
-            output += error_log
-        if config_check.returncode == 0:
-            raise GateFailure("streaming process_partial configuration unexpectedly loaded")
-        if b"requires body_limit_action=reject" not in output:
-            raise GateFailure("streaming process_partial configuration did not fail closed")
-        if listener_rows(inputs.configured_host_endpoint):
-            raise GateFailure("process_partial configuration created a listener")
-        if upstream.accepted_connections() != baseline:
-            raise GateFailure("process_partial configuration reached the upstream")
-        summary["cases"].append(
-            {
-                "label": "process_partial_body_limit_action",
-                "config_check_returncode": config_check.returncode,
-                "upstream_connections_before": baseline,
-                "upstream_connections_after": upstream.accepted_connections(),
-            }
-        )
-    finally:
-        case_root.close()
-
 
 def run_configured_stream_case(
     inputs: RunnerInputs,
@@ -1270,7 +1248,6 @@ def main(argv: list[str] | None = None) -> int:
         state.upstream = ChunkAwareMetadataUpstream(inputs.upstream_endpoint)
         state.upstream.start()
         run_normal_profile(inputs, summary, state.upstream, state)
-        run_process_partial_case(inputs, summary, state.upstream)
         run_configured_stream_case(inputs, summary, state.upstream, state)
         run_enabled_upgrade_case(inputs, summary, state.upstream, state)
         summary["upstream"] = state.upstream.snapshot()

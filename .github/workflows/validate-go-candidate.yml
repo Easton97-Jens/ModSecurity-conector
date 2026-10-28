@@ -1,0 +1,81 @@
+name: Validate Go candidate on pull requests
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.go-version'
+      - 'ci/tooling/project-versions.lock.json'
+      - 'ci/checks/common/check-go-version-contract.py'
+      - 'connectors/envoy/ext_proc/**'
+      - 'connectors/traefik/**'
+      - 'scripts/*go*'
+      - 'scripts/version_updater_common.py'
+      - 'tests/*go*'
+      - 'tests/test_ci_security_workflows.py'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  go-candidate:
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - connectors/envoy/ext_proc
+          - connectors/traefik/native_middleware
+          - connectors/traefik/composite_middleware
+          - connectors/traefik/response_observer
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: off
+      CGO_ENABLED: '0'
+      ACTIVE_GO_MODULE: ${{ matrix.module }}
+    steps:
+      - name: Check out the selected candidate without credentials or submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up canonical Python for active selection
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Set up the candidate's centrally selected Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+
+      - name: Validate candidate module contracts, tests, and build
+        working-directory: ${{ matrix.module }}
+        run: |
+          set -euo pipefail
+          go mod tidy -diff
+          go mod verify
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module "$ACTIVE_GO_MODULE"
+          go vet -mod=readonly ./...
+          go build -mod=readonly ./...
+
+      - name: Validate candidate module with the race detector
+        working-directory: ${{ matrix.module }}
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module "$ACTIVE_GO_MODULE" --race

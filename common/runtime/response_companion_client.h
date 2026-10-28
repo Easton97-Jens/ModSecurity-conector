@@ -37,6 +37,7 @@ typedef struct msconnector_response_companion_client {
     int body_started;
     int response_eos;
     int outcome_recorded;
+    int precommit_terminal_outcome;
     int closed;
 } msconnector_response_companion_client;
 
@@ -84,6 +85,8 @@ int msconnector_response_companion_client_cancel_with_cause(
     msconnector_response_companion_client *client,
     msconnector_response_companion_cancel_cause cause,
     msconnector_response_companion_result *result, msconnector_error *error);
+/* Normal P4 EOS or acknowledged precommit disruptive P3 outcome releases
+ * the session without reporting a cancellation. */
 int msconnector_response_companion_client_release(
     msconnector_response_companion_client *client,
     msconnector_response_companion_result *result, msconnector_error *error);

@@ -7,6 +7,11 @@ on:
         description: Open canonical PR number or its full lowercase 40-character head SHA.
         required: true
         type: string
+      on_demand:
+        description: Explicitly execute the archived namespace specialist tests outside the automatic active inventory.
+        required: true
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -21,6 +26,7 @@ jobs:
     # for a PR's namespace test.
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      inputs.on_demand == true &&
       github.repository == 'Easton97-Jens/ModSecurity-conector' &&
       github.event.repository.fork == false &&
       github.ref == 'refs/heads/master' &&
@@ -30,7 +36,7 @@ jobs:
       github.triggering_actor == 'Easton97-Jens'
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     outputs:
       target_sha: ${{ steps.resolve-target.outputs.target_sha }}
@@ -304,7 +310,7 @@ jobs:
           test -z "$source_symlink" || fail_runtime source_symlink
           cd "$SOURCE_ROOT" || fail_runtime source_workdir
           set +e
-          /usr/bin/python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
+          ON_DEMAND_TESTS=1 /usr/bin/python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
           test_status=$?
           set -e
           temporary_entry="$(/usr/bin/find -P "$TEMP_ROOT" -mindepth 1 -maxdepth 1 -print -quit)" || fail_runtime temporary_root_walk
@@ -723,7 +729,7 @@ jobs:
       needs.trusted-lighttpd-namespace.outputs.target_sha != ''
     permissions:
       statuses: write
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Publish the fixed trusted namespace status without checkout

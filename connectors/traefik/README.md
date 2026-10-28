@@ -2,6 +2,19 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+Automatic tests select only
+[config/testing/active-cases.json](../../config/testing/active-cases.json), with
+at most 100 expanded behavioral cases project-wide.
+<code>make -C connectors/traefik test-engine-service</code> selects the admitted
+<code>traefik-python</code> group;
+<code>make -C connectors/traefik test-native-middleware</code> selects
+<code>traefik</code>. These aliases are not the complete old suites or profile
+qualification. Retained broader smoke, self-test and native host campaigns
+below require explicit <code>ON_DEMAND_TESTS=1</code>, a current additional
+request and real toolchain/SDK/host prerequisites. The flag belongs in no
+automatic default and does not reopen closed I12 campaigns. Native UDS and
+forwardAuth/observer evidence remain separate.
+
 Status: forwardAuth compatibility smoke plus a non-promoted native local-plugin host probe
 Runtime status: targeted local Traefik/Common-runtime allow 200/block 403
 Verification status: not_verified / connector-gap
@@ -36,9 +49,14 @@ Omitting the observer is a configuration error, and observer or correlation
 failure is fail-closed. This source/component wiring is
 `implemented_not_asserted`, not a live-host claim.
 
+The forwardAuth templates set `preserveRequestMethod: true` and
+`trustForwardHeader: false`. Traefik sends the original method and regenerates
+forwarding metadata from the incoming request; client-supplied forwarding
+headers do not become authoritative. This option is exercised with Traefik
+3.7.13; older host versions require a separate compatibility check.
+
 The checked-in forwardAuth configuration explicitly enables request-side P2
-with `forwardBody: true` and `maxBodySize: 4096`. The C service configuration
-must use `request_body_mode=buffered` with the same 4096-byte Common limit; the
+with `forwardBody: true` and `maxBodySize: 4096`. The C service streams the authorization body to native P2; the
 start-smoke harness rejects a template that omits either setting or changes
 the service mode. This is bounded buffered host semantics, not incremental
 request-body streaming, and remains `configured_not_exercised` until fresh
@@ -107,7 +125,7 @@ listener/worker cleanup and exits.
 TRAEFIK_ENGINE_SOCKET_TEST_PARENT=/absolute/private/short-socket-parent \
 MODSECURITY_INCLUDE_DIR=/local/include \
 MODSECURITY_LIB_DIR=/local/lib \
-make -C connectors/traefik test-engine-service
+ON_DEMAND_TESTS=1 make -C connectors/traefik test-engine-service
 ```
 
 The focused test starts only the local engine service and is not a Traefik
@@ -137,6 +155,10 @@ configuration fails without a valid private engine socket path, and rejects
 `passthrough` rather than selecting an allow-all path. The isolated host probe
 selects the separately built persistent UDS Common/libmodsecurity engine.
 
+The standard test alias runs only admitted regressions, not the complete old
+Go package suite. The latter remains available for a separate additional
+request with <code>ON_DEMAND_TESTS=1</code>.
+
 Run only the local source checks with:
 
 ```sh
@@ -156,7 +178,7 @@ TRAEFIK_ENGINE_SOCKET_PARENT=/absolute/private/short-socket-parent \
 MODSECURITY_INCLUDE_DIR=/absolute/include \
 MODSECURITY_LIB_DIR=/absolute/lib \
 MSCONNECTOR_RULES_FILE=/absolute/no-crs-baseline.conf \
-make -C connectors/traefik runtime-smoke-traefik-native
+ON_DEMAND_TESTS=1 make -C connectors/traefik runtime-smoke-traefik-native
 ```
 
 `TRAEFIK_ENGINE_SOCKET_PARENT` is the private parent for the native probe's
@@ -285,7 +307,7 @@ connectors/traefik/build/build-starter.sh
 Run the local decision-service starter self-test with:
 
 ```sh
-make -C connectors/traefik self-test-decision-service
+ON_DEMAND_TESTS=1 make -C connectors/traefik self-test-decision-service
 ```
 
 A successful self-test proves only local allow/block decision logic for in-memory
@@ -294,17 +316,20 @@ libmodsecurity validation.
 
 ## Tests
 
-No local `connectors/traefik/tests` folder is used. Executable tests are
-framework-owned.
+No local `connectors/traefik/tests` folder is used. The Framework owns reusable
+catalog definitions; Parent owns Go/native/integration tests and their active
+selection. Standard <code>make test-no-crs</code> and <code>make test-with-crs</code>
+aliases select admitted runtime subsets, not complete Framework catalogs or
+profiles. Evidence keeps its actual source/run/profile bindings; a successful
+component test does not qualify a host route.
 
-Framework-owned paths and targets to use after a real Traefik build and harness
-are implemented:
+Retained Framework paths and explicitly requested broader commands:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
-- `make test-no-crs`
-- `make test-with-crs`
-- `make smoke-common`
+- `ON_DEMAND_TESTS=1 make test-no-crs`
+- `ON_DEMAND_TESTS=1 make test-with-crs`
+- `ON_DEMAND_TESTS=1 make smoke-common`
 
 The starter itself claims no No-CRS, With-CRS, RESPONSE_BODY, negative/
 pass-through, audit/log, or Traefik runtime result. The separate native UDS
@@ -327,7 +352,7 @@ and transaction concepts come from `common/include/msconnector/`. Runtime smoke
 evidence is written through `common/scripts/write_smoke_result.py`, so Traefik
 does not maintain its own JSON result writer.
 
-`make smoke-traefik` sources the framework common smoke wrapper, which sources
+`ON_DEMAND_TESTS=1 make smoke-traefik` sources the framework common smoke wrapper, which sources
 `modules/ModSecurity-test-Framework/ci/lib/common.sh`. Runtime dependencies are not
 installed globally and the harness does not assume `traefik` exists in the
 global `PATH`.
@@ -343,7 +368,7 @@ Traefik binary lookup uses:
 Example:
 
 ```sh
-TRAEFIK_BIN=/lokaler/pfad/traefik make smoke-traefik
+TRAEFIK_BIN=/lokaler/pfad/traefik ON_DEMAND_TESTS=1 make smoke-traefik
 ```
 
 Local staging helper:
@@ -361,7 +386,7 @@ pinned Linux amd64 tarball, verifies `TRAEFIK_SHA256`, extracts only the
 
 ```sh
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
-make smoke-traefik
+ON_DEMAND_TESTS=1 make smoke-traefik
 ```
 
 The default smoke proves the local Traefik runtime, generated forwardAuth
@@ -372,8 +397,8 @@ For the optional targeted libmodsecurity-backed smoke, keep the same local
 Traefik binary and select the libmodsecurity decision backend:
 
 ```sh
-DECISION_BACKEND=libmodsecurity make smoke-traefik
-make smoke-traefik-modsecurity
+DECISION_BACKEND=libmodsecurity ON_DEMAND_TESTS=1 make smoke-traefik
+ON_DEMAND_TESTS=1 make smoke-traefik-modsecurity
 ```
 
 This mode resolves local libmodsecurity headers/libraries from common.sh-managed
@@ -388,9 +413,9 @@ The minimal CRS smoke uses the same local Traefik runtime and libmodsecurity
 backend, but switches the ruleset to CRS:
 
 ```sh
-DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-traefik
-make smoke-traefik-crs
-make smoke-traefik-crs-secondary
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs ON_DEMAND_TESTS=1 make smoke-traefik
+ON_DEMAND_TESTS=1 make smoke-traefik-crs
+ON_DEMAND_TESTS=1 make smoke-traefik-crs-secondary
 ```
 
 The CRS source-of-truth remains `common.sh` (`CRS_REPO_URL`, `CRS_GIT_REF`,
@@ -418,8 +443,8 @@ the secondary probe is not blocked, the result is FAIL, not PASS or BLOCKED.
 All open connector CRS smokes can be run with:
 
 ```sh
-make smoke-open-connectors-crs
-make smoke-open-connectors-crs-secondary
+ON_DEMAND_TESTS=1 make smoke-open-connectors-crs
+ON_DEMAND_TESTS=1 make smoke-open-connectors-crs-secondary
 ```
 
 Traefik source metadata is centralized in `common.sh`: `TRAEFIK_VERSION=3.7.10`,
@@ -436,7 +461,7 @@ and `missing_dependencies=["traefik"]`. Evidence is written to
 `$VERIFIED_RUN_ROOT/traefik-smoke/`; if `VERIFIED_RUN_ROOT` is not set, the
 fallback is `$BUILD_ROOT/results/traefik-smoke/`.
 
-If a local binary is resolved, `make smoke-traefik` can return PASS only after a
+If a local binary is resolved, `ON_DEMAND_TESTS=1 make smoke-traefik` can return PASS only after a
 real HTTP smoke observes an allowed request status of 200 and a blocked request
 status of 403 through Traefik. That PASS still does not claim production
 readiness, full matrix readiness, CRS completeness, or response-body
@@ -508,9 +533,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+Connector/runtime cumulative response-size settings have been removed;
+unknown legacy keys are rejected during configuration loading. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not
@@ -518,3 +542,16 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+## Native body policy and remaining host limits
+
+Request limit/action belong exclusively to `SecRequestBodyLimit` and
+`SecRequestBodyLimitAction`; response limit/action belong exclusively to
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector adds no
+body-size option, default or cumulative enforcement. Bounded IO blocks and
+checked counters do not select an engine limit or action.
+
+The forwardAuth host still buffers the authorization body: smoke
+`maxBodySize=4096`, composite `maxBodySize=33`; composite `maxResponseBodySize=32768`
+also bounds the authorization response. These limitations remain; native UDS
+middleware is a separate streaming profile.

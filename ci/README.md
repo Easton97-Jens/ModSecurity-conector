@@ -4,6 +4,34 @@
 
 This tree contains connector-repository orchestration, contracts, and evidence tools. The Framework owns the reusable case catalog; this repository owns connector integration through `FRAMEWORK_ROOT`.
 
+## Automatic behavioral selection
+
+[config/testing/active-cases.json](../config/testing/active-cases.json) remains the only selector authority for normal local, CI and scheduled checks.
+
+The user explicitly authorized additional offline Python units outside the 100-case core ceiling. Schema 2 of the same inventory now declares **938 expanded cases across 541 executions**: 89 core cases / 69 executions (including the original eight offline cases) plus 849 explicitly source-bound `offline_unit_exceptions` / 472 executions. Every independent variant is counted. The runner validates both sections and enforces the core ceiling before every child; 101 core cases still fail. Exception selectors are Python-only, and their isolated child installs a guard against process creation and network access before importing tests. Package-level `tests.load_tests` defers offline test imports to that child. Raw `unittest discover -s tests` first imports each module in the parent to find its hook; those top levels were reviewed for absence of eager process/host activity, and test execution then occurs only in the guarded child. These counts describe the current selection, not final acceptance. This exception does not authorize native/Go/host scenarios outside the core budget.
+
+Sonar uses the mandatory workflow from master #421 (`7a44f18e`) and its own Python, Go and native Common assessment. PR #421 records 80 Python methods and 37 named Go scenarios; methods are not expanded case counts. Matrix repetition adds execution cost, not new case identities. The fixed 13-entry `PYTHON_TESTS` selection receives child-only `ON_DEMAND_TESTS=1`; default inventory hooks remain guarded and no global bypass is enabled. Process/Go/native assessment is not a Python offline exception or a reopened I12 campaign. The removed PR-specific coverage pipeline and custom gates stay removed. The inventory ceiling applies to the remaining Parent selection; no global ceiling including master Sonar is claimed. PR #421 results remain bound to their original revisions and do not prove the PR #382 merge head.
+
+
+`make check-active-inventory` checks the complete inventory without starting tests; `make test` and `make test-active` execute its admitted selection. Group/case/module filters apply only after full admission. Unknown or empty selections and changed source bindings fail; selection is never truncated. Functional build/lint callers use this same authority. Static compilation, CodeQL, actionlint, zizmor, OSV and secret scanning retain substantive independent gates.
+
+Root/component defaults, standard CI, scheduled contracts and maintenance
+candidate validation use this same selection. No-CRS plans must match the
+Parent's exact declared case IDs before host execution. The fixed five-profile
+CRS cells retain their actual selected requests and fail-closed evidence /
+cleanup checks. NGINX remains its protected exact-head boundary with the two
+separately counted callback On/Off cases. Readiness must not introduce a hidden
+extra request scenario. Profile-specific results cannot qualify sibling routes.
+
+Full matrix, broad smoke, MRTS, full-lifecycle, historical I12 and random fuzz
+campaigns remain specialist work. Their retained commands require explicit
+<code>ON_DEMAND_TESTS=1</code> and a current request for that assessment; manual
+specialist workflows additionally require their closed <code>on_demand</code>
+input where exposed. The flag is not permission to restart closed I12 work or
+weaken privilege/source/artifact boundaries. Do not export it globally or set
+it on standard CI/schedules. See the [archive and lost coverage](../docs/testing-and-evidence.md)
+and [test entry points](../tests/README.md).
+
 ## Layout
 
 | Area | Responsibility | Invocation |
@@ -30,16 +58,16 @@ Use Make targets rather than nested files from an arbitrary working directory. T
 
 | Target | Purpose | Inputs | Artifacts |
 | --- | --- | --- | --- |
-| `make quick-check` | Fast contracts, syntax, and documentation checks | `PYTHON`, `FRAMEWORK_ROOT` | No canonical runtime evidence |
+| `make quick-check` | Static contracts, syntax and documentation plus the admitted functional subset | `PYTHON`, `FRAMEWORK_ROOT` | No canonical runtime evidence |
 | `make prepare-runtime-components` | Materializes or reuses Cache-v2 inputs | `BUILD_ROOT`, `CACHE_ROOT`, `CONNECTOR_COMPONENT_CACHE` | Component manifest and local snapshot |
-| `make full-lifecycle-<connector>` | Runs one selected native HTTP/1.1 core profile | `<connector>` = `apache`, `nginx`, `haproxy`, `envoy`, `traefik`, or `lighttpd`; `NO_CRS_RUN_ID` | Connector evidence |
-| `make full-lifecycle-all-connectors` | Runs all six selected profiles | `NO_CRS_RUN_ID`, writable runtime/evidence roots | Six result sets |
+| `ON_DEMAND_TESTS=1 make full-lifecycle-<connector>` | Runs one selected native HTTP/1.1 core profile | `<connector>` = `apache`, `nginx`, `haproxy`, `envoy`, `traefik`, or `lighttpd`; `NO_CRS_RUN_ID` | Connector evidence |
+| `ON_DEMAND_TESTS=1 make full-lifecycle-all-connectors` | Runs all six selected profiles | `NO_CRS_RUN_ID`, writable runtime/evidence roots | Six result sets |
 | `make check-six-connector-core-completion` | Validates aggregate evidence | Same run id and evidence root | Aggregate PASS/FAIL |
 
 `NO_CRS_RUN_ID` is a filesystem-safe run identifier, for example `repository-cleanup-core-20260712T164725Z`. Do not use secrets, user names, or ticket text. See the [variables reference](../docs/reference/variables.md).
 
-The six-connector Make targets above are generic local orchestration targets.
-They are not the scheduled/manual CI baseline. That baseline is the closed
+The six-connector lifecycle commands above are retained on-demand orchestration
+examples, not default validation or the scheduled/manual CI baseline. That baseline is the closed
 <code>no-crs</code> profile in
 <code>.github/workflows/reusable-five-connectors-profile.yml</code>, called by
 <code>all-connectors-no-crs.yml</code>. It selects only Apache, HAProxy, Envoy,
@@ -103,6 +131,26 @@ accepts only its approved protected producer and protected-runtime evidence,
 while this PR neither invokes nor changes the broker production path. The
 contract tests prove validator behavior, not a hosted runtime result.
 
+## Optional NGINX worker self-map capture
+
+The closed Common-input-fault and lifecycle-sequence drivers normally read the
+actual nobody worker's `/proc/<pid>/maps`; a denied read remains a failure.
+An explicitly selected test-only `--worker-self-map-library` (or
+`NGX_NATIVE_WORKER_SELF_MAP_LIBRARY`) instead lets that same worker read
+`/proc/self/maps` immediately after its real successful transition to UID/GID
+65534. It adds no process-inspection capability. The Root parent opens a fresh
+0600, single-link, regular `O_APPEND` file and passes its private descriptor to
+the exact native launch. The helper binds the descriptor's device/inode and
+captures only its original master's own child.
+
+Before sending traffic, the parent requires complete bounded raw bytes,
+matching worker PID, parent PID, UID/GID and process start time, and actual
+maps entries for the selected native module and every loaded fixture library.
+Missing, unsafe, incomplete or mismatched capture fails closed. Raw bytes and
+the helper artifact hash remain in the run receipt; no master maps substitute
+for worker maps. This channel proves loaded mappings only. It supplies no
+host EOS, MIME decision, native/Common ID join or full lifecycle PASS.
+
 ## Optional-prerequisite status records
 
 `ci/tools/run-check-status.py` runs one direct child command, writes a
@@ -131,11 +179,12 @@ the child command and uses that directory handle for the temporary file and
 final replacement. These records are CI-control evidence, not canonical runtime
 evidence.
 
-`make check-apache-request-transaction-cleanup` remains strict: its Python
-source contract and native Apache/APR harness must both complete, and a missing
-prerequisite remains nonzero. In contrast,
-`make check-apache-request-transaction-cleanup-lint` keeps the same mandatory
-Python source contract but uses the parent-owned
+With explicit <code>ON_DEMAND_TESTS=1</code>,
+`make check-apache-request-transaction-cleanup` retains its strict specialist
+Python source contract and native Apache/APR harness; both must complete and a
+missing prerequisite remains nonzero. In that same specialist mode,
+`make check-apache-request-transaction-cleanup-lint` keeps the Python source
+contract but uses the parent-owned
 `--blocked-if-missing-apache-development` preflight. Before the child starts,
 the runner resolves `APXS_BIN`, then `APXS`, then
 `CI_APXS_BIN_CANDIDATES` (or `apxs`/`apxs2`), and requires an executable APXS
@@ -144,9 +193,9 @@ Only when that preflight fails does the runner record the structured
 `apache_development_prerequisite` `blocked` result and allow it for this lint
 target. If the preflight passes, the child runs; every child `77`, including a
 copied or forged `CHECK_STATUS_REASON` string in either output stream, remains
-an unclassified nonzero result. The five documented Push workflows reach this
-one subcheck through `make lint` or `make quick-check`; no other target,
-Common check, or connector check inherits the allowance.
+an unclassified nonzero result. Without <code>ON_DEMAND_TESTS=1</code>, both Make aliases select the admitted
+Apache group instead of this archived native harness. The specialist allowance
+does not authorize success for another target, Common check or connector check.
 
 ## Adding a file
 

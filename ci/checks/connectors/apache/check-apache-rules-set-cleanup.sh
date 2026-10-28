@@ -154,8 +154,11 @@ CONFIG="$REPO_ROOT/connectors/apache/src/msc_config.c"
 BIN="$OUT/apache-rules-set-cleanup"
 trap 'cleanup_private_output' EXIT
 
+# APXS may enable LTO. The wrapper is referenced only after linker rewriting,
+# so root it explicitly before LTO and section GC can discard its definition.
 "$CC_BIN" -std=c17 -Wall -Wextra -Werror -ffunction-sections -fdata-sections \
     $APXS_CFLAGS $APXS_CPPFLAGS -UNDEBUG $INCLUDES "$HARNESS" "$CONFIG" \
-    -Wl,--gc-sections -Wl,--wrap=ap_log_perror_ $APR_RPATH_FLAG $APR_LINK_FLAGS \
+    -Wl,--gc-sections -Wl,--wrap=ap_log_perror_ \
+    -Wl,--undefined=__wrap_ap_log_perror_ $APR_RPATH_FLAG $APR_LINK_FLAGS \
     -o "$BIN"
 "$BIN"

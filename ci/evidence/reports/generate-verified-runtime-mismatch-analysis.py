@@ -2575,14 +2575,18 @@ def analysis_configuration(args: argparse.Namespace, parser: argparse.ArgumentPa
     default_paths = verified_runtime_paths(os.environ)
     build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     verified_run_root = Path(default_paths["VERIFIED_RUN_ROOT"]).resolve()
-    INPUTS = EvidenceInputs((connector_root, framework_root, build_root, verified_run_root))
     try:
         verified_run_id = validate_verified_run_id(args.verified_run_id or current_verified_run_id(connector_root))
     except VerifiedRunIdError as exc:
         parser.error(str(exc))
     os.environ["VERIFIED_RUN_ID"] = verified_run_id
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"
-    commands_file = Path(args.verified_commands_file).resolve() if args.verified_commands_file else build_root / "verified-runs" / verified_run_id / "verified-commands.json"
+    commands_file = Path(os.path.abspath(args.verified_commands_file)) if args.verified_commands_file else build_root / "verified-runs" / verified_run_id / "verified-commands.json"
+    # Only an explicit invocation argument may grant one external receipt.
+    # Its directory and paths recorded inside it gain no additional authority.
+    approved_files = (commands_file,) if args.verified_commands_file else ()
+    INPUTS = EvidenceInputs((connector_root, framework_root, build_root, verified_run_root),
+                            files=approved_files)
     return {
         "connector_root": connector_root,
         "framework_root": framework_root,

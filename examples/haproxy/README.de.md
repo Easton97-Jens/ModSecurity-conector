@@ -134,13 +134,12 @@ Socket-/Logpfaden. Alle anwendbaren Begrenzungsparameter sind sichtbar:
 | Parameter | Eingecheckter Wert | Grenze |
 | --- | ---: | --- |
 | `tune.bufsize` / `max-frame-size` | 65536 / 65532 | HAProxy- und SPOE-Request-Grenzen |
-| `request-body-limit` / `response-body-limit` | 65532 / 65532 | Request- und MRC1-Response-Grenzen |
 | `response-body-timeout` / `spoe-timeout` | 2000 / 2000 ms | Companion- und Agent-Timeout |
 | `max-transactions` / `worker-count` | 64 / 8 | Begrenzter State, deterministische Ownership und Peer-Isolation |
 | `response-companion-uid/gid` | 1000 / 1000 | Muss zur Agent-Identität passen |
 
-`response-companion=native-htx`, private UDS, passende UID/GID, ein Wert
-ungleich null für `response-body-limit`, EOS und Timeout sind verpflichtende
+`response-companion=native-htx`, private UDS, passende UID/GID, begrenzte
+Protokollframes, EOS und Timeout sind verpflichtende
 Startbedingungen. Fehlende Korrelation oder Companion-Fehler werden
 fail-closed behandelt und bereinigt; kein nativer Transaktionszeiger geht über
 die UDS. Der private UDS-Pfad ist ein Beispiel und muss gemeinsam mit der
@@ -186,7 +185,7 @@ verwenden.
 | max-frame-size | Positives SPOE-Frame-Byte-Limit | Pflicht; spoe-modsecurity.conf; Agent-Scope | 65532. Begrenzt einen Frame, schafft keine P4-Body-Unterstützung. |
 | rules-file | Lesbare Agent-Regeldatei | Pflicht; modsecurity-agent.conf; SPOA-Scope | /etc/modsecurity/haproxy-rules.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
 | decision-log, audit-log, log-file | Beschreibbare Prozesslogpfade | decision-log Pflicht, andere optional; SPOA-Scope | /var/log/haproxy-modsecurity. Metadaten schützen und keine Secrets loggen. |
-| response-body-limit und response-body-timeout | Kompatibilitäts-Response-Body-Controls | Explizit deaktiviert; SPOA-Scope | 0 und 0. Nicht als P4-Unterstützung darstellen. |
+| response-body-timeout | Kompatibilitäts-Response-Body-Controls | Explizit deaktiviert; SPOA-Scope | 0. Nicht als P4-Unterstützung darstellen. |
 
 SPOP-Adresse 127.0.0.1:12345, HAProxy-Listener 127.0.0.1:8080, Upstream
 127.0.0.1:8081 und /etc- oder /var/log-Pfade sind Hostbeispiele, keine

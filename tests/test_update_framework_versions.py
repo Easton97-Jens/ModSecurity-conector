@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import copy
 import json
 import os
 from pathlib import Path
@@ -120,9 +122,14 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             ROOT,
             self.root,
             ignore=shutil.ignore_patterns(
-                ".git", "ModSecurity-test-Framework", "__pycache__", ".pytest_cache"
+                ".git", "ModSecurity-test-Framework", "__pycache__", ".pytest_cache", ".rsync-tmp"
             ),
         )
+        # These legacy grammar fixtures deliberately reset independent pins.
+        # They do not claim an admitted Parent inventory. Companion-specific
+        # regressions below construct a fresh admitted selection explicitly.
+        for relative in SYNC.inventory_updates.COMPANIONS:
+            (self.root / relative).unlink()
         # Test identities are independent of both live pins and grammar provenance.
         set_framework_sha_fixture(self.root, TEST_PARENT_FRAMEWORK_SHA)
         set_framework_component_fixture(self.root)
@@ -150,6 +157,49 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
 
     def all_target_bytes(self) -> dict[Path, bytes]:
         return self.target_bytes() | self.framework_sha_projection_bytes()
+
+    def install_admitted_inventory(self) -> str:
+        """Create a genuine, private trusted-base repository for publication."""
+        fixture = self.root / "tests/companion_fixture.py"
+        fixture.write_text("import unittest\nclass Control(unittest.TestCase):\n"
+                           "    def test_core(self): pass\n    def test_offline(self): pass\n")
+        paths = ("tests/companion_fixture.py", "ci/tooling/project-versions.lock.json",
+                 "tests/test_compiler_guides.py", "tests/test_prepare_runtime_components.py")
+        sources = [{"path": name, "sha256": hashlib.sha256((self.root / name).read_bytes()).hexdigest()}
+                   for name in paths]
+        def execution(identifier, method):
+            return {"id": identifier, "groups": ["offline-unit" if method == "test_offline" else "control"],
+                    "sources": list(paths),
+                    "selector": {"kind": "python", "target": "tests.companion_fixture.Control." + method},
+                    "cases": [{"id": identifier + ".case", "requirement": "Keep the admitted selection.",
+                               "profiles": ["parent"]}]}
+        core = execution("fixture.core", "test_core")
+        offline = execution("offline.fixture", "test_offline")
+        offline["expected_subtests"] = 0
+        inventory = {"schema_version": 3, "source_bindings": sources,
+                     "executions": [core], "offline_unit_exceptions": [offline]}
+        (self.root / SYNC.inventory_updates.INVENTORY).write_text(json.dumps(inventory, indent=2) + "\n")
+        self.git("init", "-q")
+        self.git("config", "user.name", "Fixture")
+        self.git("config", "user.email", "fixture@example.invalid")
+        self.git("add", "--all")
+        archive_spec = importlib.util.spec_from_file_location("fixture_archive", ROOT / "ci/tools/update-test-archive.py")
+        archive_module = importlib.util.module_from_spec(archive_spec)
+        archive_spec.loader.exec_module(archive_module)
+        with mock.patch.object(archive_module, "ROOT", self.root):
+            archive = archive_module.archive()
+        (self.root / SYNC.inventory_updates.ARCHIVE).write_text(json.dumps(archive, indent=2, sort_keys=True) + "\n")
+        self.git("add", "--all")
+        self.git("commit", "-qm", "admitted trusted baseline")
+        SYNC.load_inventory(self.root)
+        return self.git("rev-parse", "HEAD").strip()
+
+    def git(self, *arguments: str) -> str:
+        return subprocess.check_output(["git", "-C", str(self.root), *arguments], text=True, timeout=30)
+
+    def publication_bytes(self) -> dict[Path, bytes]:
+        return self.all_target_bytes() | {self.root / name: (self.root / name).read_bytes()
+                                          for name in SYNC.inventory_updates.COMPANIONS}
 
     def nginx_owned_bytes(self) -> dict[Path, bytes]:
         relative_paths = (
@@ -868,7 +918,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         rendered = SYNC._render_targets(self.root, SYNC.parse_common(self.common), NEW_FRAMEWORK_SHA)
         lock = self.root / "ci/tooling/project-versions.lock.json"
         payload = json.loads(lock.read_bytes())
-        payload["python_version"] = "3.14.8"
+        payload["python_version"] = "3.15.8"
         lock.write_text(json.dumps(payload, indent=2) + "\n")
         before = self.all_target_bytes()
         with self.assertRaisesRegex(SYNC.SyncError, "changed concurrently"):
@@ -892,6 +942,157 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
         fcntl.flock(competing, fcntl.LOCK_UN)
 
+    def test_framework_update_preserves_admitted_selection_and_native_archive(self) -> None:
+        base = self.install_admitted_inventory()
+        inventory_path = self.root / SYNC.inventory_updates.INVENTORY
+        archive_path = self.root / SYNC.inventory_updates.ARCHIVE
+        original_inventory = json.loads(inventory_path.read_bytes())
+        original_archive = json.loads(archive_path.read_bytes())
+        candidate = replace_rhs(future_series_common(), "MODSECURITY_V3_RELEASE_TAG", '"v3.0.17"')
+        candidate = replace_rhs(candidate, "MODSECURITY_V3_APPROVED_COMMIT", '"' + "f" * 40 + '"')
+        self.write_common(candidate)
+        changed = SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        self.assertLessEqual(SYNC.inventory_updates.COMPANIONS, set(changed))
+        admitted = SYNC.load_inventory(self.root)
+        self.assertEqual(len(admitted.case_ids), 2)
+        expected_inventory = copy.deepcopy(original_inventory)
+        for source in expected_inventory["source_bindings"]:
+            source["sha256"] = hashlib.sha256((self.root / source["path"]).read_bytes()).hexdigest()
+        self.assertEqual(json.loads(inventory_path.read_bytes()), expected_inventory)
+        expected_archive = copy.deepcopy(original_archive)
+        expected_archive["inventory_sha256"] = hashlib.sha256(inventory_path.read_bytes()).hexdigest()
+        for row in expected_archive["sources"]:
+            if row["source"] in {"tests/test_compiler_guides.py", "tests/test_prepare_runtime_components.py"}:
+                row["source_sha256"] = hashlib.sha256((self.root / row["source"]).read_bytes()).hexdigest()
+        self.assertEqual(json.loads(archive_path.read_bytes()), expected_archive)
+        result = subprocess.run([sys.executable, str(self.root / "ci/tools/update-test-archive.py"), "--check"],
+                                text=True, capture_output=True, timeout=30, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        SYNC.verify_inventory_companions(self.root, self.common, NEW_FRAMEWORK_SHA, base)
+        verification = ("--verify-companions", "--base", base, "--framework-sha", NEW_FRAMEWORK_SHA,
+                        "--framework-common", str(self.common))
+        self.assertEqual(self.run_copied_cli(verification), 0)
+        self.git("add", "--all")
+        SYNC.verify_inventory_companions(self.root, self.common, NEW_FRAMEWORK_SHA, base, staged=True)
+        self.assertEqual(self.run_copied_cli((*verification, "--staged")), 0)
+        self.assertEqual(SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA), [])
+
+    def test_framework_publication_rejects_forged_sources_selection_and_modes(self) -> None:
+        base = self.install_admitted_inventory()
+        SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        good = self.publication_bytes()
+        inventory_path = self.root / SYNC.inventory_updates.INVENTORY
+        archive_path = self.root / SYNC.inventory_updates.ARCHIVE
+        primary = self.root / "tests/test_compiler_guides.py"
+        for mutation in ("primary-bytes", "selector", "source-path", "missing-companions", "mode"):
+            with self.subTest(mutation=mutation):
+                for path, data in good.items():
+                    path.write_bytes(data)
+                    path.chmod(0o644)
+                if mutation == "primary-bytes":
+                    primary.write_bytes(primary.read_bytes() + b"# unrelated content must not be blessed\n")
+                    inventory = json.loads(inventory_path.read_bytes())
+                    digest = hashlib.sha256(primary.read_bytes()).hexdigest()
+                    for source in inventory["source_bindings"]:
+                        if source["path"] == str(primary.relative_to(self.root)):
+                            source["sha256"] = digest
+                    inventory_path.write_text(json.dumps(inventory, indent=2) + "\n")
+                    archive = json.loads(archive_path.read_bytes())
+                    archive["inventory_sha256"] = hashlib.sha256(inventory_path.read_bytes()).hexdigest()
+                    for source in archive["sources"]:
+                        if source["source"] == str(primary.relative_to(self.root)):
+                            source["source_sha256"] = digest
+                    archive_path.write_text(json.dumps(archive, indent=2, sort_keys=True) + "\n")
+                    SYNC.load_inventory(self.root)
+                elif mutation in {"selector", "source-path"}:
+                    inventory = json.loads(inventory_path.read_bytes())
+                    if mutation == "selector":
+                        inventory["executions"][0]["selector"]["target"] = "tests.companion_fixture.Control.test_offline"
+                    else:
+                        inventory["source_bindings"][0]["path"] = "tests/forged_fixture.py"
+                    inventory_path.write_text(json.dumps(inventory, indent=2) + "\n")
+                    archive = json.loads(archive_path.read_bytes())
+                    archive["inventory_sha256"] = hashlib.sha256(inventory_path.read_bytes()).hexdigest()
+                    archive_path.write_text(json.dumps(archive, indent=2, sort_keys=True) + "\n")
+                elif mutation == "missing-companions":
+                    inventory_path.unlink()
+                    archive_path.unlink()
+                else:
+                    archive_path.chmod(0o755)
+                with self.assertRaises((SYNC.SyncError, OSError, ValueError)):
+                    SYNC.verify_inventory_companions(self.root, self.common, NEW_FRAMEWORK_SHA, base)
+                self.git("add", "--all")
+                # Restore a valid working tree without changing the poisoned
+                # index, so staged verification cannot borrow working bytes.
+                for path, data in good.items():
+                    path.write_bytes(data)
+                    path.chmod(0o644)
+                SYNC.verify_inventory_companions(self.root, self.common, NEW_FRAMEWORK_SHA, base)
+                with self.assertRaises((SYNC.SyncError, OSError, ValueError)):
+                    SYNC.verify_inventory_companions(self.root, self.common, NEW_FRAMEWORK_SHA, base, staged=True)
+
+    def test_framework_sync_rejects_stale_companions_before_primary_writes(self) -> None:
+        self.install_admitted_inventory()
+        baseline = self.publication_bytes()
+        inventory_path = self.root / SYNC.inventory_updates.INVENTORY
+        archive_path = self.root / SYNC.inventory_updates.ARCHIVE
+        for mutation in ("source-digest", "archive-digest", "archive-source-digest", "one-companion-missing"):
+            with self.subTest(mutation=mutation):
+                for path, data in baseline.items():
+                    path.write_bytes(data)
+                if mutation == "source-digest":
+                    payload = json.loads(inventory_path.read_bytes())
+                    payload["source_bindings"][0]["sha256"] = "0" * 64
+                    inventory_path.write_text(json.dumps(payload, indent=2) + "\n")
+                elif mutation == "archive-digest":
+                    payload = json.loads(archive_path.read_bytes())
+                    payload["inventory_sha256"] = "0" * 64
+                    archive_path.write_text(json.dumps(payload, indent=2) + "\n")
+                elif mutation == "archive-source-digest":
+                    payload = json.loads(archive_path.read_bytes())
+                    for source in payload["sources"]:
+                        if source["source"] == "tests/test_compiler_guides.py":
+                            source["source_sha256"] = "0" * 64
+                    archive_path.write_text(json.dumps(payload, indent=2) + "\n")
+                else:
+                    archive_path.unlink()
+                before = self.all_target_bytes()
+                with self.assertRaises(SYNC.SyncError):
+                    SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+                self.assertEqual(self.all_target_bytes(), before)
+
+    def test_framework_companion_failure_rolls_back_primary_and_companions(self) -> None:
+        self.install_admitted_inventory()
+        self.write_common(future_series_common())
+        before = self.publication_bytes()
+        original_replace = SYNC._replace_file
+        archive_path = self.root / SYNC.inventory_updates.ARCHIVE
+        def fail_archive(path, *arguments):
+            if path == archive_path:
+                raise OSError("injected final companion write failure")
+            return original_replace(path, *arguments)
+        with mock.patch.object(SYNC, "_replace_file", side_effect=fail_archive):
+            with self.assertRaisesRegex(SYNC.SyncError, "completed changes were rolled back"):
+                SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        self.assertEqual(self.publication_bytes(), before)
+        SYNC.load_inventory(self.root)
+
+    def test_framework_postwrite_admission_failure_rolls_back_transaction(self) -> None:
+        self.install_admitted_inventory()
+        before = self.publication_bytes()
+        with mock.patch.object(SYNC, "load_inventory", side_effect=ValueError("injected final admission failure")):
+            with self.assertRaisesRegex(SYNC.SyncError, "completed changes were rolled back"):
+                SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        self.assertEqual(self.publication_bytes(), before)
+        SYNC.load_inventory(self.root)
+
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

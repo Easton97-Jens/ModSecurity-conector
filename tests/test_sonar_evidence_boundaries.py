@@ -288,5 +288,13 @@ sys.exit(1)
                 NATIVE.latest_case_runs(root, ("control",))
 
 
+# Parent discovery remains inventory-bound; only an explicit selected Master
+# assessment may opt into the complete module without importing helpers eagerly.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
+
+
 if __name__ == "__main__":
     unittest.main()

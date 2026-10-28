@@ -453,7 +453,8 @@ def _run_framework_guard(
     except RuntimeError as exc:
         return None, f"failed:{exc}"
     except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or b"").decode("utf-8", errors="replace").strip()
+        output = exc.stdout or b""
+        output = output.decode("utf-8", errors="replace").strip()
         return None, f"failed:timeout loading common.sh {output}"
     if proc.returncode != 0:
         stderr = proc.stderr.decode("utf-8", errors="replace").strip()
@@ -11322,6 +11323,8 @@ def write_runtime_component_reports(
     if postprocess.is_file():
         command = [sys.executable, str(postprocess), "--connector-root", str(connector_root),
                    "--output-root", str(context["output_root"]), "--cache-root", str(cache_root)]
+        if context.get("build_root"):
+            command.extend(("--build-root", str(context["build_root"])))
         # Approvals come only from invocation configuration, never the manifest.
         for candidate in configured_component_file_approvals(context.get("env", {})):
             command.extend(("--approved-component-file", candidate))

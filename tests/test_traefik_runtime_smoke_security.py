@@ -431,9 +431,10 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
         self.assertIn(
             "msconnector_traefik_forwardauth_response_companion_set_limits(companion,"
             "msconnector_runtime_header_count_limit(runtime),"
-            "msconnector_runtime_total_header_limit(runtime),",
+            "msconnector_runtime_total_header_limit(runtime))",
             compact,
         )
+        self.assertNotIn("max_response_body_bytes", service)
         self.assertRegex(observer, r"maxHeaderCount\s*=\s*256")
         self.assertRegex(
             observer,
@@ -558,3 +559,9 @@ class TraefikRuntimeSmokeSecurityTest(unittest.TestCase):
                 f"event_path={start}/events.jsonl" if line.startswith("event_path=") else line
                 for line in source.splitlines()
             ) + "\n")
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

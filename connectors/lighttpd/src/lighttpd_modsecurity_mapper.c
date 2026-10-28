@@ -256,13 +256,12 @@ int lighttpd_modsecurity_visit_body_range(
         void *userdata,
         char *error,
         size_t error_len) {
-    const chunk *chunk;
-
     if (queue == NULL || consumer == NULL || queue_offset < 0 || length < 0) {
         mapper_error(error, error_len, "invalid lighttpd body range");
         return 0;
     }
-    for (chunk = queue->first; chunk != NULL && length > 0; chunk = chunk->next) {
+    for (const chunk *chunk = queue->first; chunk != NULL && length > 0;
+            chunk = chunk->next) {
         off_t available = lighttpd_chunk_available(chunk);
         off_t take;
 

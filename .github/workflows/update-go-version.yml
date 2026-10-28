@@ -12,7 +12,7 @@ jobs:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       current_version: ${{ steps.resolve.outputs.current_version }}
@@ -33,7 +33,7 @@ jobs:
 
       - name: Set up canonical Python for the updater
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -128,14 +128,42 @@ jobs:
               raise SystemExit("component resolver returned an unapproved component")
           if target != "v1.83.2" or not isinstance(component_current, str):
               raise SystemExit("component resolver returned an invalid component version")
-          component_current_tuple = component_version_tuple(component_current)
-          target_tuple = component_version_tuple(target)
+          component_version_tuple(component_current)
           if not isinstance(item_available, bool) or component_available != item_available:
               raise SystemExit("component resolver returned inconsistent update availability")
           if component_status != ("update_available" if component_available else "current"):
               raise SystemExit("component resolver returned an inconsistent component status")
-          if component_available != (component_current_tuple < target_tuple):
-            raise SystemExit("component resolver returned an inconsistent component floor")
+          requirements = component.get("requirements")
+          # Fixed minimum security floors; preserve newer reviewed dependency pins.
+          approved_minimums = {
+              "google.golang.org/grpc": "v1.83.2",
+              "golang.org/x/sys": "v0.49.0",
+              "golang.org/x/net": "v0.61.0",
+              "golang.org/x/text": "v0.43.0",
+          }
+          if not isinstance(requirements, list) or len(requirements) != len(approved_minimums):
+              raise SystemExit("component resolver returned an invalid requirement list")
+          seen = set()
+          requirement_available = False
+          for requirement in requirements:
+              if not isinstance(requirement, dict):
+                  raise SystemExit("component resolver returned an invalid requirement")
+              module = requirement.get("dependency")
+              if not isinstance(module, str) or module not in approved_minimums or module in seen:
+                  raise SystemExit("component resolver returned an unapproved requirement")
+              seen.add(module)
+              version = requirement.get("current_version")
+              target_version = requirement.get("target_version")
+              if not isinstance(version, str) or target_version != approved_minimums[module]:
+                  raise SystemExit("component resolver returned an invalid requirement target")
+              update = component_version_tuple(version) < component_version_tuple(target_version)
+              if requirement.get("update_available") is not update:
+                  raise SystemExit("component resolver returned an inconsistent requirement floor")
+              if module == dependency and version != component_current:
+                  raise SystemExit("component resolver returned an inconsistent primary requirement")
+              requirement_available = requirement_available or update
+          if component_available != requirement_available:
+              raise SystemExit("component resolver returned an inconsistent component floor")
 
           available = toolchain_available or component_available
           print(f"current_version={current}")
@@ -153,7 +181,7 @@ jobs:
     needs: resolve-go-release
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     outputs:
       component_changed: ${{ steps.components.outputs.changed }}
@@ -176,7 +204,7 @@ jobs:
 
       - name: Set up canonical Python for the updater
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -189,12 +217,7 @@ jobs:
       - name: Install hash-locked CI test dependency
         run: |
           set -euo pipefail
-          python3 -m pip install \
-            --disable-pip-version-check \
-            --no-input \
-            --only-binary=:all: \
-            --require-hashes \
-            -r requirements-ci.lock
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
           python3 -m pip check
 
       - name: Set up candidate Go
@@ -276,7 +299,7 @@ jobs:
             --json
           (
             cd connectors/envoy/ext_proc
-            go mod edit -require=google.golang.org/grpc@v1.83.2
+            python3 ../../../scripts/update-go-components.py --apply-requirements --json
             go mod tidy
           )
 
@@ -299,6 +322,7 @@ jobs:
               --json
           )"
           printf '%s\n' "$candidate_report"
+          python3 ci/lib/active_inventory_updates.py finalize --kind go --base HEAD
           COMPONENT_CANDIDATE_REPORT="$candidate_report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
@@ -330,11 +354,7 @@ jobs:
           set -euo pipefail
           make check-go-version-contract
           python3 -m compileall -q ci scripts tests
-          python3 -m unittest -v \
-            tests.test_update_go_version \
-            tests.test_update_go_components \
-            tests.test_go_version_contract \
-            tests.test_ci_security_workflows
+          python3 ci/tools/run-active-tests.py --group supply-chain
           git diff --check
 
       - name: Validate Envoy Go module without toolchain fallback
@@ -346,7 +366,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -359,7 +380,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -372,7 +394,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -385,7 +408,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          go test -mod=readonly ./...
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/response_observer
+          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/response_observer --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -397,7 +421,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       CANDIDATE_VERSION: ${{ needs.resolve-go-release.outputs.latest_version }}
@@ -426,7 +450,7 @@ jobs:
 
       - name: Set up canonical Python for the updater
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -463,7 +487,9 @@ jobs:
                 -e .go-version \
                 -e ci/tooling/project-versions.lock.json \
                 -e connectors/envoy/ext_proc/go.mod \
-                -e connectors/envoy/ext_proc/go.sum
+                -e connectors/envoy/ext_proc/go.sum \
+                -e config/testing/active-cases.json \
+                -e reports/testing/test-selection-archive.generated.json
               then
                 echo "Updater changed an unregistered path: $changed_path" >&2
                 exit 1
@@ -477,7 +503,9 @@ jobs:
               ($6 == ".go-version" ||
                $6 == "ci/tooling/project-versions.lock.json" ||
                $6 == "connectors/envoy/ext_proc/go.mod" ||
-               $6 == "connectors/envoy/ext_proc/go.sum") {
+               $6 == "connectors/envoy/ext_proc/go.sum" ||
+               $6 == "config/testing/active-cases.json" ||
+               $6 == "reports/testing/test-selection-archive.generated.json") {
                 records += 1
                 next
               }
@@ -536,7 +564,7 @@ jobs:
               --json
             (
               cd connectors/envoy/ext_proc
-              go mod edit -require=google.golang.org/grpc@v1.83.2
+              python3 ../../../scripts/update-go-components.py --apply-requirements --json
               go mod tidy
             )
             candidate_report="$(
@@ -559,6 +587,8 @@ jobs:
             exit 1
           fi
 
+          python3 ci/lib/active_inventory_updates.py finalize --kind go --base HEAD
+          python3 ci/lib/active_inventory_updates.py verify --kind go --base HEAD
           changed_paths="$(git diff --name-only)"
           require_only_allowed_update_paths "$changed_paths"
           require_regular_file_updates
@@ -585,7 +615,9 @@ jobs:
                 -e .go-version \
                 -e ci/tooling/project-versions.lock.json \
                 -e connectors/envoy/ext_proc/go.mod \
-                -e connectors/envoy/ext_proc/go.sum
+                -e connectors/envoy/ext_proc/go.sum \
+                -e config/testing/active-cases.json \
+                -e reports/testing/test-selection-archive.generated.json
               then
                 echo "Update branch changes an unregistered path: $changed_path" >&2
                 exit 1
@@ -600,7 +632,9 @@ jobs:
               ($6 == ".go-version" ||
                $6 == "ci/tooling/project-versions.lock.json" ||
                $6 == "connectors/envoy/ext_proc/go.mod" ||
-               $6 == "connectors/envoy/ext_proc/go.sum") {
+               $6 == "connectors/envoy/ext_proc/go.sum" ||
+               $6 == "config/testing/active-cases.json" ||
+               $6 == "reports/testing/test-selection-archive.generated.json") {
                 records += 1
                 next
               }
@@ -614,6 +648,7 @@ jobs:
           }
 
           python3 ci/tools/sync-project-versions.py --verify-update go
+          python3 ci/lib/active_inventory_updates.py verify --kind go --base HEAD
           candidate_paths="$(git diff --name-only)"
           require_only_allowed_update_paths "$candidate_paths"
           require_regular_file_updates "$(git diff --raw --no-abbrev --no-renames)"
@@ -649,9 +684,9 @@ jobs:
               "- Toolchain update available: $TOOLCHAIN_UPDATE_AVAILABLE" \
               "- Bounded component: $COMPONENT_MODULE $COMPONENT_VERSION in $COMPONENT_DIRECTORY" \
               "- Component update available: $COMPONENT_UPDATE_AVAILABLE" \
-              "- Changed files: only ci/tooling/project-versions.lock.json, .go-version and/or connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
+              "- Changed files: ci/tooling/project-versions.lock.json, .go-version and/or connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum; exactly derived inventory/archive hash companions when needed" \
               "- Release policy: highest stable numeric Go release from the canonical metadata endpoint" \
-              "- Module directives: only the fixed google.golang.org/grpc security bundle may change (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validated go.mod/go.sum hashes must match" \
+              "- Module directives: only the fixed google.golang.org/grpc security bundle may change (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0/v0.47.0→v0.49.0; golang.org/x/net v0.56.0/v0.58.0→v0.61.0; golang.org/x/text v0.39.0/v0.41.0→v0.43.0; already safe pins remain unchanged); validated go.mod/go.sum hashes must match" \
               "- Merge: no automatic merge" \
               "" \
               "## Deutsch" \
@@ -664,9 +699,9 @@ jobs:
               "- Verfügbares Toolchain-Update: $TOOLCHAIN_UPDATE_AVAILABLE" \
               "- Begrenzte Komponente: $COMPONENT_MODULE $COMPONENT_VERSION in $COMPONENT_DIRECTORY" \
               "- Verfügbares Komponentenupdate: $COMPONENT_UPDATE_AVAILABLE" \
-              "- Geänderte Dateien: nur ci/tooling/project-versions.lock.json, .go-version und/oder connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum" \
+              "- Geänderte Dateien: ci/tooling/project-versions.lock.json, .go-version und/oder connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum; bei Bedarf exakt abgeleitete Inventar-/Archiv-Hashbegleiter" \
               "- Release-Policy: höchste stabile numerische Go-Release vom kanonischen Metadatenendpoint" \
-              "- Modul-Direktiven: Nur das feste Sicherheits-Bundle für google.golang.org/grpc darf sich ändern (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0→v0.47.0; golang.org/x/net v0.56.0→v0.58.0; golang.org/x/text v0.39.0→v0.41.0); validierte go.mod/go.sum-Hashes müssen übereinstimmen" \
+              "- Modul-Direktiven: Nur das feste Sicherheits-Bundle für google.golang.org/grpc darf sich ändern (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0/v0.47.0→v0.49.0; golang.org/x/net v0.56.0/v0.58.0→v0.61.0; golang.org/x/text v0.39.0/v0.41.0→v0.43.0; bereits sichere Pins bleiben unverändert); validierte go.mod/go.sum-Hashes müssen übereinstimmen" \
               "- Merge: kein automatischer Merge"
           } > "$pr_body"
 
@@ -689,6 +724,7 @@ jobs:
             branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
             require_only_allowed_update_paths "$branch_paths"
             require_regular_file_updates "$(git diff --raw --no-abbrev --no-renames "$merge_base" "origin/$UPDATE_BRANCH")"
+            python3 ci/lib/active_inventory_updates.py verify --kind go --base "$merge_base" --head "origin/$UPDATE_BRANCH"
             if [ "$branch_paths" != "$candidate_paths" ]; then
               echo "Existing update branch path set differs from the verified candidate." >&2
               exit 1
@@ -734,7 +770,10 @@ jobs:
             .go-version \
             ci/tooling/project-versions.lock.json \
             connectors/envoy/ext_proc/go.mod \
-            connectors/envoy/ext_proc/go.sum
+            connectors/envoy/ext_proc/go.sum \
+            config/testing/active-cases.json \
+            reports/testing/test-selection-archive.generated.json
+          python3 ci/lib/active_inventory_updates.py verify --kind go --base HEAD --staged
           staged_paths="$(git diff --cached --name-only)"
           if [ "$staged_paths" != "$candidate_paths" ]; then
             echo "Staged Go update paths differ from the verified candidate." >&2

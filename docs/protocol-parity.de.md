@@ -2,7 +2,38 @@
 
 **Sprache:** [English](protocol-parity.md) | Deutsch
 
-## Aktualisierung am 2026-10-24: Master-Abgleich und NGINX-Issue #401
+## Aktualisierung am 2026-10-28: aktueller Master und CI-Reparatur
+
+Dieses Increment übernimmt `master`-Revision
+`c5993ed9a7b59fc0bd58f105595ec79f596c88d6` durch einen normalen Merge
+mit erhaltener veröffentlichter PR-Historie. Apaches ausgehandeltes P3-Protokoll
+verwendet jetzt die Native-Phase-Erfolgsprüfung aus Master. NGINX erhält die
+typisierten Mapper-Fehler und zählt den synthetischen HTTP/3-Host gegen
+dasselbe Limit für empfangene Header. Traefik verbindet Incomplete-Response- und
+EOS-Behandlung mit Masters geprüftem Close, terminalem Fehlerzustand und
+`http.ErrAbortHandler`-Verhalten.
+
+Die fünf fehlgeschlagenen Struktur-/Lint-Jobs auf `ab3d4d27` teilten eine
+veraltete Apache-Checker-Erwartung. Der Checker verlangt jetzt ausgehandeltes
+Protokoll und Native-Erfolgsprüfung; negative Mutationen prüfen Umgehungen.
+NGINX-Checker und Mutationen erzwingen ebenfalls das gemeinsame Limit für rohe
+und synthetische Header. Sonar-Issue `AaF3fXFNfuQxuJn35iQJ` (`c:S859`) wird
+durch ein lokales veränderbares Host-Namensarray statt des Casts behoben, der
+`const` entfernt.
+
+Frische lokale Validierung bestand: beide Adoption-Checker, 21 ausgewählte
+Python-Szenarien und 44 ausgewählte Traefik-Fälle mit Race-Detector. Eine
+veraltete Source-Assertion schlug zunächst fehl und bestand nach Abgleich mit
+der zusammengeführten Limit-Prüfung. Die Auswahl der 100 aktiven Testfälle ist
+bis auf Source-Digests unverändert; Admission-Prüfung und Konsistenzprüfung des
+neu generierten Archivs bestanden. Die Python-Prüfungen verwendeten das
+vorhandene lokale Python 3.14.4; Hosted-CI verwendet den Interpreter-Vertrag
+des Repositorys. Unabhängiges Quellreview fand kein neues validiertes
+Sicherheitsproblem. Hosted-CI und Sonar für den aktuellen Head stehen an dieser
+Revision noch aus. Die frühere Testzurückstellung ist für CI-Reparaturen
+aufgehoben; vollständige H1-/H2-/H3-Laufzeitqualifikation bleibt unvollständig.
+
+## Historische Aktualisierung am 2026-10-24: Master-Abgleich und NGINX-Issue #401
 
 PR #348 übernimmt `master`-Revision
 `42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` durch einen normalen Merge.

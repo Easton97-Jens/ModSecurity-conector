@@ -23,10 +23,12 @@
 
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_mapper.h"
+#include "ngx_http_modsecurity_request_completion.h"
 #include "msconnector/event.h"
+#include "msconnector/native_result.h"
 
 static void ngx_http_modsecurity_request_intervention_log_event(
-    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
     enum msconnector_phase phase, const char *reason);
 
 void
@@ -49,16 +51,31 @@ ngx_http_modsecurity_request_read(ngx_http_request_t *r)
 }
 
 
+/* A positive host status is not proof of a rule intervention. In particular,
+ * URI/native and allocation failures also return HTTP error statuses. */
+static int
+ngx_http_modsecurity_request_has_rule_decision(
+    const ngx_http_modsecurity_ctx_t *ctx)
+{
+    if (ctx == NULL ||
+        ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return 0;
+    }
+    return ctx->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_BLOCK ||
+        ctx->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_REDIRECT ||
+        ctx->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT;
+}
+
 /* Request-phase interventions happen before NGINX has committed a response.
  * Keep the source event in this actual access/body path so its integration
  * mode comes from the selected native module rather than a report collector. */
 static void
 ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
+    const ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
     const char *reason)
 {
     msconnector_event event;
-    ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_ctx_t *ctx;
     const char *event_name;
     const char *rule_id;
     const char *wanted;
@@ -71,6 +88,9 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     }
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
+    if (!ngx_http_modsecurity_request_has_rule_decision(ctx)) {
+        return;
+    }
     body_limit = phase == MSCONNECTOR_PHASE_REQUEST_BODY && ctx != NULL &&
         ctx->native_request_body_limit_rejection;
     wanted = !body_limit && ctx != NULL && ctx->last_intervention_status >= 300 &&
@@ -98,7 +118,7 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
     event.decision.action = wanted;
     event.decision.requested_action = wanted;
-    event.decision.actual_action = wanted;
+    event.decision.actual_action = "";
     if (body_limit || ctx == NULL) {
         rule_id = "";
     } else {
@@ -108,8 +128,9 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
     event.decision.reason = body_limit ? "request_body_limit_exceeded" : reason;
     event.http.http_status = ctx != NULL && ctx->last_intervention_status > 0
         ? (int)ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
-    event.http.visible_http_status = event.http.http_status;
-    event.http.transport_result = "http_status";
+    /* The access return requests a status; core has not sent it yet. */
+    event.http.visible_http_status = 0;
+    event.http.transport_result = "not_observable";
     event.request.method = request_metadata.method;
     event.request.uri = request_metadata.uri;
     event.body.content_type = request_metadata.content_type;
@@ -124,20 +145,173 @@ ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
 }
 
 
+/* Keep native, host/protocol, and independent body-budget failures distinct.
+ * A later failed event write must never replace the original cause. */
+static msconnector_transaction_error_class
+ngx_http_modsecurity_request_error_cause(
+    const ngx_http_modsecurity_ctx_t *ctx, ngx_int_t result)
+{
+    if (ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return ctx->contract.error_class;
+    }
+    if (result == NGX_HTTP_REQUEST_ENTITY_TOO_LARGE) {
+        return MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
+    }
+    if (result == NGX_HTTP_BAD_REQUEST) {
+        return MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL;
+    }
+    return MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+}
+
+static const char *
+ngx_http_modsecurity_request_error_message_id(
+    msconnector_transaction_error_class cause)
+{
+    switch (cause) {
+    case MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT:
+        return MSCONN_EVENT_BODY_LIMIT;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT:
+        return MSCONN_EVENT_ENGINE_TIMEOUT;
+    case MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE:
+        return MSCONN_EVENT_ENGINE_UNAVAILABLE;
+    case MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE:
+        return MSCONN_EVENT_INVALID_ENGINE_RESPONSE;
+    case MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL:
+        return MSCONN_EVENT_PROTOCOL_ERROR;
+    case MSCONNECTOR_TRANSACTION_ERROR_CLIENT_CANCEL:
+        return MSCONN_EVENT_CLIENT_CANCEL;
+    case MSCONNECTOR_TRANSACTION_ERROR_UPSTREAM_DISCONNECT:
+        return MSCONN_EVENT_UPSTREAM_DISCONNECT;
+    default:
+        return MSCONN_EVENT_CONNECTOR_ERROR;
+    }
+}
+
+/* Claim one attempt before reaching the serializer or sink. Error events use
+ * already-bounded canonical metadata, not another allocation/copy of the
+ * request that may have failed validation. No client observation is invented. */
+static void
+ngx_http_modsecurity_request_error_log_event(ngx_http_request_t *r,
+    const ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
+    enum msconnector_phase phase, msconnector_transaction_error_class cause)
+{
+    msconnector_event event;
+
+    if (ctx->request_error_event_attempted) {
+        return;
+    }
+    ctx->request_error_event_attempted = 1;
+    if (mcf == NULL || mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
+        return;
+    }
+
+    msconnector_event_init(&event);
+    event.meta.message_id = ngx_http_modsecurity_request_error_message_id(cause);
+    event.meta.level = msconnector_event_default_level(event.meta.message_id);
+    event.meta.message = msconnector_event_default_message(event.meta.message_id);
+    event.meta.event = phase == MSCONNECTOR_PHASE_REQUEST_BODY
+        ? "phase2_error" : "phase1_error";
+    event.meta.connector = "nginx";
+    event.meta.integration_mode = "native-nginx-http-module";
+    event.meta.transaction_id = ctx->contract.transaction_id;
+    event.decision.phase = phase;
+    event.decision.status = MSCONNECTOR_STATUS_ERROR;
+    event.decision.action = "error";
+    event.decision.requested_action = "error";
+    event.decision.actual_action = "";
+    event.decision.rule_id = "";
+    event.decision.reason = msconnector_transaction_error_class_name(cause);
+    event.http.transport_result = "not_observable";
+    event.request.method = ctx->contract.request_method;
+    event.request.uri = ctx->contract.request_uri;
+    event.body.content_type = ctx->contract.request_content_type;
+    event.body.bytes_seen = ctx->request_body_bytes_seen;
+    event.body.limit_outcome = cause == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
+        ? "reject" : NULL;
+    event.flags.eos_seen = phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+        ctx->request_body_processed;
+    if (cause == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT) {
+        event.http.http_status = NGX_HTTP_GATEWAY_TIME_OUT;
+        event.flags.timeout_stage = msconnector_phase_name(phase);
+    }
+
+    /* The request is already terminal. The strict writer diagnoses failure;
+     * neither retrying this sink nor changing the original cause is safe. */
+    (void)ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event, "request");
+}
+
+static ngx_int_t
+ngx_http_modsecurity_request_terminal_status(ngx_http_request_t *r,
+    ngx_int_t status)
+{
+    if (r->header_sent) {
+        r->connection->error = 1;
+        return NGX_ERROR;
+    }
+    return status;
+}
+
+/* One boundary owns conversion of failed access/body results into terminal
+ * request state and typed evidence. NGX_DONE/AGAIN/DECLINED are host control
+ * values, not libModSecurity append results. Mode never changes this rule. */
+static ngx_int_t
+ngx_http_modsecurity_request_result(ngx_http_request_t *r,
+    const ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
+    ngx_int_t result)
+{
+    ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
+    msconnector_transaction_error_class cause;
+
+    if (ctx == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (ctx->request_error_status != 0) {
+        return ngx_http_modsecurity_request_terminal_status(r, ctx->request_error_status);
+    }
+    if (ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        (result == NGX_OK || result == NGX_DECLINED ||
+         result == NGX_DONE || result == NGX_AGAIN)) {
+        return result;
+    }
+    if (ngx_http_modsecurity_request_has_rule_decision(ctx) &&
+        result == ctx->last_intervention_status) {
+        return result;
+    }
+
+    cause = ngx_http_modsecurity_request_error_cause(ctx, result);
+    if (ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract, cause, 0U);
+    }
+    ctx->intervention_triggered = 1;
+    if (cause == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT) {
+        ctx->request_error_status = NGX_HTTP_GATEWAY_TIME_OUT;
+    } else if (result >= NGX_HTTP_BAD_REQUEST && result <= 599) {
+        ctx->request_error_status = result;
+    } else {
+        ctx->request_error_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ctx->request_error_status = ngx_http_modsecurity_request_terminal_status(
+        r, ctx->request_error_status);
+    ngx_http_modsecurity_request_error_log_event(r, mcf, ctx, phase, cause);
+    return ctx->request_error_status;
+}
+
 static ngx_int_t
 ngx_http_modsecurity_validate_common_request_mapper(ngx_http_request_t *r)
 {
     msconnector_request_mapper_contract contract;
     msconnector_request mapped_request;
     char mapper_error[128];
+    ngx_int_t mapper_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
     msconnector_request_mapper_contract_init(&contract);
     if (!ngx_http_modsecurity_map_request(r, &contract, &mapped_request,
-            mapper_error, sizeof(mapper_error))) {
+            &mapper_status, mapper_error, sizeof(mapper_error))) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "modsecurity common request mapper validation failed: %s",
             mapper_error);
-        return NGX_HTTP_BAD_REQUEST;
+        return mapper_status;
     }
 
     return NGX_OK;
@@ -170,6 +344,8 @@ ngx_http_modsecurity_set_request_hostname(ngx_http_request_t *r,
                 (const unsigned char *)host_name) != 1) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "ModSecurity: request hostname mapping failed");
+            (void)msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
             ctx->intervention_triggered = 1;
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
@@ -182,6 +358,34 @@ ngx_http_modsecurity_set_request_hostname(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+/* Connection and URI evaluation share this result boundary, not their native
+ * calls or phase brackets. Only one is native phase success; the subsequent
+ * dispatcher returns host statuses, which must not use append semantics. */
+static ngx_int_t
+ngx_http_modsecurity_request_native_result(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, int native_result, const char *phase_name)
+{
+    int result;
+
+    if (!msconnector_native_phase_succeeded(native_result)) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: %s phase processing failed", phase_name);
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    dd("Processing intervention after %s", phase_name);
+    result = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
+        r, 1);
+    if (result != 0) {
+        ctx->intervention_triggered = 1;
+        return result > 0 ? result : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    return NGX_OK;
+}
+
 static ngx_int_t
 ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
@@ -189,7 +393,7 @@ ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
     const char *client_addr;
     const char *server_addr;
     ngx_connection_t *connection;
-    ngx_pool_t *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_str_t addr_text;
     ngx_str_t server_address;
     u_char address[NGX_SOCKADDR_STRLEN];
@@ -224,26 +428,7 @@ ngx_http_modsecurity_process_connection(ngx_http_request_t *r,
     ret = msc_process_connection(ctx->modsec_transaction, client_addr,
         client_port, server_addr, server_port);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
-    if (ret != 1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: connection phase processing failed");
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    dd("Processing intervention with the connection information filled in");
-    ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
-        r, 1);
-    if (ret > 0) {
-        ctx->intervention_triggered = 1;
-        return ret;
-    }
-    if (ret < 0) {
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    return NGX_OK;
+    return ngx_http_modsecurity_request_native_result(r, ctx, ret, "connection");
 }
 
 static const char *
@@ -286,14 +471,14 @@ ngx_http_modsecurity_process_request_uri(ngx_http_request_t *r,
     const char *http_version;
     const char *method;
     const char *uri;
-    ngx_pool_t *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     int ret;
 
     http_version = ngx_http_modsecurity_request_http_version(r);
     uri = ngx_str_to_char(r->unparsed_uri, r->pool);
     method = ngx_str_to_char(r->method_name, r->pool);
-    if (http_version == (const char *)-1 || uri == (const char *)-1 ||
-        method == (const char *)-1 || uri == NULL) {
+    if (http_version == (const char *)-1 || uri == (char *)-1 ||
+        method == (char *)-1 || uri == NULL) {
         dd("request URI or protocol conversion failed");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -304,27 +489,7 @@ ngx_http_modsecurity_process_request_uri(ngx_http_request_t *r,
     ret = msc_process_uri(ctx->modsec_transaction, uri, method, http_version);
     ctx->native_event_phase_active = 0;
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
-
-    if (ret != 1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: URI phase processing failed");
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    dd("Processing intervention with the transaction information filled in (uri, method and version)");
-    ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
-        r, 1);
-    if (ret > 0) {
-        ctx->intervention_triggered = 1;
-        return ret;
-    }
-    if (ret < 0) {
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    return NGX_OK;
+    return ngx_http_modsecurity_request_native_result(r, ctx, ret, "URI");
 }
 
 static ngx_int_t
@@ -334,7 +499,7 @@ ngx_http_modsecurity_add_request_headers(ngx_http_request_t *r,
     ngx_str_t authority;
     ngx_list_part_t *part;
     ngx_table_elt_t *data;
-    ngx_table_elt_t *header;
+    const ngx_table_elt_t *header;
     ngx_uint_t index;
 
     part = &r->headers_in.headers.part;
@@ -396,16 +561,47 @@ ngx_http_modsecurity_request_header_metrics(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+/* A native P1 completion is distinct from rule callbacks and host delivery.
+ * Emit only from the actual no-intervention continuation below, before P2.
+ * Request-event sink failure remains warning-only, as with existing metadata. */
+static void
+ngx_http_modsecurity_request_completion_log_event(ngx_http_request_t *r,
+    const ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf,
+    int native_result)
+{
+    msconnector_event event;
+    ngx_http_modsecurity_event_request_metadata_t metadata;
+
+    if (r == NULL || ctx == NULL || !ctx->contract_initialized ||
+        ctx->modsec_transaction == NULL || mcf == NULL ||
+        mcf->phase4_log_file == NULL ||
+        mcf->phase4_log_file->fd == NGX_INVALID_FILE ||
+        !ngx_http_modsecurity_request_completion(&event, &ctx->contract,
+            native_result)) {
+        return;
+    }
+    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    event.request.method = metadata.method;
+    event.request.uri = metadata.uri;
+    event.body.content_type = metadata.content_type;
+    (void)ngx_http_modsecurity_write_event_jsonl(r, mcf, &event,
+        "modsecurity request completion event serialization failed",
+        "modsecurity request completion log write failed");
+}
+
 static ngx_int_t
 ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
-    ngx_pool_t *old_pool;
-    char *method;
-    char *uri;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
+    const char *method;
+    const char *uri;
     size_t header_count;
     size_t header_bytes;
     int ret;
+    int native_result;
+    ngx_http_modsecurity_engine_call_measurement measurement;
+    ngx_int_t budget_result;
     msconnector_nginx_intervention_disposition disposition;
 
     method = ngx_str_to_char(r->method_name, r->pool);
@@ -415,9 +611,7 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
         ngx_http_modsecurity_request_header_metrics(r, &header_count,
             &header_bytes) != NGX_OK ||
         msconnector_transaction_contract_record_request_metadata(&ctx->contract,
-            method, uri, NULL, header_count, header_bytes,
-            mcf->common_config.request_body_limit > 0U
-                ? mcf->common_config.request_body_limit : MSCONNECTOR_MAX_BODY_BUFFER_SIZE) !=
+            method, uri, NULL, header_count, header_bytes) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: failed to record canonical request metadata");
@@ -436,21 +630,36 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
-    ctx->native_event_phase_active = 1;
-    ret = msc_process_request_headers(ctx->modsec_transaction);
-    ctx->native_event_phase_active = 0;
-    if (ngx_http_modsecurity_contract_complete(ctx,
-            MSCONNECTOR_PHASE_REQUEST_HEADERS) != NGX_OK) {
+    if (ngx_http_modsecurity_engine_call_begin(r,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS, &measurement) != NGX_OK) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: invalid canonical P1 completion");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+    ctx->native_event_phase_active = 1;
+    ret = msc_process_request_headers(ctx->modsec_transaction);
+    native_result = ret;
+    ctx->native_event_phase_active = 0;
+    budget_result = ngx_http_modsecurity_engine_call_finish(r,
+        MSCONNECTOR_PHASE_REQUEST_HEADERS, &measurement, ret);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
 
-    if (ret != 1) {
+    if (budget_result != NGX_OK) {
+        return ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT
+            ? NGX_HTTP_GATEWAY_TIME_OUT : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    if (!msconnector_native_phase_succeeded(ret)) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: request headers phase processing failed");
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (ngx_http_modsecurity_contract_complete(ctx,
+            MSCONNECTOR_PHASE_REQUEST_HEADERS) != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: invalid canonical P1 completion");
         ctx->intervention_triggered = 1;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -475,12 +684,14 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
         return ret;
     }
 
+    ngx_http_modsecurity_request_completion_log_event(r, ctx, mcf,
+        native_result);
     return NGX_OK;
 }
 
 static ngx_int_t
 ngx_http_modsecurity_initialize_request(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf)
+    const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_ctx_t *ctx;
     ngx_int_t rc;
@@ -527,19 +738,12 @@ ngx_http_modsecurity_initialize_request(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_request_body_start(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_int_t rc;
-    size_t limit = mcf->common_config.request_body_limit;
 
+    (void)mcf;
     ctx->body_requested = 1;
-    if (r->headers_in.content_length_n > 0 &&
-        (uint64_t) r->headers_in.content_length_n > (uint64_t) limit) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: request body exceeds configured limit");
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
-    }
     dd("asking for the request body, if any. Count: %d", r->main->count);
     r->request_body_in_single_buf = 1;
     r->request_body_in_persistent_file = 1;
@@ -566,137 +770,120 @@ ngx_http_modsecurity_request_body_start(ngx_http_request_t *r,
 }
 
 static ngx_int_t
-ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+ngx_http_modsecurity_append_request_chunk(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, const u_char *data, size_t chunk_size)
 {
-    ngx_chain_t *chain;
     int ret;
 
-    chain = r->request_body->bufs;
-    while (chain != NULL) {
-        u_char *data;
-        size_t chunk_size;
-        size_t limit = mcf->common_config.request_body_limit;
+    if ((chunk_size > 0U && data == NULL) ||
+        ctx->request_body_bytes_seen > SIZE_MAX - chunk_size) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (msconnector_transaction_contract_record_body(&ctx->contract, 0,
+            chunk_size) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: canonical request body accounting failed");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ctx->request_body_bytes_seen += chunk_size;
+    ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    ctx->native_event_phase_active = 1;
+    ret = msc_append_request_body(ctx->modsec_transaction, data, chunk_size);
+    ctx->native_event_phase_active = 0;
+    if (!msconnector_native_body_append_can_continue(ret)) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (ngx_http_modsecurity_capture_request_body_intervention(r) != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    return NGX_OK;
+}
 
-        if (chain->buf == NULL || chain->buf->pos == NULL ||
-            chain->buf->last == NULL || chain->buf->last < chain->buf->pos) {
+static ngx_int_t
+ngx_http_modsecurity_append_request_body(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
+{
+    ngx_chain_t *chain = r->request_body != NULL ? r->request_body->bufs : NULL;
+    ngx_int_t rc;
+
+    (void)mcf;
+    while (chain != NULL) {
+        if (chain->buf == NULL) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "ModSecurity: invalid request body buffer range");
-            ctx->intervention_triggered = 1;
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        data = chain->buf->pos;
-        chunk_size = (size_t)(chain->buf->last - data);
-        if (ctx->request_body_bytes_seen > limit ||
-            chunk_size > limit - ctx->request_body_bytes_seen) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body exceeds configured limit");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
+        if (!ngx_buf_special(chain->buf)) {
+            if (chain->buf->pos == NULL ||
+                chain->buf->last == NULL || chain->buf->last < chain->buf->pos) {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                    "ModSecurity: invalid request body buffer range");
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
+            rc = ngx_http_modsecurity_append_request_chunk(r, ctx, chain->buf->pos,
+                (size_t)(chain->buf->last - chain->buf->pos));
+            if (rc != NGX_OK) {
+                return rc;
+            }
         }
-        if (ctx->contract.active_phase != MSCONNECTOR_PHASE_REQUEST_BODY &&
-            ngx_http_modsecurity_contract_begin(ctx,
-                MSCONNECTOR_PHASE_REQUEST_BODY) != NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: invalid canonical P2 transition");
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        if (msconnector_transaction_contract_record_body(&ctx->contract, 0,
-                chunk_size) != MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: canonical request body limit reached");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
-        }
-        ctx->request_body_bytes_seen += chunk_size;
-        ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
-        ctx->native_event_phase_active = 1;
-        ret = msc_append_request_body(ctx->modsec_transaction, data,
-            chunk_size);
-        ctx->native_event_phase_active = 0;
-
-        if (ret != 1) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "ModSecurity: request body chunk processing failed");
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-
         if (chain->buf->last_buf) {
             break;
         }
         chain = chain->next;
-
-        ret = ngx_http_modsecurity_process_intervention(
-            ctx->modsec_transaction, r, 0);
-        if (ret > 0) {
-            ngx_http_modsecurity_request_intervention_log_event(r, mcf,
-                MSCONNECTOR_PHASE_REQUEST_BODY,
-                "request_body_stream_before_handler");
-            ctx->intervention_triggered = 1;
-            return ret;
-        }
-        if (ret < 0) {
-            ctx->intervention_triggered = 1;
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
     }
-
     return NGX_OK;
 }
 
 static ngx_int_t
 ngx_http_modsecurity_inspect_request_body_file(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
-    const char *file_name = ngx_str_to_char(
-        r->request_body->temp_file->file.name, r->pool);
+    ngx_file_t *file = &r->request_body->temp_file->file;
     ngx_file_info_t file_info;
-    size_t limit = mcf->common_config.request_body_limit;
     off_t file_size = r->request_body->temp_file->offset;
-    off_t actual_file_size;
-    int ret;
+    off_t offset = 0;
+    ngx_int_t rc;
 
-    if (file_name == (char *)-1 || file_name == NULL || file_size < 0 ||
-        (uintmax_t)file_size > (uintmax_t)SIZE_MAX) {
+    (void)mcf;
+    if (file->fd == NGX_INVALID_FILE || file_size < 0 ||
+        (uintmax_t)file_size > (uintmax_t)SIZE_MAX ||
+        ngx_fd_info(file->fd, &file_info) == NGX_FILE_ERROR ||
+        !ngx_is_file(&file_info) || ngx_file_size(&file_info) != file_size) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: request body file metadata violates canonical limits");
-        ctx->intervention_triggered = 1;
+            "ModSecurity: invalid request body file descriptor or size");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (ngx_file_info(r->request_body->temp_file->file.name.data,
-            &file_info) == NGX_FILE_ERROR || !ngx_is_file(&file_info)) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: request body temp file is not a regular file");
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (ctx->scratch_buffers.request_file_scratch == NULL) {
+        ctx->scratch_buffers.request_file_scratch = ngx_pnalloc(r->pool, 32768U);
+        if (ctx->scratch_buffers.request_file_scratch == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
-    actual_file_size = ngx_file_size(&file_info);
-    if (actual_file_size < 0 || (uintmax_t)actual_file_size >
-        (uintmax_t)SIZE_MAX || actual_file_size != file_size) {
+    while (offset < file_size) {
+        size_t amount = (uintmax_t)(file_size - offset) > 32768U ?
+            32768U : (size_t)(file_size - offset);
+        ssize_t read_size = ngx_read_file(file, ctx->scratch_buffers.request_file_scratch,
+            amount, offset);
+        if (read_size < 0 || (size_t)read_size != amount) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "ModSecurity: request body file read is short or failed");
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        rc = ngx_http_modsecurity_append_request_chunk(r, ctx,
+            ctx->scratch_buffers.request_file_scratch, amount);
+        if (rc != NGX_OK) {
+            return rc;
+        }
+        offset += (off_t)amount;
+    }
+    if (ngx_fd_info(file->fd, &file_info) == NGX_FILE_ERROR ||
+        !ngx_is_file(&file_info) || ngx_file_size(&file_info) != file_size) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: request body temp file size changed unexpectedly");
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    if ((uintmax_t)actual_file_size > (uintmax_t)limit ||
-        (file_size > 0 && msconnector_transaction_contract_record_body(
-            &ctx->contract, 0, (size_t)file_size) !=
-            MSCONNECTOR_TRANSACTION_TRANSITION_OK)) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: request body file exceeds configured limit");
-        ctx->intervention_triggered = 1;
-        return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
-    }
-    dd("request body inspection: file -- %s", file_name);
-    ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
-    ctx->native_event_phase_active = 1;
-    ret = msc_request_body_from_file(ctx->modsec_transaction, file_name);
-    ctx->native_event_phase_active = 0;
-    if (ret != 1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: request body file processing failed");
-        ctx->intervention_triggered = 1;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     return NGX_OK;
@@ -704,11 +891,13 @@ ngx_http_modsecurity_inspect_request_body_file(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
-    ngx_pool_t *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_int_t rc;
     int ret;
+    ngx_http_modsecurity_engine_call_measurement measurement;
+    ngx_int_t budget_result;
 
     dd("request body is ready to be processed");
     r->write_event_handler = ngx_http_core_run_phases;
@@ -719,47 +908,64 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
             "ModSecurity: invalid canonical P2 transition");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (r->request_body->temp_file != NULL) {
-        /* The file helper retains the bounded regular-file checks and the
-         * native phase bracket (msc_request_body_from_file(...); then
-         * ctx->native_event_phase_active = 0) before returning here. */
+    if (r->request_body != NULL && r->request_body->temp_file != NULL) {
+        /* Feed the validated host descriptor incrementally through the same
+         * append and intervention path used for in-memory request chunks. */
         rc = ngx_http_modsecurity_inspect_request_body_file(r, ctx, mcf);
         if (rc != NGX_OK) {
+            ctx->intervention_triggered = 1;
             return rc;
         }
     } else {
         dd("inspection request body in memory.");
         rc = ngx_http_modsecurity_append_request_body(r, ctx, mcf);
         if (rc != NGX_OK) {
+            ctx->intervention_triggered = 1;
             return rc;
         }
     }
 
     old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
     ctx->native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    if (ngx_http_modsecurity_engine_call_begin(r,
+            MSCONNECTOR_PHASE_REQUEST_BODY, &measurement) != NGX_OK) {
+        ngx_http_modsecurity_pcre_malloc_done(old_pool);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ctx->native_event_phase_active = 1;
     ret = msc_process_request_body(ctx->modsec_transaction);
     ctx->native_event_phase_active = 0;
+    budget_result = ngx_http_modsecurity_engine_call_finish(r,
+        MSCONNECTOR_PHASE_REQUEST_BODY, &measurement, ret);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
-    ctx->request_body_processed = 1;
 
+    if (budget_result != NGX_OK) {
+        return ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT
+            ? NGX_HTTP_GATEWAY_TIME_OUT : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    if (!msconnector_native_phase_succeeded(ret)) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "ModSecurity: request body phase processing failed");
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
+        ctx->intervention_triggered = 1;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (ngx_http_modsecurity_contract_complete(ctx,
             MSCONNECTOR_PHASE_REQUEST_BODY) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "ModSecurity: invalid canonical P2 completion");
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (ret != 1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "ModSecurity: request body phase processing failed");
         ctx->intervention_triggered = 1;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+    ctx->request_body_processed = 1;
 
     ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction,
         r, 0);
     if (ret < 0) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE, 0U);
         ctx->intervention_triggered = 1;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -775,7 +981,7 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_process_request_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf)
+    const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_ctx_t *ctx;
     ngx_int_t rc;
@@ -785,6 +991,12 @@ ngx_http_modsecurity_process_request_body(ngx_http_request_t *r,
     if (ctx == NULL) {
         dd("ctx is null; Nothing we can do, returning an error.");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    /* A failed native operation is terminal, not the successful intervention
+     * bypass below. Re-entry must never resume request processing. */
+    if (ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        return ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT
+            ? NGX_HTTP_REQUEST_ENTITY_TOO_LARGE : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     if (ctx->request_body_processed || ctx->intervention_triggered) {
         return NGX_DECLINED;
@@ -810,8 +1022,8 @@ ngx_http_modsecurity_process_request_body(ngx_http_request_t *r,
 ngx_int_t
 ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
 {
-    ngx_http_modsecurity_conf_t *mcf;
-    ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_ctx_t *ctx;
     ngx_int_t rc;
 
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
@@ -828,12 +1040,18 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
      */
     ctx = ngx_http_get_module_ctx(r, ngx_http_modsecurity_module);
     dd("current location ctx: %p", ctx);
+    if (ctx != NULL && ctx->request_error_status != 0) {
+        return ngx_http_modsecurity_request_terminal_status(r, ctx->request_error_status);
+    }
     if (ctx == NULL) {
         rc = ngx_http_modsecurity_initialize_request(r, mcf);
         if (rc != NGX_OK) {
-            return rc;
+            return ngx_http_modsecurity_request_result(r, mcf,
+                MSCONNECTOR_PHASE_REQUEST_HEADERS, rc);
         }
     }
 
-    return ngx_http_modsecurity_process_request_body(r, mcf);
+    rc = ngx_http_modsecurity_process_request_body(r, mcf);
+    return ngx_http_modsecurity_request_result(r, mcf,
+        MSCONNECTOR_PHASE_REQUEST_BODY, rc);
 }

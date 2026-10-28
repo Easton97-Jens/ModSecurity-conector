@@ -18,9 +18,11 @@ package native_middleware
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,12 +43,6 @@ const (
 	defaultMaxResponseChunkBytes  = 32 << 10
 	defaultRequestBodyIdleTimeout = 1 * time.Second
 	maximumRequestBodyIdleTimeout = 60 * time.Second
-	// Keep the native middleware's aggregate request-body ceiling aligned with
-	// the Common Runtime default hard body-buffer bound. A lower deployment
-	// value is supported; a higher one would make the pre-engine guard weaker
-	// than the repository-wide resource contract.
-	defaultMaxRequestBodyBytes int64 = 1 << 20
-	maximumMaxRequestBodyBytes int64 = 1 << 20
 )
 
 var (
@@ -70,15 +66,41 @@ var (
 // accepted value is "uds" so an operator-provided configuration cannot turn a
 // loaded security middleware into an always-allow side path.
 type Config struct {
-	MaxHeaderCount               int    `json:"maxHeaderCount,omitempty"`
-	MaxHeaderBytes               int    `json:"maxHeaderBytes,omitempty"`
-	MaxRequestChunkBytes         int    `json:"maxRequestChunkBytes,omitempty"`
-	MaxRequestBodyBytes          int64  `json:"maxRequestBodyBytes,omitempty"`
+	MaxHeaderCount       int `json:"maxHeaderCount,omitempty"`
+	MaxHeaderBytes       int `json:"maxHeaderBytes,omitempty"`
+	MaxRequestChunkBytes int `json:"maxRequestChunkBytes,omitempty"`
+	// Decoder tombstone: every supplied legacy value is rejected; never a limit.
+	MaxResponseBodyBytes         *int64 `json:"maxResponseBodyBytes,omitempty"`
+	MaxRequestBodyBytes          *int64 `json:"maxRequestBodyBytes,omitempty"`
 	RequestBodyIdleTimeoutMillis int    `json:"requestBodyIdleTimeoutMillis,omitempty"`
 	MaxResponseChunkBytes        int    `json:"maxResponseChunkBytes,omitempty"`
 	TransactionIDHeader          string `json:"transactionIDHeader,omitempty"`
 	EngineMode                   string `json:"engineMode,omitempty"`
 	EngineSocketPath             string `json:"engineSocketPath,omitempty"`
+}
+
+// UnmarshalJSON rejects removed keys even when their value is null. The
+// exported tombstone also covers the host's direct struct decoder.
+func (config *Config) UnmarshalJSON(data []byte) error {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return err
+	}
+	for key := range keys {
+		if strings.EqualFold(key, "maxResponseBodyBytes") {
+			return errors.New("modsecurity native middleware: maxResponseBodyBytes was removed; configure SecResponseBodyLimit and SecResponseBodyLimitAction")
+		}
+		if strings.EqualFold(key, "maxRequestBodyBytes") {
+			return errors.New("modsecurity native middleware: maxRequestBodyBytes was removed; configure SecRequestBodyLimit and SecRequestBodyLimitAction")
+		}
+	}
+	type plainConfig Config
+	var decoded plainConfig
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*config = Config(decoded)
+	return nil
 }
 
 // CreateConfig returns safe bounded defaults. It is the standard Traefik Go
@@ -88,7 +110,6 @@ func CreateConfig() *Config {
 		MaxHeaderCount:               defaultMaxHeaderCount,
 		MaxHeaderBytes:               defaultMaxHeaderBytes,
 		MaxRequestChunkBytes:         defaultMaxRequestChunkBytes,
-		MaxRequestBodyBytes:          defaultMaxRequestBodyBytes,
 		RequestBodyIdleTimeoutMillis: int(defaultRequestBodyIdleTimeout / time.Millisecond),
 		MaxResponseChunkBytes:        defaultMaxResponseChunkBytes,
 		TransactionIDHeader:          "X-Request-Id",
@@ -124,9 +145,7 @@ func applyConfigDefaults(value *Config) {
 	if value.MaxRequestChunkBytes == 0 {
 		value.MaxRequestChunkBytes = defaultMaxRequestChunkBytes
 	}
-	if value.MaxRequestBodyBytes == 0 {
-		value.MaxRequestBodyBytes = defaultMaxRequestBodyBytes
-	}
+
 	if value.RequestBodyIdleTimeoutMillis == 0 {
 		value.RequestBodyIdleTimeoutMillis = int(defaultRequestBodyIdleTimeout / time.Millisecond)
 	}
@@ -144,19 +163,20 @@ func applyConfigDefaults(value *Config) {
 
 func validateConfigLimits(value Config) error {
 	if value.MaxHeaderCount <= 0 || value.MaxHeaderBytes <= 0 ||
-		value.MaxRequestChunkBytes <= 0 || value.MaxRequestBodyBytes <= 0 ||
+		value.MaxRequestChunkBytes <= 0 ||
 		value.MaxResponseChunkBytes <= 0 {
 		return errors.New("modsecurity native middleware: all limits must be positive")
 	}
-	if value.MaxRequestBodyBytes > maximumMaxRequestBodyBytes {
-		return fmt.Errorf("modsecurity native middleware: maxRequestBodyBytes must not exceed %d", maximumMaxRequestBodyBytes)
+	if value.MaxResponseBodyBytes != nil {
+		return errors.New("modsecurity native middleware: maxResponseBodyBytes was removed; configure SecResponseBodyLimit and SecResponseBodyLimitAction")
+	}
+	if value.MaxRequestBodyBytes != nil {
+		return errors.New("modsecurity native middleware: maxRequestBodyBytes was removed; configure SecRequestBodyLimit and SecRequestBodyLimitAction")
 	}
 	if value.RequestBodyIdleTimeoutMillis <= 0 || value.RequestBodyIdleTimeoutMillis > int(maximumRequestBodyIdleTimeout/time.Millisecond) {
 		return fmt.Errorf("modsecurity native middleware: requestBodyIdleTimeoutMillis must be between 1 and %d", int(maximumRequestBodyIdleTimeout/time.Millisecond))
 	}
-	if int64(value.MaxRequestChunkBytes) > value.MaxRequestBodyBytes {
-		return errors.New("modsecurity native middleware: maxRequestChunkBytes must not exceed maxRequestBodyBytes")
-	}
+
 	if strings.TrimSpace(value.TransactionIDHeader) == "" {
 		return errors.New("modsecurity native middleware: transactionIDHeader is required")
 	}
@@ -458,6 +478,7 @@ type streamState struct {
 	pendingRequestDecision Decision
 	pendingRequestError    error
 	closed                 bool
+	terminalError          error
 }
 
 func (state *streamState) processHeaders(contextValue context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
@@ -468,17 +489,35 @@ func (state *streamState) processHeaders(contextValue context.Context, direction
 	} else {
 		state.responseHeaderCount += uint64(len(headers))
 	}
-	return state.engine.ProcessHeaders(contextValue, direction, headers, end)
+	if state.terminalError != nil {
+		return allowDecision(), state.terminalError
+	}
+	decision, err := state.engine.ProcessHeaders(contextValue, direction, headers, end)
+	if err != nil {
+		state.terminalError = err
+	}
+	return decision, err
 }
 
 func (state *streamState) processResponseHeaders(contextValue context.Context, status int, headers []Header) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if state.terminalError != nil {
+		return allowDecision(), state.terminalError
+	}
 	state.responseHeaderCount += uint64(len(headers))
 	if processor, ok := state.engine.(responseHeaderProcessor); ok {
-		return processor.ProcessResponseHeaders(contextValue, status, state.metadata.HTTPVersion, headers)
+		decision, err := processor.ProcessResponseHeaders(contextValue, status, state.metadata.HTTPVersion, headers)
+		if err != nil {
+			state.terminalError = err
+		}
+		return decision, err
 	}
-	return state.engine.ProcessHeaders(contextValue, DirectionResponse, headers, false)
+	decision, err := state.engine.ProcessHeaders(contextValue, DirectionResponse, headers, false)
+	if err != nil {
+		state.terminalError = err
+	}
+	return decision, err
 }
 
 // processRequestBody returns an error only for a request-side rejection or an
@@ -487,24 +526,24 @@ func (state *streamState) processResponseHeaders(contextValue context.Context, s
 func (state *streamState) processRequestBody(contextValue context.Context, chunk []byte, end bool) error {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if state.terminalError != nil {
+		return state.terminalError
+	}
 	if end && state.requestEOS {
 		return nil
 	}
+	if state.requestBodyBytes < 0 || int64(len(chunk)) > math.MaxInt64-state.requestBodyBytes || state.requestBodyChunks == math.MaxUint64 {
+		return errors.New("request accounting overflow")
+	}
 	state.requestBodyChunks++
 	state.requestBodyBytes += int64(len(chunk))
-	// The aggregate body guard is intentionally applied before the engine
-	// callback. Passing an over-limit chunk to the engine would let a P2 body
-	// bypass the repository's reject-before-engine resource policy.
-	if state.requestBodyBytes > state.config.MaxRequestBodyBytes {
-		state.pendingRequestDecision = Decision{Action: ActionDeny, Status: http.StatusRequestEntityTooLarge}
-		return ErrRequestRejected
-	}
 	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
-	if end {
+	if end && err == nil {
 		state.requestEOS = true
 	}
 	if err != nil {
 		state.pendingRequestError = err
+		state.terminalError = err
 		return err
 	}
 	if decision.disruptive() {
@@ -520,28 +559,57 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 func (state *streamState) processResponseBody(contextValue context.Context, chunk []byte, end bool, beforeCommit bool) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if state.terminalError != nil {
+		return allowDecision(), state.terminalError
+	}
 	if end && state.responseEOS {
 		return allowDecision(), nil
+	}
+	if state.responseBodyBytes < 0 || int64(len(chunk)) > math.MaxInt64-state.responseBodyBytes || state.responseBodyChunks == math.MaxUint64 {
+		return Decision{}, errors.New("response accounting overflow")
 	}
 	state.responseBodyChunks++
 	state.responseBodyBytes += int64(len(chunk))
 	decision, err := state.engine.ProcessBody(contextValue, DirectionResponse, chunk, end)
 	if err != nil {
+		state.terminalError = err
 		return allowDecision(), err
+	}
+	if decision.disruptive() && !beforeCommit {
+		if reporter, ok := state.engine.(outcomeAcknowledger); ok {
+			if err := reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus); err != nil {
+				state.markResponseIncompleteLocked()
+				state.terminalError = err
+				return allowDecision(), err
+			}
+		}
+		state.lateAction = "log_only"
+		if end {
+			state.responseEOS = true
+		}
+		return allowDecision(), nil
 	}
 	if end {
 		state.responseEOS = true
 	}
-	if decision.disruptive() && !beforeCommit {
-		state.lateAction = "log_only"
-		if reporter, ok := state.engine.(outcomeAcknowledger); ok {
-			if err := reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus); err != nil {
-				state.markResponseIncompleteLocked()
-			}
-		}
-		return allowDecision(), nil
-	}
 	return decision, nil
+}
+
+func (state *streamState) responseFailure() error {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.terminalError
+}
+
+func (state *streamState) recordResponseError(err error) {
+	if err == nil {
+		return
+	}
+	state.mu.Lock()
+	if state.terminalError == nil {
+		state.terminalError = err
+	}
+	state.mu.Unlock()
 }
 
 func (state *streamState) pendingRequestResult() (Decision, error) {
@@ -596,9 +664,8 @@ func (state *streamState) ensureRequestEOS() error {
 }
 
 // pendingRequestBlocker stops all further source reads after a disruptive P2
-// result or request inspection error. In particular, a request that exceeds
-// MaxRequestBodyBytes is not subsequently drained merely because its handler
-// tries to send a response.
+// result or request inspection error. A native disruptive result remains
+// terminal even when the handler subsequently tries to send a response.
 func (state *streamState) pendingRequestBlocker() error {
 	state.mu.Lock()
 	defer state.mu.Unlock()
@@ -610,7 +677,12 @@ func (state *streamState) pendingRequestBlocker() error {
 
 func (state *streamState) recordRequestError(err error) {
 	state.mu.Lock()
-	state.pendingRequestError = err
+	if state.pendingRequestError == nil {
+		state.pendingRequestError = err
+	}
+	if state.terminalError == nil {
+		state.terminalError = err
+	}
 	state.mu.Unlock()
 }
 
@@ -622,12 +694,23 @@ func (state *streamState) markResponseCommit(contextValue context.Context, statu
 	if status >= 100 && status <= 999 {
 		state.responseStatus = status
 	}
-	transaction := state.engine
+	failed := state.terminalError
 	state.mu.Unlock()
-	if committer, ok := transaction.(responseCommitter); ok {
-		return committer.SetResponseCommit(contextValue, headersSent, bodyStarted)
+	if failed != nil {
+		return failed
 	}
+	state.reportResponseCommit(contextValue, headersSent, bodyStarted)
 	return nil
+}
+
+func (state *streamState) reportResponseCommit(contextValue context.Context, headersSent bool, bodyStarted bool) {
+	if committer, ok := state.engine.(responseCommitter); ok {
+		if err := committer.SetResponseCommit(contextValue, headersSent, bodyStarted); err != nil {
+			state.recordRequestError(err)
+			state.markResponseIncomplete()
+			panic(http.ErrAbortHandler)
+		}
+	}
 }
 
 // markResponseIncomplete makes local close accounting conservative after a
@@ -651,33 +734,44 @@ func (state *streamState) responseIsIncomplete() bool {
 	return state.responseIncomplete
 }
 
-func (state *streamState) acknowledgeApplied(contextValue context.Context, decision Decision) error {
+func (state *streamState) acknowledgeApplied(contextValue context.Context, decision Decision) {
 	state.mu.Lock()
 	transaction := state.engine
 	state.mu.Unlock()
 	if reporter, ok := transaction.(outcomeAcknowledger); ok {
-		return reporter.AcknowledgeApplied(contextValue, decision)
+		if err := reporter.AcknowledgeApplied(contextValue, decision); err != nil {
+			state.recordRequestError(err)
+			state.markResponseIncomplete()
+			panic(http.ErrAbortHandler)
+		}
 	}
-	return nil
 }
 
 // writeDecision sends the selected pre-commit action to the actual
 // ResponseWriter before reporting it to the engine. WriteHeader has no error
 // result in net/http, so a complete successful body write is the strongest
 // ResponseWriter confirmation available here. The engine receives the outcome
-// while its Common commit state is still pre-action; only then do we publish
-// the actual host commit. A failed or short body write still records only
+// while its Common commit state is still pre-action. That acknowledgement
+// terminates the rule transaction, so the actual commit is retained locally
+// before acknowledgement without updating Common's pre-action state.
+// A failed or short body write still records only
 // commit metadata and deliberately emits no host outcome.
 func (state *streamState) writeDecision(contextValue context.Context, target http.ResponseWriter, decision Decision) {
 	count, writeErr := writeDecision(target, decision)
 	status, _ := normalizeDecision(decision)
-	var acknowledgementErr error
+	state.mu.Lock()
+	state.responseCommitted = true
+	state.responseStatus = status
+	state.mu.Unlock()
 	if writeErr == nil {
-		acknowledgementErr = state.acknowledgeApplied(contextValue, decision)
-	}
-	commitErr := state.markResponseCommit(contextValue, status, true, count > 0)
-	if writeErr != nil || acknowledgementErr != nil || commitErr != nil {
+		state.acknowledgeApplied(contextValue, decision)
+	} else {
+		// Preserve the host write failure even if reporting the accepted
+		// headers/body also fails. Neither failure proves an applied outcome.
+		state.recordRequestError(writeErr)
 		state.markResponseIncomplete()
+		state.reportResponseCommit(contextValue, true, count > 0)
+		panic(http.ErrAbortHandler)
 	}
 }
 
@@ -694,7 +788,7 @@ func (state *streamState) close(contextValue context.Context) {
 		return
 	}
 	state.closed = true
-	state.engine.Close(contextValue, Summary{
+	summary := Summary{
 		TransactionID:       state.metadata.TransactionID,
 		RequestHeaderCount:  state.requestHeaderCount,
 		ResponseHeaderCount: state.responseHeaderCount,
@@ -707,7 +801,16 @@ func (state *streamState) close(contextValue context.Context) {
 		ResponseIncomplete:  state.responseIncomplete,
 		ResponseCommitted:   state.responseCommitted,
 		LateAction:          state.lateAction,
-	})
+	}
+	if closer, ok := state.engine.(interface {
+		CloseChecked(context.Context, Summary) error
+	}); ok {
+		if err := closer.CloseChecked(contextValue, summary); err != nil {
+			panic(http.ErrAbortHandler)
+		}
+	} else {
+		state.engine.Close(contextValue, summary)
+	}
 }
 
 type inspectingRequestBody struct {
@@ -819,6 +922,12 @@ func (writer *responseWriter) WriteHeader(status int) {
 }
 
 func (writer *responseWriter) Write(payload []byte) (int, error) {
+	if err := writer.state.responseFailure(); err != nil {
+		return 0, err
+	}
+	if writer.responseIncomplete {
+		return 0, io.ErrClosedPipe
+	}
 	if writer.rejected {
 		// A pre-commit decision is already visible to the downstream client.
 		// Consume the proxy's attempted response stream without forwarding it so
@@ -840,6 +949,9 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 
 func (writer *responseWriter) writeEmptyResponse() (int, error) {
 	writer.WriteHeader(http.StatusOK)
+	if err := writer.state.responseFailure(); err != nil {
+		return 0, err
+	}
 	if writer.rejected {
 		return 0, ErrResponseRejected
 	}
@@ -885,8 +997,10 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 			writer.markResponseIncomplete()
 		} else {
 			writer.writeFailure()
+			return 0, false, err
 		}
-		return 0, false, err
+		writer.responseIncomplete = true
+		panic(http.ErrAbortHandler)
 	}
 	if decision.disruptive() {
 		writer.writeDecision(decision)
@@ -898,10 +1012,18 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 			return 0, false, writer.responseCommitErr
 		}
 	}
+	if err := writer.state.responseFailure(); err != nil {
+		writer.responseIncomplete = true
+		return 0, false, err
+	}
 	count, writeErr := writer.target.Write(chunk)
 	var commitErr error
 	if count > 0 {
 		commitErr = writer.markResponseCommit(0, true, true)
+		if err := writer.state.responseFailure(); err != nil {
+			writer.markResponseIncomplete()
+			return count, false, err
+		}
 		// Traefik's native forwarding path may otherwise retain a small response
 		// chunk until upstream EOS. Flush only bytes the host accepted so a
 		// committed streaming response remains observable before upstream EOF.
@@ -1057,8 +1179,14 @@ func writeDecision(target http.ResponseWriter, decision Decision) (int, error) {
 // return ErrNotSupported. Unwrap lets http.ResponseController reach the
 // underlying writer when it needs richer semantics.
 func (writer *responseWriter) Flush() {
+	if writer.responseIncomplete {
+		panic(http.ErrAbortHandler)
+	}
 	if !writer.committed && !writer.rejected {
 		writer.WriteHeader(http.StatusOK)
+	}
+	if writer.state.responseFailure() != nil {
+		return
 	}
 	if flusher, ok := writer.target.(http.Flusher); ok {
 		flusher.Flush()
@@ -1141,6 +1269,12 @@ func (writer *responseWriter) writeInitialReadFromBytes(first []byte, count int)
 }
 
 func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
+	if err := writer.state.responseFailure(); err != nil {
+		return 0, err
+	}
+	if writer.responseIncomplete {
+		return 0, io.ErrClosedPipe
+	}
 	if writer.rejected {
 		return io.Copy(io.Discard, source)
 	}
@@ -1233,15 +1367,14 @@ func (writer *responseWriter) finish() {
 		return
 	}
 	writer.finished = true
-	if writer.responseIncomplete || writer.state.responseIsIncomplete() {
-		// A real host-side, source, or engine read/write failure is not normal
-		// completion. Do not claim EOS or turn it into a late intervention
-		// result; Close will release the per-request engine session through its
-		// normal idempotent cleanup path.
-		return
-	}
 	if writer.rejected {
 		return
+	}
+	if writer.responseIncomplete || writer.state.responseIsIncomplete() || writer.state.responseFailure() != nil {
+		// An incomplete host stream must escape normal handler completion even
+		// when the downstream handler ignored its Write/ReadFrom error.
+		writer.markResponseIncomplete()
+		panic(http.ErrAbortHandler)
 	}
 	if !writer.committed {
 		if !writer.prepareResponseHeaders(http.StatusOK) {
@@ -1263,11 +1396,10 @@ func (writer *responseWriter) finish() {
 
 	_, err := writer.state.processResponseBody(writer.requestContext(), nil, true, false)
 	if err != nil {
-		// Response headers may already be committed. There is no safe replacement
-		// status or claimed abort path here. The failed terminal callback is not
-		// normal completion, so Close must not send a normal Finish outcome.
+		// Stop the host handler without inventing a replacement status or an
+		// observed transport outcome. net/http owns the abort/reset behavior.
 		writer.markResponseIncomplete()
-		return
+		panic(http.ErrAbortHandler)
 	}
 }
 

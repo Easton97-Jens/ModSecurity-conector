@@ -29,6 +29,16 @@ Validierung einen kurzlebigen, auf das Repository begrenzten GitHub-App-Token.
 Er erstellt ausschließlich Draft-Pull-Requests und erst nach expliziten Pfad-,
 Symlink-, Staging-Scope- und Candidate-SHA-256-Prüfungen.
 
+Nur der Resolver-Schritt und die erneute Metadatenauflösung des Publishers
+erhalten einen jobbezogenen read-only `github.token` für Repository-Metadaten
+an `https://api.github.com`. Git- und PR-Veröffentlichung behalten ihren
+GitHub-App-Token. Redirects werden vor
+dem Folgen abgewiesen; Binärartefakte lädt ein separater Client ohne diesen
+Header. Lokale Metadatenauflösung akzeptiert optional `GITHUB_TOKEN` und verwendet
+ohne diesen anonyme Anfragen. Vertragsassertions binden Workflow-Referenzen an
+den exakten SHA und Tag im zentralen Lock, sodass ein älteres fest kodiertes
+Release keinen gültigen Wartungskandidaten abweisen kann.
+
 Die Workflow-Wartung hat genau einen Besitzer: Dependabot verwaltet hier keine
 `github-actions`. Der Updater löst jeden Lock-Eintrag als Einheit auf,
 aktualisiert jeden passenden Action-Suffix (einschließlich aller
@@ -47,14 +57,14 @@ bestehende Connector-Consumer kein paralleles Lock-Schema benötigen.
 | Action | Version | Unveränderlicher Commit |
 | --- | --- | --- |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `sonarsource/sonarqube-scan-action` | `v8.3.0` | `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` |
-| `actions/create-github-app-token` | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` |
+| `SonarSource/sonarqube-scan-action` | `v8.3.0` | `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` |
+| `actions/create-github-app-token` | `v3.3.0` | `64ab729a6294000f5aa4a4bc0b73d1f32bc45510` |
 | `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
 | `actions/github-script` | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
-| `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
+| `actions/setup-python` | `v7.1.0` | `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0` |
 | `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
-| `github/codeql-action` | `v4.38.3` | `24c54180a607b1449ed407dd24f251e4e9147c8d` |
+| `github/codeql-action` | `v4.39.1` | `9b3254085494b55a0f7c4c2b3d2d52cc712ce370` |
 | `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
 | `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
@@ -71,19 +81,26 @@ kopiert die vollständigen registrierten Vertragseingaben einschließlich ihrer
 Offline-Test-Fixtures; diese read-only-Eingaben erweitern die erlaubten
 Änderungen des Publishers nicht.
 
-Vor der Veröffentlichung führt der private Proposed Tree sämtliche Updater-
-Unit-Tests über `make check-ci-security-contract` aus, einschließlich Release-
-Auswahl und negativer Provenance-Kontrollen. CodeQL-Release-Fixtures verwenden
-explizite Versionen unabhängig von der aktuellen Lockdatei. Der Integrationstest
-des kopierten Baums bleibt außerhalb dieses Targets, damit die Validierung
-sich nicht selbst rekursiv aufruft.
+Vor Veröffentlichung führt der private Proposed Tree die inventarisierten Updater-Kontrollen
+über `make check-ci-security-contract` aus, einschließlich Release-Auswahl und
+negativer Provenance-Kontrollen; CodeQL-Fixtures nutzen Versionen unabhängig
+vom aktuellen Lock, und der Integrationstest des kopierten Baums bleibt zur
+Rekursionsvermeidung getrennt. Der Validator lädt SHA-256-geprüftes `actionlint`
+und `zizmor` aus dem vorgeschlagenen Lock und prüft die vorgeschlagenen Workflows:
+Sichere Fixtures müssen `0` liefern,
+beide unsicheren Fixtures hoher Severity `14`; Prüfsummenfehler, Tool-Fehler,
+unerwartete Exits und Timeouts weisen Kandidaten vor Push oder PR-Erstellung ab.
 
-Der Validator lädt außerdem `actionlint` und `zizmor` aus der vorgeschlagenen
-Lockdatei herunter, prüft ihre SHA-256-Digests und führt sie gegen die
-vorgeschlagenen Workflows aus. Sichere Fixtures müssen `0` liefern; beide
-unsicheren Fixtures mit hoher Severity müssen `14` liefern. Prüfsummenfehler,
-Tool-Fehler, unerwartete Exit-Status und Timeouts weisen den Kandidaten vor
-jedem Push und jeder PR-Erstellung zurück.
+
+## Abgeleitete Wartungsmetadaten und offene Voraussetzungen
+
+Wartung darf genau zwei Begleitdateien ableiten: `config/testing/active-cases.json` (nur vorhandene SHA-Felder) und `reports/testing/test-selection-archive.generated.json` (nur `inventory_sha256`). Selektoren, Fälle, Profile, Quellpfade und Subtestmetadaten dürfen sich dadurch nicht ändern. Rekonstruktion aus vertrauenswürdiger Basis muss vor Staging, Veröffentlichung oder Wiederverwendung exakte Bytes und regulären Stage-0-Modus `100644` reproduzieren. Die primäre Allowlist des Actions-Publishers bleibt unverändert. Drei fokussierte Regressionen bestehen jetzt: Ein zukünftiges Go-Minor 1.28 ist zulässig, Rollback erhält fremde Änderungen einer Begleitdatei und stellt eigene Begleitdateien größer als 4 KiB wieder her.
+
+Vier `go.mod`-Deklarationen sowie `requirements-ci.lock`, `requirements-ci-build.lock`, `requirements-dev.txt` sind sieben nicht ausführbare Abhängigkeitsdeklarationen, keine Collector-Quellbindungen. Go-Modul-/Sum-Dateien und die drei Requirements bleiben durch tatsächliche Build-Identität und Quell-Snapshots vor/nach dem Lauf gebunden. Dies vermeidet Metadaten-Churn durch Dependency-Updates, ohne Controller- oder ausführbare Codebindungen zu entfernen.
+
+Das Sonar-Jobbudget beträgt für die ausdrücklich größere Auswahl nun 120 statt 45 Minuten; einzelne 600-Sekunden-Grenzen und die Ein-Sekunden-Timingassertion bleiben unverändert. Beobachtete Profile verringerten 429 AST-Parses auf 41 und 6841 Quell-Lesezugriffe auf wenige Hundert. Die frühere Messung von 15,723 s hatte neun gleichzeitige Workloads, die spätere mit 1,788 s erfolgte im Leerlauf: Diese unterschiedlichen Bedingungen belegen keinen kontrollierten Geschwindigkeitsgewinn.
+
+Nach der Fertigmeldung des Nutzers listen beobachtete Dependabot-Secret-Metadaten genau einen Namen: `SONAR_TOKEN`. Der frühere Zustand ohne Namen/mit offener Secret-Einrichtung ist historisch und auf Metadatenebene erledigt. Kein Tokenwert wurde gelesen; weder Live-Bot-Authentifizierung noch ein erfolgreicher Dependabot-PR werden behauptet. Dieser Ausführungsnachweis benötigt weiterhin separat autorisierte Wartungsprüfungen am Default-Branch; die aktuelle PR-Authentifizierung ist ein getrenntes Ergebnis. [GitHubs Regeln für Dependabot auf Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions) beschreiben diesen getrennten Secret-Kontext. Diese Dokumentation ändert weder Secrets noch Provider-Einstellungen.
 
 ## Zentrale gewöhnliche Revisions- und Toolchain-Pins
 
@@ -172,7 +189,53 @@ Archivauflistung oder Extraktion geprüft. Die Cache-Identität bleibt an das
 kanonische Quelltupel gebunden; Metadaten erfassen die tatsächliche Download-URL
 und den ausdrücklichen Wiederherstellungsgrund.
 
-## Eingeschränkter Python-3.14-Patch-Updater
+## Geprüfter CI-Abhängigkeitsbuild für Python 3.15
+
+Für Python `3.15.1` gibt es auf PyPI kein offizielles CPython-3.15-Wheel von
+PyYAML `6.0.3`. Die ausdrücklich geprüfte Ausnahme in
+`ci/tools/install-ci-dependencies.py` verwendet ausschließlich die offizielle
+SHA-256-gepinnte Quelldistribution dieses Releases und die exakten offiziellen
+universellen Build-Tool-Wheels aus `requirements-ci-build.lock`. Sie erstellt
+einen eigenen externen Builder, deaktiviert LibYAML, weist native Erweiterungen
+sowie unerwartete Wheel-Metadaten/Abhängigkeiten zurück und installiert das
+entstandene reine Python-Wheel über seinen berechneten Hash. Andere Sourcebuilds,
+offene Abhängigkeitsauflösung und Downloads durch Build-Isolation sind nicht erlaubt.
+Der Backend-Prozess erhält eine von Zugangsdaten bereinigte Umgebung und eine
+Offline-Abhängigkeitsauflösung; dies belegt keine Netzwerkisolation durch das Betriebssystem.
+
+Die Workspace-Zulassung erfolgt vor Downloads. Verwenden Sie `RUNNER_TEMP` oder
+explizit `--build-root`; `TMPDIR` ist kein impliziter Fallback. Die gewählte
+Wurzel muss dem Aufrufer gehören und Gruppen-/Fremdschreibrechte ausschließen.
+Ihre vollständige Ahnenkette muss aus echten Verzeichnissen von root oder dem
+Aufrufer bestehen; nur root-eigene Sticky-Vorfahren dürfen öffentlich schreibbar
+sein. Symlinks und Parent-Traversal werden abgelehnt. Der Installer verwendet
+den zugelassenen kanonischen Pfad und erzeugt ein privates Arbeitsverzeichnis.
+Dies verhindert, dass ein anderer Benutzer Pfade zwischen Hashprüfung und
+Backend-Ausführung ersetzt; normale private Allokation unter einem geschützten
+Sticky-Verzeichnis war für sich kein Exploitnachweis.
+
+Lokale Nutzung verlangt ein aufgabeneigenes Virtual Environment. Hosted-Workflows
+übergeben `--ci-toolcache` nur für den gewählten `actions/setup-python`-Interpreter;
+der Python-Candidate-Validator übergibt zusätzlich seine unabhängig geprüfte
+`--expected-version`. Standard bleibt die kanonische `.python-version`.
+Parent-Jobs mit bestehender Framework-Lockdatei übergeben
+`--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
+dies weist Abhängigkeits-/Versionsdrift zurück und erhält PyYAML `6.0.3`, während
+der Parent das geprüfte Python-3.15-Artefakt verantwortet. Framework-/MRTS-Repositories
+und Gitlinks bleiben unverändert; dies ist keine Framework-Runtime-Qualifizierung.
+
+Für die schreibgeschützte Submodul-Validierung ruft der normale Runner diesen
+vertrauenswürdigen Parent-Installer nach der Kandidatendatenprüfung und vor der
+Sandbox-Erstellung im geschützten Modus `--ci-toolcache` auf. Der Framework-Lock
+wird nur als Daten geparst; bei der Vorbereitung läuft kein Kandidatencode.
+Die Runtime mit der geprüften reinen Python-Abhängigkeit wird anschließend
+schreibgeschützt eingebunden. Nach dem Privilegienwechsel prüft der Kandidat
+die Abhängigkeit durch einen isolierten `-I`-Import und führt danach
+`quick-check` mit dem ursprünglich gewählten Interpreter aus. Innerhalb von
+`/external` werden keine Abhängigkeiten oder Builder-Ausgaben hinzugefügt;
+dessen Rechte- und Symlink-Schutz bleiben unverändert.
+
+## Eingeschränkter Python-3.15-Patch-Updater
 
 `.github/workflows/update-python-version.yml` hat genau vier Jobs:
 `resolve-python-patch`, `validate-python-patch`, `publish-python-update` und
@@ -208,7 +271,7 @@ Workflow-Template-Injection.
 
 Vor einem Schreibzugriff verlangt der Publisher entweder keinen Wartungs-Branch
 und keinen passenden PR oder genau einen Same-Repository-Draft-PR mit festem
-Titel und Marker `<!-- modsecurity-conector-python-314-updater -->`, Basis
+Titel und Marker `<!-- modsecurity-conector-python-315-updater -->`, Basis
 `master` und deaktiviertem automatischen Merge. Er prüft bei einem bestehenden
 Branch dessen historischen Scope, baut danach von aktuellem vertrauenswürdigem
 `origin/master` neu auf, ändert nur das Lock-Feld `python_version` samt
@@ -239,32 +302,32 @@ läuft checksum-verifiziertes `zizmor` offline gegen alle Workflow-Dateien. Eine
 absichtlich unsichere Fixture muss fehlschlagen und eine sichere Fixture muss
 bestehen; beide Fixtures sind keine ausführbare Produktkonfiguration.
 
-Wiederverwendbare Workflows desselben Repositorys verwenden GitHubs `$/`-
-Referenzen, die die laufende Revision auswählen. Das gepinnte `actionlint`
-`v1.7.12` erkennt diese Syntax noch nicht. `ci/tools/lint_workflows.py` übersetzt
-anhand von YAML-Token-Positionen ausschließlich sichere literale `uses`-Pfade
-im Speicher in gleich lange `./`-Texte für den actionlint-stdin. Shell-Skripte,
-Kommentare, Quelldateien und Runtime-Referenzen bleiben erhalten; `zizmor`
-prüft die Originaldateien. Siehe die
+GitHubs Repository-eigene `$/`-Referenzen wählen die laufende Revision. Da das
+gepinnte `actionlint` `v1.7.12` sie nicht unterstützt, übersetzt
+`ci/tools/lint_workflows.py` nur sichere
+literale `uses`-Pfade an YAML-Token-Positionen im Speicher in gleich lange
+`./`-Texte für den actionlint-stdin. Quellen, Skripte, Kommentare und
+Runtime-Referenzen bleiben erhalten; `zizmor` prüft die Originale. Siehe die
 [GitHub-Syntax-Ankündigung](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
 und das [actionlint-Kompatibilitäts-Issue](https://github.com/rhysd/actionlint/issues/711).
 
-Der Adapter akzeptiert keine CLI-Argumente für Executables oder Workflow-Pfade.
-Gewöhnliche CI verwendet den festen Pfad `RUNNER_TEMP/security-tools/actionlint`;
-der boolesche Modus `--candidate-tree` verwendet das feste heruntergeladene Tool
-des privaten Proposed Trees. Er weist Traversal, Symlink-Vorfahren, fremdes oder
-beschreibbares Tool-Staging und nichtreguläre Dateien zurück und ermittelt nur
-Repository-YAML-Workflows samt den zwei festen Berechtigungs-Fixtures.
-ShellCheck verwendet bei Verfügbarkeit den festen Pfad `/usr/bin/shellcheck`.
-Die Integrität stammt weiterhin vom Prüfsummen-Fetcher.
+Beide Adapter akzeptieren keine Tool- oder Workflow-Pfadargumente und ermitteln
+nur Repository-YAML-Workflows samt zwei festen Berechtigungs-Fixtures.
+Security-CI nutzt `RUNNER_TEMP/security-tools/actionlint`; boolesches
+`--candidate-tree` nutzt das feste heruntergeladene Tool des privaten Proposed
+Trees. Sie weist Traversal, Symlink-Vorfahren, fremdes/beschreibbares Tool-Staging
+und nichtreguläre Dateien zurück, nutzt bei Verfügbarkeit `/usr/bin/shellcheck`
+und behält die Integrität durch den Prüfsummen-Fetcher.
+Lokales `make lint` nutzt dagegen optional installiertes `actionlint` aus `PATH`
+über `ci.tools.lint_installed_workflows`, mit derselben Normalisierung im Speicher,
+unveränderten Quellen, ShellChecks Standard-Pfadsuche, ohne Downloads sowie mit
+erhaltenen Fehler- und Timeout-Ergebnissen.
 
-Der gehostete NGINX-Workflow reserviert vor der Provisionierung einen
-Invocation-eigenen Runtime-Snapshot und übergibt dessen exakten Pfad mit
-`SKIP_RUNTIME_COMPONENT_PREPARE=1` über die spätere `env -i`-Grenze.
-Der Wrapper prüft weiterhin Ziel und Cache des Snapshots vor dem Harness-Aufruf.
-Die gewöhnliche NGINX-CI führt die Übergabe-Regression aus, einschließlich
-zurückgewiesener Metadaten und gescheiterter Provisionierung, damit eine
-fehlende Übergabe keinen zweiten Aufbau unbemerkt auslöst.
+Gehostetes NGINX reserviert vor Provisionierung einen Invocation-eigenen
+Runtime-Snapshot, übergibt seinen exakten Pfad mit
+`SKIP_RUNTIME_COMPONENT_PREPARE=1` durch `env -i` und prüft Ziel und Cache vor
+dem Harness. CI-Übergaberegressionen prüfen zurückgewiesene Metadaten und
+gescheiterte Provisionierung, um unbemerkten erneuten Aufbau zu verhindern.
 
 ## Secret- und Dependency-Scanning
 

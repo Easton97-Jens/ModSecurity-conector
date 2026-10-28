@@ -53,7 +53,7 @@ jobs:
       }}
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       candidate_sha: ${{ steps.resolve.outputs.candidate_sha }}
       current_sha: ${{ steps.resolve.outputs.current_sha }}
@@ -143,7 +143,7 @@ jobs:
     if: ${{ needs.resolve-submodule-update.result == 'success' && needs.resolve-submodule-update.outputs.changed == 'true' }}
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
       CURRENT_GITLINK_SHA: ${{ needs.resolve-submodule-update.outputs.current_sha }}
@@ -158,7 +158,7 @@ jobs:
 
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -167,6 +167,12 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
 
       - name: Capture immutable Parent validation baseline
         run: |
@@ -287,6 +293,13 @@ jobs:
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CURRENT_GITLINK_SHA"
 
+      - name: Prepare reviewed Python dependency before runtime protection
+        run: |
+          set -euo pipefail
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
+
       - name: Create private read-only candidate guard
         id: create-readonly-candidate-sandbox-guard
         run: |
@@ -345,6 +358,7 @@ jobs:
           namespace_parent="$(sudo -n mktemp -d /tmp/modsecurity-readonly-namespace.XXXXXX)"
           sudo -n chown root:modsecurity-validator "$namespace_parent"
           sudo -n chmod 0750 "$namespace_parent"
+          namespace_status=0
           namespace_output="$(sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
@@ -353,8 +367,11 @@ jobs:
             --validator-user modsecurity-validator \
             --validator-group modsecurity-validator \
             --python "$EXPECTED_PYTHON" \
-            --namespace-parent "$namespace_parent")"
+            --namespace-parent "$namespace_parent")" || namespace_status=$?
           printf '%s\n' "$namespace_output"
+          if [ "$namespace_status" -ne 0 ]; then
+            exit "$namespace_status"
+          fi
           case "$namespace_output" in
             *READONLY_SUBMODULE_VALIDATION_NAMESPACE_COMPLETE*) ;;
             *)
@@ -443,7 +460,7 @@ jobs:
       }}
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
       CURRENT_GITLINK_SHA: ${{ needs.resolve-submodule-update.outputs.current_sha }}
@@ -458,7 +475,7 @@ jobs:
 
       - name: Setup Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -485,7 +502,7 @@ jobs:
 
       - name: Mint repository-limited submodule publisher App token
         id: publisher_app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
           private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
@@ -526,6 +543,8 @@ jobs:
                 -e scripts/generate_compiler_guides.py \
                 -e tests/test_compiler_guides.py \
                 -e ci/tooling/project-versions.lock.json \
+                -e config/testing/active-cases.json \
+                -e reports/testing/test-selection-archive.generated.json \
                 -e ci/checks/evidence/check-runtime-producer-readiness.py \
                 -e .github/workflows/test-full-smoke-sequential.yml \
                 -e .github/workflows/nginx-root-broker.yml \
@@ -566,6 +585,15 @@ jobs:
                   if ($1 == ":160000" && $2 == "160000" && $5 == "M") {
                     gitlinks += 1
                   } else {
+                    invalid = 1
+                  }
+                  next
+                }
+
+                $6 == "config/testing/active-cases.json" ||
+                $6 == "reports/testing/test-selection-archive.generated.json" {
+                  records += 1
+                  if ($1 != ":100644" || $2 != "100644" || $5 != "M") {
                     invalid = 1
                   }
                   next
@@ -963,6 +991,13 @@ jobs:
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CANDIDATE_SHA"
           python3 scripts/generate_compiler_guides.py
+          # Reconstruct exact primary and companion bytes from trusted master.
+          python3 ci/tools/sync-framework-component-versions.py \
+            --verify-companions \
+            --base "$MASTER_HEAD" \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common" \
+            --framework-sha "$CANDIDATE_SHA"
           git -c core.hooksPath=/dev/null add -- \
             connectors/envoy/config/envoy-ext-proc-versions.env \
             ci/provisioning/components/prepare-runtime-components.py \
@@ -975,6 +1010,8 @@ jobs:
             scripts/generate_compiler_guides.py \
             tests/test_compiler_guides.py \
             ci/tooling/project-versions.lock.json \
+            config/testing/active-cases.json \
+            reports/testing/test-selection-archive.generated.json \
             ci/checks/evidence/check-runtime-producer-readiness.py \
             .github/workflows/test-full-smoke-sequential.yml \
             .github/workflows/nginx-root-broker.yml \
@@ -996,6 +1033,14 @@ jobs:
             docs/build/compilers/traefik.de.md \
             docs/build/compilers/lighttpd.md \
             docs/build/compilers/lighttpd.de.md
+
+          python3 ci/tools/sync-framework-component-versions.py \
+            --verify-companions \
+            --base "$MASTER_HEAD" \
+            --staged \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --framework-common "$framework_common" \
+            --framework-sha "$CANDIDATE_SHA"
 
           changed_paths="$(
             git diff \
@@ -1095,7 +1140,7 @@ jobs:
           - Proposed Framework gitlink: $CANDIDATE_SHA
           - Validation: the isolated read-only quick check passed.
           - Component pins: synchronized from the candidate's statically parsed ci/lib/common.sh and rechecked before staging.
-          - Changed paths: Framework gitlink plus the registered Parent component-pin contracts only.
+          - Changed paths: Framework gitlink, registered Parent component-pin contracts, and exactly two independently verified inventory companions.
           - Merge: no automatic merge.
           EOF
 
@@ -1148,7 +1193,7 @@ jobs:
     if: ${{ always() }}
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       RESOLVER_RESULT: ${{ needs.resolve-submodule-update.result }}
       VALIDATOR_RESULT: ${{ needs.validate-submodule-update.result }}

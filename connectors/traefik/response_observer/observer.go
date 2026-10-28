@@ -75,8 +75,8 @@ const (
 )
 
 var (
-	errProtocol = errors.New("modsecurity response observer: invalid private UDS protocol")
-	errClosed   = errors.New("modsecurity response observer: session closed")
+	errProtocol                         = errors.New("modsecurity response observer: invalid private UDS protocol")
+	errClosed                           = errors.New("modsecurity response observer: session closed")
 	errUnsupportedResponseCompanionPeer = errors.New(
 		"modsecurity response observer: Linux SO_PEERCRED is required for response companion authentication",
 	)
@@ -85,10 +85,14 @@ var (
 // Config is the host-facing configuration. SocketPath is deliberately UDS
 // only; no TCP or implicit fallback is supported.
 type Config struct {
-	SocketPath      string `json:"socketPath,omitempty"`
-	TimeoutMillis   int    `json:"timeoutMillis,omitempty"`
-	ExpectedPeerUID *int   `json:"expectedPeerUID,omitempty"`
-	ExpectedPeerGID *int   `json:"expectedPeerGID,omitempty"`
+	SocketPath           string `json:"socketPath,omitempty"`
+	TimeoutMillis        int    `json:"timeoutMillis,omitempty"`
+	ExpectedPeerUID      *int   `json:"expectedPeerUID,omitempty"`
+	ExpectedPeerGID      *int   `json:"expectedPeerGID,omitempty"`
+	ProvenanceSocketPath string `json:"provenanceSocketPath,omitempty"`
+	RunID                string `json:"runID,omitempty"`
+	TransportCaseID      string `json:"transportCaseID,omitempty"`
+	ConfirmProvenance    bool   `json:"confirmProvenance,omitempty"`
 }
 
 func CreateConfig() *Config {
@@ -111,6 +115,9 @@ func normalizeConfig(input *Config) (Config, error) {
 	}
 	if !safeSocketPath(c.SocketPath) || c.TimeoutMillis < 1 || c.TimeoutMillis > 60000 {
 		return Config{}, errors.New("modsecurity response observer: invalid private socket or timeout")
+	}
+	if err := validateProvenanceConfig(c); err != nil {
+		return Config{}, err
 	}
 	return c, nil
 }
@@ -151,15 +158,32 @@ func New(_ context.Context, next http.Handler, config *Config, _ string) (http.H
 	if err != nil {
 		return nil, err
 	}
-	return &middleware{next: next, config: c}, nil
+	m := &middleware{next: next, config: c}
+	if c.ProvenanceSocketPath != "" {
+		if err := m.initializeCorrelationSecret(); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
 }
 
 type middleware struct {
-	next   http.Handler
-	config Config
+	next              http.Handler
+	config            Config
+	correlationSecret [32]byte
 }
 
 func (m *middleware) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if m.config.ConfirmProvenance {
+		m.confirmProvenance(writer, request)
+		return
+	}
+	stripProvenanceHeaders(request.Header)
+	stripProvenanceHeaders(request.Trailer)
+	if m.config.ProvenanceSocketPath != "" {
+		m.serveWithProvenance(writer, request)
+		return
+	}
 	handles := request.Header.Values("X-Msconnector-Response-Handle")
 	if len(handles) != 1 || !validHandle(handles[0]) {
 		http.Error(writer, "response observer handle required", http.StatusServiceUnavailable)
@@ -256,7 +280,9 @@ func (s *session) exchange(ctx context.Context, opcode byte, payload []byte) (re
 	}
 	watchDone := make(chan struct{})
 	if ctx.Done() != nil {
+		watchExited := make(chan struct{})
 		go func() {
+			defer close(watchExited)
 			select {
 			case <-ctx.Done():
 				// Interrupt a blocked read/write promptly. The caller will use
@@ -265,7 +291,12 @@ func (s *session) exchange(ctx context.Context, opcode byte, payload []byte) (re
 			case <-watchDone:
 			}
 		}()
-		defer close(watchDone)
+		defer func() {
+			close(watchDone)
+			// Retire the old deadline writer before releasing session.mu;
+			// it must not poison the next bounded cleanup exchange.
+			<-watchExited
+		}()
 	}
 	deadline := time.Now().Add(s.timeout)
 	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
@@ -432,6 +463,7 @@ type responseState struct {
 	request                                          *http.Request
 	status                                           int
 	headerSent, bodyStarted, finished, precommitFail bool
+	terminalError                                    error
 }
 
 func (s *responseState) Header() http.Header { return s.target.Header() }
@@ -459,7 +491,7 @@ func (s *responseState) WriteHeader(status int) {
 		return
 	}
 	decision, err := s.session.exchange(s.request.Context(), opResponseHeaders, payload)
-	if err != nil || decision.code != resultOK {
+	if err != nil || decision.code != resultOK || decision.decision == decisionError || decision.decision == decisionUnsupported {
 		s.failBeforeCommit()
 		return
 	}
@@ -472,7 +504,7 @@ func (s *responseState) WriteHeader(status int) {
 		s.failBeforeCommit()
 		return
 	}
-	if commit.code != resultOK {
+	if commit.code != resultOK || commit.decision == decisionError || commit.decision == decisionUnsupported {
 		s.failBeforeCommit()
 		return
 	}
@@ -515,17 +547,20 @@ func (s *responseState) Write(payload []byte) (int, error) {
 		if err != nil {
 			_ = s.cancelFailure(err)
 			s.finished = true
+			s.terminalError = err
 			return totalWritten, err
 		}
-		if decision.code != resultOK {
+		if decision.code != resultOK || decision.decision == decisionError || decision.decision == decisionUnsupported {
 			_ = s.cancelWithClass(cancelInvalidEngine)
 			s.finished = true
+			s.terminalError = errProtocol
 			return totalWritten, errProtocol
 		}
 		if disruptive(decision.decision) {
 			if err := s.sendLateOutcome(s.status); err != nil {
 				_ = s.cancelFailure(err)
 				s.finished = true
+				s.terminalError = err
 				return totalWritten, err
 			}
 		}
@@ -535,11 +570,13 @@ func (s *responseState) Write(payload []byte) (int, error) {
 		if writeErr != nil {
 			_ = s.cancel(false)
 			s.finished = true
+			s.terminalError = writeErr
 			return totalWritten, writeErr
 		}
 		if written != len(chunk) {
 			_ = s.cancel(false)
 			s.finished = true
+			s.terminalError = io.ErrShortWrite
 			return totalWritten, io.ErrShortWrite
 		}
 		payload = payload[len(chunk):]
@@ -548,6 +585,12 @@ func (s *responseState) Write(payload []byte) (int, error) {
 }
 
 func (s *responseState) Flush() {
+	if s.finished {
+		if s.terminalError != nil {
+			panic(http.ErrAbortHandler)
+		}
+		return
+	}
 	if !s.headerSent {
 		s.WriteHeader(http.StatusOK)
 	}
@@ -557,6 +600,9 @@ func (s *responseState) Flush() {
 }
 
 func (s *responseState) finish() {
+	if s.terminalError != nil {
+		panic(http.ErrAbortHandler)
+	}
 	if s.finished {
 		return
 	}
@@ -575,18 +621,18 @@ func (s *responseState) finish() {
 	if err != nil {
 		_ = s.cancelFailure(err)
 		s.finished = true
-		return
+		panic(http.ErrAbortHandler)
 	}
-	if eos.code != resultOK {
+	if eos.code != resultOK || eos.decision == decisionError || eos.decision == decisionUnsupported {
 		_ = s.cancelWithClass(cancelInvalidEngine)
 		s.finished = true
-		return
+		panic(http.ErrAbortHandler)
 	}
 	if disruptive(eos.decision) {
 		if err := s.sendLateOutcome(s.status); err != nil {
 			_ = s.cancelFailure(err)
 			s.finished = true
-			return
+			panic(http.ErrAbortHandler)
 		}
 	}
 	release, err := s.session.exchange(s.request.Context(), opRelease, nil)
@@ -596,6 +642,8 @@ func (s *responseState) finish() {
 		} else {
 			_ = s.cancelWithClass(cancelInvalidEngine)
 		}
+		s.finished = true
+		panic(http.ErrAbortHandler)
 	}
 	s.finished = true
 }
@@ -660,23 +708,25 @@ func (s *responseState) applyImmediate(value result) {
 		s.failBeforeCommit()
 		return
 	}
-	s.precommitFail = true
 	if value.decision == decisionRedirect && value.redirect != "" {
 		s.target.Header().Set("Location", value.redirect)
 	}
+	s.writeTerminalStatus(status)
+	s.precommitFail = true
+	s.headerSent = true
+	s.status = status
 	if err := s.sendOutcome(actualDecision, false, false, status); err != nil {
 		_ = s.cancelFailure(err)
-		s.writeTerminalStatus(http.StatusServiceUnavailable)
-		return
+		s.finished = true
+		panic(http.ErrAbortHandler)
 	}
 	if err := s.cancel(false); err != nil {
 		// The outcome was already recorded. A failed cleanup acknowledgement
 		// is a connector/engine failure, never a fresh client cancellation.
 		_ = s.cancelFailure(err)
-		s.writeTerminalStatus(http.StatusServiceUnavailable)
-		return
+		s.finished = true
+		panic(http.ErrAbortHandler)
 	}
-	s.writeTerminalStatus(status)
 }
 
 func validRedirect(value string) bool {

@@ -41,12 +41,11 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
     void *child);
 
 
-static fake_rules_set *fake_rules_set_from_native(RulesSet *rules)
+static fake_rules_set *fake_rules_set_from_native(const RulesSet *rules)
 {
-    unsigned int index;
 
     assert(rules != NULL);
-    for (index = 0U; index < created_rules_sets; index++)
+    for (unsigned int index = 0U; index < created_rules_sets; index++)
     {
         if (rules == (RulesSet *)(void *)&fake_rules_sets[index])
         {
@@ -190,8 +189,8 @@ static void test_non_null_configs_clean_once_per_pool(void)
 {
     apr_pool_t *first_pool;
     apr_pool_t *second_pool;
-    msc_conf_t *first;
-    msc_conf_t *second;
+    const msc_conf_t *first;
+    const msc_conf_t *second;
 
     reset_observations();
     assert(apr_pool_create(&first_pool, NULL) == APR_SUCCESS);
@@ -250,7 +249,7 @@ static void test_successful_merge_has_its_own_pool_owned_rules_set(void)
     apr_pool_t *merged_pool;
     msc_conf_t *parent;
     msc_conf_t *child;
-    msc_conf_t *merged;
+    const msc_conf_t *merged;
 
     reset_observations();
     assert(apr_pool_create(&parent_pool, NULL) == APR_SUCCESS);

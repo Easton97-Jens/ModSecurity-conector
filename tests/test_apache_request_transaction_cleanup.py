@@ -60,11 +60,11 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.transaction_id_expression = c_function(
             self.module,
             "static int apache_transaction_id_from_expression(request_rec *r,\n"
-            "    msc_conf_t *config, const char **transaction_id)",
+            "    const msc_conf_t *config, const char **transaction_id)",
         )
         self.transaction_id_resolution = c_function(
             self.module,
-            "static int apache_resolve_transaction_id(request_rec *r, msc_conf_t *config,\n"
+            "static int apache_resolve_transaction_id(request_rec *r, const msc_conf_t *config,\n"
             "    const char **transaction_id, const char **failure_reason)",
         )
         self.request_headers = c_function(
@@ -244,13 +244,13 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.assertIn("msr->owner_request = NULL;", self.cleanup)
         self.assertIn("transaction = msr->t;", self.cleanup)
         self.assertIn("msr->t = NULL;", self.cleanup)
-        self.assertIn("apr_table_unset(owner_request->notes, NOTE_MSR);", self.cleanup)
+        self.assertIn("ap_set_module_config(owner_request->request_config, &security3_module,", self.cleanup)
         self.assertIn("if (transaction != NULL)", self.cleanup)
         self.assertIn("msc_transaction_cleanup(transaction);", self.cleanup)
         self.assertNotIn("msr->r", self.cleanup)
 
         pointer_clear = self.cleanup.index("msr->t = NULL;")
-        owner_clear = self.cleanup.index("apr_table_unset(owner_request->notes, NOTE_MSR);")
+        owner_clear = self.cleanup.index("ap_set_module_config(owner_request->request_config, &security3_module,")
         native_destroy = self.cleanup.index("msc_transaction_cleanup(transaction);")
         self.assertLess(pointer_clear, native_destroy)
         self.assertLess(owner_clear, native_destroy)
@@ -260,7 +260,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         retrieve = c_function(self.module, "static msc_t *retrieve_tx_context(request_rec *r)")
 
         self.assertIn("if ((r->main != NULL) || (r->prev != NULL))", late_hook)
-        self.assertIn("r->main->notes", retrieve)
+        self.assertIn("apache_request_context(r->main)", retrieve)
         self.assertIn("rx = r->prev;", retrieve)
         self.assertIn("msr->r = r;", retrieve)
 
@@ -319,6 +319,13 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         self.assertIn("Common FSM", clock)
         self.assertNotIn("return 0U;\n}", clock)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

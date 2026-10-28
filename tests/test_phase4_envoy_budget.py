@@ -34,17 +34,13 @@ const (
 )
 type Action string
 const (ActionAllow Action = "allow"; ActionDeny Action = "deny")
-type Decision struct { Action Action }
-func allowDecision() Decision { return Decision{ActionAllow} }
-func payloadTooLargeDecision() Decision { return Decision{ActionDeny} }
+type Decision struct { Action Action; Status int }
+func allowDecision() Decision { return Decision{Action: ActionAllow} }
 type Config struct {
     MaxBodyChunkBytes int
-    MaxRequestBodyBytes int64
-    MaxResponseBodyBytes int64
 }
-type Summary struct { RequestBodyBytes int64; ResponseBodyBytes int64 }
+type Summary struct { RequestBodyBytes int64; ResponseBodyBytes int64; RequestBodyChunks uint64; ResponseBodyChunks uint64 }
 type streamState struct { config Config; engine any; summary Summary }
-type Phase4BodyBudgetDisabler interface { Phase4BodyBudgetDisabled() bool }
 type PassthroughEngine struct{}
 type CommonRuntimeEngine struct { phase4Mode int }
 const (
@@ -53,32 +49,15 @@ const (
     commonRuntimePhase4ModeStrict = 2
 )
 """
-NATIVE_MODE_TEST = """package processor
-import "testing"
-func TestNativeBudgetModeReadback(t *testing.T) {
-    var missing *CommonRuntimeEngine
-    if missing.Phase4BodyBudgetDisabled() { t.Fatal("nil disables budget") }
-    for _, mode := range []int{-1, 77} {
-        if (&CommonRuntimeEngine{phase4Mode: mode}).Phase4BodyBudgetDisabled() {
-            t.Fatalf("invalid mode %d disables budget", mode)
-        }
-    }
-    for _, mode := range []int{0, 1, 2} {
-        if !(&CommonRuntimeEngine{phase4Mode: mode}).Phase4BodyBudgetDisabled() {
-            t.Fatalf("valid mode %d keeps legacy connector budget", mode)
-        }
-    }
-}
-"""
 
 class EnvoyPhase4BudgetTests(unittest.TestCase):
     def test_processor_disables_legacy_response_budget_without_removing_chunk_limit(self) -> None:
         source = (PROCESSOR / "processor.go").read_text(encoding="utf-8")
         function = go_definition(source, "bodyLimitDecision")
-        self.assertIn("state.engine.(Phase4BodyBudgetDisabler)", function)
-        self.assertIn("policy.Phase4BodyBudgetDisabled()", function)
-        self.assertLess(function.index("bodyLength > state.config.MaxBodyChunkBytes"),
-                        function.index("limit = math.MaxInt64"))
+        self.assertNotIn("Phase4BodyBudgetDisabler", source)
+        self.assertNotIn("MaxRequestBodyBytes", function)
+        self.assertIn("bodyLength > state.config.MaxBodyChunkBytes", function)
+        self.assertIn("Status: 500", function)
         self.assertIn("cumulativeBodyBytes(current, bodyLength)", function)
         self.assertNotIn("LateActionPolicy", function)
 
@@ -89,18 +68,15 @@ class EnvoyPhase4BudgetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="envoy-phase4-budget-") as directory:
             root = Path(directory)
             source = (PROCESSOR / "processor.go").read_text(encoding="utf-8")
-            bridge = (PROCESSOR / "common_runtime_budget.go").read_text(encoding="utf-8")
             functions = "\n\n".join([
                 go_definition(source, "bodyLimitDecision"),
                 go_definition(source, "cumulativeBodyBytes"),
-                go_definition(bridge, "Phase4BodyBudgetDisabled"),
             ])
             (root / "budget.go").write_text(FIXTURE + functions, encoding="utf-8")
             (root / "budget_test.go").write_text(
                 (PROCESSOR / "phase4_budget_test.go").read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
-            (root / "mode_test.go").write_text(NATIVE_MODE_TEST, encoding="utf-8")
             environment = os.environ.copy()
             environment.update({
                 "GO111MODULE": "off", "GOTOOLCHAIN": "local",
@@ -113,6 +89,13 @@ class EnvoyPhase4BudgetTests(unittest.TestCase):
                 env=environment, capture_output=True, text=True, timeout=60,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()
