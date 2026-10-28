@@ -10,7 +10,7 @@ Current-master maintenance of PR #370; no readiness promotion.
 | --- | --- |
 | Change ID | CR-20261001-pr370-refresh-relevance |
 | Date (UTC) | 2026-10-28 |
-| Base revision | `15cea9e4d778fa1ec6e27e6fe084b347010f1367` |
+| Base revision | `3ef5068885b737ede074c3f7c11f58f302f23310` |
 
 ## Motivation and problem statement
 
@@ -24,6 +24,8 @@ Normally merge the observed base revision, leave no conflict, preserve current-m
 
 The normal merge exposed 43 textual conflicts. Every conflicted product, Common, documentation, and workflow path was first restored to the exact `master` version. The remaining PR delta was then audited by connector. Obsolete qualification harnesses, removed body-limit configuration, orphaned composite APIs, stale lighttpd keepalive claims, and old technical-error oracles were removed from the net diff instead of restoring pre-master behavior.
 
+After publication, `master` advanced once more through documentation PR #383. A second normal merge integrated revision `3ef5068885b737ede074c3f7c11f58f302f23310` without conflict; that master delta did not touch Phase-4 product processing.
+
 The retained changes are narrow: fresh external APXS profile-registry staging for retries; Envoy authorization-Path authority and response-companion smoke-rule selection; a forward-declaration-safe HAProxy source checker; stricter Traefik fixture framing, bounded reads/writes, and payload-digest verification; and two small deterministic test corrections. Reviewed source hashes and the generated specialist archive were updated without changing selectors or case counts.
 
 ## Changed files
@@ -33,6 +35,7 @@ The retained changes are narrow: fresh external APXS profile-registry staging fo
 - HAProxy and Traefik verification: `ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py`, `connectors/traefik/scripts/runtime_native_smoke.py`, and `tests/test_traefik_transport_hardening_contract.py`.
 - Deterministic test corrections: `tests/test_bounded_nginx_cases.py` and `tests/test_logical_connector_example_matrix.py`.
 - Inventory and generated companion: `config/testing/active-cases.json` and `reports/testing/test-selection-archive.generated.json`.
+- One immutable historical documentation false-positive fingerprint in `.gitleaksignore`; the full PR range, default rules, and redaction remain active.
 - This EN/DE record pair and the EN/DE archive indexes.
 
 ## Commands executed
@@ -56,10 +59,13 @@ All project shell commands were RTK-wrapped. Heavy output and Go caches used pri
 | Direct repository Envoy connector build script | Passed against the existing system libmodsecurity and produced both service binaries. The Root lifecycle wrapper was separately interrupted after making no observable progress during preparation; no wrapper-build pass is claimed. |
 | `sh -n` for both changed shell paths | Passed. Direct ShellCheck also ran, but reported existing template shebang, `CDPATH`, dynamic-source, and intentional splitting findings outside the changed lines; no suppression was added. |
 | Change-Record structure and final whitespace checks | Passed locally. |
+| Exact PR-range Gitleaks scan | The hosted scan exposed one fully redacted hit. Local reproduction classified it as a path-like `.../Tests` label in an immutable, removed German Change Record; one exact commit/file/rule/line fingerprint was added. The unchanged full-range scan then passed with zero findings. |
 
 ## Security impact
 
-Envoy no longer treats downstream original-URI hint headers as policy-selection authority; the authorization request Path is authoritative. Traefik evidence readers reject ambiguous Content-Length/Transfer-Encoding framing, noncanonical or oversized fixture lengths, truncated input, short output, and same-length payload substitution. APXS rebuilds avoid trusting or overwriting an earlier staged child. The HAProxy checker no longer mistakes a forward declaration for a function body. No suppression, Quality-Gate relaxation, dependency change, permission expansion, or compiler-warning reduction is introduced.
+Envoy no longer treats downstream original-URI hint headers as policy-selection authority; the authorization request Path is authoritative. Traefik evidence readers reject ambiguous Content-Length/Transfer-Encoding framing, noncanonical or oversized fixture lengths, truncated input, short output, and same-length payload substitution. APXS rebuilds avoid trusting or overwriting an earlier staged child. The HAProxy checker no longer mistakes a forward declaration for a function body. No broad/rule-level suppression, Quality-Gate relaxation, dependency change, permission expansion, or compiler-warning reduction is introduced.
+
+The Gitleaks exception is fingerprint-scoped to one already published documentation line and cannot suppress another commit, file, rule, or line. It does not change detector configuration or scan range.
 
 ## Runtime evidence
 

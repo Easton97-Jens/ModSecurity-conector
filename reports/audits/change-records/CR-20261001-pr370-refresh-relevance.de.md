@@ -10,7 +10,7 @@ Current-Master-Wartung von PR #370; keine Readiness-Promotion.
 | --- | --- |
 | Change-ID | CR-20261001-pr370-refresh-relevance |
 | Datum (UTC) | 2026-10-28 |
-| Basis-Revision | `15cea9e4d778fa1ec6e27e6fe084b347010f1367` |
+| Basis-Revision | `3ef5068885b737ede074c3f7c11f58f302f23310` |
 
 ## Motivation und Problemstellung
 
@@ -24,6 +24,8 @@ Die beobachtete Basisrevision normal mergen, keine Konflikte hinterlassen, aktue
 
 Der normale Merge legte 43 Textkonflikte offen. Jeder konfliktbehaftete Produkt-, Common-, Dokumentations- und Workflowpfad wurde zunächst auf die exakte `master`-Version gesetzt. Anschließend wurde der verbleibende PR-Diff connectorweise geprüft. Veraltete Qualifikations-Harnesses, entfernte Body-Limit-Konfiguration, verwaiste Composite-APIs, überholte lighttpd-Keepalive-Behauptungen und alte Orakel für technische Fehler wurden aus dem Netto-Diff entfernt, statt Verhalten vor dem aktuellen Master wiederherzustellen.
 
+Nach der Veröffentlichung rückte `master` durch Dokumentations-PR #383 erneut vor. Ein zweiter normaler Merge integrierte Revision `3ef5068885b737ede074c3f7c11f58f302f23310` konfliktfrei; dieses Master-Delta berührte keine Phase-4-Produktverarbeitung.
+
 Die erhaltenen Änderungen sind eng begrenzt: frische externe APXS-Profilregistrierungs-Stages für Wiederholungen; Envoy-Authorization-Path-Autorität und Auswahl der Response-Companion-Smoke-Regeln; ein HAProxy-Source-Checker, der Forward-Deklarationen korrekt behandelt; strengere Traefik-Fixture-Grenzen für Framing, begrenztes Lesen/Schreiben und Payload-Digests; sowie zwei kleine deterministische Testkorrekturen. Geprüfte Source-Hashes und das generierte Specialist-Archiv wurden ohne Änderung von Selektoren oder Fallzahlen aktualisiert.
 
 ## Geänderte Dateien
@@ -33,6 +35,7 @@ Die erhaltenen Änderungen sind eng begrenzt: frische externe APXS-Profilregistr
 - HAProxy- und Traefik-Verifikation: `ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py`, `connectors/traefik/scripts/runtime_native_smoke.py` und `tests/test_traefik_transport_hardening_contract.py`.
 - Deterministische Testkorrekturen: `tests/test_bounded_nginx_cases.py` und `tests/test_logical_connector_example_matrix.py`.
 - Inventar und generierter Begleiter: `config/testing/active-cases.json` und `reports/testing/test-selection-archive.generated.json`.
+- Ein unveränderlicher historischer Dokumentations-Falschmeldungs-Fingerprint in `.gitleaksignore`; vollständiger PR-Bereich, Standardregeln und Redaction bleiben aktiv.
 - Dieses EN/DE-Record-Paar und die EN/DE-Archivindizes.
 
 ## Ausgeführte Befehle
@@ -56,10 +59,13 @@ Alle Projekt-Shell-Befehle liefen RTK-wrapped. Umfangreiche Ausgabe und Go-Cache
 | Direktes repositoryeigenes Envoy-Connector-Buildskript | Gegen das vorhandene System-libmodsecurity bestanden; beide Service-Binärdateien wurden erzeugt. Der Root-Lifecycle-Wrapper wurde getrennt abgebrochen, nachdem während der Vorbereitung kein beobachtbarer Fortschritt entstand; dafür wird kein Wrapper-Build-Pass behauptet. |
 | `sh -n` für beide geänderten Shellpfade | Bestanden. Direkter ShellCheck lief ebenfalls, meldete jedoch bestehende Template-Shebang-, `CDPATH`-, Dynamic-Source- und beabsichtigte Splitting-Findings außerhalb der geänderten Zeilen; keine Suppression wurde ergänzt. |
 | Change-Record-Struktur und finale Whitespace-Prüfungen | Lokal bestanden. |
+| Exakter Gitleaks-Scan des PR-Bereichs | Der Hosted-Scan zeigte einen vollständig redigierten Treffer. Die lokale Reproduktion klassifizierte ihn als pfadähnlichen `.../Tests`-Bezeichner in einem unveränderlichen, entfernten deutschen Change Record; genau ein Commit-/Datei-/Regel-/Zeilen-Fingerprint wurde ergänzt. Derselbe unveränderte Vollbereichsscan bestand anschließend mit null Findings. |
 
 ## Security-Auswirkung
 
-Envoy behandelt nachgelagerte Original-URI-Hinweisheader nicht mehr als Autorität für die Policy-Auswahl; der Path des Authorization-Requests ist maßgeblich. Traefik-Evidence-Reader verwerfen mehrdeutiges Content-Length/Transfer-Encoding-Framing, nicht kanonische oder übergroße Fixture-Längen, unvollständige Eingaben, zu kurze Ausgaben und gleich lange Payload-Ersetzungen. APXS-Rebuilds vertrauen keinem früher bereitgestellten Unterverzeichnis und überschreiben es nicht. Der HAProxy-Checker verwechselt eine Forward-Deklaration nicht mehr mit einem Funktionskörper. Es werden keine Suppression, Quality-Gate-Lockerung, Dependency-Änderung, Berechtigungserweiterung oder Compiler-Warning-Reduktion eingeführt.
+Envoy behandelt nachgelagerte Original-URI-Hinweisheader nicht mehr als Autorität für die Policy-Auswahl; der Path des Authorization-Requests ist maßgeblich. Traefik-Evidence-Reader verwerfen mehrdeutiges Content-Length/Transfer-Encoding-Framing, nicht kanonische oder übergroße Fixture-Längen, unvollständige Eingaben, zu kurze Ausgaben und gleich lange Payload-Ersetzungen. APXS-Rebuilds vertrauen keinem früher bereitgestellten Unterverzeichnis und überschreiben es nicht. Der HAProxy-Checker verwechselt eine Forward-Deklaration nicht mehr mit einem Funktionskörper. Es werden keine breite/regelweite Suppression, Quality-Gate-Lockerung, Dependency-Änderung, Berechtigungserweiterung oder Compiler-Warning-Reduktion eingeführt.
+
+Die Gitleaks-Ausnahme ist auf genau einen bereits veröffentlichten Dokumentations-Fingerprint begrenzt und kann keinen anderen Commit, keine andere Datei, Regel oder Zeile unterdrücken. Detektorkonfiguration und Scanbereich bleiben unverändert.
 
 ## Runtime-Evidence
 

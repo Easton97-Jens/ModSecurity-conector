@@ -2,6 +2,14 @@
 
 **Sprache:** [English](repository-concept.md) | Deutsch
 
+Diese Seite definiert die Zielarchitektur und erhält datierte
+Prüfbeobachtungen. Historische Run-Labels und das untenstehende Inventar zur
+Testplatzierung sind weder ein Live-Statusbericht noch die aktuelle
+Standard-Testauswahl. Für aktuelle Einrichtung, entfernte Einstellungen und
+aktive Tests [Migration](migration.de.md),
+[Tests und Nachweise](testing-and-evidence.de.md) und die
+[Body-Inspection-Matrix](body-inspection-review-matrix.de.md) lesen.
+
 ## Verbindlichkeit, Geltungsbereich und Claim-Disziplin
 
 Dieses Dokument ist das verbindliche Zielkonzept für das Produkt-Monorepo. Es
@@ -300,9 +308,13 @@ implizit.
 | `SecResponseBodyLimit` / `SecResponseBodyLimitAction` | Nur Engine-Regelkonfiguration; keine Connector-Option oder -Defaults. | libModSecurity entscheidet allein über Response-Inspection-Limit, Reject und ProcessPartial. |
 | `SecRequestBodyLimit` / `SecRequestBodyLimitAction` / `SecRequestBodyNoFilesLimit` | Nur Engine-Regelkonfiguration; keine Connector-Option und kein Default. | Native libModSecurity wählt die Request-Inspektion und bewahrt tatsächliche DetectionOnly-Semantik; begrenzte Autorisierungshostprofile bleiben separat dokumentierte Einschränkungen. |
 | `default_block_status` und `default_error_status` | Common-Runtime-Defaults `403` und `500`. | Für eine disruptive native Intervention ohne Redirect-URL bleibt ein erlaubter Engine-Blockstatus erhalten; jeder andere Status wird auf einen erlaubten `default_block_status`, andernfalls `403`, gemappt. Eine nichtleere Redirect-URL behält einen 3xx-Status bei oder mappt jeden anderen Status auf `302`. Diese Kanonisierung ersetzt nicht die getrennte Common-Policy `invalid_engine_response` und beweist keine einheitliche fail-closed Response. |
-| `response_body_mode` und `phase4_mode` | Common-Runtime-Defaults `none` und `safe`. | Standardmäßig wird kein P4-Input verarbeitet; Safe-Late-Verhalten ist konservativ und kann nach Commit `log_only` sein, keine universelle fail-open-/fail-closed-Policy. Apache folgt dieser gemeinsamen commitbasierten Regel, sobald sein Präfix vor EOS den nächsten Filter erreicht. |
+| `response_body_mode` und `phase4_mode` | Common-Runtime-Defaults `none` und `off`. | Standardmäßig wird kein P4-Input verarbeitet. `off` erhält native Interventions-/Fehlerbehandlung; explizit ausgewähltes `safe` oder `strict` steuert die unterstützte späte Aktion und keine Body-Größenlimits. Native Engine-Reject-Ergebnisse und echte Fehler bleiben Fehler. |
 | Envoy `failure_mode_allow` | Ausgewählte `ext_proc`-Templates setzen `failure_mode_allow: false`. | Ausgewählte Konfiguration dokumentiert fail-closed Processor-Erreichbarkeit; keine Evidence für jedes Envoy-Deployment. |
 | `rules_remote_key` / `rules_remote_url` und externe Downloads | Policy A: registrierte Konfigurationseingaben sind technisch deaktiviert. | Jede nicht leere Remote-Rule-Konfiguration wird vor Loader, Download, Origin-Fallback oder Secret-Weiterleitung abgelehnt; eine zukünftige Policy bräuchte separate Prüfung und Evidence. |
+
+Die gemeinsamen Source-Standards stehen in
+`common/include/msconnector/options.h`. Ein explizit ausgewähltes Safe- oder
+Strict-Beispiel ändert den Source-Standard nicht.
 
 Die dokumentierten Selected-Core-Reports beschreiben Safe P4 als angefordertes
 `deny`, tatsächliches `log_only`, sichtbares HTTP 200 und keinen
@@ -325,7 +337,7 @@ Apache-Native-Host-P4-Ergebnisses verwendet werden.
 | Full-Lifecycle-Test | Das ausgewählte Profil und erforderliche Artefaktproduktion. | Production Readiness, vollständige Matrix, CRS oder alle Protocols. |
 | Kanonische Evidence | Ein run-scoped Ergebnis, gebunden an Connector, ausgewähltes Profil, Rules, Konfiguration, Run-ID und erforderliche Artefakte. | Einen neuen Run oder breiteren Produkt-Claim. |
 | Generierter Report | Die Darstellung seiner deklarierten Inputs durch einen Generator. | Aktuelle Wahrheit, wenn seine Inputs stale oder fehlend sind. |
-| Production-Release-Entscheidung | Eine getrennt reviewte Betriebsentscheidung. | Automatische Folge einer vorigen Ebene. |
+| Production-Release-Entscheidung | Eine getrennte reviewte Betriebsentscheidung. | Automatische Folge einer vorigen Ebene. |
 
 Das getrackte Parent-Testinventar bei Basisrevision wird unten klassifiziert.
 Die Klassifikation ist ein Placement-Review, keine Move-Anforderung; durch

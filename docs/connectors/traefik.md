@@ -2,6 +2,17 @@
 
 **Language:** English | [Deutsch](traefik.de.md)
 
+## Start here
+
+Traefik exposes two logical profiles. `traefik-native-uds` is the direct
+native middleware route with a local private engine service.
+`traefik-forwardauth` uses forwardAuth for request phases and requires its
+private response observer for P3/P4.
+
+Start with the [Traefik examples](../../examples/traefik/README.md), normally
+the `safe` native-UDS bundle. Keep UDS directories and service endpoints
+private, and do not treat forwardAuth alone as a full response-capable route.
+
 ## Overview
 
 Traefik uses the selected <code>native-traefik-middleware</code> route: a local
