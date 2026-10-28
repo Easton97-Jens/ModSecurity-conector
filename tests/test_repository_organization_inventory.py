@@ -139,3 +139,9 @@ class RepositoryOrganizationInventoryTest(unittest.TestCase):
             INVENTORY.proposed_destination(f"{framework_prefix}check_smoke.py", True),
             f"{framework_prefix}checks/catalog/check_smoke.py",
         )
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)

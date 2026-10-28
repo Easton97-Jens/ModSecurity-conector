@@ -19,7 +19,7 @@ jobs:
   nginx-b09-regression:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
       PYTHONDONTWRITEBYTECODE: "1"
@@ -32,10 +32,15 @@ jobs:
           persist-credentials: false
           submodules: false
       - name: Set up repository Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Read baseline PR391 Sonar annotation for remediation
         if: github.event_name == 'pull_request' && github.event.pull_request.number == 391
         run: |
@@ -63,4 +68,4 @@ jobs:
           set -eu
           umask 077
           mkdir -p "$TMPDIR"
-          python3 -m unittest tests.test_nginx_error_page_intervention tests.test_security_finding_intake -v
+          python3 ci/tools/run-active-tests.py --group nginx

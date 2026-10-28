@@ -2,6 +2,7 @@
 #define MSCONNECTOR_ENVOY_EXT_PROC_COMMON_RUNTIME_BRIDGE_H
 
 #include <stddef.h>
+#include "msconnector/error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,31 +81,11 @@ int msc_envoy_ext_proc_runtime_create(
     char *error,
     size_t error_len);
 
-int msc_envoy_ext_proc_runtime_quiesce(
-    msc_envoy_ext_proc_runtime *runtime, char *error, size_t error_len);
-
-enum msc_composite_mode {
-    MSC_COMPOSITE_ENVOY = 1,
-    MSC_COMPOSITE_TRAEFIK = 2
-};
-
-/* Only these reviewed composite routes may select a companion profile. */
-int msc_composite_runtime_create(
-    const char *config_path,
-    enum msc_composite_mode mode,
-    msc_envoy_ext_proc_runtime **out,
-    char *error,
-    size_t error_len);
-
 void msc_envoy_ext_proc_runtime_destroy(msc_envoy_ext_proc_runtime **runtime);
 
 /* Returns only the parsed Common policy enum; no configuration text crosses
  * the bridge. It lets Go validate service policy before listener admission. */
 int msc_envoy_ext_proc_runtime_phase4_mode(
-    const msc_envoy_ext_proc_runtime *runtime);
-
-/* Read-only internal identity of the successfully installed registry profile. */
-unsigned int msc_envoy_ext_proc_runtime_profile_id(
     const msc_envoy_ext_proc_runtime *runtime);
 
 int msc_envoy_ext_proc_transaction_begin(
@@ -131,7 +112,13 @@ int msc_envoy_ext_proc_transaction_process_body(
     char *error,
     size_t error_len);
 
-int msc_envoy_ext_proc_transaction_mark_response_committed(
+void msc_envoy_ext_proc_transaction_mark_response_committed(
+    msc_envoy_ext_proc_transaction *transaction,
+    int body_started);
+
+/* New callers must check one for success. The compatibility void entry point
+ * above retains failures internally but cannot report them immediately. */
+int msc_envoy_ext_proc_transaction_mark_response_committed_checked(
     msc_envoy_ext_proc_transaction *transaction,
     int body_started, char *error, size_t error_len);
 
@@ -146,17 +133,28 @@ int msc_envoy_ext_proc_transaction_record_host_action(
 const char *msc_envoy_ext_proc_transaction_id(
     const msc_envoy_ext_proc_transaction *transaction);
 
-int msc_envoy_ext_proc_transaction_close(
-    msc_envoy_ext_proc_transaction *transaction, int request_rejected);
+/* Finishes and destroys exactly once; returns 0 on an earlier or finish error.
+ * finish_error_code receives the canonical finish error separately from any
+ * earlier retained adapter cause. Successful destruction after an incomplete
+ * lifecycle does not imply an unsafe cleanup or a successful rule decision.
+ * The compatibility void entry point below retains the same ownership rule. */
+int msc_envoy_ext_proc_transaction_close_checked(
+    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len,
+    int *finish_error_code);
 
-enum msc_common_close_result {
-    MSC_COMMON_CLOSE_UNRESOLVED = 0,
-    MSC_COMMON_CLOSE_OK = 1,
-    MSC_COMMON_CLOSE_CONSUMED_ERROR = 2
-};
+typedef enum msc_envoy_ext_proc_observed_close_cause {
+    MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED = 0,
+    MSC_ENVOY_EXT_PROC_CLOSE_TIMEOUT,
+    MSC_ENVOY_EXT_PROC_CLOSE_RESTART
+} msc_envoy_ext_proc_observed_close_cause;
 
-int msc_envoy_ext_proc_transaction_claim_response_companion(
-    msc_envoy_ext_proc_transaction *transaction, char *error, size_t error_len);
+/* Records only an observed composite expiry/restart before checked finish. */
+int msc_envoy_ext_proc_transaction_observed_close(
+    msc_envoy_ext_proc_transaction *transaction,
+    msc_envoy_ext_proc_observed_close_cause cause, char *error, size_t error_len);
+
+void msc_envoy_ext_proc_transaction_close(
+    msc_envoy_ext_proc_transaction *transaction);
 
 #ifdef __cplusplus
 }

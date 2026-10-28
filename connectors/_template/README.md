@@ -100,12 +100,17 @@ presence alone is not build verification.
 
 ## Required runtime evidence
 
-Not applicable to template. Runtime evidence can only be produced by concrete
-connectors.
+Not applicable to template. Runtime evidence requires concrete connectors and
+actually executed profiles. Standard aliases use
+[config/testing/active-cases.json](../../config/testing/active-cases.json),
+not a new local catalog: at most 100 fully expanded active behavioral cases
+project-wide. New active requirements need stable IDs, profiles and executable
+selectors; at capacity, name the replacement or genuine consolidation and its
+lost coverage.
 
-- [ ] `make test-no-crs` executed, if the target exists.
-- [ ] `make test-with-crs` executed, if the target exists.
-- [ ] `make smoke-common` executed, if the target exists.
+- [ ] Record admitted No-CRS case IDs and actual connector/profile scope; <code>make test-no-crs</code> selects only its active subset.
+- [ ] Record admitted CRS case IDs and actual connector/profile scope; <code>make test-with-crs</code> selects only its active subset.
+- [ ] Run broader specialists such as <code>ON_DEMAND_TESTS=1 make smoke-common</code> only when a current additional request explicitly covers them.
 - [ ] Apache/NGINX or connector-specific scope documented.
 - [ ] PASS/FAIL/BLOCKED counts documented.
 - [ ] Summary JSON paths documented.
@@ -125,10 +130,14 @@ required per connector.
 
 ## No-CRS validation
 
-For a concrete connector, document the exact No-CRS command and result:
+The standard <code>make test-no-crs</code> alias runs only the admitted runtime
+group and proves neither a complete catalog nor a new connector. Record exact
+case IDs and profile evidence. The retained broader example requires a
+separately authorized specialist request:
+
 
 ```sh
-SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-no-crs
+ON_DEMAND_TESTS=1 SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-no-crs
 ```
 
 Record:
@@ -143,10 +152,14 @@ A No-CRS PASS does not imply a With-CRS PASS.
 
 ## With-CRS validation
 
-For a concrete connector, document the exact With-CRS command and result:
+The standard <code>make test-with-crs</code> alias runs only the admitted CRS
+runtime group. It does not establish exhaustive CRS or profile qualification.
+Record exact case IDs. The retained broader example requires a separately
+authorized specialist request:
+
 
 ```sh
-SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-with-crs
+ON_DEMAND_TESTS=1 SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-with-crs
 ```
 
 Record:
@@ -164,6 +177,13 @@ expectation model must keep those variants separate. Do not change a base
 No-CRS expectation to satisfy a With-CRS result.
 
 ## Coverage decision matrix
+
+The following criteria apply to an explicitly requested promotion assessment,
+not automatic default selection or routine changes. They do not require
+reopening closed I12 matrix/oracle/host campaigns. A specialist opt-in
+<code>ON_DEMAND_TESTS=1</code> grants neither privileges nor Framework/MRTS
+writes; historical evidence retains its revision. Sibling profiles do not
+qualify one another.
 
 Each concrete connector must complete the canonical
 [new-connector contract](../../docs/connectors/README.md#new-connector-evidence-contract)
@@ -194,13 +214,13 @@ startup/reload validation, and remaining FAIL/BLOCKED rows.
 
 `runtime-smoke-verified`:
 
-- current `make test-no-crs` PASS for the claimed connector/scope
-- current connector smoke PASS for the claimed connector/scope
+- current PASS for the exact admitted No-CRS case IDs and claimed connector/profile
+- current actual connector host-smoke PASS for that same connector/profile
 - command and result paths documented
 
 `crs-verified`:
 
-- current `make test-with-crs` PASS for the claimed connector/scope
+- current PASS for the exact admitted CRS case IDs and claimed connector/profile
 - CRS loaded/effective evidence documented
 - CRS-specific expectations documented
 

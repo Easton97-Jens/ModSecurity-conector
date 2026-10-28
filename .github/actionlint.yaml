@@ -1,0 +1,9 @@
+# Keep the dedicated protected-workflow labels and the officially available
+# Ubuntu 26.04 hosted labels explicit for actionlint 1.7.12. Its label extension
+# uses this key for both kinds; no workflow or shell rule is suppressed.
+self-hosted-runner:
+  labels:
+    - protected-exact-head-candidate-build
+    - protected-exact-head-nginx
+    - ubuntu-26.04
+    - ubuntu-26.04-arm

@@ -32,7 +32,7 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("workflow_call:", self.caller)
         self.assertIn("\npermissions: {}\n", self.caller)
         self.assertIn("  no-crs:\n    permissions:\n      contents: read\n", self.caller)
-        self.assertIn("uses: ./.github/workflows/reusable-five-connectors-profile.yml", self.caller)
+        self.assertIn("uses: $/.github/workflows/reusable-five-connectors-profile.yml", self.caller)
         self.assertIn("profile: no-crs", self.caller)
         self.assertNotIn("inputs:", self.caller)
         self.assertNotIn("secrets:", self.caller)
@@ -220,6 +220,13 @@ class AllConnectorsNoCrsWorkflowContractTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(name, export_list)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

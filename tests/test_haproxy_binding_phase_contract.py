@@ -24,24 +24,28 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         for call in calls:
             with self.subTest(call=call):
-                self.assertRegex(
-                    SOURCE,
-                    re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL),
-                )
+                if call in ("msc_process_request_headers", "msc_process_request_body"):
+                    self.assertRegex(SOURCE, re.compile(rf"msconnector_native_phase_succeeded\({call}\(", re.DOTALL))
+                elif call == "msc_append_request_body":
+                    self.assertRegex(SOURCE, re.compile(r"msconnector_native_body_append_can_continue\(\s*msc_append_request_body\(", re.DOTALL))
+                else:
+                    self.assertRegex(SOURCE, re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL))
 
     def test_direct_response_phase_calls_require_exact_success(self):
-        calls = (
-            "msc_add_response_header",
-            "msc_process_response_headers",
-        )
+        calls = ("msc_add_response_header",)
         for call in calls:
             with self.subTest(call=call):
-                self.assertRegex(
-                    SOURCE,
-                    re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL),
-                )
+                if call == "msc_process_response_headers":
+                    self.assertRegex(SOURCE, re.compile(r"msconnector_native_phase_succeeded\(\s*msc_process_response_headers\(", re.DOTALL))
+                else:
+                    self.assertRegex(SOURCE, re.compile(rf"{call}\(.*?\)\s*!=\s*1", re.DOTALL))
 
-    def test_shared_body_helpers_require_exact_success(self):
+        self.assertRegex(
+            SOURCE,
+            re.compile(r"!msconnector_native_phase_succeeded\(\s*msc_process_response_headers\(", re.DOTALL),
+        )
+
+    def test_shared_body_helpers_keep_native_phase_and_byte_contracts(self):
         append_helper = re.search(
             r"static int append_body_chunk\(.*?^}\n\nstatic int finish_body",
             SOURCE,
@@ -56,11 +60,11 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         self.assertIsNotNone(finish_helper)
         self.assertRegex(
             append_helper.group(0),
-            re.compile(r"append_body\(.*?\)\s*!=\s*1", re.DOTALL),
+            re.compile(r"!msconnector_native_body_append_can_continue\(\s*phase->append_body\(", re.DOTALL),
         )
         self.assertRegex(
             finish_helper.group(0),
-            re.compile(r"finish_body\(.*?\)\s*!=\s*1", re.DOTALL),
+            re.compile(r"!msconnector_native_phase_succeeded\(\s*phase->finish_body\(", re.DOTALL),
         )
 
     def test_rule_loading_keeps_its_distinct_negative_error_contract(self):
@@ -99,21 +103,27 @@ class HaproxyBindingPhaseContractTests(unittest.TestCase):
         )
         self.assertIsNotNone(helper)
         body = helper.group(0)
-        self.assertIn("body_limit == 0U", body)
-        self.assertIn("(size_t)body_len > body_limit - *phase->body_bytes_seen", body)
+        self.assertIn("SIZE_MAX - (size_t)body_len", body)
+        self.assertNotIn("body_limit -", body)
         self.assertLess(
-            body.index("(size_t)body_len > body_limit - *phase->body_bytes_seen"),
+            body.index("SIZE_MAX - (size_t)body_len"),
             body.index("phase->append_body("),
         )
 
-    def test_request_and_response_copy_effective_common_body_limits(self):
-        self.assertIn(
-            "transaction->engine->common_config.request_body_limit", SOURCE
-        )
-        self.assertIn(
-            "transaction->engine->common_config.response_body_limit", SOURCE
-        )
+    def test_neither_direction_has_connector_body_limit_policy(self):
+        self.assertNotIn("common_config.request_body_limit", SOURCE)
+        self.assertNotIn("contract.response_body_limit", SOURCE)
+        self.assertNotIn("common_config.response_body_limit", SOURCE)
+        self.assertIn("capture_pending_body_intervention(transaction, decision, phase->phase)", SOURCE)
+        self.assertIn("SIZE_MAX - (size_t)body_len", SOURCE)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

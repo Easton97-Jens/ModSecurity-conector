@@ -78,18 +78,30 @@ SOURCE=$ROOT/common/scripts/modsecurity_targeted_eval.cc
     exit 1
 }
 OUTPUT=$CPP_BUILD_ROOT/modsecurity_targeted_eval
+umask 077
 TEMP_OUTPUT=$(mktemp "$CPP_BUILD_ROOT/.modsecurity_targeted_eval.XXXXXX") || \
     block "cannot create evaluator temporary output"
-trap 'rm -f "$TEMP_OUTPUT"' EXIT HUP INT TERM
+INCLUDE_OVERLAY=
+trap 'rm -f "$TEMP_OUTPUT"; if [ -n "$INCLUDE_OVERLAY" ]; then rm -rf -- "$INCLUDE_OVERLAY"; fi' EXIT HUP INT TERM
+INCLUDE_OVERLAY=$(mktemp -d "$CPP_BUILD_ROOT/.modsecurity_includes.XXXXXX") || \
+    block "cannot create evaluator private include directory"
+# Supply only the selected SDK's namespace. Passing a default include root
+# (notably /usr/include) with -isystem reorders the C++ standard-header search
+# and can break libstdc++'s include_next <stdlib.h>. The private overlay keeps
+# the SDK selection and system-header warning treatment without moving any
+# default root or substituting another installed ModSecurity SDK.
+ln -s "$MODSECURITY_INCLUDE_DIR/modsecurity" "$INCLUDE_OVERLAY/modsecurity" || \
+    block "cannot bind selected ModSecurity headers"
 
 "$CXX_PATH" -std=c++17 -Wall -Wextra -Werror \
-    -isystem "$MODSECURITY_INCLUDE_DIR" \
+    -isystem "$INCLUDE_OVERLAY" \
     "$SOURCE" \
     -L "$MODSECURITY_LIB_DIR" \
     "-Wl,-rpath,$MODSECURITY_LIB_DIR" \
     "$LINK_INPUT" \
     -o "$TEMP_OUTPUT"
 mv -f "$TEMP_OUTPUT" "$OUTPUT"
+rm -rf -- "$INCLUDE_OVERLAY"
 trap - EXIT HUP INT TERM
 
 printf 'PASS: targeted C++17 evaluator compiled at %s (not executed)\n' "$OUTPUT"

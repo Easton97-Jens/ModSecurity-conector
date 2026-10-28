@@ -117,9 +117,11 @@ class CiSecurityContractTest(unittest.TestCase):
         self.assertNotIn("actions", raw)
         self.assertIn("tools", raw)
         app_token = raw["pinned_actions"]["actions/create-github-app-token"]
-        self.assertEqual(app_token["version"], "v3.2.0")
-        self.assertEqual(
-            app_token["commit_sha"], "bcd2ba49218906704ab6c1aa796996da409d3eb1"
+        self.assertRegex(app_token["version"], r"\Av\d+(?:\.\d+){0,3}\Z")
+        self.assertRegex(app_token["commit_sha"], r"\A[0-9a-f]{40}\Z")
+        self.assertIn(
+            f"{APP_TOKEN_ACTION}@{app_token['commit_sha']} # {app_token['version']}",
+            self.workflow(),
         )
         self.assertEqual(
             app_token["upstream"], "https://github.com/actions/create-github-app-token"
@@ -198,7 +200,17 @@ class CiSecurityContractTest(unittest.TestCase):
             publisher_app_token_inputs(elevated), EXPECTED_APP_TOKEN_INPUTS
         )
         self.assertIn("${{ steps.publisher_app_token.outputs.token }}", publisher)
-        self.assertNotIn("${{ github.token }}", publisher)
+        metadata_step = (
+            "      - name: Re-resolve official immutable release candidates\n"
+            "        env:\n"
+            "          GITHUB_TOKEN: ${{ github.token }}\n"
+            "        run: |\n"
+            "          set -euo pipefail\n"
+            "          python3 ci/tools/update-workflow-tools.py resolve --root . \\\n"
+            '            --output "$RUNNER_TEMP/modsecurity-conector-workflow-tool-candidate.json"\n'
+        )
+        self.assertEqual(publisher.count(metadata_step), 1)
+        self.assertNotIn("${{ github.token }}", publisher.replace(metadata_step, "", 1))
         self.assertNotRegex(publisher, r"git push\s+--force(?:\s|$)")
         self.assertNotIn("git push --force ", publisher)
 
@@ -284,6 +296,13 @@ class CiSecurityContractTest(unittest.TestCase):
         self.assertEqual(UPDATER.yaml_safety_errors(LOCK_PATH.read_text(encoding="utf-8")), [])
         self.assertEqual(UPDATER.yaml_safety_errors(self.workflow()), [])
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

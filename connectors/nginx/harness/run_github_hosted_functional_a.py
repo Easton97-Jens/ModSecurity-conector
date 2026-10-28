@@ -334,6 +334,12 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
     if protocol != "h1":
         raise FunctionalALaunchError("functional-A exact gate requires the h1 profile")
 
+    functional_scope = str(env.get("NGINX_FUNCTIONAL_SCOPE", "selected-phase4"))
+    if functional_scope not in {"selected-phase4", "full"}:
+        raise FunctionalALaunchError("unknown Functional-A selection scope")
+    if functional_scope == "full" and env.get("ON_DEMAND_TESTS") != "1":
+        raise FunctionalALaunchError("full Functional-A campaign requires explicit ON_DEMAND_TESTS=1")
+
     root_environment = {
         "PATH": _SAFE_PATH,
         "HOME": "/nonexistent",
@@ -361,6 +367,8 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
         "NGINX_WORKER_USER": worker_user,
         "NGINX_WORKER_GROUP": worker_group,
         "NGINX_HOSTED_FUNCTIONAL_A": "1",
+        "NGINX_FUNCTIONAL_SCOPE": functional_scope,
+        "ON_DEMAND_TESTS": "1" if functional_scope == "full" else "0",
         "NGINX_LIFECYCLE_ENABLED": "1",
         "NGINX_PROTOCOL_PROFILE": "h1",
         "PYTHON": _PYTHON,

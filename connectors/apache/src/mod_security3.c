@@ -129,8 +129,7 @@ int msc_apache_contract_record_request_metadata(msc_t *msr, request_rec *r)
     return msconnector_transaction_contract_record_request_metadata(&msr->contract,
         r->method == NULL ? "GET" : r->method,
         r->unparsed_uri == NULL || r->unparsed_uri[0] == '\0' ? "/" : r->unparsed_uri,
-        content_type, header_count, header_bytes,
-        effective_config.request_body_limit) ==
+        content_type, header_count, header_bytes) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
@@ -179,24 +178,20 @@ static msconnector_transaction_decision_kind apache_intervention_decision_kind(
 }
 
 /* process_intervention() retains the native log in request-pool storage
- * before it releases libModSecurity-owned buffers.  All business-phase
- * callers use this one mapper while that bounded rule correlation remains
- * available, so a disruptive native result cannot silently leave the Common
- * contract at its initial Allow decision. */
+ * before it releases libModSecurity-owned buffers. All business-phase
+ * callers use this mapper. A technical failure must not borrow a stale rule
+ * merely because both the rule and the failure can return HTTP 500. */
 int msc_apache_contract_record_intervention_decision(msc_t *msr)
 {
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
     msconnector_transaction_decision_kind kind;
 
-    if (msr == NULL || !msr->contract_initialized) {
+    if (msr == NULL || !msr->contract_initialized ||
+        msr->intervention.mandatory_event_failed ||
+        msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
         return 0;
     }
-    if (msr->last_intervention_body_limit ||
-            msr->last_intervention_response_body_limit) {
-        /* Native body-limit rejects are engine decisions without rule IDs.
-         * Record the factual limit terminal state without forging a rule
-         * correlation; the P4 adapter still emits phase4_intervention rather
-         * than connector body-limit metadata. */
+    if (msr->last_intervention_body_limit) {
         return msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
     }
@@ -239,6 +234,21 @@ int msc_apache_contract_fail(msc_t *msr,
 int msc_apache_contract_finish(msc_t *msr)
 {
     if (msr == NULL || !msr->contract_initialized) {
+        return 0;
+    }
+    /* Audit completion is a mandatory boundary even when the only failed
+     * producer was a diagnostic callback after an earlier terminal event. */
+    if (msr->intervention.event_sink_error != MSCONNECTOR_ERROR_NONE) {
+        msr->intervention.mandatory_event_failed = 1;
+        if (msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            (void)msc_apache_contract_fail(msr,
+                msr->intervention.event_sink_error == MSCONNECTOR_ERROR_EVENT_TOO_LARGE
+                    ? MSCONNECTOR_TRANSACTION_ERROR_EVENT_LIMIT
+                    : MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        }
+        return 0;
+    }
+    if (msr->intervention.mandatory_event_failed) {
         return 0;
     }
     return msconnector_transaction_contract_finish(&msr->contract,
@@ -346,7 +356,10 @@ void modsecurity_log_cb(void *log, const void* data)
         msconnector_rule_id_extract_from_message(msg, rule_id,
             sizeof(rule_id)) > 0)
     {
-        apache_log_rule_match_event(msr, r, msr->native_event_phase, rule_id);
+        /* Non-disruptive rule matches are diagnostic. The writer reports
+         * failure and retains it for any later mandatory event, without
+         * converting this void native callback into an enforcement hook. */
+        (void)apache_log_rule_match_event(msr, r, msr->native_event_phase, rule_id);
     }
 
     if (r->per_dir_config != NULL) {
@@ -390,31 +403,51 @@ static void msc_release_intervention_buffers(ModSecurityIntervention *interventi
     intervention->disruptive = 0;
 }
 
-
-int process_intervention (Transaction *t, request_rec *r)
+static enum msconnector_phase apache_failure_phase(const msc_t *msr)
 {
-    ModSecurityIntervention intervention;
+    if (msr->native_event_phase >= MSCONNECTOR_PHASE_REQUEST_HEADERS &&
+        msr->native_event_phase <= MSCONNECTOR_PHASE_RESPONSE_BODY) {
+        return msr->native_event_phase;
+    }
+    if (msr->contract.last_completed_phase >= MSCONNECTOR_PHASE_REQUEST_HEADERS &&
+        msr->contract.last_completed_phase <= MSCONNECTOR_PHASE_RESPONSE_BODY) {
+        return (enum msconnector_phase)msr->contract.last_completed_phase;
+    }
+    return MSCONNECTOR_PHASE_CONNECTION;
+}
+
+/* Do not turn a failed native call into a rule decision or retain borrowed
+ * native text. The first canonical cause owns the event even if reporting it
+ * encounters another failure. HTTP/transport enforcement belongs to callers. */
+static int apache_record_failure(msc_t *msr, request_rec *r,
+    msconnector_transaction_error_class cause)
+{
+    if (msr != NULL) {
+        (void)msc_apache_contract_fail(msr, cause);
+        if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            cause = msr->contract.error_class;
+        }
+        msr->last_intervention_log = "";
+        msr->last_intervention_status = HTTP_INTERNAL_SERVER_ERROR;
+        msr->last_intervention_body_limit = 0;
+        msr->phase4_intervention = 0;
+        apache_emit_contract_failure_event(msr, r, apache_failure_phase(msr),
+            cause, HTTP_INTERNAL_SERVER_ERROR);
+    }
+    return HTTP_INTERNAL_SERVER_ERROR;
+}
+
+static int apache_store_native_intervention(msc_t *msr, request_rec *r,
+    const ModSecurityIntervention *intervention)
+{
     msconnector_intervention common_intervention;
     msc_conf_t *config = NULL;
-    msc_t *msr = NULL;
     const char *log;
-    const char *location;
+    const char *location = NULL;
+    int status;
+    int body_limit;
+    int redirect;
     int default_block_status;
-    int z;
-    int result = N_INTERVENTION_STATUS;
-
-    intervention.status = N_INTERVENTION_STATUS;
-    intervention.pause = 0;
-    intervention.url = NULL;
-    intervention.log = NULL;
-    intervention.disruptive = 0;
-
-    z = msc_intervention(t, &intervention);
-
-    if (z == 0)
-    {
-        return N_INTERVENTION_STATUS;
-    }
 
     if (r->per_dir_config != NULL) {
         config = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
@@ -422,55 +455,86 @@ int process_intervention (Transaction *t, request_rec *r)
     }
     default_block_status = config == NULL ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
         : config->common_config.default_block_status;
-    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
     common_intervention = msconnector_intervention_make(
-        intervention.disruptive, intervention.status, intervention.url,
-        intervention.log);
-    if (msr != NULL) {
-        msr->last_intervention_body_limit =
-            msconnector_intervention_is_request_body_limit_rejection(
-                msr->native_event_phase, &common_intervention);
-        msr->last_intervention_response_body_limit =
-            msconnector_intervention_is_response_body_limit_rejection(
-                msr->native_event_phase, &common_intervention);
+        intervention->disruptive, intervention->status, intervention->url,
+        intervention->log);
+    body_limit = msconnector_intervention_is_request_body_limit_rejection(
+        msr->native_event_phase, &common_intervention);
+    status = msconnector_intervention_normalize_status(intervention->url,
+            intervention->status, default_block_status);
+    log = apr_pstrdup(r->pool, intervention->log == NULL
+        ? "(no log message was specified)" : intervention->log);
+    if (log == NULL) {
+        return apache_record_failure(msr, r,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     }
-    if (msr != NULL && msr->last_intervention_body_limit) {
-        intervention.status = HTTP_REQUEST_ENTITY_TOO_LARGE;
-    } else {
-        intervention.status = msconnector_intervention_normalize_status(
-            intervention.url, intervention.status, default_block_status);
+    redirect = msconnector_intervention_has_redirect_url(intervention->url) &&
+        status >= HTTP_MULTIPLE_CHOICES && status < HTTP_BAD_REQUEST;
+    /* A late rule may be logged or terminate transport, but must not mutate
+     * the response headers of the already committed original response. */
+    if (redirect && !msr->response.committed && r->bytes_sent == 0) {
+        location = apr_pstrdup(r->pool, intervention->url);
+        if (location == NULL || r->headers_out == NULL) {
+            return apache_record_failure(msr, r,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        }
     }
-
-    log = intervention.log;
-    if (log == NULL)
-    {
-        log = "(no log message was specified)";
+    msr->last_intervention_status = status;
+    msr->last_intervention_log = log;
+    msr->last_intervention_body_limit = body_limit ||
+        msconnector_intervention_is_response_body_limit_rejection(
+            msr->native_event_phase, &common_intervention);
+    if (intervention->disruptive) {
+        msr->phase4_intervention = 1;
     }
-
-    if (msr != NULL)
-    {
-        msr->last_intervention_status = intervention.status;
-        msr->last_intervention_log = apr_pstrdup(r->pool, log);
-        msr->phase4_intervention = intervention.disruptive ? 1 : msr->phase4_intervention;
-    }
-
-    if (msconnector_intervention_has_redirect_url(intervention.url) &&
-        intervention.status >= HTTP_MULTIPLE_CHOICES &&
-        intervention.status < HTTP_BAD_REQUEST)
-    {
-        location = apr_pstrdup(r->pool, intervention.url);
+    if (location != NULL) {
         apr_table_setn(r->headers_out, "Location", location);
-        result = intervention.status;
-        goto cleanup;
     }
+    return status;
+}
 
-    if (intervention.status != N_INTERVENTION_STATUS)
-    {
-        result = intervention.status;
+int process_intervention (Transaction *t, request_rec *r)
+{
+    ModSecurityIntervention intervention;
+    msc_t *msr;
+    int native_result;
+    int result;
+
+    if (r == NULL || r->notes == NULL) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-
-cleanup:
+    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    if (msr == NULL || !msr->contract_initialized || t == NULL ||
+        msr->t != t || r->pool == NULL) {
+        return apache_record_failure(msr, r,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+    }
+    if (msr->intervention.mandatory_event_failed) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+        msr->intervention.collecting) {
+        return apache_record_failure(msr, r,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+    }
+    memset(&intervention, 0, sizeof(intervention));
+    intervention.status = N_INTERVENTION_STATUS;
+    msr->intervention.collecting = 1;
+    native_result = msc_intervention(t, &intervention);
+    if (native_result != 0 && native_result != 1) {
+        result = apache_record_failure(msr, r,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+    } else if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        result = apache_record_failure(msr, r,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+    } else if (native_result == 0 && !intervention.disruptive) {
+        result = N_INTERVENTION_STATUS;
+    } else {
+        result = apache_store_native_intervention(msr, r, &intervention);
+    }
+    /* This includes the valid zero/no-intervention path and every failure. */
     msc_release_intervention_buffers(&intervention);
+    msr->intervention.collecting = 0;
     return result;
 }
 
@@ -481,34 +545,22 @@ cleanup:
  */
 int msc_apache_init(apr_pool_t *mp)
 {
-    msc_apache = apr_pcalloc(mp, sizeof(msc_global));
-    if (msc_apache == NULL)
-    {
-        goto err_no_mem;
+    msc_global *instance = apr_pcalloc(mp, sizeof(msc_global));
+
+    if (instance == NULL) {
+        return -1;
     }
-
-    msc_apache->modsec = msc_init();
-
-    msc_set_connector_info(msc_apache->modsec, MSC_APACHE_CONNECTOR);
-
-    apr_pool_cleanup_register(mp, NULL, msc_module_cleanup, apr_pool_cleanup_null);
-
-    msc_set_log_cb(msc_apache->modsec, modsecurity_log_cb);
-
-    return 0;
-
-err_no_mem:
-    return -1;
-}
-
-
-/*
- * Called only once. Used to cleanup ModSecurity
- *
- */
-int msc_apache_cleanup()
-{
-    msc_cleanup(msc_apache->modsec);
+    instance->modsec = msc_init();
+    if (instance->modsec == NULL) {
+        return -1;
+    }
+    msc_set_connector_info(instance->modsec, MSC_APACHE_CONNECTOR);
+    msc_set_log_cb(instance->modsec, modsecurity_log_cb);
+    msc_apache = instance;
+    /* Bind cleanup to this exact configuration generation, not whichever
+     * global instance a later graceful configuration happens to publish. */
+    apr_pool_cleanup_register(mp, instance, msc_module_cleanup,
+        apr_pool_cleanup_null);
     return 0;
 }
 
@@ -519,11 +571,27 @@ int msc_apache_cleanup()
  */
 static apr_status_t msc_module_cleanup(void *data)
 {
-    (void)data;
-    msc_apache_cleanup();
+    msc_global *instance = data;
+    ModSecurity *engine;
+
+    if (instance == NULL) {
+        return APR_SUCCESS;
+    }
+    engine = instance->modsec;
+    instance->modsec = NULL;
+    if (msc_apache == instance) {
+        msc_apache = NULL;
+    }
+    if (engine != NULL) {
+        msc_cleanup(engine);
+    }
     return APR_SUCCESS;
 }
 
+int msc_apache_cleanup()
+{
+    return msc_module_cleanup(msc_apache) == APR_SUCCESS ? 0 : -1;
+}
 
 
 /**
@@ -637,6 +705,10 @@ static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,
 
     if (z == NULL || z->common_config.enable != MSCONNECTOR_BOOL_ON) {
         return APACHE_TX_CONTEXT_RESULT_DISABLED;
+    }
+    if (msc_apache == NULL || msc_apache->modsec == NULL || z->rules_set == NULL) {
+        *failure_reason = "native engine or rules are unavailable";
+        return APACHE_TX_CONTEXT_RESULT_ERROR;
     }
 
     msr = (msc_t *)apr_pcalloc(r->pool, sizeof(msc_t));
@@ -755,36 +827,33 @@ static msc_t *retrieve_tx_context(request_rec *r) {
     return NULL;
 }
 
-static int apache_fail_closed(request_rec *r, const char *operation)
+static int apache_fail_closed_with_cause(request_rec *r, const char *operation,
+    msconnector_transaction_error_class cause)
 {
     msc_t *msr = r == NULL ? NULL : retrieve_tx_context(r);
-    enum msconnector_phase phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
 
-    if (msr != NULL) {
-        if (msr->native_event_phase >= MSCONNECTOR_PHASE_REQUEST_HEADERS &&
-            msr->native_event_phase <= MSCONNECTOR_PHASE_RESPONSE_BODY) {
-            phase = msr->native_event_phase;
-        } else if (msr->contract.last_completed_phase >=
-                MSCONNECTOR_PHASE_REQUEST_HEADERS &&
-            msr->contract.last_completed_phase <=
-                MSCONNECTOR_PHASE_RESPONSE_BODY) {
-            phase = (enum msconnector_phase)msr->contract.last_completed_phase;
-        }
-        (void)msc_apache_contract_fail(msr,
-            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
-        apache_emit_contract_failure_event(msr, r, phase,
-            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR,
-            HTTP_INTERNAL_SERVER_ERROR);
-    }
+    (void)apache_record_failure(msr, r, cause);
     if (r != NULL) {
         ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-            "ModSecurity: libmodsecurity operation failed: %s",
+            "ModSecurity: operation failed: %s",
             operation == NULL ? "unknown" : operation);
         if (r->connection != NULL) {
             r->connection->keepalive = AP_CONN_CLOSE;
         }
     }
     return HTTP_INTERNAL_SERVER_ERROR;
+}
+
+static int apache_fail_closed(request_rec *r, const char *operation)
+{
+    return apache_fail_closed_with_cause(r, operation,
+        MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+}
+
+static int apache_native_failed(request_rec *r, const char *operation)
+{
+    return apache_fail_closed_with_cause(r, operation,
+        MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
 }
 
 
@@ -851,35 +920,29 @@ static int msc_hook_pre_config(apr_pool_t *mp, apr_pool_t *mp_log,
 {
     void *data = NULL;
     const char *key = "modsecurity-pre-config-init-flag";
-    int first_time = 0;
 
     (void)mp_log;
     (void)mp_temp;
 
-    /* Figure out if we are here for the first time */
-    apr_pool_userdata_get(&data, key, mp);
-    if (data == NULL)
-    {
-        apr_pool_userdata_set((const void *) 1, key,
-                apr_pool_cleanup_null, mp);
-        first_time = 1;
-    }
-
-    if (!first_time)
-    {
-        return OK;
-    }
-
-    // Code to run only at the very first call.
-    int ret = msc_apache_init(mp);
-
-    if (ret == -1)
-    {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                "ModSecurity: Failed to initialise.");
+    if (apr_pool_userdata_get(&data, key, mp) != APR_SUCCESS) {
         return HTTP_INTERNAL_SERVER_ERROR;
     }
-
+    if (data != NULL) {
+        return msc_apache != NULL && msc_apache->modsec != NULL
+            ? OK : HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (msc_apache_init(mp) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+            "ModSecurity: Failed to initialise.");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    /* An unsuccessful initialization must not mark the next pre-config call
+     * successful. APR status values are not native byte-append results. */
+    if (apr_pool_userdata_set((const void *)1, key,
+            apr_pool_cleanup_null, mp) != APR_SUCCESS) {
+        (void)msc_apache_cleanup();
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
     return OK;
 }
 
@@ -1005,7 +1068,7 @@ static int hook_request_early(request_rec *r) {
             r->server->server_hostname,
             (int) r->server->port) != 1)
     {
-        return apache_fail_closed(r, "msc_process_connection");
+        return apache_native_failed(r, "msc_process_connection");
     }
 
     it = process_intervention(msr->t, r);
@@ -1078,7 +1141,7 @@ static int hook_request_late(request_rec *r)
             r->server->server_hostname,
             (int) r->server->port) != 1)
     {
-        return apache_fail_closed(r, "msc_process_connection");
+        return apache_native_failed(r, "msc_process_connection");
     }
 
     it = process_intervention(msr->t, r);
@@ -1096,7 +1159,7 @@ static int hook_request_late(request_rec *r)
     }
 #endif
 
-    /* No-body requests have no input EOS to drive the filter.  Complete P2
+    /* No-body requests have no input EOS to drive the filter. Complete P2
      * here; requests that advertise a body remain streaming until
      * MODSECURITY_IN receives EOS (or Apache drains an unread body). */
     if (!ap_request_has_body(r))
@@ -1113,39 +1176,44 @@ static int hook_request_late(request_rec *r)
 
 
 /**
- * Invoked at the end of each transaction.
+ * Invoked at the end of each transaction. Audit is one attempt, including
+ * re-entrant native callbacks. It cannot replace HTTP status or Location.
  */
 static int hook_log_transaction(request_rec *r)
 {
-    msc_t *msr = NULL;
-    int it;
+    msc_t *msr = retrieve_tx_context(r);
 
-    msr = retrieve_tx_context(r);
-    if (msr == NULL)
-    {
+    if (msr == NULL) {
         return DECLINED;
     }
-
-    if (msr->contract_initialized && !msc_apache_contract_finish(msr))
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-            "ModSecurity: canonical transaction did not reach P1-P4 completion");
+    if (msr->intervention.logging_attempted) {
+        return msr->intervention.logging_failed
+            ? HTTP_INTERNAL_SERVER_ERROR : DECLINED;
     }
-    if (msc_update_status_code(msr->t, r->status) != 1)
-    {
-        return apache_fail_closed(r, "msc_update_status_code");
+    msr->intervention.logging_attempted = 1;
+    /* Until every stage succeeds, re-entry sees failure rather than a
+     * half-completed successful audit. */
+    msr->intervention.logging_failed = 1;
+    if (msr->t == NULL) {
+        return apache_fail_closed_with_cause(r, "missing audit transaction",
+            MSCONNECTOR_TRANSACTION_ERROR_ENGINE_UNAVAILABLE);
     }
-    if (msc_process_logging(msr->t) != 1)
-    {
-        return apache_fail_closed(r, "msc_process_logging");
+    if (!msr->contract_initialized || !msc_apache_contract_finish(msr)) {
+        (void)apache_fail_closed_with_cause(r, "canonical audit completion",
+            MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
+    } else {
+        msr->intervention.logging_failed = 0;
     }
-    it = process_intervention(msr->t, r);
-    if (it != N_INTERVENTION_STATUS)
-    {
-        return it;
+    if (msc_update_status_code(msr->t, r->status) != 1) {
+        msr->intervention.logging_failed = 1;
+        return apache_native_failed(r, "msc_update_status_code");
     }
-
-    return DECLINED;
+    if (msc_process_logging(msr->t) != 1) {
+        msr->intervention.logging_failed = 1;
+        return apache_native_failed(r, "msc_process_logging");
+    }
+    return msr->intervention.logging_failed
+        ? HTTP_INTERNAL_SERVER_ERROR : DECLINED;
 }
 
 
@@ -1241,14 +1309,17 @@ static int apache_emit_phase1_intervention_event(msc_t *msr, request_rec *r,
     event_input.reason = reason;
     event_input.original_status = r->status;
     event_input.response_already_committed = 0;
-    apache_emit_intervention_event(msr, r, &event_input);
+    if (apache_emit_intervention_event(msr, r, &event_input) !=
+        MSCONNECTOR_ERROR_NONE) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
     return intervention_status;
 }
 
 
 static int process_request_headers(request_rec *r, msc_t *msr) {
     /* P1 begins before URI processing because URI interventions are part of
-     * the request-header phase.  This binds a terminal URI intervention to
+     * the request-header phase. This binds a terminal URI intervention to
      * bounded request metadata rather than leaving a partial transaction. */
     if (!msc_apache_contract_record_request_metadata(msr, r)) {
         (void)msc_apache_contract_fail(msr,
@@ -1284,13 +1355,16 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
             && r->protocol[4] != '\0'
             && r->protocol[5] != '\0') ? 5 : 0;
 
+        if (r->protocol == NULL) {
+            return apache_fail_closed(r, "missing request protocol");
+        }
         msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
         msr->native_event_phase_active = 1;
         if (msc_process_uri(msr->t, r->unparsed_uri, r->method,
                 r->protocol + offset) != 1)
         {
             msr->native_event_phase_active = 0;
-            return apache_fail_closed(r, "msc_process_uri");
+            return apache_native_failed(r, "msc_process_uri");
         }
         msr->native_event_phase_active = 0;
         it = process_intervention(msr->t, r);
@@ -1332,7 +1406,7 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
             const unsigned char *val_bytes = (const unsigned char *)val;
             if (msc_add_request_header(msr->t, key_bytes, val_bytes) != 1)
             {
-                return apache_fail_closed(r, "msc_add_request_header");
+                return apache_native_failed(r, "msc_add_request_header");
             }
         }
         msr->native_event_phase = MSCONNECTOR_PHASE_REQUEST_HEADERS;
@@ -1340,18 +1414,23 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
         if (msc_process_request_headers(msr->t) != 1)
         {
             msr->native_event_phase_active = 0;
-            return apache_fail_closed(r, "msc_process_request_headers");
+            return apache_native_failed(r, "msc_process_request_headers");
         }
         msr->native_event_phase_active = 0;
 
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
-            /* The native request-header hook has not handed control to a
-             * handler yet.  Write this bounded event in the same real host
-             * path that returns the HTTP intervention to Apache. */
-            (void)msc_apache_contract_complete(msr,
-                MSCONNECTOR_PHASE_REQUEST_HEADERS);
+            /* A failed native collector must not complete the phase or enter
+             * the rule event path. Keep any previously established cause. */
+            if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+                return apache_native_failed(r, "request-header intervention");
+            }
+            if (!msc_apache_contract_complete(msr,
+                    MSCONNECTOR_PHASE_REQUEST_HEADERS)) {
+                return apache_fail_closed_with_cause(r, "canonical P1 completion",
+                    MSCONNECTOR_TRANSACTION_ERROR_PHASE_SEQUENCE);
+            }
             if (!msc_apache_contract_record_intervention_decision(msr)) {
                 (void)msc_apache_contract_fail(msr,
                     MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);

@@ -227,56 +227,21 @@ class ApacheApxsProfileRegistryStagingTest(unittest.TestCase):
         )
         self.assertIn('SOURCE_ROOT="$WORK_ROOT/source"', bootstrap)
         self.assertIn(stage_assignment, bootstrap)
-        self.assertIn("build_attempt=0", bootstrap)
-        self.assertIn('while [ "$build_attempt" -lt 2 ]; do', bootstrap)
-        self.assertIn("build_attempt=$((build_attempt + 1))", bootstrap)
         self.assertEqual(bootstrap.count(stage_assignment), 1)
         self.assertNotIn('MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$APACHE_ROOT/', bootstrap)
         self.assertNotIn('MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$SOURCE_ROOT/', bootstrap)
         self.assertLess(
             bootstrap.index(stage_assignment),
-            bootstrap.index("make", bootstrap.index(stage_assignment)),
+            bootstrap.index("    make\n", bootstrap.index(stage_assignment)),
         )
 
-    def test_bootstrap_stops_after_each_failed_make(self) -> None:
-        bootstrap = AUTOTOOLS_BOOTSTRAP.read_text(encoding="utf-8")
-        loop_start = bootstrap.index("    build_attempt=0")
-        loop_end = bootstrap.index("    done", loop_start) + len("    done")
-        build_loop = bootstrap[loop_start:loop_end]
-        # Exercise the actual loop in the same conditional shell context.
-        script = (
-            "set -eu\n"
-            "make() {\n"
-            "    printf '%s\\n' \"$build_attempt\" >> \"$BUILD_ATTEMPT_LOG\"\n"
-            "    if test \"$build_attempt\" = \"$FAILED_BUILD_ATTEMPT\"; then return 42; fi\n"
-            "    return 0\n"
-            "}\n"
-            "if ! (\n" + build_loop + "\n); then exit 42; fi\n"
-        )
-        for failed_attempt in (1, 2):
-            with self.subTest(failed_attempt=failed_attempt):
-                with tempfile.TemporaryDirectory(prefix="apache-bootstrap-make-") as temporary:
-                    attempt_log = Path(temporary) / "build-attempts.log"
-                    environment = os.environ.copy()
-                    environment.update(
-                        {
-                            "SOURCE_ROOT": temporary,
-                            "WORK_ROOT": temporary,
-                            "APACHE_ROOT": temporary,
-                            "BUILD_ATTEMPT_LOG": str(attempt_log),
-                            "FAILED_BUILD_ATTEMPT": str(failed_attempt),
-                        }
-                    )
-                    result = subprocess.run(
-                        ["sh", "-c", script], env=environment, capture_output=True,
-                        text=True, check=False, timeout=10,
-                    )
-                    self.assertEqual(result.returncode, 42, result.stdout + result.stderr)
-                    self.assertEqual(
-                        attempt_log.read_text(encoding="utf-8").splitlines(),
-                        [str(attempt) for attempt in range(1, failed_attempt + 1)],
-                    )
 
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

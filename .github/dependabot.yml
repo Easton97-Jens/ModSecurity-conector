@@ -7,3 +7,14 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+  - package-ecosystem: "gomod"
+    directories:
+      - "/connectors/envoy/ext_proc"
+      - "/connectors/traefik/composite_middleware"
+      - "/connectors/traefik/native_middleware"
+      - "/connectors/traefik/response_observer"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5

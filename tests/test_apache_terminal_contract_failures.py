@@ -75,7 +75,7 @@ class ApacheTerminalContractFailureTests(unittest.TestCase):
         )
         failure_event = c_function(
             self.filters_source,
-            "static void apache_emit_contract_failure_event_with_action(",
+            "static msconnector_error_code apache_emit_contract_failure_event_with_action(",
         )
         failure_name = c_function(
             self.filters_source,
@@ -92,7 +92,11 @@ class ApacheTerminalContractFailureTests(unittest.TestCase):
                 self.assertIn("msr->native_event_phase_active = 1;", phase_source)
                 self.assertIn("msr->native_event_phase_active = 0;", phase_source)
 
-        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT", fail_closed)
+        # Genuine engine BODY_LIMIT is retained through the canonical first
+        # cause; a connector truncation flag must not invent that cause.
+        self.assertIn("error_class = msr->contract.error_class;", fail_closed)
+        self.assertIn("error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;", fail_closed)
+        self.assertNotIn("response_body_truncated", fail_closed)
         self.assertIn("msc_apache_contract_fail(msr, error_class)", fail_closed)
         self.assertIn('return "body_limit";', failure_name)
         self.assertIn('return "invalid_engine_response";', failure_name)
@@ -114,7 +118,7 @@ class ApacheTerminalContractFailureTests(unittest.TestCase):
         )
         failure_event = c_function(
             self.filters_source,
-            "static void apache_emit_contract_failure_event_with_action(",
+            "static msconnector_error_code apache_emit_contract_failure_event_with_action(",
         )
 
         guard = "if (apache_phase4_response_committed(msr, r))"
@@ -148,6 +152,13 @@ class ApacheTerminalContractFailureTests(unittest.TestCase):
         self.assertNotIn("did not negotiate HTTP/2", downstream)
         self.assertNotIn("downstream_error_expected", downstream)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

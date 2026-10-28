@@ -28,7 +28,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Iterator
 
 
 class MissingDependency(RuntimeError):
@@ -571,9 +571,6 @@ def write_engine_config(path: Path, rules_file: Path, event_path: Path) -> None:
                 "transaction_id_header=x-request-id",
                 "request_body_mode=streaming",
                 "response_body_mode=streaming",
-                "request_body_limit=4096",
-                "response_body_limit=4096",
-                "body_limit_action=reject",
                 "phase4_mode=safe",
                 "default_block_status=403",
                 "default_error_status=500",
@@ -654,7 +651,7 @@ class UpstreamFixtureError(RuntimeError):
 def read_fixture_body(handler: http.server.BaseHTTPRequestHandler) -> int:
     lengths = handler.headers.get_all("Content-Length", [])
     if handler.request_version != "HTTP/1.1" or len(lengths) != 1 or \
-            not re.fullmatch(r"[0-9]+", lengths[0]) or \
+            not re.fullmatch(r"(?:0|[1-9][0-9]*)", lengths[0]) or \
             handler.headers.get_all("Transfer-Encoding", []):
         raise UpstreamFixtureError("invalid upstream request framing")
     expected = int(lengths[0])
@@ -815,6 +812,75 @@ def write_dynamic_config(path: Path, upstream_port: int, engine_socket: Path) ->
     )
 
 
+class CompletionHTTPResponse(http.client.HTTPResponse):
+    """Avoid reading past the body before the separate physical EOF check."""
+
+    def __init__(self, sock: socket.socket, *args: Any, **kwargs: Any) -> None:
+        super().__init__(sock, *args, **kwargs)
+        self.fp.close()
+        self.fp = sock.makefile("rb", buffering=0)
+
+    def _safe_read(self, amount: int) -> bytes:
+        # Raw socket reads may be short. Preserve HTTP chunk framing without
+        # buffering bytes that belong to the separate completion observation.
+        chunks = []
+        remaining = amount
+        while remaining:
+            chunk = self.fp.read(remaining)
+            if not chunk:
+                raise http.client.IncompleteRead(b"".join(chunks), remaining)
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+
+def require_response_socket_eof(completion_socket: socket.socket) -> None:
+    """Wait for a bounded actual peer close, without synthesizing native EOS."""
+
+    try:
+        extra = completion_socket.recv(1)
+    except OSError as exc:
+        raise RuntimeError("native response did not reach physical socket EOF") from exc
+    if extra:
+        raise RuntimeError("native response carried bytes beyond its declared body")
+
+
+def read_response_body(response: http.client.HTTPResponse) -> tuple[int, int]:
+    """Require a bounded, complete body through the actual sized-read path."""
+
+    try:
+        status, body_bytes, _ = read_complete_response(response)
+    except (OSError, http.client.HTTPException) as exc:
+        raise RuntimeError("native response body did not complete") from exc
+    if response.length not in (None, 0):
+        raise RuntimeError("native response ended before its declared body length")
+    return status, body_bytes
+
+
+def close_response_resources(
+    response: http.client.HTTPResponse | None,
+    connection: http.client.HTTPConnection,
+    completion_socket: socket.socket | None,
+) -> None:
+    """Close every owned resource while retaining an active failure cause."""
+
+    active_error = sys.exception()
+    cleanup_errors: list[OSError] = []
+    for resource in (response, connection, completion_socket):
+        if resource is not None:
+            try:
+                resource.close()
+            except OSError as exc:
+                cleanup_errors.append(exc)
+    if cleanup_errors:
+        if active_error is None:
+            raise cleanup_errors[0]
+        active_error.add_note(
+            "native response cleanup failures: "
+            + ", ".join(type(error).__name__ for error in cleanup_errors)
+        )
+
+
 def request_through_traefik(
     port: int,
     body: bytes,
@@ -828,6 +894,9 @@ def request_through_traefik(
     last_error: Exception | None = None
     while time.monotonic() < deadline:
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        connection.response_class = CompletionHTTPResponse
+        completion_socket: socket.socket | None = None
+        response: http.client.HTTPResponse | None = None
         try:
             headers = {
                 "Content-Type": PLAIN_TEXT_CONTENT_TYPE,
@@ -835,27 +904,26 @@ def request_through_traefik(
             }
             if extra_headers:
                 headers.update(extra_headers)
+            headers["Connection"] = "close"
             connection.request(
                 method,
                 path,
                 body=body,
                 headers=headers,
             )
+            if connection.sock is None:
+                raise RuntimeError("native request has no connected completion socket")
+            completion_socket = connection.sock.dup()
             response = connection.getresponse()
-            status = int(response.status)
-            body_bytes = 0
-            while True:
-                chunk = response.read(4096)
-                if not chunk:
-                    break
-                body_bytes += len(chunk)
+            status, body_bytes = read_response_body(response)
+            require_response_socket_eof(completion_socket)
             if status == expected_status:
                 return status, body_bytes
             last_error = RuntimeError(f"native router returned unexpected status {status}")
         except (OSError, http.client.HTTPException) as exc:
             last_error = exc
         finally:
-            connection.close()
+            close_response_resources(response, connection, completion_socket)
         time.sleep(0.2)
     raise RuntimeError(f"native router did not complete expected status {expected_status}: {last_error}")
 
@@ -1504,6 +1572,13 @@ def stage_native_runtime(inputs: NativeRuntimeInputs) -> NativeRuntimeArtifacts:
         plugin_destination = inputs.runtime_root / "plugins-local/src" / Path(inputs.module_name)
         plugin_destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(PLUGIN_SOURCE, plugin_destination)
+        # copytree preserves sealed source modes. The fresh owned copy must
+        # remain writable so fail-closed cleanup can remove its directories.
+        plugin_workspace = inputs.runtime_root / "plugins-local"
+        for candidate in (plugin_workspace, *plugin_workspace.rglob("*")):
+            if candidate.is_symlink():
+                raise MissingDependency(f"staged native plugin contains a symlink: {candidate}")
+            os.chmod(candidate, 0o700 if candidate.is_dir() else 0o600)
         config_dir = inputs.runtime_root / "effective-config"
         logs_dir = inputs.runtime_root / "logs"
         config_dir.mkdir()
@@ -1615,17 +1690,12 @@ def running_traefik_host(
     *,
     engine_description: str,
     host_description: str,
-    engine_binary: Path | None = None,
-    process_started: Callable[[subprocess.Popen[bytes]], None] | None = None,
 ) -> Iterator[None]:
     """Start the common engine/host pair while keeping its log descriptors open."""
 
-    if engine_binary is None:
-        engine_binary = build_engine_service(
-            inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
-        )
-    else:
-        engine_binary = require_local_executable(engine_binary, "pinned Traefik engine service")
+    engine_binary = build_engine_service(
+        inputs.runtime_root, artifacts.logs_dir, inputs.include_dir, inputs.library_dir
+    )
     with (artifacts.logs_dir / "engine.stdout.log").open("wb") as engine_stdout, (
         artifacts.logs_dir / ENGINE_STDERR_LOG_FILENAME
     ).open("wb") as engine_stderr:
@@ -1642,8 +1712,6 @@ def running_traefik_host(
             stdout=engine_stdout,
             stderr=engine_stderr,
         )
-        if process_started is not None:
-            process_started(processes.engine)
         wait_for_socket(setup.engine_socket, processes.engine, engine_description)
         with (artifacts.logs_dir / TRAEFIK_STDOUT_LOG_FILENAME).open("wb") as stdout, (
             artifacts.logs_dir / "traefik.stderr.log"
@@ -1654,8 +1722,6 @@ def running_traefik_host(
                 stdout=stdout,
                 stderr=stderr,
             )
-            if process_started is not None:
-                process_started(processes.traefik)
             wait_for_port(setup.traefik_port, processes.traefik, host_description)
             yield
 

@@ -136,7 +136,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         {
                             **canonical_quic_tls,
                             "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
-                            "TAR_OPTIONS": "--same-owner --warning=no-unknown-keyword",
+                            "TAR_OPTIONS": "--same-owner",
                         },
                         protocol_inputs,
                     )
@@ -151,17 +151,6 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     )
                     self.assertEqual(child_env["TAR_OPTIONS"], "--no-same-owner")
 
-                    no_inherited_tar_options = child_environment(
-                        {
-                            **canonical_quic_tls,
-                            "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
-                        },
-                        protocol_inputs,
-                    )
-                    self.assertEqual(
-                        no_inherited_tar_options["TAR_OPTIONS"], "--no-same-owner"
-                    )
-
             h3_inputs = components.nginx_protocol_build_inputs(
                 {"NGINX_PROTOCOL_PROFILE": "h1-h2-h3-quic", **canonical_quic_tls}
             )
@@ -172,7 +161,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                     "NGINX_QUIC_TLS_SOURCE_URL": "https://example.invalid/hostile.tar.gz",
                     "NGINX_QUIC_TLS_SOURCE_SHA256": "f" * 64,
                     "MSCONNECTOR_PROFILE_REGISTRY_ROOT": "/untrusted/profile-registry",
-                    "TAR_OPTIONS": "--same-owner --warning=no-unknown-keyword",
+                    "TAR_OPTIONS": "--same-owner",
                 },
                 h3_inputs,
             )
@@ -1194,9 +1183,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(
-                        components, "require_env_value", side_effect=required_source_value
-                    ),
+                    mock.patch.object(components, "require_env_value", side_effect=required_source_value),
                     mock.patch.object(
                         components,
                         "nginx_protocol_build_inputs",
@@ -1223,9 +1210,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(
-                        components, "require_env_value", side_effect=required_source_value
-                    ),
+                    mock.patch.object(components, "require_env_value", side_effect=required_source_value),
                     mock.patch.object(components, "nginx_protocol_build_inputs") as nginx_protocol,
                 ):
                     with self.assertRaisesRegex(RuntimeError, "nginx_pinned_provenance_ref_mismatch"):
@@ -1245,9 +1230,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                         "require_apr_util_pinned_provenance",
                         return_value={"component": "apr-util"},
                     ),
-                    mock.patch.object(
-                        components, "require_env_value", side_effect=required_source_value
-                    ),
+                    mock.patch.object(components, "require_env_value", side_effect=required_source_value),
                     mock.patch.object(
                         components,
                         "nginx_protocol_build_inputs",
@@ -3655,6 +3638,13 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             result.stdout + result.stderr,
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

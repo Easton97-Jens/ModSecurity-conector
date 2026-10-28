@@ -8,7 +8,8 @@ Actions workflow:
   candidate only below ``RUNNER_TEMP`` (or exposes a base64 GitHub output).
 * ``validate`` rechecks the candidate against the checked-in lock and, for
   changed downloaded tools, verifies the release asset digest without
-  executing the downloaded file.
+  executing the downloaded file.  Proposed-tree validation additionally runs
+  checksum-verified workflow linters against the private candidate snapshot.
 * ``apply`` changes only the reviewed lock, the enumerated workflow pins, and
   the paired workflow-security guides.  The publisher calls it only after the
   read-only jobs succeeded.
@@ -37,8 +38,9 @@ import subprocess
 import sys
 import tempfile
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import yaml
 from yaml.tokens import AliasToken, AnchorToken, KeyToken, ScalarToken, TagToken
@@ -177,6 +179,9 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/protocol-contract.yml",
         ".github/workflows/quick-framework-check.yml",
         ".github/workflows/reusable-five-connectors-profile.yml",
+        ".github/workflows/run-protected-nginx-exact-head.yml",
+        ".github/workflows/sonarqube.yml",
+        ".github/workflows/sonar-native-security.yml",
         ".github/workflows/run-protected-nginx-root-broker.yml",
         ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml",
         ".github/workflows/test-apache.yml",
@@ -193,6 +198,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/update-python-version.yml",
         ".github/workflows/update-submodules.yml",
         ".github/workflows/update-workflow-tools.yml",
+        ".github/workflows/validate-go-candidate.yml",
         ".github/workflows/verified-report-governance.yml",
         "docs/security/ci-security-tooling.md",
         "docs/security/ci-security-tooling.de.md",
@@ -221,17 +227,30 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         ".python-version",
         ".go-version",
         ".github/dependabot.yml",
+        "requirements-ci.lock",
+        "requirements-ci-build.lock",
         "requirements-dev.txt",
         "connectors/envoy/ext_proc/go.mod",
+        "connectors/traefik/composite_middleware/go.mod",
+        "connectors/traefik/native_middleware/go.mod",
+        "connectors/traefik/response_observer/go.mod",
         "connectors/envoy/config/envoy-ext-proc-versions.env",
         "connectors/haproxy/htx-overlay/version-contract.json",
         "connectors/lighttpd/SOURCE_MAP.json",
         "connectors/lighttpd/lighttpd-version.contract",
+        "connectors/nginx/harness/run_exact_head_use_error_log.sh",
+        "connectors/nginx/harness/run_github_hosted_functional_a.py",
+        "connectors/nginx/harness/nginx_smoke.conf",
+        "connectors/nginx/harness/run_nginx_smoke.sh",
         "ci/checks/evidence/check-runtime-producer-readiness.py",
+        "ci/checks/common/check-python-version-contract.py",
         "ci/lib/framework_revision_pins.py",
+        "ci/lib/workflow_action_pins.py",
         "ci/tooling/project-versions.lock.json",
         "ci/fixtures/workflow-permission-contract/safe.yml",
         "ci/fixtures/workflow-permission-contract/unsafe.yml",
+        "ci/fixtures/zizmor/safe.yml",
+        "ci/fixtures/zizmor/insecure.yml",
         "ci/provisioning/components/prepare-runtime-components.py",
         "ci/requirements/update-submodules-validation-linux-x86_64.txt",
         "ci/runtime/broker/nginx_root_broker.py",
@@ -240,6 +259,9 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "ci/runtime/lifecycle/run-with-crs-no-mrts.sh",
         "ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py",
         "ci/tools/fetch_security_tool.py",
+        "ci/tools/lint_workflows.py",
+        "ci/tools/lint_installed_workflows.py",
+        "ci/tools/install-ci-dependencies.py",
         "ci/tools/read-framework-revisions.py",
         "ci/tools/sync-project-versions.py",
         "ci/tools/prepare-readonly-submodule-validation-sandbox.py",
@@ -262,6 +284,11 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "tests/test_prepare_runtime_components.py",
         "tests/test_verify_framework_candidate_contract.py",
         "tests/test_ci_security_workflows.py",
+        "tests/test_lint_workflows.py",
+        "tests/test_install_ci_dependencies.py",
+        "tests/test_python_version_contract.py",
+        "tests/test_nginx_exact_head_gate_contract.py",
+        "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py",
         "tests/test_prepare_readonly_submodule_validation_sandbox.py",
         "tests/test_run_readonly_submodule_validation_namespace.py",
         "tests/test_update_framework_versions.py",
@@ -269,6 +296,36 @@ PROPOSED_TREE_BASELINE_PATHS = frozenset(
         "tests/test_validate_submodule_candidate_state.py",
     }
 )
+
+# These are read-only validation inputs, not additions to the publisher's
+# mutation surface. Admission inspects every execution, even when the proposed
+# tree contract selects only the supply-chain group.
+PROPOSED_TREE_ACTIVE_RUNTIME_PATHS = frozenset(
+    {
+        "config/testing/active-cases.json",
+        "ci/lib/active_test_inventory.py",
+        "ci/tools/run-active-tests.py",
+        "scripts/update-go-components.py",
+        "tests/__init__.py",
+        "ci/lib/active_inventory_updates.py",
+        "reports/testing/test-selection-archive.generated.json",
+    }
+)
+
+# These two files are derived outputs, not caller-editable publisher inputs.
+# Scope admission recomputes their complete bytes from trusted base objects.
+DERIVED_COMPANION_PATHS = frozenset({
+    "config/testing/active-cases.json",
+    "reports/testing/test-selection-archive.generated.json",
+})
+
+
+def inventory_updates_module():
+    path = Path(__file__).resolve().parents[1] / "lib/active_inventory_updates.py"
+    spec = importlib.util.spec_from_file_location("workflow_inventory_updates", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @dataclass(frozen=True)
@@ -630,6 +687,18 @@ def managed_workflow_action_name(
     are deliberately rejected rather than treated as ``actions/checkout``.
     """
 
+    if value.startswith("$/"):
+        relative = value[2:]
+        if (
+            not relative.startswith(".github/workflows/")
+            or not is_safe_posix_path(relative)
+            or "@" in relative
+            or not relative.endswith((".yml", ".yaml"))
+        ):
+            raise UpdateError(
+                f"{description} has an unsafe self-repository workflow reference"
+            )
+        return None
     if value.startswith("./"):
         return None
     match = REMOTE_WORKFLOW_USE.fullmatch(value)
@@ -800,6 +869,8 @@ class OfficialGitHubApi:
     user_agent: str
 
     def repository_url(self, path: str) -> str:
+        if self.origin != GITHUB_API_ORIGIN:
+            raise UpdateError("GitHub metadata requests require the official HTTPS API")
         if not path.startswith("/repos/"):
             raise UpdateError("only repository-scoped GitHub API paths are allowed")
         return f"{self.origin}{path}"
@@ -807,27 +878,49 @@ class OfficialGitHubApi:
     def payload(self, path: str) -> Any:
         request = Request(
             self.repository_url(path),
-            headers={
-                "Accept": "application/vnd.github+json",
-                "User-Agent": self.user_agent,
-            },
+            headers=github_metadata_headers(self.user_agent),
         )
         try:
-            with urlopen(request, timeout=30) as response:
+            opener = build_opener(RejectGitHubMetadataRedirects())
+            with opener.open(request, timeout=30) as response:
                 final = urlparse(response.geturl())
                 if final.scheme != "https" or final.netloc != "api.github.com":
                     raise UpdateError(
                         "GitHub API redirect escaped the official HTTPS API"
                     )
                 return json.loads(response.read().decode("utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise UpdateError(f"official GitHub API request failed: {exc}") from exc
+        except HTTPError as exc:
+            raise UpdateError(
+                f"official GitHub API request failed (HTTP {exc.code})"
+            ) from None
+        except (OSError, ValueError):
+            raise UpdateError("official GitHub API request or response failed") from None
+
+
+class RejectGitHubMetadataRedirects(HTTPRedirectHandler):
+    """Reject redirects before urllib can forward metadata credentials."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise UpdateError("official GitHub API metadata redirects are not allowed")
+
+
+def github_metadata_headers(user_agent: str) -> dict[str, str]:
+    """Use an optional read-only API token without applying it to asset downloads."""
+
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": user_agent}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token is not None:
+        if not token or any(character in token for character in "\r\n"):
+            raise UpdateError("GITHUB_TOKEN must be a single nonempty header value")
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 
 OFFICIAL_GITHUB_API = OfficialGitHubApi(GITHUB_API_ORIGIN, GITHUB_USER_AGENT)
 
 
 def github_payload(path: str) -> Any:
-    """Read one fixed official GitHub API response without a token."""
+    """Read fixed official API metadata with optional job-scoped authentication."""
 
     return OFFICIAL_GITHUB_API.payload(path)
 
@@ -1608,10 +1701,36 @@ def proposed_validation_root() -> Path:
     return proposed
 
 
+def admitted_validation_inventory(root: Path) -> Any:
+    """Load the fixed stdlib-only admission module without starting children."""
+
+    module_path = resolve_regular_file(root, Path("ci/lib/active_test_inventory.py"))
+    spec = importlib.util.spec_from_file_location("workflow_tool_active_inventory", module_path)
+    if spec is None or spec.loader is None:
+        raise UpdateError("cannot load the authoritative active-inventory admission module")
+    module = importlib.util.module_from_spec(spec)
+    previous = sys.modules.get(spec.name)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module.load_inventory(root)
+    except (OSError, ValueError) as exc:
+        raise UpdateError("proposed-tree inputs require a valid complete active inventory") from exc
+    finally:
+        if previous is None:
+            sys.modules.pop(spec.name, None)
+        else:
+            sys.modules[spec.name] = previous
+
+
 def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
     """Copy the strict update surface and Connector contract inputs privately."""
 
-    for relative_text in sorted(ALLOWED_UPDATE_PATHS | PROPOSED_TREE_BASELINE_PATHS):
+    inventory = admitted_validation_inventory(source_root)
+    bound_sources = {name for execution in inventory.executions for name in execution["sources"]}
+    inputs = (ALLOWED_UPDATE_PATHS | PROPOSED_TREE_BASELINE_PATHS
+              | PROPOSED_TREE_ACTIVE_RUNTIME_PATHS | bound_sources)
+    for relative_text in sorted(inputs):
         relative = Path(relative_text)
         source = resolve_regular_file(source_root, relative)
         destination = destination_root / relative
@@ -1621,6 +1740,9 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
         with source.open("rb") as input_file, destination.open("xb") as output_file:
             shutil.copyfileobj(input_file, output_file)
         destination.chmod(0o600)
+    # Re-admit the copied bytes, rather than assuming source verification also
+    # proves the private snapshot. The actual runner repeats this before tests.
+    admitted_validation_inventory(destination_root)
 
 
 def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
@@ -1642,6 +1764,95 @@ def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
         )
 
 
+def run_proposed_workflow_lint(
+    proposed_root: Path, arguments: list[str], *, expected_returncode: int = 0
+) -> None:
+    """Require a bounded lint result; tool failures never satisfy negative fixtures."""
+
+    try:
+        result = subprocess.run(
+            arguments,
+            cwd=proposed_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            shell=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise UpdateError(f"proposed workflow-tool lint could not complete: {exc}") from exc
+    if result.returncode != expected_returncode:
+        output = f"{result.stdout}{result.stderr}".strip()[:8000]
+        raise UpdateError(
+            "proposed workflow-tool lint failed "
+            f"({Path(arguments[0]).name}, expected {expected_returncode}, "
+            f"got {result.returncode}): {output}"
+        )
+
+
+def run_proposed_tree_workflow_lints(proposed_root: Path) -> None:
+    """Execute the proposed checksum-verified tools before publishing any update."""
+
+    _lock_path, lock, _lock_digest = load_lock(proposed_root)
+    fetcher = load_fetcher_module()
+    tools_root = proposed_root / ".candidate-security-tools"
+    tools_root.mkdir(mode=0o700)
+    executables: dict[str, Path] = {}
+    for name in ("actionlint", "zizmor"):
+        record = lock["tools"].get(name)
+        if not isinstance(record, dict):
+            raise UpdateError(f"proposed lock is missing workflow lint tool {name!r}")
+        downloader_record = {
+            "version": record.get("version"),
+            "asset": record.get("asset"),
+            "url": record.get("asset_url"),
+            "sha256": record.get("sha256"),
+            "executable": record.get("executable"),
+            "upstream": record.get("upstream"),
+        }
+        try:
+            executable = fetcher.fetch_record(
+                name, downloader_record, tools_root / name
+            )
+            executables[name] = resolve_regular_file(
+                proposed_root, executable.relative_to(proposed_root)
+            )
+        except (OSError, ValueError) as exc:
+            raise UpdateError(
+                f"proposed workflow lint tool {name!r} verification failed: {exc}"
+            ) from exc
+
+    permission_fixtures = (
+        "ci/fixtures/workflow-permission-contract/safe.yml",
+        "ci/fixtures/workflow-permission-contract/unsafe.yml",
+    )
+    lint_wrapper = resolve_regular_file(
+        proposed_root, Path("ci/tools/lint_workflows.py")
+    )
+    run_proposed_workflow_lint(
+        proposed_root,
+        [
+            sys.executable,
+            str(lint_wrapper),
+            "--candidate-tree",
+        ],
+    )
+    zizmor = [str(executables["zizmor"]), "--offline"]
+    run_proposed_workflow_lint(proposed_root, [*zizmor, ".github/workflows"])
+    for fixture, expected_returncode in (
+        ("ci/fixtures/zizmor/insecure.yml", 14),
+        ("ci/fixtures/zizmor/safe.yml", 0),
+        (permission_fixtures[1], 14),
+        (permission_fixtures[0], 0),
+    ):
+        # Both negative fixtures intentionally contain high-severity findings.
+        # A crash, usage error, or skipped audit must not count as rejection.
+        resolve_regular_file(proposed_root, Path(fixture))
+        run_proposed_workflow_lint(
+            proposed_root, [*zizmor, fixture], expected_returncode=expected_returncode
+        )
+
+
 def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
     """Apply a candidate only in RUNNER_TEMP, then validate its resulting tree."""
 
@@ -1651,6 +1862,7 @@ def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
         copy_update_inputs(source_root, proposed_root)
         apply_candidate(proposed_root, candidate)
         run_proposed_tree_contract_checks(proposed_root)
+        run_proposed_tree_workflow_lints(proposed_root)
     finally:
         shutil.rmtree(proposed_root, ignore_errors=True)
 
@@ -1879,17 +2091,26 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
     lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
     validate_candidate_shape(candidate, lock, lock_digest)
-    before = {
+    companions = inventory_updates_module()
+    snapshot = companions.capture_update(root, ALLOWED_UPDATE_PATHS)
+    primary_before = {
         path: resolve_regular_file(root, Path(path)).read_bytes()
         for path in ALLOWED_UPDATE_PATHS
     }
+    before = dict(primary_before)
+    if snapshot is not None:
+        before.update({companions.INVENTORY: snapshot["inventory"],
+                       companions.ARCHIVE: snapshot["archive"]})
     try:
         apply_lock_changes(lock_path, lock, candidate)
         update_workflow_references(root, lock, candidate)
         update_documentation_references(root, lock, candidate)
+        companions.finish_update(root, snapshot)
     except Exception:
         try:
-            restore_update_snapshot(root, before)
+            # The helper owns conditional rollback of its exact companion
+            # writes. A foreign concurrent companion replacement must survive.
+            restore_update_snapshot(root, primary_before)
         except Exception as rollback_error:
             raise UpdateError(
                 "candidate application failed and rollback did not complete"
@@ -1900,7 +2121,7 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
         for path, contents in before.items()
         if resolve_regular_file(root, Path(path)).read_bytes() != contents
     ]
-    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS))
+    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS | DERIVED_COMPANION_PATHS))
     if unexpected:
         raise UpdateError(
             f"updater changed an unallowlisted path: {', '.join(unexpected)}"
@@ -1990,12 +2211,72 @@ def verify_git_scope(
             f"{git_output_text(result.stderr).strip()}"
         )
     changed = sorted(set(name_status_paths(result.stdout)))
-    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS))
+    unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS | DERIVED_COMPANION_PATHS))
     if unexpected:
         raise UpdateError(
             f"publisher diff includes unallowlisted paths: {', '.join(unexpected)}"
         )
+    if changed:
+        verify_derived_companion_blobs(root, base or "HEAD", head, staged=staged)
     return changed
+
+
+def publisher_candidate_blob(root: Path, name: str, head: str | None,
+                             *, staged: bool, companions) -> bytes:
+    """Read candidates through the existing primary/companion trust boundaries."""
+    if head:
+        return (git_blob(root, head, Path(name)) if name in ALLOWED_UPDATE_PATHS
+                else companions.trusted_blob(root, head, name))
+    if not staged:
+        return companions.read_regular(root, name)
+    if name in DERIVED_COMPANION_PATHS:
+        return companions.index_blob(root, name)
+    result = subprocess.run(
+        ["git", "--no-replace-objects", "-C", str(root), "show", "--no-textconv", ":" + name],
+        check=True, capture_output=True, shell=False, timeout=30)
+    return result.stdout
+
+
+def verify_derived_companion_blobs(root: Path, base: str, head: str | None,
+                                   *, staged: bool = False) -> None:
+    """Rebuild primary edits and SHA-only companions from trusted base bytes.
+
+    Neither an untrusted candidate artifact nor a reusable branch may supply
+    different inventory selection/control fields. The original primary update
+    surface remains independently checked against the updater algorithm.
+    """
+    companions = inventory_updates_module()
+    before = {name: git_blob(root, base, Path(name)) for name in ALLOWED_UPDATE_PATHS}
+
+    def actual(name: str) -> bytes:
+        return publisher_candidate_blob(root, name, head, staged=staged, companions=companions)
+
+    after = {name: actual(name) for name in ALLOWED_UPDATE_PATHS}
+    base_lock = normalize_connector_lock(yaml.safe_load(before[LOCK_RELATIVE_PATH.as_posix()]))
+    head_lock = normalize_connector_lock(yaml.safe_load(after[LOCK_RELATIVE_PATH.as_posix()]))
+    candidate = existing_branch_candidate(base_lock, head_lock,
+                                          hashlib.sha256(before[LOCK_RELATIVE_PATH.as_posix()]).hexdigest())
+    expected_root = proposed_validation_root()
+    try:
+        for name, body in before.items():
+            destination = expected_root / name
+            destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            destination.write_bytes(body)
+        # This private algorithm fixture deliberately contains primary inputs
+        # only; no inventory can be supplied or rewritten by the candidate.
+        apply_candidate(expected_root, candidate)
+        for name in ALLOWED_UPDATE_PATHS:
+            if companions.read_regular(expected_root, name) != after[name]:
+                raise UpdateError("publisher primary blob differs from constrained updater output: " + name)
+        outputs = companions.derive_companions(
+            companions.trusted_blob(root, base, companions.INVENTORY),
+            companions.trusted_blob(root, base, companions.ARCHIVE),
+            before, after, ALLOWED_UPDATE_PATHS)
+        for name in DERIVED_COMPANION_PATHS:
+            if actual(name) != outputs[name]:
+                raise UpdateError("publisher companion differs from trusted-base derivation: " + name)
+    finally:
+        shutil.rmtree(expected_root, ignore_errors=True)
 
 
 def git_blob(root: Path, revision: str, relative: Path) -> bytes:
@@ -2427,7 +2708,7 @@ def run_command(args: argparse.Namespace) -> int:
 def main() -> int:
     try:
         return run_command(parse_args())
-    except UpdateError as exc:
+    except (UpdateError, ValueError) as exc:
         print(f"workflow-tool updater error: {exc}", file=sys.stderr)
         return 2
 

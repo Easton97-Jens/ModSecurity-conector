@@ -1,0 +1,148 @@
+name: SonarQube Cloud
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: sonarqube-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analysis:
+    name: Sonar C++${{ matrix.cpp }} (${{ matrix.advisory && 'advisory' || 'required' }})
+    if: >-
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    continue-on-error: ${{ matrix.advisory }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cpp: "17"
+            project: Easton97-Jens_ModSecurity-conector
+            advisory: false
+            branch_args: ""
+          - cpp: "20"
+            project: Easton97-Jens_ModSecurity-conector_cpp20_advisory
+            advisory: true
+            branch_args: -Dsonar.branch.name=master
+          - cpp: "23"
+            project: Easton97-Jens_ModSecurity-conector_cpp23_advisory
+            advisory: true
+            branch_args: -Dsonar.branch.name=master
+    concurrency:
+      group: sonar-project-${{ matrix.project }}-${{ matrix.advisory && 'advisory' || github.event.pull_request.number || github.ref }}
+      cancel-in-progress: false
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: "off"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Keep analysis output outside the checkout
+        shell: bash
+        run: |
+          {
+            echo "GOCACHE=$RUNNER_TEMP/sonar-go/build"
+            echo "GOMODCACHE=$RUNNER_TEMP/sonar-go/modules"
+            echo "TMPDIR=$RUNNER_TEMP"
+            echo "SONAR_USER_HOME=$RUNNER_TEMP/sonar-cache"
+          } >> "$GITHUB_ENV"
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Validate Parent analysis scope
+        run: |
+          set -eu
+          python3 -m venv "$RUNNER_TEMP/sonar-python"
+          export PATH="$RUNNER_TEMP/sonar-python/bin:$PATH"
+          export PIP_REQUIRE_VIRTUALENV=true
+          python3 ci/tools/install-ci-dependencies.py --build-root "$RUNNER_TEMP"
+          "$RUNNER_TEMP/sonar-python/bin/python" ci/checks/analysis/check-sonar-scope.py
+      - name: Set up canonical Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
+      - name: Install existing native header prerequisites
+        shell: bash
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libmodsecurity-dev apache2-dev libpcre2-dev zlib1g-dev patch autoconf automake libtool
+          mkdir -p "$RUNNER_TEMP/sonar-native"
+          read -r -a apr_flags <<< "$(apr-1-config --cppflags --includes)"
+          printf '%s\n' '#include <httpd.h>' '#include <http_config.h>' \
+            '#include <apr_tables.h>' '#include <modsecurity/modsecurity.h>' \
+            'int main(void) { return 0; }' | \
+            cc -std=c17 -Wall -Wextra -Werror -I/usr/include/apache2 \
+              "${apr_flags[@]}" -x c -c -o "$RUNNER_TEMP/sonar-native/header-probe.o" -
+      - name: Configure pinned native host headers
+        id: native-context
+        shell: bash
+        run: |
+          set -euo pipefail
+          includes=$("$RUNNER_TEMP/sonar-python/bin/python" ci/checks/analysis/prepare-sonar-native-context.py \
+            --output-root "$RUNNER_TEMP/sonar-native-context")
+          printf 'includes=%s\n' "$includes" >> "$GITHUB_OUTPUT"
+      - name: Analyze exact revision and await Quality Gate
+        id: scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scannerVersion: 8.2.0.6438
+          args: >-
+            -Dsonar.projectKey=${{ matrix.project }}
+            -Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}
+            ${{ matrix.branch_args }}
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+            -Dsonar.working.directory=${{ runner.temp }}/sonar-work
+            -Dsonar.cfamily.customCIncludes=${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0
+            -Dsonar.cfamily.customCppIncludes=${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=600
+      - name: Report the actual analysis outcome
+        if: always()
+        env:
+          CPP_STANDARD: ${{ matrix.cpp }}
+          SONAR_PROJECT: ${{ matrix.project }}
+          ADVISORY: ${{ matrix.advisory }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          {
+            echo "### Full Parent Sonar scan / Vollständiger Parent-Sonar-Scan: C++$CPP_STANDARD"
+            echo "Project / Projekt: $SONAR_PROJECT"
+            echo "Revision: $ANALYZED_SHA"
+            echo "Advisory / Unverbindlich: $ADVISORY"
+            echo "Scanner and gate / Scanner und Gate: $SCAN_OUTCOME"
+            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
+              sed -n '/^\(ceTaskId\|dashboardUrl\|projectKey\)=/p' "$RUNNER_TEMP/sonar-work/report-task.txt"
+            else
+              echo 'No server report published / Kein Serverreport veröffentlicht'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

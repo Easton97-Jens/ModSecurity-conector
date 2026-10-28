@@ -25,7 +25,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-COMMAND-EXECUTION"
 source = ".codex/context/command-execution-policy.md"
-sha256 = "93c767f969a8bcd3887676d76a2dacd9442dab8abb1acea0fb8a4f8130bb0927"
+sha256 = "2d917d68d7f23445d31f100e50e9d0282b9e4fdc1f8d625d545f745c2a73a663"
 inheritable = true
 
 [[policies]]

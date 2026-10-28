@@ -11,7 +11,7 @@ jobs:
   common-structure:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -27,6 +27,11 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
       - name: Initialize runner temp paths
         run: |
           set -eu
@@ -74,30 +79,18 @@ jobs:
           umask 077
           mkdir -p "$TMPDIR"
           command -v cc >/dev/null
-          python3 -m unittest tests.test_reported_security_regressions -v
-      - name: Execute non-NGINX qualification contract tests
-        env:
-          TMPDIR: ${{ runner.temp }}/qualification-contracts
-          PYTHONDONTWRITEBYTECODE: "1"
-        run: |
-          set -eu
-          umask 077
-          mkdir -p "$TMPDIR"
-          mkdir -p /var/tmp/codex/ModSecurity-conector/tmp \
-            /var/tmp/codex/ModSecurity-conector/runs
-          python3 -m unittest -v \
-            tests.test_apache_qualification \
-            tests.test_composite_profile_qualification \
-            tests.test_envoy_ext_proc_qualification \
-            tests.test_haproxy_htx_qualification \
-            tests.test_haproxy_spop_qualification \
-            tests.test_traefik_native_qualification
+          python3 ci/tools/run-active-tests.py --group common
       - name: Lightweight framework checks
         run: |
           make setup-dev
           make quick-check
-          make -n smoke-common
-          make -n smoke-apache
-          make -n smoke-nginx
-          make -n smoke-all
-          make -n runtime-matrix-all
+          make -n check-active-inventory
+          make -n check-active-inventory
+          make -n check-active-inventory
+          make -n check-active-inventory
+          make -n check-active-inventory
+      - name: Execute productive HTTP and companion technical-error callers
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-common-callers

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/responseobserver"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 )
 
@@ -307,7 +309,44 @@ func secureListener(address string) (net.Listener, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	listener, err := net.Listen("unix", address)
+	parentFD, err := unix.Open(filepath.Dir(address), unix.O_PATH|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	parentFile := os.NewFile(uintptr(parentFD), filepath.Dir(address))
+	parentInfo, err := parentFile.Stat()
+	if err != nil || !os.SameFile(info, parentInfo) {
+		_ = parentFile.Close()
+		return nil, fmt.Errorf("private UDS parent changed during setup")
+	}
+	parentIdentity, ok := parentInfo.Sys().(*syscall.Stat_t)
+	if !ok || parentInfo.Mode().Perm() != 0700 || parentIdentity.Uid != uint32(os.Geteuid()) {
+		_ = parentFile.Close()
+		return nil, fmt.Errorf("private UDS pinned parent must remain private and owned by effective uid")
+	}
+	return bindOwnedResponseObserverListener(address, parentFile)
+}
+
+// bindOwnedResponseObserverListener owns the already validated parent descriptor.
+func bindOwnedResponseObserverListener(address string, parentFile *os.File) (net.Listener, error) {
+	parentFD := int(parentFile.Fd())
+	retainParent := false
+	defer func() {
+		if !retainParent {
+			_ = parentFile.Close()
+		}
+	}()
+	// Linux has no bindat operation. Resolve the bind through the retained
+	// directory descriptor so bind, identity capture and cleanup share one
+	// namespace even if an ancestor or the configured parent is renamed.
+	if len(address) >= len(unix.RawSockaddrUnix{}.Path) {
+		return nil, fmt.Errorf("private UDS path exceeds Linux socket address limit")
+	}
+	// Bind a short, unpredictable unpublished name. Atomic no-replace publish
+	// preserves every configured name supported by Linux's public UDS limit.
+	temporaryName := ".observer-" + rand.Text()
+	bindAddress := fmt.Sprintf("/proc/self/fd/%d/%s", parentFD, temporaryName)
+	listener, err := net.Listen("unix", bindAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -316,47 +355,123 @@ func secureListener(address string) (net.Listener, error) {
 		_ = listener.Close()
 		return nil, fmt.Errorf("private UDS listener is not a Unix listener")
 	}
-	// Disable Go's pathname cleanup before every fallible ownership check.  A
-	// same-identity replacement must never be removed by an error-path Close.
-	unixListener.SetUnlinkOnClose(false)
-	st, err := os.Stat(address)
+	owned, err := ownBoundResponseObserverListener(unixListener, parentFile, address, temporaryName, openResponseObserverSocketIdentity)
 	if err != nil {
-		_ = listener.Close()
 		return nil, err
 	}
-	identity, ok := st.Sys().(*syscall.Stat_t)
-	if !ok {
-		_ = listener.Close()
-		return nil, fmt.Errorf("private UDS stat unavailable")
+	retainParent = true
+	// chmod the retained inode, never the potentially redirected public path.
+	if err := os.Chmod(fmt.Sprintf("/proc/self/fd/%d", owned.identityFile.Fd()), 0600); err != nil {
+		return nil, errors.Join(err, owned.Close())
 	}
-	owned := &ownedListener{Listener: listener, path: address, dev: identity.Dev, ino: identity.Ino}
-	if err := os.Chmod(address, 0600); err != nil {
-		_ = owned.Close()
+	if err := unix.Renameat2(parentFD, temporaryName, parentFD, filepath.Base(address), unix.RENAME_NOREPLACE); err != nil {
+		return nil, errors.Join(err, owned.Close())
+	}
+	owned.name = filepath.Base(address)
+	return owned, nil
+}
+
+func openResponseObserverSocketIdentity(parentFD int, name string) (*os.File, error) {
+	fd, err := unix.Openat(parentFD, name, unix.O_PATH|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
 		return nil, err
+	}
+	return os.NewFile(uintptr(fd), name), nil
+}
+
+func ownBoundResponseObserverListener(listener *net.UnixListener, parentFile *os.File, address, name string, openIdentity func(int, string) (*os.File, error)) (*ownedListener, error) {
+	// Disable blind pathname cleanup before every fallible ownership check.
+	listener.SetUnlinkOnClose(false)
+	var identity unix.Stat_t
+	if err := unix.Fstatat(int(parentFile.Fd()), name, &identity, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return nil, errors.Join(err, listener.Close(), parentFile.Close())
+	}
+	if identity.Mode&unix.S_IFMT != unix.S_IFSOCK {
+		return nil, errors.Join(fmt.Errorf("private UDS socket identity unavailable"), listener.Close(), parentFile.Close())
+	}
+	owned := &ownedListener{Listener: listener, path: address, name: name, dev: identity.Dev, ino: identity.Ino, parentFile: parentFile}
+	fail := func(err error) (*ownedListener, error) {
+		// Remove only the checked original entry while the bound listener is
+		// still open. An identity-pin failure must not leave our temporary
+		// socket, nor allow Close to unlink a replacement without inspection.
+		cleanupErr := owned.removeOwnPath()
+		if owned.identityFile != nil {
+			cleanupErr = errors.Join(cleanupErr, owned.identityFile.Close())
+		}
+		return nil, errors.Join(err, cleanupErr, listener.Close(), parentFile.Close())
+	}
+	var err error
+	owned.identityFile, err = openIdentity(int(parentFile.Fd()), name)
+	if err != nil {
+		return fail(err)
+	}
+	st, err := owned.identityFile.Stat()
+	if err != nil {
+		return fail(err)
+	}
+	pinned, ok := st.Sys().(*syscall.Stat_t)
+	if !ok || st.Mode()&os.ModeSocket == 0 || pinned.Dev != owned.dev || pinned.Ino != owned.ino {
+		return fail(fmt.Errorf("private UDS socket identity changed during setup"))
 	}
 	return owned, nil
 }
 
 type ownedListener struct {
 	net.Listener
-	path     string
-	dev, ino uint64
+	path         string
+	name         string
+	dev, ino     uint64
+	identityFile *os.File
+	parentFile   *os.File
+	closeOnce    sync.Once
+	closeErr     error
+}
+
+func (listener *ownedListener) Addr() net.Addr {
+	return &net.UnixAddr{Name: listener.path, Net: "unix"}
 }
 
 func (listener *ownedListener) Close() error {
-	owned := false
-	if st, statErr := os.Stat(listener.path); statErr == nil {
-		if identity, ok := st.Sys().(*syscall.Stat_t); ok && identity.Dev == listener.dev && identity.Ino == listener.ino {
-			owned = true
-		}
+	listener.closeOnce.Do(func() {
+		listener.closeErr = listener.closeOwnedPath()
+	})
+	return listener.closeErr
+}
+
+func (listener *ownedListener) closeOwnedPath() (err error) {
+	if listener.parentFile != nil {
+		defer func() { err = errors.Join(err, listener.parentFile.Close()) }()
 	}
-	err := listener.Listener.Close()
+	if listener.identityFile != nil {
+		defer func() { err = errors.Join(err, listener.identityFile.Close()) }()
+	}
+	// The canonical, effective-UID-owned 0700 parent is the trust boundary
+	// against untrusted pathname writers. Fstatat never follows a replacement
+	// symlink, and the pinned directory keeps ancestor redirection from changing
+	// which directory is inspected or cleaned.
+	owned := listener.ownsPath()
+	err = listener.Listener.Close()
 	if owned {
-		if st, statErr := os.Stat(listener.path); statErr == nil {
-			if identity, ok := st.Sys().(*syscall.Stat_t); ok && identity.Dev == listener.dev && identity.Ino == listener.ino {
-				_ = os.Remove(listener.path)
-			}
-		}
+		err = errors.Join(err, listener.removeOwnPath())
 	}
 	return err
+}
+
+func (listener *ownedListener) removeOwnPath() error {
+	if !listener.ownsPath() {
+		return nil
+	}
+	err := unix.Unlinkat(int(listener.parentFile.Fd()), listener.name, 0)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
+func (listener *ownedListener) ownsPath() bool {
+	var identity unix.Stat_t
+	if err := unix.Fstatat(int(listener.parentFile.Fd()), listener.name, &identity, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return false
+	}
+	return identity.Dev == listener.dev && identity.Ino == listener.ino
 }

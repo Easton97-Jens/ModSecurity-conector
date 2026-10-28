@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # CI helpers are shared from ci/lib even when this file is executed directly.
@@ -133,7 +135,7 @@ def check_python_policy() -> None:
         fail(f"unexpected default shared cache: {paths['VERIFIED_COMPONENT_CACHE']}")
 
 
-def shell_status(script: str) -> int:
+def shell_result(script: str) -> subprocess.CompletedProcess[str]:
     env = policy_environment()
     result = subprocess.run(
         ["bash", "-lc", script],
@@ -147,7 +149,11 @@ def shell_status(script: str) -> int:
         sys.stdout.write(result.stdout)
     if result.stderr:
         sys.stderr.write(result.stderr)
-    return result.returncode
+    return result
+
+
+def shell_status(script: str) -> int:
+    return shell_result(script).returncode
 
 
 def check_shell_policy() -> None:
@@ -198,14 +204,14 @@ def sh_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
-def haproxy_policy_selftest(source_root: str) -> str:
-    build_root = VERIFIED_ROOT / "build" / "haproxy-policy-selftest"
+def haproxy_policy_selftest(source_root: str, verified_root: Path = VERIFIED_ROOT) -> str:
+    build_root = verified_root / "build" / "haproxy-policy-selftest"
     log_root = build_root / "logs"
     return " ".join(
         [
             "set -eu;",
-            f"VERIFIED_RUN_ROOT={sh_quote(str(VERIFIED_ROOT))}",
-            f"CONNECTOR_COMPONENT_CACHE={sh_quote(str(VERIFIED_ROOT / 'cache-v2' / 'shared'))}",
+            f"VERIFIED_RUN_ROOT={sh_quote(str(verified_root))}",
+            f"CONNECTOR_COMPONENT_CACHE={sh_quote(str(verified_root / 'cache-v2' / 'shared'))}",
             f"SOURCE_ROOT={sh_quote(source_root)}",
             f"BUILD_ROOT={sh_quote(str(build_root))}",
             f"RESULTS_DIR={sh_quote(str(build_root / 'results'))}",
@@ -219,10 +225,81 @@ def haproxy_policy_selftest(source_root: str) -> str:
     )
 
 
+ACTIVE_POLICY_CASES = ("python-allowed", "python-blocked", "shell-allowed", "shell-blocked")
+
+
+def selected_shell_case(name: str) -> None:
+    from active_test_inventory import validate_output_root
+
+    parent = os.environ.get("RUNNER_TEMP") or os.environ.get("TMP_ROOT")
+    if not parent:
+        fail("selected shell policy requires an explicit existing external output root")
+    output_root = validate_output_root(CONNECTOR_ROOT, Path(parent))
+    for relative in ("ci/lib/common.sh", "tests/runners/case_cli.py"):
+        if not (FRAMEWORK_ROOT / relative).is_file():
+            fail("selected shell policy requires the pinned Framework checkout")
+    with tempfile.TemporaryDirectory(prefix="runtime-policy-", dir=output_root) as temporary:
+        verified = Path(temporary)
+        source = (str(verified / "cache-v2" / "shared" / "sources")
+                  if name == "shell-allowed" else VAR_LIB_SELFTEST_PATH)
+        observed = shell_result(haproxy_policy_selftest(source, verified))
+        expected_status = 0 if name == "shell-allowed" else 77
+        expected_output = ("haproxy_smoke: path-policy-selftest PASS" if name == "shell-allowed" else
+                           "haproxy_smoke: blocked SOURCE_ROOT must not use a system path: " + source)
+        if (observed.returncode != expected_status or observed.stdout.strip() != expected_output
+                or observed.stderr):
+            fail("HAProxy/Framework shell policy did not produce its exact selected boundary result")
+
+
+def selected_policy_case(name: str) -> None:
+    """Execute one independently inventoried path/input through its real owner."""
+    env = policy_environment()
+    allowed = VERIFIED_ROOT / "cache-v2" / "shared"
+    if name == "python-allowed":
+        if is_system_write_path(allowed, env) or not is_allowed_runtime_path(allowed, env):
+            fail("Python rejected the legitimate verified component-cache path")
+    elif name == "python-blocked":
+        blocked = Path("/root/.local/state/foo")
+        if not is_system_write_path(blocked, env) or is_allowed_runtime_path(blocked, env):
+            fail("Python accepted the blocked legacy home runtime path")
+    elif name in {"shell-allowed", "shell-blocked"}:
+        selected_shell_case(name)
+    else:
+        fail("unknown selected policy case")
+
+
+def admit_selected_policy_case(name: str) -> None:
+    from active_test_inventory import InventoryError, load_inventory
+
+    inventory = load_inventory(CONNECTOR_ROOT)
+    matches = [item for item in inventory.executions if item["selector"] == {
+        "kind": "native", "script": "ci/checks/security/run-active-runtime-path-policy.sh", "args": [name]
+    }]
+    if len(matches) != 1 or len(matches[0]["cases"]) != 1:
+        raise InventoryError("runtime-path case is absent or not singly expanded in the active inventory")
+
+
 def main() -> int:
-    check_python_policy()
-    check_shell_policy()
-    print("check-runtime-path-policy: PASS")
+    parser = argparse.ArgumentParser(description="Validate the selected runtime-path policy boundary.")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--case", choices=ACTIVE_POLICY_CASES)
+    mode.add_argument("--on-demand-full", action="store_true")
+    args = parser.parse_args()
+    if args.on_demand_full:
+        if os.environ.get("ON_DEMAND_TESTS") != "1":
+            parser.error("the archived full policy catalog requires explicit ON_DEMAND_TESTS=1")
+        check_python_policy()
+        check_shell_policy()
+        print("check-runtime-path-policy: full on-demand catalog PASS")
+    elif args.case is None:
+        os.execv(sys.executable, [sys.executable, str(_CI_ROOT / "tools/run-active-tests.py"), "--group", "runtime-path-policy"])
+    else:
+        try:
+            admit_selected_policy_case(args.case)
+            selected_policy_case(args.case)
+        except (OSError, ValueError) as error:
+            fail(str(error))
+        print(f"check-runtime-path-policy: {args.case} PASS")
     return 0
 
 

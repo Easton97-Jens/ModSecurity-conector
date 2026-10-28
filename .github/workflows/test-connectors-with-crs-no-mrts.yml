@@ -47,7 +47,7 @@ jobs:
     permissions:
       contents: read
     name: Runtime with CRS / no MRTS / ${{ matrix.connector }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -74,6 +74,7 @@ jobs:
             mrts: no-mrts
             runtime_component_target: shared
     env:
+      GOTOOLCHAIN: local
       ALLOW_RUNTIME_BUILDS: "1"
       ALLOW_RUNTIME_DOWNLOADS: "1"
       CRS: ${{ matrix.crs }}
@@ -98,7 +99,7 @@ jobs:
 
       - name: Set up locked Python toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -108,6 +109,14 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Set up canonical Go for Envoy and Traefik builds
+        if: ${{ matrix.connector == 'envoy' || matrix.connector == 'traefik' }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          check-latest: false
+          cache: false
 
       - name: Verify pinned Parent, Framework, and MRTS revisions
         id: verify-revisions
@@ -131,9 +140,10 @@ jobs:
           SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
         run: |
           set -euo pipefail
-          "$SETUP_PYTHON_PATH" -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r modules/ModSecurity-test-Framework/requirements-ci.lock
-          "$SETUP_PYTHON_PATH" -m pip check
+          # Parent owns the CPython 3.15 artifact; preserve Framework dependency versions.
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
 
       - name: Verify exact real-runtime cell
         id: verify-runtime-cell
@@ -457,7 +467,7 @@ jobs:
               APACHE_PROFILE_CELL_RUN_ID="$CRS_RUNTIME_RUN_ID" \
               APACHE_PROFILE_GITHUB_RUN_ID="$GITHUB_RUN_ID" \
               APACHE_PROFILE_GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
-              EVIDENCE_ROOT='' make verified-apache-case CASE=crs_sqli_anomaly_block CRS="$CRS" MRTS="$MRTS"
+              EVIDENCE_ROOT='' python3 ci/tools/run-active-tests.py --group runtime-crs-apache
               ;;
             haproxy)
               require_decimal "$RUNTIME_UID"
@@ -557,10 +567,10 @@ jobs:
                       FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
                       HAPROXY_EVIDENCE_RECEIPT=1 \
                       HAPROXY_EVIDENCE_RECEIPT_PROJECTOR="$GITHUB_WORKSPACE/ci/runtime/lifecycle/project-haproxy-runtime-evidence.py" \
-                      /usr/bin/make -C "$GITHUB_WORKSPACE" verified-haproxy-case CASE=crs_sqli_anomaly_block CRS=with-crs MRTS=no-mrts
+                      /usr/bin/python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --group runtime-crs-haproxy
               ;;
             envoy|lighttpd|traefik)
-              EVIDENCE_ROOT='' make with-crs-no-mrts-runtime CONNECTOR="$CONNECTOR"
+              EVIDENCE_ROOT='' python3 ci/tools/run-active-tests.py --group "runtime-crs-$CONNECTOR"
               ;;
             *)
               echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2
@@ -1147,7 +1157,7 @@ jobs:
       - name: Upload Apache runtime evidence
         id: upload-apache-runtime-evidence
         if: always() && matrix.connector == 'apache' && steps.runtime.outcome == 'success' && steps.validate-apache-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
@@ -1158,7 +1168,7 @@ jobs:
       - name: Upload Apache runtime failure receipt
         id: upload-apache-runtime-failure-receipt
         if: always() && matrix.connector == 'apache' && steps.runtime.outcome != 'success' && steps.validate-apache-runtime-evidence.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
@@ -1189,7 +1199,7 @@ jobs:
       - name: Upload non-HAProxy runtime evidence
         id: upload-non-haproxy-runtime-evidence
         if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome == 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
@@ -1200,7 +1210,7 @@ jobs:
       - name: Upload non-HAProxy runtime failure receipt
         id: upload-non-haproxy-runtime-failure-receipt
         if: always() && matrix.connector != 'haproxy' && matrix.connector != 'apache' && steps.runtime.outcome != 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
@@ -1211,7 +1221,7 @@ jobs:
       - name: Upload real runtime evidence
         id: upload-runtime-evidence
         if: matrix.connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: with-crs-no-mrts-${{ matrix.connector }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
@@ -1365,7 +1375,7 @@ jobs:
     name: Aggregate exact five with-CRS / no MRTS cells
     needs: connector-mode
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - name: Checkout exact Parent head with pinned submodules
@@ -1375,6 +1385,18 @@ jobs:
           submodules: recursive
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Set up repository Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify exact PR head and base
         id: verify-revisions
@@ -1391,7 +1413,7 @@ jobs:
             --parent-sha "$EXPECTED_PARENT_SHA" --format github-output >> "$GITHUB_OUTPUT"
 
       - name: Download exactly five canonical profile cells
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: with-crs-no-mrts-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/with-crs-no-mrts-cells
@@ -1426,7 +1448,7 @@ jobs:
             --output-dir "$CELL_ROOT/aggregate"
 
       - name: Upload canonical five-connector aggregate
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: with-crs-no-mrts-aggregate-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/with-crs-no-mrts-cells/aggregate

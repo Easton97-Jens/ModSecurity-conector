@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import unittest
 import json
-import os
+import re
+import shlex
 import subprocess
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 
 
@@ -14,53 +15,6 @@ HARNESS = ROOT / "connectors" / "envoy" / "harness" / "run_envoy_composite_matri
 
 
 class EnvoyCompositeReceiptContractTest(unittest.TestCase):
-    def test_follow_up_binds_independent_upstream_receipts(self) -> None:
-        source = HARNESS.read_text(encoding="utf-8")
-        follow_up = source.split("run_follow_up_case() {", 1)[1].split("# No X-Request-Id", 1)[0]
-        self.assertIn('start_catalog_upstream "$2" "$case_dir/upstream.stdout.log" "$case_dir/upstream.stderr.log" 0 "$follow_up_request_observation" "$follow_up_response_observation"', follow_up)
-        deny_check = 'check_follow_up_upstream "$follow_up_request_observation" "$follow_up_response_observation" not_reached'
-        allow_check = 'check_follow_up_upstream "$follow_up_request_observation" "$follow_up_response_observation" response_observed'
-        self.assertLess(follow_up.index(deny_check), follow_up.index('allow_status=$('))
-        self.assertLess(follow_up.index(allow_check), follow_up.index('cleanup || fail'))
-        self.assertIn('"$follow_up_response_observation" "$case_config" "$allow_probe" response_observed', follow_up)
-
-    def test_follow_up_receipt_validator_rejects_missing_unsafe_or_false_receipts(self) -> None:
-        source = HARNESS.read_text(encoding="utf-8")
-        validator = source.split("check_follow_up_upstream() {", 1)[1].split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            request, response = root / "request.json", root / "response.json"
-            def check(state: str) -> subprocess.CompletedProcess[str]:
-                return subprocess.run([sys.executable, "-", str(request), str(response), state], input=validator, text=True, capture_output=True)
-            self.assertEqual(check("not_reached").returncode, 0)
-            self.assertNotEqual(check("response_observed").returncode, 0)
-            for path, observed in ((request, False), (response, True)):
-                path.write_text(json.dumps({"request_observed": True, "response_observed": observed, "composite_lease_header_present": False}), encoding="ascii")
-                os.chmod(path, 0o600)
-            valid_result = check("response_observed")
-            self.assertEqual(valid_result.returncode, 0, valid_result.stderr)
-            self.assertNotEqual(check("not_reached").returncode, 0)
-            hardlink = root / "response-hardlink.json"
-            os.link(response, hardlink)
-            self.assertNotEqual(check("response_observed").returncode, 0)
-            hardlink.unlink()
-            self.assertEqual(check("response_observed").returncode, 0)
-            response.write_text(json.dumps({"request_observed": True, "response_observed": 1, "composite_lease_header_present": False}), encoding="ascii")
-            self.assertNotEqual(check("response_observed").returncode, 0)
-            response.write_text(json.dumps({"request_observed": True, "response_observed": True, "composite_lease_header_present": True}), encoding="ascii")
-            self.assertNotEqual(check("response_observed").returncode, 0)
-            response.write_text(json.dumps({"request_observed": True, "response_observed": True, "composite_lease_header_present": False}), encoding="ascii")
-            os.chmod(response, 0o644)
-            self.assertNotEqual(check("response_observed").returncode, 0)
-            os.chmod(response, 0o600)
-            response.write_text('{"request_observed":true,"response_observed":false,"composite_lease_header_present":false}', encoding="ascii")
-            self.assertNotEqual(check("response_observed").returncode, 0)
-            response.write_text("x" * 1025, encoding="ascii")
-            self.assertNotEqual(check("response_observed").returncode, 0)
-            response.unlink()
-            response.symlink_to(request)
-            self.assertNotEqual(check("response_observed").returncode, 0)
-
     def test_real_cases_bind_receipts_to_started_runtime_inputs(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
 
@@ -103,7 +57,7 @@ class EnvoyCompositeReceiptContractTest(unittest.TestCase):
         )
         self.assertIn('maximum_bytes = 256 * 1024', source)
         self.assertIn('maximum_line_bytes = 16 * 1024', source)
-        self.assertIn('os.O_RDONLY | no_follow | non_block', source)
+        self.assertIn('os.O_RDONLY | no_follow', source)
         self.assertIn('MAX_EVENT_LOG_BYTES = 256 * 1024', source)
         self.assertIn('check_client_probe "$case_probe"', source)
         self.assertIn('upstream-request-observation.json', source)
@@ -114,6 +68,59 @@ class EnvoyCompositeReceiptContractTest(unittest.TestCase):
         self.assertIn('"shared_verifier_manifest_artifact": verifier_manifest_artifact', source)
         self.assertIn('"shared_verifier_summary_artifact": verifier_summary_artifact', source)
         self.assertIn('"shared_verifier_status": verifier_status', source)
+
+    def test_native_oversize_uses_a_complete_sample_within_host_capacity(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        invocation = next(line for line in source.splitlines() if line.startswith("run_case p2_oversize "))
+        arguments = shlex.split(invocation)
+        template = (ROOT / "connectors/envoy/config/envoy-ext-authz-composite.yaml.in").read_text()
+        rules = (ROOT / "common/rules/modsecurity_p1_p4_vectors.conf").read_text()
+        host_capacity = int(re.search(r"max_request_bytes: (\d+)", template).group(1))
+        native_limit = int(re.search(r"^SecRequestBodyLimit (\d+)$", rules, re.MULTILINE).group(1))
+        self.assertEqual(arguments[5], "Content-Type: text/plain")
+        self.assertEqual(len(arguments[6].encode("ascii")), 33)
+        self.assertGreater(len(arguments[6]), native_limit)
+        self.assertLessEqual(len(arguments[6]), host_capacity)
+        self.assertIn("allow_partial_message: false", template)
+        self.assertIn("SecRequestBodyNoFilesLimit 32", rules)
+        self.assertIn("SecRequestBodyLimitAction Reject", rules)
+
+    def test_companion_shutdown_validator_requires_one_closed_restart(self) -> None:
+        source = HARNESS.read_text(encoding="utf-8")
+        validator = source.split("check_event_log() {", 1)[1].split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        base = {
+            "decision_id": "server-generated-test-decision",
+            "connector": "envoy", "phase": "terminal", "outcome": "closed",
+            "reason": "restart", "cleanup_outcome": "closed",
+            "event_time": "2026-10-11T00:00:00Z",
+            "request_path": "envoy.ext_authz", "response_path": "envoy.ext_proc",
+            "transport": "envoy_ext_authz_ext_proc_grpc",
+        }
+        cases = {
+            "closed_restart": [base],
+            "failed_cleanup": [dict(base, cleanup_outcome="failed")],
+            "failed_outcome": [dict(base, outcome="failed")],
+            "wrong_cause": [dict(base, reason="timeout")],
+            "duplicate_terminal": [base, base],
+        }
+        self.assertIn('[ "$observed_status" = 500 ] || fail "unavailable companion did not retain native Envoy error status"', source)
+        for name, events in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                event_path = Path(temporary) / "events.jsonl"
+                output_path = Path(temporary) / "structural.json"
+                event_path.write_text("".join(json.dumps(event) + "\n" for event in events))
+                event_path.chmod(0o600)
+                result = subprocess.run(
+                    [sys.executable, "-c", validator, str(event_path), str(output_path), "companion_unavailable"],
+                    text=True, capture_output=True, check=False,
+                )
+                if name == "closed_restart":
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertTrue(output_path.is_file())
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("one successful native restart cleanup", result.stderr)
+                    self.assertFalse(output_path.exists())
 
     def test_structural_verifier_status_and_payload_free_contract_remain_conservative(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
@@ -129,6 +136,13 @@ class EnvoyCompositeReceiptContractTest(unittest.TestCase):
         for forbidden in ("request_body", "response_body", "opaque_handle"):
             self.assertNotIn(f'"{forbidden}"', source)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

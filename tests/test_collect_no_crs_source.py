@@ -1620,7 +1620,10 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         source = (ROOT / "ci/runtime/lifecycle/run-native-first-byte.sh").read_text(encoding="utf-8")
         self.assertIn("runtime_root=$HOST_RUNTIME_ROOT/first-byte-$connector", source)
         self.assertIn("log_root=$HOST_RUNTIME_ROOT/$connector-first-byte-logs", source)
-        self.assertIn("synchronized_control_root=$HOST_RUNTIME_ROOT/..", source)
+        self.assertIn(
+            "synchronized_control_root=${SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-$HOST_RUNTIME_ROOT/..}",
+            source,
+        )
         self.assertIn(
             'SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="$synchronized_control_root"',
             source,
@@ -1636,6 +1639,13 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertNotIn("log_root=$runtime_root/logs", source)
         self.assertNotIn("log_root=$HOST_LOG_ROOT/$connector-first-byte", source)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

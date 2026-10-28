@@ -20,12 +20,14 @@ if str(_CI_ROOT / "lib") not in sys.path:
     sys.path.insert(0, str(_CI_ROOT / "lib"))
 from typing import Any
 
+from evidence_inputs import EvidenceInputs
 from generated_report_utils import (
     DATA_SOURCE_POLICY,
     GENERATED_REPORTS,
     build_metadata,
     generated_json_text,
     generated_markdown_text,
+    input_status_summary,
     report_path,
 )
 from runtime_path_utils import (
@@ -254,11 +256,18 @@ def sh_quote(value: str) -> str:
 
 
 def find_case_path(framework_root: Path, case: str) -> Path | None:
+    if not SAFE_REPORT_COMPONENT.fullmatch(case):
+        return None
     cases_root = framework_root / "tests/cases"
     if not cases_root.is_dir():
         return None
     matches = sorted(cases_root.rglob(f"{case}.yaml"))
-    return matches[0] if matches else None
+    if not matches:
+        return None
+    candidate = matches[0]
+    if candidate.is_symlink() or not candidate.resolve().is_relative_to(cases_root.resolve()):
+        raise ValueError("case fixture escaped the canonical cases root")
+    return candidate
 
 
 def load_case(case_path: Path) -> dict[str, Any]:
@@ -843,13 +852,19 @@ def comparison_decision(
 
 def latest_case_runs(verified_run_root: Path, cases: tuple[str, ...]) -> list[dict[str, Any]]:
     runs_root = verified_run_root / "native-case-runs"
+    reader = EvidenceInputs((runs_root,))
     output = []
     for case in cases:
         candidates = sorted(runs_root.glob(f"*-{safe_name(case)}/{NATIVE_CASE_RUN_FILENAME}"))
         if not candidates:
             output.append({"case": case, "status": "missing", "reason": "no native case run found"})
             continue
-        output.append(read_json(candidates[-1]))
+        report = reader.json(candidates[-1])
+        if not report or report.get("case") != case:
+            raise ValueError("native case record does not match its selected case")
+        # The loaded file supplies provenance; its contents cannot redirect it.
+        report["run_dir"] = str(candidates[-1].parent)
+        output.append(report)
     return output
 
 
@@ -1090,13 +1105,26 @@ def write_summary_report(
         connector_root / NATIVE_ORACLE_SOURCE,
         report_path(connector_root, "verified_runtime_mismatch_analysis", "json"),
     ]
+    runtime_inputs = []
+    reader = EvidenceInputs((verified_run_root / "native-case-runs",))
     for item in reports:
-        if item.get("case_path"):
-            inputs.append(str(item["case_path"]))
+        case = str(item.get("case") or "")
+        if case not in cases or not SAFE_REPORT_COMPONENT.fullmatch(case):
+            raise ValueError("native summary contains an unselected case")
+        fixture = find_case_path(framework_root, case)
+        if fixture is not None:
+            inputs.append(fixture)
         if item.get("run_dir"):
-            run_json = Path(str(item["run_dir"])) / NATIVE_CASE_RUN_FILENAME
-            if run_json.is_file():
-                inputs.append(run_json)
+            run_json = reader.path(Path(str(item["run_dir"])) / NATIVE_CASE_RUN_FILENAME)
+            # Never pass JSON-selected paths to the generic metadata reader.
+            # Hash the actual bytes through the confined no-follow descriptor.
+            try:
+                digest, _ = reader.file_proof(run_json)
+            except FileNotFoundError:
+                runtime_inputs.append({"path": str(run_json), "status": "missing"})
+            else:
+                runtime_inputs.append({"path": str(run_json), "status": "present",
+                                       "sha256": digest, "source_hash": digest})
     payload = {
         "report_kind": "native-semantics-comparison",
         "data_source_policy": DATA_SOURCE_POLICY,
@@ -1119,6 +1147,9 @@ def write_summary_report(
         inputs=inputs,
         report_key="native_semantics_comparison",
     )
+    metadata.setdefault("inputs", []).extend(runtime_inputs)
+    metadata["input_status"] = input_status_summary(metadata["inputs"])
+    metadata.setdefault("missing_inputs", []).extend(item["path"] for item in runtime_inputs if item["status"] == "missing")
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / GENERATED_REPORTS["native_semantics_comparison"].filename("json")
     md_path = output_dir / GENERATED_REPORTS["native_semantics_comparison"].filename("md")

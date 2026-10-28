@@ -264,10 +264,15 @@ def _nginx_version_matches(data: bytes) -> bool:
     return all(NGINX_BUILD_METADATA.fullmatch(line) is not None for line in lines[1:])
 
 
-def _collect_mode(functional_root: Path, mode: str) -> dict[str, Any]:
-    sources = {name: _read_regular(path, f"{mode} {name}") for name, path in _mode_sources(functional_root, mode).items()}
+def _collect_mode(functional_root: Path, mode: str, scope: str = "full") -> dict[str, Any]:
+    paths = _mode_sources(functional_root, mode)
+    if scope == "selected-phase4":
+        for name in ("phase4_before_usr1_jsonl", "lifecycle", "allow_status"):
+            paths.pop(name)
+    sources = {name: _read_regular(path, f"{mode} {name}") for name, path in paths.items()}
     phase4_records = _parse_phase4_jsonl(sources["phase4_jsonl"], mode)
-    phase4_records += _parse_phase4_jsonl(sources["phase4_before_usr1_jsonl"], mode)
+    if scope == "full":
+        phase4_records += _parse_phase4_jsonl(sources["phase4_before_usr1_jsonl"], mode)
     if QUERY_CANARY not in sources["raw_waf_access"]:
         raise EvidenceError(f"{mode} raw WAF path did not observe the query canary")
     callback_observed = PHASE4_RULE_ID.encode("ascii") in sources["callback_error"]
@@ -276,12 +281,14 @@ def _collect_mode(functional_root: Path, mode: str) -> dict[str, Any]:
         raise EvidenceError(f"{mode} callback behavior is invalid")
     if not _nginx_version_matches(sources["nginx_version"]):
         raise EvidenceError(f"{mode} did not use NGINX {EXPECTED_NGINX_VERSION}")
-    if sources["allow_status"].strip() != b"200":
-        raise EvidenceError(f"{mode} allow control did not retain status 200")
-    lifecycle = {name: marker in sources["lifecycle"] for name, marker in LIFECYCLE_MARKERS.items()}
-    if not all(lifecycle.values()):
-        raise EvidenceError(f"{mode} lifecycle facts are incomplete")
-    return {
+    lifecycle: dict[str, bool] = {}
+    if scope == "full":
+        if sources["allow_status"].strip() != b"200":
+            raise EvidenceError(f"{mode} allow control did not retain status 200")
+        lifecycle = {name: marker in sources["lifecycle"] for name, marker in LIFECYCLE_MARKERS.items()}
+        if not all(lifecycle.values()):
+            raise EvidenceError(f"{mode} lifecycle facts are incomplete")
+    observed = {
         "callback_marker_expected": callback_expected,
         "callback_marker_observed": callback_observed,
         "phase4_jsonl_valid": True,
@@ -293,10 +300,11 @@ def _collect_mode(functional_root: Path, mode: str) -> dict[str, Any]:
         "transaction_id_present": True,
         "integrity_fields_valid": True,
         "raw_waf_uri_observed": True,
-        "allow_control_status": 200,
-        "lifecycle": lifecycle,
         "source_sha256": {name: hashlib.sha256(value).hexdigest() for name, value in sources.items()},
     }
+    if scope == "full":
+        observed.update({"allow_control_status": 200, "lifecycle": lifecycle})
+    return observed
 
 
 def _resolve_exact_head(connector_root: Path) -> str:
@@ -317,7 +325,10 @@ def collect_evidence(
     functional_root: Path,
     parent_sha: str,
     nginx_archive_sha256: str,
+    scope: str = "full",
 ) -> dict[str, Any]:
+    if scope not in {"full", "selected-phase4"}:
+        raise EvidenceError("unknown Functional-A selection scope")
     if COMMIT_SHA.fullmatch(parent_sha) is None:
         raise EvidenceError("parent SHA is not an exact lowercase commit SHA")
     if SHA256.fullmatch(nginx_archive_sha256) is None:
@@ -343,17 +354,21 @@ def collect_evidence(
             )
             if observed != identity:
                 raise EvidenceError("Functional-A artifact identities are inconsistent")
-    return {
+    document = {
         "schema_version": 1,
-        "record_type": "nginx_functional_a_exact_head_evidence",
+        "record_type": "nginx_functional_a_exact_head_evidence" if scope == "full" else "nginx_selected_phase4_exact_head_evidence",
         "status": "PASS",
         "parent_sha": parent_sha,
         "nginx_version": EXPECTED_NGINX_VERSION,
         "nginx_archive_sha256": nginx_archive_sha256,
         "artifact_identity_sha256": hashlib.sha256(identity).hexdigest(),
         "artifact_identity": artifact_identity,
-        "modes": {mode: _collect_mode(functional_root, mode) for mode in ("on", "off")},
+        "modes": {mode: _collect_mode(functional_root, mode, scope) for mode in ("on", "off")},
     }
+    if scope == "selected-phase4":
+        document["scope"] = scope
+        document["active_case_ids"] = ["runtime.nginx.phase4-callback.on", "runtime.nginx.phase4-callback.off"]
+    return document
 
 
 def _open_evidence_root(root: Path, owner_uid: int, owner_gid: int) -> int:
@@ -450,6 +465,7 @@ def main() -> int:
     parser.add_argument("--owner-gid", required=True)
     parser.add_argument("--parent-sha", required=True)
     parser.add_argument("--nginx-archive-sha256", required=True)
+    parser.add_argument("--scope", choices=("full", "selected-phase4"), default="full")
     args = parser.parse_args()
     try:
         owner_uid = _parse_nonnegative(args.owner_uid, "evidence owner UID")
@@ -459,6 +475,7 @@ def main() -> int:
             args.functional_root,
             args.parent_sha,
             args.nginx_archive_sha256,
+            args.scope,
         )
         publish_one_shot(args.evidence_root, owner_uid, owner_gid, document)
     except (EvidenceError, OSError, subprocess.SubprocessError) as error:

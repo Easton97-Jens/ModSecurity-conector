@@ -45,7 +45,9 @@ typedef struct msconnector_runtime_response_companion_entry {
     int occupied;
     int in_use;
     int transport_claimed;
+    int trusted_preclaim_refreshed;
     uint64_t expires_at_ms;
+    uint64_t preclaim_deadline_ms;
     uint64_t ttl_ms;
     msconnector_runtime_transaction *transaction;
     msconnector_transaction_contract correlation;
@@ -73,7 +75,13 @@ typedef struct msconnector_runtime_response_companion_session {
 /*
  * Body chunks are borrowed from the host.  The runtime never retains a chunk
  * pointer after append_*_body_chunk() returns.  Counters describe metadata
- * only and are safe to place in events or result records.
+ * only and are safe to place in events or result records. For requests,
+ * bytes_retained is the SDK-owned prefix and does not prove evaluation.
+ * bytes_inspected remains zero (unknown/unproven): the C API cannot establish
+ * whether retained bytes were inspected, even after successful P2/EOS.
+ * Zero is not proof that inspection was disabled. For responses,
+ * bytes_inspected means bytes offered to the native engine; it does not expose
+ * the engine-owned ProcessPartial inspection prefix.
  */
 typedef struct msconnector_runtime_body_progress {
     size_t bytes_seen;
@@ -81,6 +89,8 @@ typedef struct msconnector_runtime_body_progress {
     int truncated;
     int finished;
     msconnector_body_limit_outcome limit_outcome;
+    /* Appended to preserve the offsets of existing progress fields. */
+    size_t bytes_retained;
 } msconnector_runtime_body_progress;
 
 /* A bounded, payload-free copy of the Common-owned transaction state. */
@@ -147,10 +157,6 @@ void msconnector_runtime_response_contract(
     const msconnector_runtime *runtime,
     msconnector_response_mapper_contract *contract);
 
-size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime);
-size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime);
-msconnector_body_limit_action msconnector_runtime_body_limit_action(
-    const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_request_body_mode(
     const msconnector_runtime *runtime);
 msconnector_body_mode msconnector_runtime_response_body_mode(
@@ -182,6 +188,33 @@ int msconnector_runtime_error_http_status(
     const msconnector_runtime *runtime,
     msconnector_error_code code);
 
+#define MSCONNECTOR_RUNTIME_PROVENANCE_TEXT_SIZE 129U
+
+/* Trusted adapter metadata only: never map HTTP headers into this structure.
+ * All three identifiers are nonempty ASCII tokens of at most 128 bytes.
+ * The runtime deep-copies them before any native P1 callback. Reuse is true
+ * only when the host independently knows this is the same live connection;
+ * a tuple-derived correlation token alone cannot establish reuse. */
+typedef struct msconnector_runtime_trusted_provenance {
+    const char *run_id;
+    const char *transport_case_id;
+    const char *connection_id;
+    int connection_reused;
+} msconnector_runtime_trusted_provenance;
+
+int msconnector_runtime_transaction_begin_with_trusted_provenance(
+    msconnector_runtime *runtime, const msconnector_request *request,
+    const char *host_request_id,
+    const msconnector_runtime_trusted_provenance *provenance,
+    msconnector_runtime_transaction **out, msconnector_decision *decision,
+    msconnector_error *error);
+int msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+    msconnector_runtime *runtime, const msconnector_request *request,
+    const char *host_request_id,
+    const msconnector_runtime_trusted_provenance *provenance,
+    msconnector_runtime_transaction **out, msconnector_decision *decision,
+    msconnector_error *error);
+
 int msconnector_runtime_transaction_begin(
     msconnector_runtime *runtime,
     const msconnector_request *request,
@@ -190,12 +223,9 @@ int msconnector_runtime_transaction_begin(
     msconnector_decision *decision,
     msconnector_error *error);
 
-/* Begin P1 with no borrowed body. Only BUFFERED mode with body.data == NULL
- * and body.size == 0 is accepted. A nonterminal transaction requires explicit
- * append_request_body_chunk / finish_request_body calls before response
- * processing or companion handoff. The ordinary begin API continues to
- * process the complete buffered entity, including an empty entity. */
-int msconnector_runtime_transaction_begin_request_headers(
+/* Begin P1 and defer P2 EOS for this transaction, including buffered mode.
+ * No body pointer is retained; none mode keeps its existing disabled semantics. */
+int msconnector_runtime_transaction_begin_request_stream(
     msconnector_runtime *runtime,
     const msconnector_request *request,
     const char *host_request_id,
@@ -249,8 +279,8 @@ int msconnector_runtime_transaction_finish_unobserved_response_body(
     msconnector_error *error);
 
 /*
- * Close a streaming or header-only buffered transaction after the host has
- * rejected its incomplete request body before EOS. This records the logging phase exactly
+ * Close a native streaming or deferred-EOS transaction after the host has rejected its
+ * incomplete request body before EOS. This records the logging phase exactly
  * once, but never processes or finalizes the request body, marks request-body
  * EOS, or produces a Phase-2 decision. It is only for a terminal host-side
  * rejection, not an alternative to the normal EOS-enforcing finish path.
@@ -356,6 +386,12 @@ int msconnector_runtime_response_companion_revoke_handle(
     msconnector_runtime_response_companion_registry *registry,
     const char *handle,
     msconnector_error *error);
+/* Trusted in-process confirmation only: once, before initial preclaim expiry,
+ * extend an unused capability to its original configured handoff deadline.
+ * Does not claim/lease it or change ordinary transport preclaim limits. */
+int msconnector_runtime_response_companion_confirm_preclaim(
+    msconnector_runtime_response_companion_registry *registry,
+    const char *handle, msconnector_error *error);
 /* Claims an opaque transport capability exactly once. A claimed session owns
  * the registry lease until release/cancel/expiry; no transaction or host ID
  * crosses this boundary. */

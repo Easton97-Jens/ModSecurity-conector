@@ -329,8 +329,7 @@ FRAMEWORK_GUARD_RUNTIME_ROOT_ENV_KEYS = (
     "MRTS_NATIVE_ROOT",
 )
 APR_UTIL_VERSION_RE = re.compile(r"\d+(?:\.\d+)+", re.ASCII)
-LOWERCASE_SHA256_RE = re.compile(r"[0-9a-f]{64}")
-APR_UTIL_SHA256_RE = LOWERCASE_SHA256_RE
+APR_UTIL_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 SHELL_QUOTED_ENV_RE = re.compile(r"([A-Z_][A-Z0-9_]*)='([^']*)'")
 GIT_STATUS_SHORT_ARGS = (
     "status",
@@ -2831,7 +2830,7 @@ def download_archive_if_needed(
         expected_sha=expected_sha,
         verify_digest_before_archive_list=verify_digest_before_archive_list,
     ):
-        return None
+        return
     if path.exists():
         remove_archive_path(path, cache_root)
     if cache_root is not None:
@@ -2947,11 +2946,6 @@ def prepare_archive_unlocked(
         verify_digest_before_archive_list=verify_digest_before_archive_list,
         allow_httpd_source_recovery=allow_httpd_source_recovery,
     )
-    if name == "httpd":
-        record.update(
-            download_url=acquired_url or "",
-            download_status="downloaded" if acquired_url is not None else "cached",
-        )
     if acquired_url is not None:
         record["download_url"] = acquired_url
         if acquired_url != url:
@@ -11255,6 +11249,35 @@ def runtime_component_payload(
     return payload, build_cache
 
 
+def configured_component_file_approvals(configured: dict[str, Any]) -> list[str]:
+    """Approve explicit invocation leaves, never paths selected by a manifest."""
+    overrides = [configured.get(key) for key in (
+        "APACHE_HTTPD", "APACHE", "APXS", "APXS_BIN", "APACHE_MODULE",
+        "NGINX_BINARY", "NGINX_MODULE", "MRTS_NATIVE_NGINX_BIN",
+        "MRTS_NATIVE_NGINX_MODULE_FILE", "HAPROXY_BIN", "HAPROXY_SPOA_BIN",
+        "MODSECURITY_LIB_FILE", "GO_FTW_BIN", "ALBEDO_BIN",
+    )]
+    for key, leaf in (
+        ("MRTS_NATIVE_NGINX_MODULE_DIR", NGINX_MODULE_FILENAME),
+        ("MODSECURITY_LIB_DIR", MODSECURITY_LIBRARY_FILENAME),
+        ("APACHE_MRTS_MODSECURITY_LIB_DIR", MODSECURITY_LIBRARY_FILENAME),
+        ("NGINX_MRTS_MODSECURITY_LIB_DIR", MODSECURITY_LIBRARY_FILENAME),
+    ):
+        if configured.get(key):
+            overrides.append(str(Path(configured[key]) / leaf))
+    approved = set()
+    for value in overrides:
+        if not value:
+            continue
+        try:
+            candidate = Path(value).resolve(strict=True)
+        except OSError:
+            continue
+        if candidate.is_file():
+            approved.add(str(candidate))
+    return sorted(approved)
+
+
 def write_runtime_component_reports(
     context: dict[str, Any],
     payload: dict[str, Any],
@@ -11297,7 +11320,14 @@ def write_runtime_component_reports(
     build_md.write_text(generated_markdown_text(runtime_build_cache_markdown(build_cache), build_metadata_payload), encoding="utf-8")
     postprocess = connector_root / "ci/evidence/reports/update-runtime-reports.py"
     if postprocess.is_file():
-        run([sys.executable, str(postprocess), "--connector-root", str(connector_root), "--output-root", str(context["output_root"])])
+        command = [sys.executable, str(postprocess), "--connector-root", str(connector_root),
+                   "--output-root", str(context["output_root"]), "--cache-root", str(cache_root)]
+        if context.get("build_root"):
+            command.extend(("--build-root", str(context["build_root"])))
+        # Approvals come only from invocation configuration, never the manifest.
+        for candidate in configured_component_file_approvals(context.get("env", {})):
+            command.extend(("--approved-component-file", candidate))
+        run(command)
     return component_md
 
 

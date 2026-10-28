@@ -140,11 +140,13 @@ owned_child_start_token() {
     child_pid=$1
     case "$child_pid" in
         ''|*[!0-9]*) return 1 ;;
+        *) ;;
     esac
     [ -r "/proc/$child_pid/stat" ] || return 1
     child_token=$(awk '{ print $22 }' "/proc/$child_pid/stat") || return 1
     case "$child_token" in
         ''|*[!0-9]*) return 1 ;;
+        *) ;;
     esac
     printf '%s\n' "$child_token"
 }
@@ -197,6 +199,7 @@ stop_child() {
                 "$child_label" "$child_pid" >&2
             return 1
             ;;
+        *) ;;
     esac
     if kill -0 "$child_pid" 2>/dev/null; then
         if ! owned_child_is_current "$child_pid" "$child_token"; then
@@ -204,33 +207,30 @@ stop_child() {
                 "$child_label" "$child_pid" >&2
             return 1
         fi
-        if ! kill -TERM "$child_pid" 2>/dev/null; then
-            if kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
-                printf 'lighttpd_patched_full_lifecycle: owned %s PID %s did not accept SIGTERM\n' \
-                    "$child_label" "$child_pid" >&2
-                return 1
-            fi
+        if ! kill -TERM "$child_pid" 2>/dev/null && \
+            kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
+            printf 'lighttpd_patched_full_lifecycle: owned %s PID %s did not accept SIGTERM\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
         fi
     fi
-    if ! wait_for_owned_child_stop "$child_pid" "$child_token" "$child_label"; then
-        if kill -0 "$child_pid" 2>/dev/null; then
-            if ! owned_child_is_current "$child_pid" "$child_token"; then
-                printf 'lighttpd_patched_full_lifecycle: refusing to signal a changed %s PID %s\n' \
-                    "$child_label" "$child_pid" >&2
-                return 1
-            fi
-            if ! kill -KILL "$child_pid" 2>/dev/null; then
-                if kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
-                    printf 'lighttpd_patched_full_lifecycle: owned %s PID %s did not accept SIGKILL\n' \
-                        "$child_label" "$child_pid" >&2
-                    return 1
-                fi
-            fi
-            if ! wait_for_owned_child_stop "$child_pid" "$child_token" "$child_label"; then
-                printf 'lighttpd_patched_full_lifecycle: owned %s PID %s did not stop within the bounded timeout\n' \
-                    "$child_label" "$child_pid" >&2
-                return 1
-            fi
+    if ! wait_for_owned_child_stop "$child_pid" "$child_token" "$child_label" && \
+        kill -0 "$child_pid" 2>/dev/null; then
+        if ! owned_child_is_current "$child_pid" "$child_token"; then
+            printf 'lighttpd_patched_full_lifecycle: refusing to signal a changed %s PID %s\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
+        fi
+        if ! kill -KILL "$child_pid" 2>/dev/null && \
+            kill -0 "$child_pid" 2>/dev/null && ! owned_child_is_zombie "$child_pid"; then
+            printf 'lighttpd_patched_full_lifecycle: owned %s PID %s did not accept SIGKILL\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
+        fi
+        if ! wait_for_owned_child_stop "$child_pid" "$child_token" "$child_label"; then
+            printf 'lighttpd_patched_full_lifecycle: owned %s PID %s did not stop within the bounded timeout\n' \
+                "$child_label" "$child_pid" >&2
+            return 1
         fi
     fi
     child_status=0
@@ -320,15 +320,13 @@ cleanup() {
         FIXTURE_BASENAME=
         FIXTURE_IDENTITY=
     fi
-    if [ "$MSCONNECTOR_CRS_RUNTIME" = 1 ]; then
-        if [ -n "$cleanup_server_pid" ] || [ -n "$cleanup_upstream_pid" ] || \
-            [ -n "$CRS_UPSTREAM_READY" ]; then
-            if ! verify_crs_cleanup \
-                "$cleanup_server_pid" "$cleanup_server_token" \
-                "$cleanup_upstream_pid" "$cleanup_upstream_token"; then
-                cleanup_failed=1
-            fi
-        fi
+    if [ "$MSCONNECTOR_CRS_RUNTIME" = 1 ] && \
+        { [ -n "$cleanup_server_pid" ] || [ -n "$cleanup_upstream_pid" ] || \
+            [ -n "$CRS_UPSTREAM_READY" ]; } && \
+        ! verify_crs_cleanup \
+            "$cleanup_server_pid" "$cleanup_server_token" \
+            "$cleanup_upstream_pid" "$cleanup_upstream_token"; then
+        cleanup_failed=1
     fi
     if [ "$cleanup_failed" -ne 0 ]; then
         printf 'lighttpd_patched_full_lifecycle: owned process cleanup did not complete cleanly\n' >&2
@@ -354,6 +352,7 @@ verify_released_listener() {
                 "$listener_label" "$listener_port" >&2
             return 1
             ;;
+        *) ;;
     esac
     if [ "$listener_port" -lt 1 ] || [ "$listener_port" -gt 65535 ]; then
         printf 'lighttpd_patched_full_lifecycle: invalid %s port: %s\n' \
@@ -583,6 +582,7 @@ EOF
     esac
     case "$fixture_name" in
         *[!A-Za-z0-9._-]*) blocked "No-CRS fixture helper returned an unsafe directory name" ;;
+        *) ;;
     esac
     case "$fixture_identity" in
         *:*) ;;
@@ -592,9 +592,11 @@ EOF
     fixture_inode=${fixture_identity#*:}
     case "$fixture_device" in
         ''|*[!0-9]*) blocked "No-CRS fixture helper returned an invalid device identity" ;;
+        *) ;;
     esac
     case "$fixture_inode" in
         ''|*[!0-9]*) blocked "No-CRS fixture helper returned an invalid inode identity" ;;
+        *) ;;
     esac
     [ -z "$fixture_extra" ] || \
         blocked "No-CRS fixture helper returned an ambiguous identity record"
@@ -652,8 +654,8 @@ BARRIER_PORT=$(ready_port "$FIRST_BYTE_DIR/upstream-ready.json") || \
     blocked "synchronized upstream ready record has no valid port"
 
 else
-    "$PYTHON_BIN" - "$CRS_UPSTREAM_READY" <<'PY' \
-        >"$SMOKE_DIR/crs-upstream.stdout" 2>"$SMOKE_DIR/crs-upstream.stderr" &
+    (
+        exec "$PYTHON_BIN" - "$CRS_UPSTREAM_READY" <<'PY'
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -691,6 +693,7 @@ finally:
         pass
 server.serve_forever()
 PY
+    ) >"$SMOKE_DIR/crs-upstream.stdout" 2>"$SMOKE_DIR/crs-upstream.stderr" &
     CRS_UPSTREAM_PID=$!
     CRS_UPSTREAM_PID_TOKEN=$(owned_child_start_token "$CRS_UPSTREAM_PID") || \
         blocked "CRS control upstream did not start as a verifiable owned process"

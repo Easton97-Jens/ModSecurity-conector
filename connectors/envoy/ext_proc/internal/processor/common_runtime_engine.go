@@ -65,29 +65,6 @@ type CommonRuntimeEngine struct {
 // connector-local runtime configuration. The C ABI rejects non-streaming body
 // modes so this bridge cannot silently degrade into a buffering path.
 func NewCommonRuntimeEngine(configPath string) (*CommonRuntimeEngine, error) {
-	return newCommonRuntimeEngine(configPath, 0)
-}
-
-// CompositeMode selects one reviewed authorization/response-companion route.
-// Its zero value and all other values are invalid; callers cannot supply
-// arbitrary connector, integration or transaction-profile strings.
-type CompositeMode int
-
-const (
-	CompositeModeEnvoy CompositeMode = iota + 1
-	CompositeModeTraefik
-)
-
-// NewCompositeRuntimeEngine creates the selected composite runtime, requiring
-// buffered request admission and a streaming response companion.
-func NewCompositeRuntimeEngine(configPath string, mode CompositeMode) (*CommonRuntimeEngine, error) {
-	if mode != CompositeModeEnvoy && mode != CompositeModeTraefik {
-		return nil, fmt.Errorf("unsupported composite runtime mode %d", mode)
-	}
-	return newCommonRuntimeEngine(configPath, mode)
-}
-
-func newCommonRuntimeEngine(configPath string, mode CompositeMode) (*CommonRuntimeEngine, error) {
 	if strings.TrimSpace(configPath) == "" {
 		return nil, fmt.Errorf("Common runtime config path is required")
 	}
@@ -95,16 +72,7 @@ func newCommonRuntimeEngine(configPath string, mode CompositeMode) (*CommonRunti
 	defer C.free(unsafe.Pointer(cConfigPath))
 	var runtime *C.msc_envoy_ext_proc_runtime
 	var nativeError [commonRuntimeErrorBufferSize]C.char
-	var created C.int
-	switch mode {
-	case CompositeModeEnvoy:
-		created = C.msc_composite_runtime_create(cConfigPath, C.MSC_COMPOSITE_ENVOY, &runtime, &nativeError[0], C.size_t(len(nativeError)))
-	case CompositeModeTraefik:
-		created = C.msc_composite_runtime_create(cConfigPath, C.MSC_COMPOSITE_TRAEFIK, &runtime, &nativeError[0], C.size_t(len(nativeError)))
-	default:
-		created = C.msc_envoy_ext_proc_runtime_create(cConfigPath, &runtime, &nativeError[0], C.size_t(len(nativeError)))
-	}
-	if created == 0 {
+	if C.msc_envoy_ext_proc_runtime_create(cConfigPath, &runtime, &nativeError[0], C.size_t(len(nativeError))) != 1 {
 		return nil, fmt.Errorf("create Common runtime: %s", nativeErrorText(nativeError[:]))
 	}
 	if runtime == nil {
@@ -124,12 +92,6 @@ func newCommonRuntimeEngine(configPath string, mode CompositeMode) (*CommonRunti
 			C.msc_envoy_ext_proc_runtime_destroy(&nativeRuntime)
 		},
 	}, nil
-}
-
-func (engine *CommonRuntimeEngine) transactionProfileID() uint {
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	return uint(C.msc_envoy_ext_proc_runtime_profile_id(engine.runtime))
 }
 
 // ValidateLateActionPolicy rejects a service policy that would otherwise
@@ -201,14 +163,6 @@ func (engine *CommonRuntimeEngine) Close(ctx context.Context) error {
 	}
 	engine.destructorMu.Lock()
 	if engine.destroyDone == nil {
-		var nativeError [commonRuntimeErrorBufferSize]C.char
-		if C.msc_envoy_ext_proc_runtime_quiesce(engine.runtime, &nativeError[0], C.size_t(len(nativeError))) == 0 {
-			failure := fmt.Errorf("Common companion shutdown: %s", nativeErrorText(nativeError[:]))
-			engine.markTerminalFailure(failure)
-			engine.destructorMu.Unlock()
-			engine.mu.Unlock()
-			return failure
-		}
 		engine.destroyDone = make(chan struct{})
 		destroy := engine.destructor
 		done := engine.destroyDone
@@ -282,8 +236,6 @@ type commonRuntimeTransaction struct {
 	cleanupErr    error
 }
 
-func (*commonRuntimeTransaction) OwnsBodyLimitDecisions() {}
-
 func (transaction *commonRuntimeTransaction) ProcessHeaders(ctx context.Context, direction Direction, headers []Header, endOfStream bool) (Decision, error) {
 	ctx = commonRuntimeContext(ctx)
 	if err := ctx.Err(); err != nil {
@@ -319,7 +271,7 @@ func (transaction *commonRuntimeTransaction) processRequestHeadersLocked(headers
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_begin(transaction.engine.runtime,
 		request.value, cBoolean(endOfStream), &native, &nativeDecision,
-		&nativeError[0], C.size_t(len(nativeError))) == 0 {
+		&nativeError[0], C.size_t(len(nativeError))) != 1 {
 		return Decision{}, fmt.Errorf("Common request headers: %s", nativeErrorText(nativeError[:]))
 	}
 	if native == nil {
@@ -344,7 +296,7 @@ func (transaction *commonRuntimeTransaction) processResponseHeadersLocked(direct
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_process_response_headers(transaction.native,
 		response.value, cBoolean(endOfStream), &nativeDecision,
-		&nativeError[0], C.size_t(len(nativeError))) == 0 {
+		&nativeError[0], C.size_t(len(nativeError))) != 1 {
 		return Decision{}, fmt.Errorf("Common response headers: %s", nativeErrorText(nativeError[:]))
 	}
 	transaction.updateTransactionIDLocked()
@@ -387,7 +339,7 @@ func (transaction *commonRuntimeTransaction) ProcessBody(ctx context.Context, di
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_process_body(transaction.native, &nativeRequest,
 		&nativeDecision, &nativeError[0],
-		C.size_t(len(nativeError))) == 0 {
+		C.size_t(len(nativeError))) != 1 {
 		return Decision{}, fmt.Errorf("Common %s body: %s", direction, nativeErrorText(nativeError[:]))
 	}
 	transaction.updateTransactionIDLocked()
@@ -416,9 +368,9 @@ func (transaction *commonRuntimeTransaction) MarkResponseCommitted(ctx context.C
 		return fmt.Errorf("Common response commit before request headers")
 	}
 	var nativeError [commonRuntimeErrorBufferSize]C.char
-	if C.msc_envoy_ext_proc_transaction_mark_response_committed(transaction.native, 0,
-		&nativeError[0], C.size_t(len(nativeError))) == 0 {
-		return fmt.Errorf("Common response commit: %s", nativeErrorText(nativeError[:]))
+	if C.msc_envoy_ext_proc_transaction_mark_response_committed_checked(transaction.native,
+		0, &nativeError[0], C.size_t(len(nativeError))) != 1 {
+		return fmt.Errorf("Common response commitment: %s", nativeErrorText(nativeError[:]))
 	}
 	return nil
 }
@@ -467,7 +419,7 @@ func (transaction *commonRuntimeTransaction) RecordHostAction(ctx context.Contex
 	var nativeError [commonRuntimeErrorBufferSize]C.char
 	if C.msc_envoy_ext_proc_transaction_record_host_action(transaction.native,
 		nativeAction, C.int(action.VisibleStatus), cTransportResult, &nativeError[0],
-		C.size_t(len(nativeError))) == 0 {
+		C.size_t(len(nativeError))) != 1 {
 		return fmt.Errorf("Common host action: %s", nativeErrorText(nativeError[:]))
 	}
 	return nil
@@ -496,21 +448,24 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, summary 
 		return
 	}
 	if transaction.native != nil && !transaction.engine.closed {
-		var rejected C.int
-		if summary.CloseReason == CloseImmediateResponse || summary.CloseReason == CloseReason("request_block") {
-			rejected = 1
-		}
-		result := C.msc_envoy_ext_proc_transaction_close(transaction.native, rejected)
-		if result != C.MSC_COMMON_CLOSE_OK {
-			if result == C.MSC_COMMON_CLOSE_CONSUMED_ERROR {
-				transaction.native = nil
-				transaction.closed = true
-				delete(transaction.engine.transactions, transaction)
+		var nativeError [commonRuntimeErrorBufferSize]C.char
+		// Only observed composite expiry/restart supplies a typed terminal
+		// cause. Ordinary incomplete stream closes retain the native EOS gate.
+		if cause := commonRuntimeObservedCloseCause(summary.CloseReason); cause != C.MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED {
+			if C.msc_envoy_ext_proc_transaction_observed_close(transaction.native, cause,
+				&nativeError[0], C.size_t(len(nativeError))) != 1 {
+				transaction.setCleanupFailure(fmt.Errorf("Common runtime %s: %s", summary.CloseReason, nativeErrorText(nativeError[:])))
 			}
-			failure := fmt.Errorf("Common transaction cleanup failed (native result %d)", result)
-			transaction.setCleanupFailure(failure)
-			transaction.engine.markTerminalFailure(failure)
-			return
+		}
+		var finishCode C.int
+		closed := C.msc_envoy_ext_proc_transaction_close_checked(transaction.native,
+			&nativeError[0], C.size_t(len(nativeError)), &finishCode)
+		if finishCode == C.MSCONNECTOR_ERROR_PHASE_SEQUENCE {
+			transaction.setCleanupFailure(fmt.Errorf("%w: %s", ErrTransactionFinishPhaseSequence, nativeErrorText(nativeError[:])))
+		} else if finishCode != C.MSCONNECTOR_ERROR_NONE {
+			transaction.setCleanupFailure(fmt.Errorf("Common runtime finish: %s", nativeErrorText(nativeError[:])))
+		} else if closed != 1 {
+			transaction.setCleanupFailure(fmt.Errorf("Common runtime close: %s", nativeErrorText(nativeError[:])))
 		}
 		transaction.native = nil
 	}
@@ -518,35 +473,23 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, summary 
 	delete(transaction.engine.transactions, transaction)
 }
 
-// ClaimResponseCompanion extends the private native lifetime only after the
-// coordinator has authenticated and admitted its own one-shot response lease.
-func (transaction *commonRuntimeTransaction) ClaimResponseCompanion(ctx context.Context) error {
-	ctx = commonRuntimeContext(ctx)
-	if transaction == nil || transaction.engine == nil {
-		return fmt.Errorf("Common transaction is nil")
+func commonRuntimeObservedCloseCause(reason CloseReason) C.msc_envoy_ext_proc_observed_close_cause {
+	switch reason {
+	case CloseReason("timeout"):
+		return C.MSC_ENVOY_EXT_PROC_CLOSE_TIMEOUT
+	case CloseReason("restart"):
+		return C.MSC_ENVOY_EXT_PROC_CLOSE_RESTART
+	default:
+		return C.MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED
 	}
-	if err := lockCommonRuntimeMutex(ctx, &transaction.engine.mu); err != nil {
-		return err
-	}
-	defer transaction.engine.mu.Unlock()
-	if err := transaction.assertUsableLocked(); err != nil {
-		return err
-	}
-	if transaction.native == nil {
-		return fmt.Errorf("Common response companion before request headers")
-	}
-	var nativeError [commonRuntimeErrorBufferSize]C.char
-	if C.msc_envoy_ext_proc_transaction_claim_response_companion(transaction.native,
-		&nativeError[0], C.size_t(len(nativeError))) == 0 {
-		return fmt.Errorf("Common response companion claim: %s", nativeErrorText(nativeError[:]))
-	}
-	return nil
 }
 
 func (transaction *commonRuntimeTransaction) setCleanupFailure(err error) {
 	transaction.cleanupMu.Lock()
 	defer transaction.cleanupMu.Unlock()
-	transaction.cleanupErr = err
+	if transaction.cleanupErr == nil {
+		transaction.cleanupErr = err
+	}
 }
 
 // markTerminalFailure prevents new native work as soon as a transaction cannot
@@ -636,9 +579,6 @@ func (transaction *commonRuntimeTransaction) assertUsableLocked() error {
 	}
 	if transaction.engine.closing.Load() {
 		return fmt.Errorf("Common runtime engine is shutting down")
-	}
-	if err := transaction.engine.terminalFailure(); err != nil {
-		return fmt.Errorf("Common runtime engine stopped after cleanup failure: %w", err)
 	}
 	return nil
 }

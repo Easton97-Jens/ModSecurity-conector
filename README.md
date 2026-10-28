@@ -75,17 +75,27 @@ Run the local structural/documentation check:
 make quick-check
 ~~~
 
-This validates repository-oriented checks; it does not run every connector
-host or create full-lifecycle evidence.
+This validates static repository checks and admitted functional subsets from
+[config/testing/active-cases.json](config/testing/active-cases.json). This single
+inventory enforces a 100-case core ceiling and separately counts the user-authorized offline Python exception: currently 893 cases / 499 executions in total (100 core + 793 guarded offline cases). The exception adds no connector E2E cases.
+<code>make check-active-inventory</code> admits the complete selection without
+starting tests; <code>make test</code> runs it with its actual prerequisites.
+Standard aliases do not prove complete profiles or sibling routes. NGINX host
+checks use the protected exact-head path; an unknown/empty active group remains
+an error.
+
+The retained full-lifecycle campaign below is specialist work requiring explicit
+<code>ON_DEMAND_TESTS=1</code> and a current additional request. The flag is not an
+automatic test default and does not authorize a new I12 campaign.
 
 ## Build and test overview
 
 | Goal | Start with | Important boundary |
 |---|---|---|
 | Build one selected route | <code>make build-nginx</code> | Build success is not runtime evidence |
-| Check selected configuration | <code>make check-config-nginx</code> | Config loading is not traffic execution |
-| Run a focused smoke | <code>make runtime-smoke-nginx</code> where provided | A smoke is not full-lifecycle promotion |
-| Create a selected aggregate candidate run | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-all-connectors</code> | The run ID is an example safe token, not an outcome claim |
+| Check selected configuration | <code>make check-config-apache</code> | Config loading is not traffic execution |
+| Run a focused smoke | <code>make runtime-smoke-apache</code> where provided | A smoke is not full-lifecycle promotion |
+| Create a selected aggregate candidate run | <code>ON_DEMAND_TESTS=1 NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-all-connectors</code> | The run ID is an example safe token, not an outcome claim |
 | Validate finalized evidence | <code>NO_CRS_RUN_ID="six-core-20260712T120000Z" make check-six-connector-core-completion</code> | Read-only gate; exit <code>0</code> is limited to that gate |
 
 The exact inputs, outputs, target meanings, status values, exit codes, and
@@ -93,6 +103,12 @@ placeholders are documented in [Build](docs/build/README.md) and
 [Testing and evidence](docs/testing-and-evidence.md).
 
 ## Evidence boundary
+
+Configuration migration: `modsecurity_phase4_body_limit` is removed, including
+Apache, NGINX and Common. Remove it from existing host configurations; use
+engine `SecResponseBodyLimit` / `SecResponseBodyLimitAction` for WAF policy.
+Independent host resource guards remain active. See the
+[response-limit ownership contract](docs/phase4-mode-budget.md).
 
 Evidence is stored under an externally located runtime/evidence tree, normally
 <code>EVIDENCE_ROOT/connector/run-id</code>. The names <code>connector</code>

@@ -29,12 +29,14 @@ beschreibbare Pfade außerhalb des Checkouts.
 ## Variablen setzen
 
 Setzen Sie eine Make-Variable für einen Aufruf oder exportieren Sie sie für
-eine Shell-Sitzung. Das erste Beispiel erstellt einen flüchtigen
-Runtime-Elternpfad; das zweite identifiziert einen kanonischen Evidence-Lauf.
+eine Shell-Sitzung. Das erste Beispiel wählt einen flüchtigen Runtime-
+Elternpfad. Das zweite erhält ein Full-Lifecycle-Beispiel auf Abruf: nur für
+eine separat autorisierte Spezialprüfung nutzen, nicht für normale automatische
+Validierung.
 
 ~~~sh
 make quick-check VERIFIED_RUN_PARENT="/srv/modsecurity-work"
-NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-all-connectors
+ON_DEMAND_TESTS=1 NO_CRS_RUN_ID="six-core-20260712T120000Z" make full-lifecycle-all-connectors
 ~~~
 
 <code>/srv/modsecurity-work</code> ist ein absoluter, beschreibbarer
@@ -89,6 +91,7 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | Variable | Bereich | Pflicht | Default | Format | Kurzbeschreibung |
 |---|---|---:|---|---|---|
 | <code>PYTHON</code> | Toolchain | nein | <code>.venv/bin/python</code>, falls vorhanden, sonst <code>python3</code> | Executable oder Executable-Pfad | Python für Repository-Skripte |
+| <code>ON_DEMAND_TESTS</code> | Auswahl von Spezialtests | nur für eine ausdrücklich beauftragte zusätzliche Prüfung | <code>0</code> | nur literal <code>1</code> aktiviert das Opt-in | Wählt erhaltene breitere Suiten, soweit unterstützt; ungesetzte/Default-Befehle nutzen ausschließlich <code>config/testing/active-cases.json</code> mit höchstens 100 expandierten Fällen. Nie global oder für normale CI/Zeitpläne setzen; erteilt keine I12-, Privilegien-, repository-übergreifende oder Auslieferungsbefugnis. |
 | <code>MSCONNECTOR_C_STD</code>, <code>MSCONNECTOR_CFLAGS</code>, <code>MSCONNECTOR_COMPILER_ID</code> | Compiler | nein | <code>c17</code>; Warnings-as-Errors-Flags; Compiler-Basisname | C-Standard, Flags, Executable-Name | Steuert die Kompilierung der Common-Helper |
 | <code>COMPDB_OUTPUT</code> | lokale Diagnostik | für Compilation-Database-, clangd- und advisory Baseline-Targets erforderlich | none | absolute Compilation-Database-Datei außerhalb des Checkouts; die advisory Verwendung benötigt sie zusätzlich unterhalb des markierten <code>CODEX_TEMP_ROOT</code> | Atomar veröffentlichte Bear-Compilation-Database; Erfassungen führen nach Translation-Unit zusammen und überschreiben kein fehlgeschlagenes Target; die Baseline liest sie ohne Änderung |
 | <code>CPP_BUILD_ROOT</code>, <code>MODSECURITY_INCLUDE_DIR</code>, <code>MODSECURITY_LIB_DIR</code>, <code>MODSECURITY_LIB_FILE</code> | gezielte C++17-Diagnostik | erforderlich außer optionalem <code>MODSECURITY_LIB_FILE</code> | none | absoluter externer Build-Ordner; absolute lokale Header-/Library-Ordner; optionale absolute Library-Datei | Baut und erfasst nur den libmodsecurity-Evaluator; keine Component-Preparation und keine Evaluator-Ausführung |
@@ -126,7 +129,7 @@ verlassen; der Aufrufer oder ein Target muss den Wert liefern.
 | <code>BUILD_HTTPD_FROM_SOURCE</code>, <code>BUILD_PCRE2_FROM_SOURCE</code>, <code>BUILD_NGINX_FROM_SOURCE</code>, <code>NGINX_SOURCE_MODE</code>, <code>NGINX_SOURCE_REPO_URL</code>, <code>NGINX_SOURCE_GIT_REF</code>, <code>NGINX_GITHUB_REPO</code>, <code>NGINX_RELEASE_TAG</code>, <code>NGINX_RELEASE_ASSET_NAME</code>, <code>NGINX_SHA256</code>, <code>NGINX_REQUIRE_PINNED_PROVENANCE</code> | Host-Provisionierung | nein | Framework-weitergereicht; Full-Smoke liefert ein festes Tupel | Boolean, Mode, URL/Ref/Tag/Asset-Name/SHA-256 | Wählt Host-Source-Erwerb und Build-Policy; strikte Full-Smoke-Provenance erfordert das vollständige feste NGINX-Tupel |
 | <code>HTTPD_VERSION</code>, <code>HTTPD_SOURCE_URL</code>, <code>HTTPD_SHA256</code>, <code>HTTPD_SHA256_URL</code>, <code>APR_VERSION</code>, <code>APR_SOURCE_URL</code>, <code>APR_SHA256</code>, <code>APR_SHA256_URL</code>, <code>APR_UTIL_VERSION</code>, <code>APR_UTIL_SOURCE_URL</code>, <code>APR_UTIL_SHA256</code>, <code>APR_UTIL_SHA256_URL</code>, <code>PCRE2_VERSION</code>, <code>PCRE2_SOURCE_URL</code>, <code>PCRE2_SHA256</code>, <code>PCRE2_SHA256_URL</code> | Apache-Provisionierung | nein | geschütztes Framework-Tupel; direkte Parent-Overrides werden abgewiesen; Parent besitzt keine APR-util-Version oder SHA-256 und erhält die Grenze zwischen fehlendem und leerem PCRE2-Digest | Version, URL, SHA-256 | Die Apache-Dependency-Provenance wird aus dem geschützten Framework-Tupel aufgelöst. Nur ein vollständiges kanonisches APR-util-Tupel darf intern zwischen Parent und Child weitergegeben werden, und nur nach einem unabhängigen Vergleich mit dem ausgecheckten Framework; partielle, leere, abweichende oder alternative Tupel schlagen fehlgeschlossen fehl. Parent dupliziert oder überschreibt die APR-util-Provenance nicht. Ein leerer oder fehlerhafter PCRE2-Digest schlägt fehlgeschlossen fehl und <code>PCRE2_SHA256_URL</code> ist kein Extraction-Fallback |
 | <code>HAPROXY_VERSION</code>, <code>HAPROXY_SOURCE_URL</code>, <code>HAPROXY_SHA256_URL</code>, <code>HAPROXY_SHA256</code>, <code>HAPROXY_SOURCE_ROOT</code>, <code>HAPROXY_DOWNLOAD_DIR</code>, <code>HAPROXY_SOURCE_DIR</code>, <code>HAPROXY_RUNTIME_BUILD_DIR</code>, <code>HAPROXY_RUNTIME_BUILD_WORKTREE</code>, <code>HAPROXY_RUNTIME_DIR</code>, <code>HAPROXY_BIN</code> | HAProxy-Provisionierung | nein | Framework/Provider-Pin | Version, URL, SHA-256, absolute Pfade | HAProxy-Source-, Build- und Host-Executable-Eingaben |
-| <code>EXPAT_SOURCE_URL</code>, <code>EXPAT_GIT_REF</code>, <code>EXPAT_GIT_URL</code>, <code>EXPAT_PROMPT_EXPECTED_LATEST</code> | Apache-Dependency | nein | vollständiger Framework-/Provider-Commit-Pin | URL/vollständiger unveränderlicher Git-Commit/URL/Legacy-Boolean | Die Expat-Runtimeauflösung verwendet immer <code>EXPAT_GIT_REF</code>, das exakt 40 oder 64 hexadezimale Zeichen enthalten muss. <code>EXPAT_PROMPT_EXPECTED_LATEST</code> bleibt nur für rückwärtskompatiblen Eingabetransport erhalten und wird von der Expat-Runtimeauflösung ignoriert. |
+| <code>EXPAT_SOURCE_URL</code>, <code>EXPAT_GIT_REF</code>, <code>EXPAT_GIT_URL</code>, <code>EXPAT_PROMPT_EXPECTED_LATEST</code> | Apache-Dependency | nein | Framework/Provider-Pin | URL/Ref/Boolean | Expat-Provenance und Prompt-Policy |
 | <code>GO_FTW_BIN</code>, <code>GO_FTW_SOURCE_URL</code>, <code>GO_FTW_PROMPT_EXPECTED_LATEST</code>, <code>GO_FTW_GIT_REF</code>, <code>ALBEDO_BIN</code>, <code>ALBEDO_SOURCE_URL</code>, <code>ALBEDO_PROMPT_EXPECTED_LATEST</code>, <code>ALBEDO_GIT_REF</code> | MRTS-Tools | nein | <code>go-ftw</code>, <code>albedo</code>; sonst Provider-Pins | Executable, URL, Ref, Boolean | Optionale Framework-/MRTS-Tool-Eingabe |
 | <code>MRTS_ROOT</code>, <code>MRTS_DEFINITIONS</code>, <code>MRTS_RULES_OUT</code>, <code>MRTS_FTW_OUT</code>, <code>MRTS_LOAD_FILE</code>, <code>MRTS_CASE_ROOT</code>, <code>MRTS_BUILD_ROOT</code>, <code>MRTS_NATIVE_ROOT</code> | MRTS | nein | Wo definiert: von Build-Root abgeleitet; sonst Framework-weitergereicht | absolute Dateien/Verzeichnisse | MRTS-Materialisierung und Native-Run-Orte |
 | <code>MRTS_NATIVE_TARGETS</code>, <code>MRTS_NATIVE_APACHE_PORT</code>, <code>MRTS_NATIVE_NGINX_BIN</code>, <code>MRTS_NATIVE_NGINX_MODULE_DIR</code>, <code>MRTS_NATIVE_NGINX_PORT</code>, <code>MRTS_NATIVE_BACKEND_PORT</code> | MRTS-native | nein | <code>apache2_ubuntu nginx-pr24</code>; Ports <code>19080</code>–<code>19082</code>, wo definiert | Target-Liste, Executable/Pfad, TCP-Ports | Steuert optionale native MRTS-Läufe |
@@ -220,7 +223,7 @@ Eigenschaften:
 | Default | „Framework-weitergereicht“ bedeutet, dass das Root-Makefile den Namen exportiert, aber keinen Root-Wert definiert. Der Framework-/Provider-Pin ist maßgeblich |
 | Gesetzt durch | Fortgeschrittener lokaler Aufrufer oder CI-Provisionierungs-Konfiguration |
 | Gültigkeitsbereich | Die relevante Component-Preparation-Invocation; Cache-Ausgabe ist an die effektive Eingabeidentität gebunden |
-| Beispiel | <code>HAPROXY_VERSION=&lt;framework-synchronisierte-Version&gt;</code>, <code>NGINX_SOURCE_MODE=github-release</code>, <code>CC=clang</code> |
+| Beispiel | <code>HAPROXY_VERSION=&lt;framework-synchronized-version&gt;</code>, <code>NGINX_SOURCE_MODE=github-release</code>, <code>CC=clang</code> |
 | Auswirkung | Kann einen Rebuild erzwingen, eine Source-Herkunft ändern oder ein anderes Executable wählen; upgraded niemals einen Capability-State oder ein Evidence-Ergebnis |
 | Sicherheit | HTTPS und verifizierte Checksums verwenden. Einen gepinnten Provenance-Wert in kanonischer CI nicht durch eine veränderliche oder nicht vertrauenswürdige Source ersetzen |
 
@@ -425,9 +428,9 @@ fail-closed BLOCKED-Voraussetzung.
 | <code>make build-<connector></code> | Führt eine Connector-Build-Stage aus | <code>&lt;connector&gt;</code> ist Apache, NGINX, HAProxy, Envoy, Traefik oder lighttpd | Connector-lokale Build-Ausgabe | Build-Erfolg ist kein Runtime- oder Evidence-Claim |
 | <code>make check-config-<connector></code> | Prüft das Laden der ausgewählten Konfiguration | Vorbereiteter Host und Connector | Config-Load-Diagnostik | Sendet keinen Runtime-Traffic |
 | <code>make runtime-smoke-<connector></code> | Führt einen fokussierten minimalen Runtime-Smoke aus, wo das Target existiert | Vorbereiteter Host, sichere Runtime-Pfade | Runtime-Smoke-Artefakte | Compatibility-Smoke ist keine Full-Lifecycle-Evidence |
-| <code>make no-crs-baseline-<connector></code> | Führt capability-ausgewählte No-CRS-Cases aus | Regeldatei, sichere Pfade | Kanonische Candidate-Evidence für einen Connector | Ergebnisstatus bleibt evidence- und capability-abhängig |
-| <code>make full-lifecycle-<connector></code> | Führt die ausgewählte Full-Lifecycle-Route eines Connectors aus | Generierte Profil-/Target-Identität plus normale No-CRS-Eingaben | Full-Lifecycle-Candidate-Artefakte | Nur passende Target-/Profil-Identität darf validiert werden |
-| <code>make full-lifecycle-all-connectors</code> | Führt die sechs ausgewählten Routen aus | Alle Komponenten-Voraussetzungen, <code>NO_CRS_RUN_ID</code> empfohlen | Ein Candidate-Run pro ausgewähltem Connector | Erhebt keine Production-, CRS-, HTTP/2-, HTTP/3- oder Strict-für-alle-Claims |
+| <code>make no-crs-baseline-<connector></code> | Führt nur zugelassene No-CRS-Fälle aus; zusätzliche erzeugte Auswahlen scheitern vor dem Host | Regeldatei, sichere Pfade | Kanonische Candidate-Evidence für einen Connector | Ergebnisstatus bleibt evidence- und capability-abhängig |
+| <code>ON_DEMAND_TESTS=1 make full-lifecycle-<connector></code> | Führt die ausgewählte Full-Lifecycle-Route eines Connectors aus | Generierte Profil-/Target-Identität plus normale No-CRS-Eingaben | Full-Lifecycle-Candidate-Artefakte | Nur passende Target-/Profil-Identität darf validiert werden |
+| <code>ON_DEMAND_TESTS=1 make full-lifecycle-all-connectors</code> | Führt die sechs ausgewählten Routen aus | Alle Komponenten-Voraussetzungen, <code>NO_CRS_RUN_ID</code> empfohlen | Ein Candidate-Run pro ausgewähltem Connector | Erhebt keine Production-, CRS-, HTTP/2-, HTTP/3- oder Strict-für-alle-Claims |
 | <code>make evidence-check-all-connectors</code> | Validiert kanonische Evidence eines Laufs | <code>NO_CRS_RUN_ID</code> oder connector-spezifische letzte ID, <code>EVIDENCE_ROOT</code> | Validierungsdiagnostik | Führt Hosts nicht erneut aus und verwandelt fehlende Evidence nicht in PASS |
 | <code>make check-six-connector-core-completion</code> | Read-only kompakter Acceptance-Check | <code>NO_CRS_RUN_ID</code> und finalisierte Evidence | Aggregate-Diagnostik | <code>0</code> bedeutet, dass die Bedingungen dieses Checkers bestanden; nicht, dass jeder Katalog-Case oder jedes Protocol bestanden hat |
 
@@ -436,6 +439,15 @@ literale Syntax. Erlaubte Werte sind <code>apache</code>, <code>nginx</code>,
 <code>haproxy</code>, <code>envoy</code>, <code>traefik</code> und
 <code>lighttpd</code>. Verwenden Sie zum Beispiel
 <code>make build-nginx</code>, nicht <code>make build-&lt;connector&gt;</code>.
+
+Generische Target-Namen erzeugen keine aktive Abdeckung für jeden Connector.
+Eine passende aktive Gruppe muss bestehen; unbekannte oder leere Auswahlen
+scheitern, statt PASS zu werden. Die normale NGINX-Hostvalidierung nutzt ihren
+geschützten Exact-Head-Pfad. <code>make check-active-inventory</code> zeigt die
+globale expandierte Auswahl; [Tests und Nachweise](../testing-and-evidence.de.md)
+beschreibt archivierte Anforderungen und getrennte Profilgrenzen.
+<code>ON_DEMAND_TESTS=1</code> ist kein normaler Workaround für eine fehlende
+Standardauswahl.
 
 ### Status- und Prozess-Exit-Codes
 

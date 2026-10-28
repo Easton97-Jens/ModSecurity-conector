@@ -1,76 +1,96 @@
-# Phase-4-Modus und Eigentümerschaft von Response-Body-Limits
+# Zuständigkeit für Body-Limits und Phase-4-Modus
 
 **Sprache:** [English](phase4-mode-budget.md) | Deutsch
 
-## Geltungsbereich
+## Zuständigkeit
 
-Dieser Vertrag umfasst Apache, NGINX, HAProxy, Envoy, Traefik und lighttpd in
-diesem Repository. Der Phase-4-Modus steuert das Verhalten bei späten
-Interventionen; er erzeugt keine zweite Response-Inspection-Policy im Connector.
+Request-Inspektionslimit und Aktion gehören zu `SecRequestBodyLimit` und
+`SecRequestBodyLimitAction`; das eigenständige native `SecRequestBodyNoFilesLimit`
+gilt zusätzlich für Request-Daten ohne Datei-Uploads. Response-Inspektionslimit
+und Aktion gehören zu `SecResponseBodyLimit` und `SecResponseBodyLimitAction`.
+Der Connector darf keinen Body-Limitdefault bereitstellen, Werte aus Regeltext
+ermitteln, Direktiven einschleusen, Reject/ProcessPartial wählen oder vor der
+Engine einen Body kürzen. Ausgelassene Direktiven behalten native
+libModSecurity-Semantik.
 
-## Eigentümerschaft
-
-| Thema | Eigentümer | Erforderliches Verhalten |
+| Gegenstand | Eigentümer | Verhalten |
 | --- | --- | --- |
-| Aktivierung der Response-Inspection und MIME-Auswahl | libModSecurity | `SecResponseBodyAccess`, `SecResponseBodyMimeType` und `SecResponseBodyMimeTypesClear` verwenden. |
-| Byte-Limit der WAF-Response-Inspection | libModSecurity | `SecResponseBodyLimit` und `SecResponseBodyLimitAction` verwenden. |
-| Verhalten bei späten Interventionen | Connector/Host | `off`, `safe` und `strict` behalten ihre hostspezifische Interventionssemantik. |
-| Host-/Transportkapazität | Connector/Host | Chunk-/Frame-Limits, begrenzter Speicher, Allokationsgrenzen, Timeouts, Datei-Read-Validierung und Überlaufprüfungen bleiben unabhängige Controls. |
+| P2-/P4-Inspektion und Limitaktionen | libModSecurity | Native Direktiven, Ergebnisse und Interventionen bestimmen die Inspektion. DetectionOnly behält die tatsächliche Engine-Semantik. |
+| Access und Response-MIME-Geltungsbereich | libModSecurity | `SecRequestBodyAccess`, `SecResponseBodyAccess` und Response-MIME-Direktiven bleiben native Konfiguration. |
+| Eingabe und Phasenabschluss | Connector | Vollständige gültige Chunks anbieten, native Ergebnisse bei jedem Append erfassen, disruptive Ergebnisse bis EOS erhalten und jede Phase einmal abschließen. |
+| Späte P4-Behandlung | Connector/Host | `off`, `safe`, `strict` wählen unterstützte Host-Interventionsbehandlung, niemals Bodygröße oder Limitaktion. |
+| Sicherheit | Connector/Host | Geprüfte Arithmetik, gültige Pointer, begrenzte einzelne Frames/Nachrichten, Descriptoren, Dateibereiche, Metadaten, Timeouts und begrenzten Arbeitsspeicher erhalten. |
 
-Kein gültiger Phase-4-Modus erzwingt ein zusätzliches Connector-eigenes
-kumuliertes Response-Inspection-Budget. Insbesondere dürfen `safe` und
-`strict` eine Response nicht allein deshalb abweisen oder abbrechen, weil ein
-altes Connector-Inspection-Byte-Limit überschritten wurde.
+## Entfernte Konfiguration
 
-## Kompatibilität
+`request_body_limit`, `body_limit_action`, `modsecurity_request_body_limit`,
+`modsecurity_body_limit_action`, HAProxy `request-body-limit`, Envoy
+`max_request_body_bytes` und Traefik `maxRequestBodyBytes` entfernen.
+Die zuvor entfernten Response-Optionen bleiben entfernt: `response_body_limit`,
+`modsecurity_response_body_limit`, `modsecurity_phase4_body_limit`, HAProxy
+`response-body-limit` und Envoy `max_response_body_bytes`. Entfernte Optionen
+lassen die Konfiguration fehlschlagen, statt still ignoriert zu werden.
+Es gibt keine kumulative Connector-Größenoption als Ersatz. Betreiber verwenden
+ihre normale Engine-Regelkonfiguration; kein zusätzliches Connector-Limit ist
+erforderlich.
 
-Alte Einstellungen wie `modsecurity_phase4_body_limit` dürfen während der
-Konfigurationsmigration weiter akzeptiert werden. Sie sind
-Kompatibilitätswerte, keine WAF-Inspection-Policy, und erzeugen kein nur für
-`safe`/`strict` geltendes kumuliertes Response-Limit. Das Entfernen solcher
-Einstellungen aus der öffentlichen Konfiguration ist eine getrennte Breaking
-Change.
+## Arbeitsspeicher und Transport
 
-Common-Runtime-Werte wie `response_body_limit` dürfen weiterhin eine
-begrenzte Host-/Transport- oder Speicherkapazität beschreiben, wenn der Host
-diese Kapazität tatsächlich benötigt. Sie dürfen nicht als Ersatz für
-`SecResponseBodyLimit` dargestellt werden.
+Ein inkrementeller Arbeitspuffer wird bis EOS wiederverwendet; seine Kapazität
+bestimmt nicht die erlaubte Gesamtbodygröße. NGINX-Dateieingabe behält
+Descriptor-, Regular-file-, Bereichs- und geprüfte Lesevalidierung. MRC1 verwendet
+einzelne 32-KiB-Body-Chunks und 64-KiB-Frames; Traefik-UDS und Envoy-gRPC behalten
+Nachrichtenkontrollen. Header-/Eventmetadaten, Korrelationsregister und
+Inaktivitäts-/Lebensdauertimeouts bleiben begrenzt. Private Dateipufferung erlaubt
+dem Stock-lighttpd-Sidecar inkrementelle Inspektion und hält das Upstream-Replay
+bis zum nativen P2-Allow zurück. Datenträgerfehler bleiben technische Fehler und
+wählen kein Inspektionspräfix und keine Limitaktion.
 
-## Streaming und Speicher
+Bei Requests bedeutet `bytes_inspected=0` unbekannt/unbelegt; gespeicherte Bytes
+belegen keine Inspektion. Bei Responses zählt es der Engine angebotene Bytes,
+nicht das native ProcessPartial-Präfix. Der Append-Rückgabewert 0 ist operationsspezifisch und darf bei gültigem
+nativem ProcessPartial nicht als Allokations- oder Dateifehler gemeldet werden.
+Natives Request-Reject kann während Append HTTP 403 liefern; ein anderer nativer
+Pfad kann 413 liefern. Der Connector erhält das tatsächliche Ergebnis bis EOS.
 
-Das Entfernen des Connector-Inspection-Budgets erlaubt keine unbegrenzten
-Allokationen. Native/streamende Connectoren sollen Body-Ranges inkrementell an
-libModSecurity übergeben. File-backed NGINX-Buffer verwenden einen festen,
-wiederverwendeten Scratch-Buffer, statt die gesamte Response zu allozieren.
+## Aktive Gesamtbody-Einschränkungen
 
-Puffernde Kompatibilitätsrouten dürfen weiterhin eine Response ablehnen, die
-nicht in ihren begrenzten Host-Speicher passt. Envoy-/gRPC-Chunk- oder
-Message-Limits, HAProxy-Transportlimits, lighttpd-Sidecar-Kapazität,
-Header-/Event-Limits, Korrelationskapazitäten, Timeouts, Pointer-Validierung,
-Datei-Read-Prüfungen und Integer-Überlaufprüfungen bleiben aktiv.
+Für Autorisierungsprofile mit begrenzten Hostpuffern wird keine vollständige
+Entfernung behauptet. Diese Grenzen bleiben von nativer Engine-Policy getrennt
+und werden nicht als Arbeitspufferkapazität umbenannt:
 
-## Native Fehler und Interventionsmodi
+| Aktiver Pfad | Tatsächlicher Wirkungsbereich | Einschränkung |
+| --- | --- | --- |
+| Envoy-ext_authz-Request-Autorisierung | Host-`max_request_bytes` ausgewählter Templates (4096 oder 33 Byte) | Ein begrenztes vollständiges Request-Sample erreicht die Autorisierung; ein Response-Observer macht die Request-Eingabe nicht inkrementell. |
+| Traefik-forwardAuth-Request-Autorisierung | Host-`maxBodySize` ausgewählter Templates (4096 oder 33 Byte) | Der Host puffert den weitergeleiteten Request-Body; der Observer beseitigt diese Request-Grenze nicht. |
+| Composite-Traefik-Autorisierungsantwort | Host-`maxResponseBodySize=32768` | Begrenzt die Autorisierungsantwort, nicht den Response-Body der Upstream-Anwendung. |
+| HAProxy-SPOE-/SPOP-Request-Sample | Eine begrenzte Protokollnachricht mit `req.body` | Ein unvollständiges Sample belegt keine vollständige P2-Inspektion; natives HTX ist ein separates Profil. |
 
-Echte Engine-, Speicher-, Transport-, Lifecycle- und Processing-Fehler bleiben
-Fehler. Diese Änderung wandelt sie nicht in `log_only` um.
+Die nativen Streamingprofile übernehmen diese Autorisierungsgrenzen nicht.
+Envoy-ext_authz-Templates verwenden `allow_partial_message: false`; ausdrücklich
+partielle oder mehrdeutige `x-envoy-auth-partial-body`-Metadaten werden vor dem
+Öffnen der nativen Transaktion abgelehnt. Das prüft Transportvollständigkeit,
+keine Connector-Inspektionsgröße oder -Aktion. Die Host-Sample-Grenze bleibt eine
+offene Einschränkung.
+Im Composite-Profil bleibt eine Buffer-Ablehnung vor der Autorisierung nur mit
+interner Host-Provenienz 413; sie erzeugt keine native Entscheidung und kein EOS.
+Ein Wechsel von Autorisierung zu nativem Streaming würde den Hostvertrag ändern
+und benötigt eigene Nachweise. Unabhängige Host-Requestgrößenkontrollen wie
+lighttpd `server.max-request-size` bleiben Hostkonfiguration.
 
-In NGINX `off` behält ein negatives natives Interventionsergebnis den
-historischen Pfad
-`ngx_http_filter_finalize_request(..., NGX_HTTP_INTERNAL_SERVER_ERROR)`.
-Positive Statuswerte werden unverändert zurückgegeben; bei null läuft die
-Verarbeitung weiter. Das Safe-/Strict-Verhalten bei späten Interventionen
-bleibt von der Eigentümerschaft der Response-Limits getrennt.
+## Nachweise
 
-Andere Integrationen behalten ihre eigenen Rückgabekonventionen und
-unterstützten Late-Action-Mechanismen.
+Inspection-Fixtures wählen native Limits/Aktionen einschließlich des
+Request-No-files-Limits ausdrücklich; Helper liefern keine impliziten Defaults.
+HAProxy-Samples nutzen `req.body_size` und `http_version=req.ver`; unvollständige
+oder widersprüchliche Samples scheitern vor Enginezulassung. Unbekanntes/chunked
+Framing und ungerahmtes HTTP/2 bleiben auf dieser Sampleroute nicht unterstützt;
+natives HTX bietet Streaming. Apache erhält natives Response-Reject bei Append
+einschließlich vorherigem FLUSH-/Body-Commit und hält die zurückgewiesene Brigade
+unter Safe-log_only zurück.
 
-## Grenzen der Validierung
-
-Source-Wiring und Unit-Tests können prüfen, dass alle gültigen Modi die alte
-Connector-Inspection-Grenze nur noch auf ein Accounting-Maximum auflösen und
-dass unabhängige Host-Limits weiter verdrahtet sind. Sie beweisen kein
-Live-Verhalten für HTTP/1, HTTP/2, HTTP/3 oder hostspezifische Late-Aborts.
-
-Der Change Record
-[CR-20261004-engine-owned-response-limits](../reports/audits/change-records/CR-20261004-engine-owned-response-limits.de.md)
-beschreibt Implementierungsumfang und Validierungsstatus dieser Migration.
+Builds und Komponentencontracts belegen keine vollständige gehostete
+HTTP/1–HTTP/3-, Buffer-Ownership- oder Late-Abort-Abnahme. Die
+[Matrix der zehn Profile](body-inspection-review-matrix.de.md) beschreibt die
+Routengrenzen; aktuelle Ergebnisse stehen im
+[aktuellen Abschluss von PR #382](pr-382-merge-readiness.de.md).

@@ -4,6 +4,6 @@ permissions:
   contents: read
 jobs:
   unsafe:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - run: echo "${{ github.event.pull_request.title }}"

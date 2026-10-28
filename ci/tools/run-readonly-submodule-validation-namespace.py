@@ -601,6 +601,7 @@ def _candidate_environment(
         "GITHUB_WORKSPACE": str(source),
         "FRAMEWORK_ROOT": str(source / framework_relative), "VALIDATOR_EXTERNAL_ROOT": str(root),
         "BUILD_ROOT": str(root / "build"),
+        "APACHE_C_STANDARDS_OUT": str(root / "build/apache-c-standards"),
         "VALIDATION_WRITE_ROOT": str(guard), "VERIFIED_RUN_ROOT": str(root / "verified-run"),
         "VERIFIED_STATE_ROOT": str(root / "verified-run/state"), "VERIFIED_BUILD_ROOT": str(root / "verified-run/build"),
         "VERIFIED_SOURCE_ROOT": str(root / "verified-run/source"), "VERIFIED_TMP_ROOT": str(root / "verified-run/tmp"),
@@ -657,8 +658,7 @@ def _candidate_script() -> str:
         'git config --global --add safe.directory "$GITHUB_WORKSPACE"\n'
         'git config --global --add safe.directory "$FRAMEWORK_ROOT"\n'
         'touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"; test -f "$VALIDATOR_EXTERNAL_ROOT/write-probe"\n'
-        '"$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes '
-        '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"\n'
+        '"$PYTHON" -I -c "import yaml; assert not yaml.__with_libyaml__"\n'
         'exec make PYTHON="$PYTHON" quick-check'
     )
 

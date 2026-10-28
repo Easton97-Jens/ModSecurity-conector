@@ -10,26 +10,15 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
-- [CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.md)
-  | [Deutsch](CR-20261003-pr370-composite-common-runtime.de.md) — requested PR #370
-  composite Common/runtime repair: deferred buffered P2, canonical Go composite
-  modes, fail-closed claim/cleanup ownership, and actual Envoy/Traefik lifecycle
-  evidence. Catalog acceptance and full nine-profile G1–G9 remain open; NGINX
-  is excluded. No production, merge or successor Sonar claim.
-
-- [CR-20261001-pr370-apache-rebuild-readiness](CR-20261001-pr370-apache-rebuild-readiness.md)
-  | [Deutsch](CR-20261001-pr370-apache-rebuild-readiness.de.md) — requested
-  PR #370 merge-preparation follow-up: isolated Apache repeated-build/retry
-  staging, fail-fast two-build CI regression coverage, and pinned HTTPD source
-  recovery. Includes the explicitly authorized verified Framework PR #133
-  dependency update and its exact SHA projections. No new NGINX work,
-  merge, or complete nine-profile G1–G9/readiness-B claim.
-
 - [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.md)
-  | [Deutsch](CR-20261001-pr370-refresh-relevance.de.md) — the requested PR #370
-  relevance assessment and normal current-master integration under the current
-  traceability policy. Fresh local evidence; exact-head delivery status in the
-  PR. No merge or all-ten-profile readiness-B promotion.
+  | [Deutsch](CR-20261001-pr370-refresh-relevance.de.md) — the user-authorized
+  current-master refresh of existing Draft PR #370. It makes master
+  authoritative for Phase 4, removes obsolete qualification/API remnants,
+  retains the narrow APXS, Envoy, HAProxy, and Traefik corrections, and binds
+  local evidence without claiming G1–G9 or readiness B. NGINX follows master
+  but receives no B qualification credit; exact-head CI/Sonar remain required.
+
+- [CR-20261013-pr382-consolidated](CR-20261013-pr382-consolidated.md) | [Deutsch](CR-20261013-pr382-consolidated.de.md) — user-authorized consolidation of the 122 EN/DE pairs added in PR #382; complete historical evidence remains available through immutable Git links. Existing `origin/master` records are retained; current remediation and open I12 evidence are recorded separately.
 
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
   | [Deutsch](CR-20260919-submodule-updater-workflows-capability.de.md) — the
@@ -47,13 +36,6 @@ reports without an explicit repository-policy decision or user decision.
   structure digest for candidate `cc36b37d0f6a0fbc3512f3878a691751e91c5fbb`,
   adds fail-closed pin-boundary regression coverage, and leaves Framework/MRTS
   source, Gitlinks, permissions, hosted reruns, and merge state unchanged.
-
-- [CR-20260919-readiness-b-shared-remediation](CR-20260919-readiness-b-shared-remediation.md)
-  | [Deutsch](CR-20260919-readiness-b-shared-remediation.de.md) — records the
-  scoped Parent-only shared remediation for the ten-integration readiness-B
-  work. It distinguishes observed local evidence from the still incomplete
-  ten-path runtime and rule-profile evidence; no Framework/MRTS/Gitlink
-  change, ten-path B promotion, Envoy-host result, or merge is asserted.
 
 - [CR-20260919-update-submodule-sha-projection](CR-20260919-update-submodule-sha-projection.md)
   | [Deutsch](CR-20260919-update-submodule-sha-projection.de.md) — the current

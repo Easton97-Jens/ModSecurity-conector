@@ -1,5 +1,7 @@
 # Apache Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: adapter-owned source migration complete
@@ -43,7 +45,6 @@ The adapter-owned Apache connector currently registers:
 - `modsecurity_transaction_id_expr <apache-expression>`
 - `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>`
-- `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_transaction_id` accepts a static string and keeps the existing
 static semantics. `modsecurity_transaction_id_expr` accepts an Apache string
@@ -92,8 +93,8 @@ The Framework materializer is a separate regression integration path. A fresh
 Parent source checkout can bootstrap and build the Apache module without
 materializing Framework templates. Install Autoconf, Automake, a C compiler,
 `make`, Apache development files including APXS, libmodsecurity development
-files, `curl`, and `dd`; set `MODSECURITY_PREFIX` to the libmodsecurity
-installation prefix when it is not the system default.
+files, and `curl`; set `MODSECURITY_PREFIX` to the libmodsecurity installation
+prefix when it is not the system default.
 
 From `connectors/apache/` in a clean checkout, derive the Apache binary from
 the selected APXS and use the tracked Autotools sources:
@@ -103,44 +104,23 @@ APXS="${APXS:-$(command -v apxs || command -v apxs2)}"
 test -x "$APXS"
 HTTPD_BIN="${HTTPD_BIN:-$("$APXS" -q SBINDIR)/$("$APXS" -q PROGNAME)}"
 MODSECURITY_PREFIX="${MODSECURITY_PREFIX:-/usr}"
-APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:?set an absolute private build directory outside the checkout}"
-case "$APACHE_BUILD_ROOT" in
-    /*) ;;
-    *) echo "APACHE_BUILD_ROOT must be absolute" >&2; exit 2 ;;
-esac
-mkdir -p "$APACHE_BUILD_ROOT/common-src" "$APACHE_BUILD_ROOT/profile-registry"
 autoreconf --install
 test -f configure
 test -x configure
 ./configure --with-libmodsecurity="$MODSECURITY_PREFIX" --with-apxs="$APXS" --with-apache="$HTTPD_BIN"
-MSCONNECTOR_COMMON_BUILD_SRC="$APACHE_BUILD_ROOT/common-src" \
-MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT="$APACHE_BUILD_ROOT/profile-registry" \
 make
 test -f src/.libs/mod_security3.so
 ```
 
-`APACHE_BUILD_ROOT` must resolve to a private task-owned directory outside the
-canonical checkout; it must not be the checkout itself or a symlink into it.
-The wrapper stages Common sources and the profile registry there before APXS
-can emit compiler objects, so a direct APXS invocation and an in-checkout stage
-root are rejected controls rather than supported build modes. Its registry
-`connectors` child must be a non-symlink directory. Repeated builds and retries
-use a fresh private `rebuild.XXXXXX/connectors` stage below the same external
-registry root; existing registry inputs and registry libtool artifacts are not
-overwritten or reused. The private registry stages remain below the selected
-external registry root, which is inside `APACHE_BUILD_ROOT` in the example above.
-
-Parent runtime preparation retains the exact HTTPD version and literal SHA-256
-when an official `downloads.apache.org` HTTPD archive returns HTTP 404. Only
-that pinned `.tar.bz2` filename may fall back to `archive.apache.org/dist/httpd/`;
-other errors do not select an alternate source. The same digest is verified
-before archive inspection. The component JSON report records `download_url` for a
-fresh fetch; on verified cache reuse it is empty and `download_status` is
-`cached`, because cache identity alone does not prove the original endpoint.
+Each APXS invocation stages the connector-owned profile-registry sources under
+the external `MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT`. If an earlier stage is
+already present, a fresh private rebuild child is used; symlinked stage roots
+or `connectors` children are rejected and earlier artifacts are not
+overwritten. This is build-input containment and does not establish runtime or
+production readiness.
 
 The expected module output is `src/.libs/mod_security3.so`. To validate the
-entire fresh-source route, including two builds with the same registry root,
-run the focused check from the Parent root:
+entire fresh-source route, run the focused check from the Parent root:
 
 ```sh
 make check-apache-autotools-bootstrap
@@ -149,13 +129,7 @@ make check-apache-autotools-bootstrap
 It creates a source archive containing tracked files only, runs the commands
 above, validates an isolated loopback Apache configuration, loads the
 Autotools-built module, and checks an allowed `200` request plus a ModSecurity
-`403` rule. It also posts a fixed synthetic P2 request-body marker and requires
-`403`, a nonempty serial `RelevantOnly` audit record with `ABFZ` parts that
-excludes the raw marker, then posts a bounded 1049600-byte over-limit P2 body
-and requires `413` without static handler content before a same-process `200`
-follow-up. Those are bounded harness controls, not a full rule-profile, matrix,
-or B-readiness claim. In a clean checkout, including CI, that archive is
-exactly `HEAD`.
+`403` rule. In a clean checkout, including CI, that archive is exactly `HEAD`.
 For a pre-commit local run, the check applies only `git diff HEAD` so it can
 exercise tracked edits; it never imports untracked files. Its temporary server
 root and non-privileged loopback port are removed at the end. A direct
@@ -209,15 +183,6 @@ APLOG logging, return-code mapping, and APXS/autotools build inputs.
 This Common SDK adoption does not claim production readiness, CRS coverage,
 full-matrix coverage, or new runtime verification behavior.
 
-When Apache invokes the input filter against its initial unmerged directory
-configuration, the filter resolves a zero request-body limit and an unset or
-unsupported body-limit action at the consumption point to the same finite
-`1048576`-byte Common default and `reject` action used by Common configuration
-merging. This prevents a small nonempty body from being treated as an invalid
-limit while preserving the finite, fail-closed bound. It does not expose a
-connector-local partial-inspection mode or turn a rule-driven P2 block into a
-body-limit response.
-
 ## Canonical Phase-4 boundary
 
 Apache's output filter remains EOS-only for Phase-4 rule evaluation, but it is
@@ -233,8 +198,9 @@ type; the engine's own `SecResponseBodyMimeType` configuration selects
 inspection. There is no second connector MIME list or MIME-based intervention
 downgrade.
 
-`modsecurity_phase4_body_limit` remains accepted as a legacy compatibility
-value, but no Phase-4 mode enforces it as a cumulative WAF inspection limit.
+`modsecurity_phase4_body_limit` is removed; existing configurations must remove
+the directive, including formerly valid values. No Phase-4 mode enforces a
+connector-configurable cumulative WAF inspection limit.
 libModSecurity owns inspection limits through `SecResponseBodyLimit` and
 `SecResponseBodyLimitAction`. Checked counters, lifecycle/error handling and
 the fixed Apache bucket-count safety ceiling remain active. There is no
@@ -275,6 +241,10 @@ either H1 or H2 as passed.
 
 ## Phase-4 mode and response-body limit ownership
 
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
+
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through
@@ -287,9 +257,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+There is no replacement connector inspection-byte setting. Common Runtime
+storage limits are not WAF inspection policy. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not

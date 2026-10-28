@@ -25,9 +25,13 @@ condition; do not substitute an unrelated system installation.
 make quick-check
 ```
 
-This validates repository contracts, documentation, and selected structural
-checks. It does not build every host, execute all connector traffic, or create
-canonical lifecycle evidence.
+This validates static repository contracts and admitted functional subsets of
+the single [active inventory](../config/testing/active-cases.json). Its core limit is 100 fully expanded behavioral cases; the user explicitly authorized 793 separately counted guarded offline Python cases outside it. The total is 893 cases / 499 executions, with connector E2E selection unchanged. Use <code>make check-active-inventory</code> to admit the complete
+selection before test execution. <code>make test</code> runs the active selection
+and needs its real compiler, SDK and host prerequisites. Group/case filters and
+standard aliases are subsets, not full profile qualification. See
+[Testing and evidence](testing-and-evidence.md) for archive disposition, lost
+coverage and distinct profiles.
 
 ## Choose the next guide
 
@@ -38,11 +42,14 @@ canonical lifecycle evidence.
 | Run or interpret evidence | [Testing and evidence](testing-and-evidence.md) |
 | Review limits, privacy, origin, or operations | [Operations and security](operations-and-security.md) |
 
-For a selected aggregate run, use a filesystem-safe, non-secret run ID:
+The broader aggregate example below is retained only for a separately
+authorized specialist assessment. It is outside automatic default selection,
+requires <code>ON_DEMAND_TESTS=1</code> and does not reopen closed I12 work. Use a
+filesystem-safe, non-secret run ID:
 
 ```sh
 run_id="core-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-all-connectors
+ON_DEMAND_TESTS=1 NO_CRS_RUN_ID="$run_id" make full-lifecycle-all-connectors
 NO_CRS_RUN_ID="$run_id" make check-six-connector-core-completion
 ```
 

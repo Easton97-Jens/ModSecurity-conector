@@ -40,6 +40,10 @@ from runtime_path_utils import (
     ensure_safe_runtime_directory,
     ensure_safe_writable_runtime_paths,
     is_under_root_home,
+    open_runtime_artifact_parent,
+    read_runtime_artifact_text,
+    require_regular_runtime_artifact,
+    runtime_artifact_path,
     runtime_path_rows,
     verified_runtime_paths,
     write_runtime_artifact_text_atomic,
@@ -64,6 +68,7 @@ FIELD_VALUE_TABLE_HEADER = "| Field | Value |"
 FIELD_VALUE_TABLE_DIVIDER = "|---|---|"
 FOUR_COLUMN_TABLE_DIVIDER = "|---|---|---|---|"
 ARGPARSE_ERROR_TERMINATION_ASSERTION = "argparse.error must terminate execution"
+CURRENT_RUN_MARKER_LABEL = "current-run marker"
 
 
 def git_output(args: list[str], cwd: Path) -> str:
@@ -135,12 +140,23 @@ def canonical_roots(connector_root: str, framework_root: str | None) -> tuple[Pa
     return canonical_connector, canonical_framework
 
 
-def count_jsonl_rows(path: Path) -> int:
+def count_jsonl_rows(path: Path, root: Path) -> int:
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
+        lines = read_runtime_artifact_text(root, path, "matrix results", errors="replace").splitlines()
+    except (OSError, ValueError):
         return 0
     return sum(1 for line in lines if line.strip())
+
+
+def private_job_json(root: Path, path: Path, label: str) -> dict[str, Any]:
+    target = runtime_artifact_path(root, path, label)
+    if not target.is_file():
+        return {}
+    try:
+        data = json.loads(read_runtime_artifact_text(root, target, label))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def full_matrix_job_tokens(logical_target: str) -> tuple[str, str, str] | None:
@@ -164,15 +180,15 @@ def full_matrix_job_artifacts(env: dict[str, str], logical_target: str) -> dict[
     matrix_root = Path(env.get("MATRIX_ROOT", ""))
     root = matrix_root / crs / mrts / connector
     job_path = root / "job.json"
-    job = read_json(job_path)
+    job = private_job_json(root, job_path, "matrix job")
     summary_path = Path(str(job.get("summary_path") or ""))
     if not summary_path.is_absolute():
         summary_path = root / "results" / "force-all" / f"{connector}-summary.json"
     results_jsonl = root / "results" / "force-all" / f"{connector}-results.jsonl"
-    summary = read_json(summary_path)
+    summary = private_job_json(root, summary_path, "matrix summary")
     connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
     cases = connector_summary.get("cases") if isinstance(connector_summary.get("cases"), dict) else {}
-    result_rows = count_jsonl_rows(results_jsonl)
+    result_rows = count_jsonl_rows(results_jsonl, root)
     status = str(job.get("status") or "")
     complete = (
         bool(job.get("ended_at"))
@@ -929,14 +945,22 @@ def full_matrix_job_state(record: dict[str, Any], env: dict[str, str]) -> dict[s
     return incomplete_full_matrix_job_state(record)
 
 
-def refresh_state(record: dict[str, Any]) -> dict[str, Any]:
+def refresh_state(record: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
     if record.get("classification") == "blocked_timeout":
         status = "refresh_timeout"
     elif record.get("return_code") == 0:
         status = "refresh_completed"
     else:
-        log_path = Path(str(record.get("log_path") or ""))
-        log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.is_file() else ""
+        log_text = ""
+        log_root = env.get("VERIFIED_RUN_LOG_ROOT")
+        if log_root:
+            try:
+                log_text = read_runtime_artifact_text(
+                    Path(log_root), Path(str(record.get("log_path") or "")),
+                    "report refresh log", errors="replace",
+                )
+            except (OSError, ValueError):
+                pass
         if (
             "SKIPPED_STALE_INPUT" in log_text
             or "required generated input is stale" in log_text
@@ -1001,7 +1025,7 @@ def apply_command_semantics(
         record.update(full_matrix_job_state(record, env))
         record["overall_status"] = record.get("overall_job_status") or record["runtime_status"]
     elif target in {"refresh-all-reports", "generate-system-environment-proof"}:
-        record.update(refresh_state(record))
+        record.update(refresh_state(record, env))
     elif target == "check-generated-report-layout":
         if record.get("return_code") == 0:
             record["overall_status"] = "checks_completed"
@@ -1813,12 +1837,51 @@ def restore_current_verified_run_id(args: argparse.Namespace, current_run_file: 
     }
     if os.environ.get("VERIFIED_RUN_ID") or args.phase not in append_phases:
         return
+    # Validate directory ownership before accessing even the marker's metadata.
+    # Keep a no-follow parent descriptor and nonblocking leaf open so a swapped
+    # FIFO cannot block between path validation and the descriptor checks.
     try:
-        previous_run_id = current_run_file.read_text(encoding="utf-8").strip()
-    except OSError:
-        previous_run_id = ""
+        target = runtime_artifact_path(
+            current_run_file.parent, current_run_file, CURRENT_RUN_MARKER_LABEL
+        )
+        no_follow = getattr(os, "O_NOFOLLOW", None)
+        nonblocking = getattr(os, "O_NONBLOCK", None)
+        if no_follow is None or nonblocking is None:
+            raise ValueError("safe marker reads require no-follow and nonblocking opens")
+        parent_descriptor = open_runtime_artifact_parent(target)
+        descriptor = -1
+        try:
+            descriptor = os.open(
+                target.name, os.O_RDONLY | no_follow | nonblocking,
+                dir_fd=parent_descriptor,
+            )
+            require_regular_runtime_artifact(descriptor, CURRENT_RUN_MARKER_LABEL)
+            details = os.fstat(descriptor)
+            if details.st_uid != os.geteuid() or details.st_mode & 0o022 or details.st_nlink != 1:
+                raise ValueError("current-run marker has unsafe ownership, permissions or links")
+            # A canonical ID is at most 128 characters; allow bounded legacy
+            # whitespace without allocating the size of a substituted file.
+            chunks = []
+            size = 0
+            while size <= 4096:
+                chunk = os.read(descriptor, 4097 - size)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                size += len(chunk)
+            if size > 4096:
+                raise ValueError("current-run marker is oversized")
+            previous_run_id = b"".join(chunks).decode("utf-8").strip()
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            os.close(parent_descriptor)
+    except FileNotFoundError:
+        return
+    except (OSError, ValueError):
+        raise ValueError("current-run marker is unavailable or unsafe") from None
     if previous_run_id:
-        os.environ["VERIFIED_RUN_ID"] = previous_run_id
+        os.environ["VERIFIED_RUN_ID"] = validate_verified_run_id(previous_run_id)
 
 
 def current_verified_run_id_or_error(
@@ -1924,7 +1987,10 @@ def prepare_verified_run_context(
     prepare_runtime_roots(paths)
     run_root = Path(paths["VERIFIED_RUN_INSTANCE_ROOT"])
     logs_dir = Path(paths["VERIFIED_RUN_INSTANCE_LOG_ROOT"])
-    current_run_file.write_text(verified_run_id + "\n", encoding="utf-8")
+    write_runtime_artifact_text_atomic(
+        Path(paths["VERIFIED_RUNS_ROOT"]), current_run_file,
+        verified_run_id + "\n", CURRENT_RUN_MARKER_LABEL,
+    )
     commands_file = run_root / "verified-commands.json"
     env = dict(os.environ)
     timeout_budgets = verified_run_timeout_budgets(env)

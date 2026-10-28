@@ -6,7 +6,7 @@ render_yaml_path_for_sed_replacement() {
     input=$1
     case "$input" in
         *'
-'*|*''*) return 1 ;;
+'*|*"$(printf '\r')"*) return 1 ;;
         *) : ;;
     esac
     if LC_ALL=C printf '%s' "$input" | LC_ALL=C grep -q '[[:cntrl:]]'; then

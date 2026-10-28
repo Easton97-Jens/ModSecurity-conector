@@ -454,8 +454,6 @@ func TestCumulativeBodyAccountingRejectsSignedOverflow(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			config := testConfig(LateActionSafe)
-			config.MaxRequestBodyBytes = math.MaxInt64
-			config.MaxResponseBodyBytes = math.MaxInt64
 			state := newStreamState(config, recordingEngine{transaction: &recordingTransaction{}}, discardObserver{})
 
 			// The last representable byte is a legitimate boundary and must be
@@ -865,134 +863,21 @@ func TestRequestDenyUsesImmediateResponseBeforeResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestDiscardedResponseFinishesOnlyAtRealEOS(t *testing.T) {
-	for _, test := range []struct {
-		name    string
-		chunks  []int
-		trailer bool
-		cancel  bool
-		p4      bool
-		want    []int
-	}{
-		{name: "single33", chunks: []int{33}, want: []int{0}},
-		{name: "32plus1", chunks: []int{32, 1}, want: []int{32, 0}},
-		{name: "16plus17plus1", chunks: []int{16, 17, 1}, want: []int{16, 0}},
-		{name: "trailer", chunks: []int{16, 17}, trailer: true, want: []int{16, 0}},
-		{name: "realCancel", chunks: []int{16, 17}, cancel: true, want: []int{16}},
-		{name: "prefixP4", chunks: []int{16, 17}, p4: true, want: []int{16, 0}},
-		{name: "hardChunk", chunks: []int{65}, want: []int{0}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			transaction := &recordingTransaction{}
-			if test.p4 {
-				transaction.bodyDecision = func(direction Direction) Decision {
-					if direction == DirectionResponse {
-						return Decision{Action: ActionDeny, Status: 403}
-					}
-					return allowDecision()
-				}
-			}
-			config := testConfig(LateActionSafe)
-			config.MaxResponseBodyBytes = 32
-			config.MaxBodyChunkBytes = 64
-			service, err := NewService(config, recordingEngine{transaction: transaction})
-			if err != nil {
-				t.Fatal(err)
-			}
-			requests := []receiveResult{{request: requestHeaders(true)}, {request: responseHeaders(false)}}
-			for index, length := range test.chunks {
-				eos := index == len(test.chunks)-1 && !test.trailer && !test.cancel
-				requests = append(requests, receiveResult{request: responseBody(make([]byte, length), eos)})
-			}
-			if test.trailer {
-				requests = append(requests, receiveResult{request: responseTrailers()})
-			}
-			stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: requests}
-			if err := service.Process(stream); err != nil {
-				t.Fatal(err)
-			}
-			if !sameInts(transaction.responseBodyLengths, test.want) {
-				t.Fatalf("native payload lengths %v, want %v", transaction.responseBodyLengths, test.want)
-			}
-			for index, eos := range transaction.responseBodyEOS {
-				wantEOS := !test.cancel && index == len(transaction.responseBodyEOS)-1
-				if eos != wantEOS {
-					t.Fatalf("native EOS %v, final=%v", transaction.responseBodyEOS, wantEOS)
-				}
-			}
-			if len(transaction.closed) != 1 {
-				t.Fatalf("close count %d", len(transaction.closed))
-			}
-			if !test.cancel && transaction.closed[0].CloseReason != CloseResponseEOS {
-				t.Fatalf("close reason %s", transaction.closed[0].CloseReason)
-			}
-			if !test.p4 && len(transaction.hostActions) != 0 {
-				t.Fatalf("adapter discard forged native host actions: %v", transaction.hostActions)
-			}
-			if transaction.closed[0].LateAction != LateActionLogged {
-				t.Fatalf("over-limit response was not Safe log-only: %v", transaction.closed[0])
-			}
-		})
-	}
-}
-
-func TestDiscardedResponsePropagatesNativeEOSFailure(t *testing.T) {
-	transaction := &recordingTransaction{responseEOSError: errors.New("native EOS failure")}
-	config := testConfig(LateActionSafe)
-	config.MaxResponseBodyBytes = 32
-	service, err := NewService(config, recordingEngine{transaction: transaction})
+func TestRequestBodyHasNoConnectorAggregateGate(t *testing.T) {
+	transaction := &recordingTransaction{}
+	service, err := NewService(testConfig(LateActionSafe), recordingEngine{transaction: transaction})
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(true)}, {request: responseHeaders(false)},
-		{request: responseBody(make([]byte, 33), true)},
-	}}
-	if err := service.Process(stream); err == nil {
-		t.Fatal("native EOS failure was swallowed")
-	}
-	if len(transaction.closed) != 1 || transaction.closed[0].CloseReason != CloseProcessorError {
-		t.Fatalf("failure cleanup: %v", transaction.closed)
-	}
-	if !sameInts(transaction.responseBodyLengths, []int{0}) {
-		t.Fatalf("discard reached native engine: %v", transaction.responseBodyLengths)
-	}
-}
-
-func TestRequestBodyLimitUses413WithoutEngineBodyDispatch(t *testing.T) {
-	transaction := &recordingTransaction{}
-	config := testConfig(LateActionSafe)
-	config.MaxRequestBodyBytes = 4
-	service, err := NewService(config, recordingEngine{transaction: transaction})
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{
-		{request: requestHeaders(false)},
-		{request: requestBody([]byte("12345"), true)},
-	}}
-
+	stream := &fakeProcessStream{contextFactory: testStreamContext(context.Background()), receive: []receiveResult{{request: requestHeaders(false)}, {request: requestBody([]byte("12345"), true)}}}
 	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
+		t.Fatal(err)
 	}
-	if got, want := len(stream.sent), 2; got != want {
-		t.Fatalf("sent responses = %d, want %d", got, want)
+	if len(transaction.requestBodyLengths) != 1 || transaction.requestBodyLengths[0] != 5 {
+		t.Fatalf("full input not dispatched: %v", transaction.requestBodyLengths)
 	}
-	if response := stream.sent[1].GetImmediateResponse(); response == nil || int(response.GetStatus().GetCode()) != 413 {
-		t.Fatalf("expected a request-body immediate 413 response, got %#v", stream.sent[1])
-	}
-	if got := transaction.requestBodyLengths; len(got) != 0 {
-		t.Fatalf("over-limit request body reached engine dispatch: %v", got)
-	}
-	if len(transaction.closed) != 1 {
-		t.Fatalf("close calls = %d, want 1", len(transaction.closed))
-	}
-	summary := transaction.closed[0]
-	if summary.CloseReason != CloseImmediateResponse || summary.RequestBodyChunks != 1 || summary.RequestBodyBytes != 5 {
-		t.Fatalf("unexpected body-limit cleanup summary: %#v", summary)
-	}
-	if got := transaction.hostActions; len(got) != 0 {
-		t.Fatalf("adapter-only body rejection recorded native host actions = %#v, want none", got)
+	if stream.sent[1].GetImmediateResponse() != nil {
+		t.Fatal("connector selected an aggregate body rejection")
 	}
 }
 
@@ -1110,8 +995,8 @@ func TestExplicitEmptyRequestDoesNotSynthesizeBody(t *testing.T) {
 		{request: responseHeaders(false)},
 	}}
 
-	if err := service.Process(stream); err != nil {
-		t.Fatalf("Process() error = %v", err)
+	if err := service.Process(stream); err == nil {
+		t.Fatal("response without EOS returned success")
 	}
 	if got, want := len(stream.sent), 2; got != want {
 		t.Fatalf("sent responses = %d, want %d", got, want)
@@ -1432,8 +1317,6 @@ func testConfig(policy LateActionPolicy) Config {
 		MaxHeaderValueBytes:  8192,
 		MaxTotalHeaderBytes:  32768,
 		MaxBodyChunkBytes:    1024,
-		MaxRequestBodyBytes:  4096,
-		MaxResponseBodyBytes: 4096,
 		MaxGRPCMessageBytes:  2048,
 		EngineTimeoutMS:      100,
 		StreamIdleTimeoutMS:  100,
@@ -1490,8 +1373,6 @@ type recordingTransaction struct {
 	headerCalls           []Direction
 	requestBodyLengths    []int
 	responseBodyLengths   []int
-	responseBodyEOS       []bool
-	responseEOSError      error
 	closed                []Summary
 	hostActions           []HostAction
 	responseCommits       int
@@ -1539,17 +1420,13 @@ func sameDirections(left, right []Direction) bool {
 	return true
 }
 
-func (transaction *recordingTransaction) ProcessBody(_ context.Context, direction Direction, body []byte, eos bool) (Decision, error) {
+func (transaction *recordingTransaction) ProcessBody(_ context.Context, direction Direction, body []byte, _ bool) (Decision, error) {
 	// Intentionally keep only length metadata: the test exercises that the
 	// stream adapter gives the transaction one chunk at a time.
 	if direction == DirectionRequest {
 		transaction.requestBodyLengths = append(transaction.requestBodyLengths, len(body))
 	} else {
 		transaction.responseBodyLengths = append(transaction.responseBodyLengths, len(body))
-		transaction.responseBodyEOS = append(transaction.responseBodyEOS, eos)
-		if eos && transaction.responseEOSError != nil {
-			return Decision{}, transaction.responseEOSError
-		}
 	}
 	if transaction.bodyDecision != nil {
 		return transaction.bodyDecision(direction), nil
@@ -1874,4 +1751,62 @@ func sameHostActions(left, right []HostAction) bool {
 		}
 	}
 	return true
+}
+
+type reportedCleanupTransaction struct {
+	*recordingTransaction
+	err error
+}
+
+func (tx *reportedCleanupTransaction) CleanupFailure() error { return tx.err }
+func TestStreamCloseKeepsIncompleteFinishLocalAndSinkFailureFatal(t *testing.T) {
+	for _, mode := range []string{"sink", "incomplete"} {
+		t.Run(mode, func(t *testing.T) {
+			testStreamCloseFailureClassification(t, mode)
+		})
+	}
+}
+
+func testStreamCloseFailureClassification(t *testing.T, mode string) {
+	t.Helper()
+	first := errors.New("mandatory event sink failure")
+	if mode == "incomplete" {
+		first = fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
+	}
+	tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
+	state := newStreamState(testConfig(LateActionSafe), nil, discardObserver{})
+	state.transaction = tx
+	if got := state.closeOwned(CloseContextCanceled); !errors.Is(got, first) {
+		t.Fatalf("closeOwned(cancel) = %v, want %v", got, first)
+	}
+	if mode == "sink" && !errors.Is(state.cleanupFailure, first) {
+		t.Fatalf("cleanupFailure = %v, want fatal sink cause %v", state.cleanupFailure, first)
+	}
+	if mode == "incomplete" && state.cleanupFailure != nil {
+		t.Fatalf("cleanupFailure = %v, want no process failure for incomplete lifecycle", state.cleanupFailure)
+	}
+	if got := state.closeOwned(CloseContextCanceled); got != nil {
+		t.Fatalf("closeOwned(retry) = %v, want no duplicate work", got)
+	}
+	if len(tx.closed) != 1 {
+		t.Fatalf("closeOwned(retry) close calls = %d, want 1", len(tx.closed))
+	}
+}
+
+type cleanupEvidenceFailureObserver struct{ err error }
+
+func (observer cleanupEvidenceFailureObserver) Record(Summary) error { return observer.err }
+func TestStreamCloseMetadataSinkFailureRemainsFatalAfterIncompleteFinish(t *testing.T) {
+	first := fmt.Errorf("%w: incomplete body", ErrTransactionFinishPhaseSequence)
+	sinkErr := errors.New("metadata physical write failure")
+	tx := &reportedCleanupTransaction{recordingTransaction: &recordingTransaction{}, err: first}
+	state := newStreamState(testConfig(LateActionSafe), nil, cleanupEvidenceFailureObserver{err: sinkErr})
+	state.transaction = tx
+	got := state.closeOwned(CloseContextCanceled)
+	if !errors.Is(got, first) || !errors.Is(got, sinkErr) {
+		t.Fatalf("closeOwned(cancel) = %v, want both first finish and sink cause", got)
+	}
+	if state.cleanupFailure != got {
+		t.Fatalf("cleanupFailure = %v, want fatal combined cause %v", state.cleanupFailure, got)
+	}
 }

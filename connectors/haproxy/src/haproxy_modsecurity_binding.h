@@ -1,13 +1,31 @@
 #ifndef HAPROXY_MODSECURITY_BINDING_H
 #define HAPROXY_MODSECURITY_BINDING_H
 
+#include <stddef.h>
+#include "msconnector/error.h"
 #include "msconnector/config.h"
 #include "msconnector/crs.h"
 #include "msconnector/decision_action.h"
+#include "msconnector/transaction_contract.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Validate a literal Location value without truncation or log-format parsing.
+ * capacity includes the required terminator; the native decision owns its copy. */
+static inline int haproxy_modsecurity_redirect_url_length(
+    const char *value, size_t capacity, size_t *length) {
+    if (value == NULL || length == NULL || capacity == 0U || value[0] == '\0') {
+        return 0;
+    }
+    for (size_t index = 0U; index < capacity; ++index) {
+        unsigned char byte = (unsigned char)value[index];
+        if (byte == 0U) { *length = index; return 1; }
+        if (byte < 0x20U || byte == 0x7fU) { return 0; }
+    }
+    return 0;
+}
 
 typedef struct haproxy_modsecurity_decision {
     int disruptive;
@@ -16,6 +34,7 @@ typedef struct haproxy_modsecurity_decision {
     int phase;
     int rule_id;
     int anomaly_score;
+    msconnector_transaction_error_class error_class;
     char action[32];
     char redirect_url[1024];
     char log_message[512];
@@ -34,6 +53,8 @@ typedef struct haproxy_modsecurity_request {
     int server_port;
     const char *method;
     const char *uri;
+    /* Native API token: 1.0, 1.1 or 2.0; absent/unsupported fails admission. */
+    const char *http_version;
     const haproxy_modsecurity_header *headers;
     unsigned int header_count;
     const unsigned char *body;
@@ -70,6 +91,13 @@ int haproxy_modsecurity_engine_create(
     haproxy_modsecurity_decision *decision);
 void haproxy_modsecurity_engine_destroy(haproxy_modsecurity_engine *engine);
 int haproxy_modsecurity_transaction_begin(
+    haproxy_modsecurity_engine *engine,
+    const haproxy_modsecurity_request *request,
+    haproxy_modsecurity_decision *decision,
+    haproxy_modsecurity_transaction **transaction);
+/* Atomic P1/P2 finite authorization. Response phases and companion handoff
+ * are deliberately unavailable; finish consumes the transaction exactly once. */
+int haproxy_modsecurity_transaction_begin_request_authorization(
     haproxy_modsecurity_engine *engine,
     const haproxy_modsecurity_request *request,
     haproxy_modsecurity_decision *decision,
@@ -111,6 +139,10 @@ int haproxy_modsecurity_transaction_handoff_response_companion(
     haproxy_modsecurity_transaction *transaction);
 int haproxy_modsecurity_transaction_claim_response_companion(
     haproxy_modsecurity_transaction *transaction);
+/* Borrowed transaction remains owned by the caller; do not query after finish. */
+msconnector_transaction_error_class haproxy_modsecurity_transaction_error_class(
+        const haproxy_modsecurity_transaction *transaction);
+
 int haproxy_modsecurity_transaction_set_response_commit_state(
     haproxy_modsecurity_transaction *transaction,
     int headers_sent, int body_started);
@@ -119,6 +151,14 @@ int haproxy_modsecurity_transaction_record_response_companion_outcome(
     msconnector_decision_action actual_action,
     const char *transport_result,
     int visible_http_status, int connection_aborted);
+/* Borrowed metadata snapshot, valid only during this owner call before finish.
+ * Requires a validated, recorded response OUTCOME; native contract supplies
+ * phase/rule/correlation/commit. Returns 0 for invalid input, 1 for an event,
+ * and 2 for a validated native Allow (no event). No ACK/RELEASE inference. */
+int haproxy_modsecurity_transaction_response_event(
+    const haproxy_modsecurity_transaction *transaction,
+    const msconnector_decision *requested, msconnector_event *event,
+    msconnector_error *error);
 int haproxy_modsecurity_transaction_process_response_headers(
     haproxy_modsecurity_transaction *transaction,
     const haproxy_modsecurity_response *response,
@@ -137,13 +177,40 @@ int haproxy_modsecurity_transaction_append_response_body_chunk(
 int haproxy_modsecurity_transaction_finish_response_body(
     haproxy_modsecurity_transaction *transaction,
     haproxy_modsecurity_decision *decision);
-/* Returns zero only when P1--P4 completed normally.  An incomplete, missing,
- * or unclaimed companion phase is recorded as a terminal Common failure
+/* Returns zero when the declared scope completed normally: P1--P4 for the
+ * full lifecycle, P1/P2 only for explicit finite request authorization.
+ * An incomplete, missing, or unclaimed companion phase is a terminal Common failure
  * before deterministic cleanup.  Existing callers may safely ignore the
  * return value, but new bridge code must propagate it as a fail-closed host
  * action. */
 int haproxy_modsecurity_transaction_finish(
     haproxy_modsecurity_transaction *transaction);
+int haproxy_modsecurity_transaction_finish_with_decision(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision);
+msconnector_transaction_error_class haproxy_modsecurity_transaction_error(
+    const haproxy_modsecurity_transaction *transaction);
+void haproxy_modsecurity_transaction_abort_with_error(
+    haproxy_modsecurity_transaction *transaction,
+    msconnector_transaction_error_class error_class);
+/* Render metadata only; actual host action is absent until observed. */
+int haproxy_modsecurity_error_event_write(
+    const haproxy_modsecurity_decision *decision, const char *transaction_id,
+    char *line, size_t line_size);
+/* Checked serialization returns 1 for rendered output or an omitted duplicate/no-error
+ * (empty line), and 0 with INTERNAL or EVENT_TOO_LARGE on failure. No sink I/O. */
+int haproxy_modsecurity_error_event_write_checked(
+    const haproxy_modsecurity_decision *decision, const char *transaction_id,
+    char *line, size_t line_size, msconnector_error *error);
+int haproxy_modsecurity_transaction_error_event_write_checked(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision, char *line, size_t line_size,
+    msconnector_error *error);
+const char *haproxy_modsecurity_transaction_id(
+    const haproxy_modsecurity_transaction *transaction);
+int haproxy_modsecurity_transaction_error_event_write(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision, char *line, size_t line_size);
 void haproxy_modsecurity_transaction_abort(
     haproxy_modsecurity_transaction *transaction);
 int haproxy_modsecurity_eval_request(

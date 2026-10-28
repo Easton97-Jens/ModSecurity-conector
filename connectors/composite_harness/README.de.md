@@ -101,7 +101,9 @@ Host-Aktionen werden abgelehnt. `p1_deny` verlangt eine
 P1-Deny-Entscheidung und einen passenden clientsichtbaren 4xx/5xx-Status,
 Request-Termination und keine Upstream-Response-Beobachtung. `p2_deny` und
 `p2_oversize` verlangen die Sequenz P1 Allow/P2 Deny; `p2_oversize` zusätzlich
-Status 413. `p3_deny` und `p3_redirect` verlangen P3 Deny/Redirect, den
+übereinstimmenden nativen P2-, request-seitigen Deny- und Client-Status (403 oder
+413). Hostpuffer-413 ohne natives P2 ist kein Lifecycle-Nachweis für diesen Fall.
+`p3_deny` und `p3_redirect` verlangen P3 Deny/Redirect, den
 passenden Client-Status und eine Upstream-Response-Beobachtung. `p3_redirect`
 verlangt zusätzlich die wahre Attestation `redirect_location_verified`: Die
 vertraute Client-Grenze muss genau ein `Location` mit dem kanonischen begrenzten

@@ -79,7 +79,6 @@ typedef struct msconnector_response_companion_transport_worker
  * callback and must never retain it. It is not wire-visible and must never
  * contain request or response bodies. */
 typedef struct msconnector_response_companion_decision_storage {
-    char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
     char redirect_url[MSCONNECTOR_MAX_PATH_LENGTH + 1U];
     char log_message[MSCONNECTOR_MAX_LOG_MESSAGE_LENGTH + 1U];
 } msconnector_response_companion_decision_storage;
@@ -147,7 +146,6 @@ typedef struct msconnector_response_companion_transport_config {
     char socket_path[MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE];
     size_t max_header_count;
     size_t max_header_bytes;
-    size_t max_response_body_bytes;
     uint64_t operation_timeout_ms;
     uid_t expected_uid;
     gid_t expected_gid;
@@ -190,7 +188,6 @@ typedef struct msconnector_response_companion_transport_options {
     const char *socket_path;
     size_t max_header_count;
     size_t max_header_bytes;
-    size_t max_response_body_bytes;
     uint64_t operation_timeout_ms;
 } msconnector_response_companion_transport_options;
 

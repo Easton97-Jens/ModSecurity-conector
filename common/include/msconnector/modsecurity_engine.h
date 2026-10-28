@@ -14,6 +14,8 @@ extern "C" {
 #endif
 
 typedef struct msconnector_modsecurity_engine_ops {
+    /* Integer operation callbacks return exactly 1 on success, 0 on failure.
+     * Native append 0/1 is normalized by the operation-specific adapter. */
     void *userdata;
     int (*init)(void *userdata, msconnector_error *error);
     void (*cleanup)(void *userdata);
@@ -50,6 +52,8 @@ typedef struct msconnector_modsecurity_transaction {
     /* Optional owner-owned state. When bound, this is the only P1-P4 state
      * mutated by the engine wrapper; `state` retains legacy lifecycle flags. */
     msconnector_transaction_contract *contract;
+    int logging_attempted;
+    msconnector_error_code logging_error;
 } msconnector_modsecurity_transaction;
 
 void msconnector_modsecurity_engine_init(msconnector_modsecurity_engine *engine, const msconnector_modsecurity_engine_ops *ops);

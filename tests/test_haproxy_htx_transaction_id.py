@@ -55,15 +55,22 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
             outside_path = str(outside)
             canonical_path = str(canonical)
             certificate_path = str(certificate)
+            engine_policy = {
+                "request_body_limit": 32,
+                "request_body_no_files_limit": 32,
+                "request_body_limit_action": "Reject",
+                "response_body_limit": 1048576,
+                "response_body_limit_action": "Reject",
+            }
             with self.assertRaisesRegex(ValueError, "below the runtime root"):
-                HELPER.write_rules(runtime_root, outside_path, canonical_path)
+                HELPER.write_rules(runtime_root, outside_path, canonical_path, **engine_policy)
             self.assertFalse(outside.exists())
 
             redirected = root / "redirected.conf"
             redirected.symlink_to(outside)
             redirected_path = str(redirected)
             with self.assertRaisesRegex(ValueError, "below the runtime root|symbolic link"):
-                HELPER.write_rules(runtime_root, redirected_path, canonical_path)
+                HELPER.write_rules(runtime_root, redirected_path, canonical_path, **engine_policy)
             self.assertFalse(outside.exists())
 
             self.assertEqual(
@@ -202,6 +209,13 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
                     "enforced_reply", decision_log_path,
                 )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

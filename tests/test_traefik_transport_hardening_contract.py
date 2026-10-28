@@ -11,6 +11,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tests.framework_test_trust import trusted_framework_root
 
@@ -82,6 +83,21 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
         ))
         response.begin()
         return response
+
+    @staticmethod
+    def fixture_request(headers: tuple[tuple[str, str], ...], body: bytes,
+            version: str = "HTTP/1.1") -> mock.Mock:
+        message = http.client.HTTPMessage()
+        for name, value in headers:
+            message.add_header(name, value)
+        connection = mock.Mock()
+        connection.gettimeout.return_value = 1.5
+        return mock.Mock(
+            request_version=version,
+            headers=message,
+            connection=connection,
+            rfile=io.BufferedReader(io.BytesIO(body)),
+        )
 
     @staticmethod
     def mutated_barrier_handler(runtime, state, safe_payload: bytes,
@@ -219,6 +235,44 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
                         self.response(framing, wire_body),
                         runtime.ALLOW_PAYLOAD_SHA256,
                     )
+
+    def test_upstream_fixture_request_requires_bounded_canonical_framing(self) -> None:
+        runtime = load_runtime_module()
+        valid = self.fixture_request((("Content-Length", "4"),), b"body")
+        self.assertEqual(runtime.read_fixture_body(valid), 4)
+        valid.connection.settimeout.assert_called_with(1.5)
+
+        invalid = (
+            self.fixture_request((), b""),
+            self.fixture_request((("Content-Length", "4"),), b"body", "HTTP/1.0"),
+            self.fixture_request(
+                (("Content-Length", "4"), ("Content-Length", "4")), b"body"
+            ),
+            self.fixture_request(
+                (("Content-Length", "4"), ("Transfer-Encoding", "chunked")), b"body"
+            ),
+            self.fixture_request((("Content-Length", "04"),), b"body"),
+            self.fixture_request((("Content-Length", "65537"),), b""),
+            self.fixture_request((("Content-Length", "4"),), b"abc"),
+        )
+        for handler in invalid:
+            with self.subTest(headers=list(handler.headers.raw_items()),
+                    version=handler.request_version), self.assertRaises(
+                        runtime.UpstreamFixtureError
+                    ):
+                runtime.read_fixture_body(handler)
+
+    def test_upstream_fixture_write_rejects_a_short_write(self) -> None:
+        runtime = load_runtime_module()
+        handler = mock.Mock()
+        handler.wfile.write.return_value = 3
+        with self.assertRaises(runtime.UpstreamFixtureError):
+            runtime.write_fixture_chunk(handler, b"body")
+        handler.wfile.flush.assert_not_called()
+
+        handler.wfile.write.return_value = 4
+        runtime.write_fixture_chunk(handler, b"body")
+        handler.wfile.flush.assert_called_once_with()
 
     def test_real_barrier_sidecar_and_strict_boundary_are_explicit(self) -> None:
         source = RUNTIME_SCRIPT.read_text(encoding="utf-8")
@@ -395,6 +449,13 @@ class TraefikTransportHardeningContractTest(unittest.TestCase):
             [],
         )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

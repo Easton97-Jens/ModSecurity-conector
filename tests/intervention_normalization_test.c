@@ -25,20 +25,6 @@ int main(void)
             MSCONNECTOR_REQUEST_BODY_LIMIT_REJECTION_LOG);
     const msconnector_intervention native_request_body_limit_with_log =
         msconnector_intervention_make(1, 403, NULL, "ordinary rule intervention");
-    const msconnector_intervention native_response_body_limit =
-        msconnector_intervention_make(1, 403, NULL,
-            MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG);
-    const msconnector_intervention native_response_body_limit_with_url =
-        msconnector_intervention_make(1, 403, "",
-            MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG);
-    const msconnector_intervention native_response_body_limit_with_status =
-        msconnector_intervention_make(1, 500, NULL,
-            MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG);
-    const msconnector_intervention native_response_body_limit_with_log =
-        msconnector_intervention_make(1, 403, NULL, "ordinary rule intervention");
-    const msconnector_intervention native_response_body_limit_nondisruptive =
-        msconnector_intervention_make(0, 403, NULL,
-            MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG);
 
     CHECK(msconnector_intervention_has_redirect_url(NULL) == 0);
     CHECK(msconnector_intervention_has_redirect_url("") == 0);
@@ -69,27 +55,41 @@ int main(void)
         &native_request_body_limit_with_url) == 0);
     CHECK(msconnector_intervention_is_request_body_limit_rejection(
         MSCONNECTOR_PHASE_REQUEST_BODY,
-        &native_request_body_limit_with_status) == 0);
+        &native_request_body_limit_with_status) == 1);
     CHECK(msconnector_intervention_is_request_body_limit_rejection(
         MSCONNECTOR_PHASE_REQUEST_BODY,
         &native_request_body_limit_with_log) == 0);
 
+    msconnector_intervention request_bad_status = native_request_body_limit;
+    request_bad_status.status = 451;
+    CHECK(msconnector_intervention_is_request_body_limit_rejection(
+        MSCONNECTOR_PHASE_REQUEST_BODY, &request_bad_status) == 0);
+    request_bad_status.status = 403;
+    request_bad_status.disruptive = 0;
+    CHECK(msconnector_intervention_is_request_body_limit_rejection(
+        MSCONNECTOR_PHASE_REQUEST_BODY, &request_bad_status) == 0);
+
+    msconnector_intervention response_limit = msconnector_intervention_make(1, 403, NULL,
+        MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG);
     CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY, &native_response_body_limit) == 1);
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 1);
     CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_REQUEST_BODY, &native_response_body_limit) == 0);
+        MSCONNECTOR_PHASE_REQUEST_BODY, &response_limit) == 0);
+    response_limit.redirect_url = "/redirect";
     CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY,
-        &native_response_body_limit_with_url) == 0);
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+    response_limit.redirect_url = NULL;
+    response_limit.status = 413;
     CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY,
-        &native_response_body_limit_with_status) == 0);
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+    response_limit.status = 403;
+    response_limit.log_message = "ordinary rule intervention";
     CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY,
-        &native_response_body_limit_with_log) == 0);
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+    response_limit.log_message = MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG;
+    response_limit.disruptive = 0;
     CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY,
-        &native_response_body_limit_nondisruptive) == 0);
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
 
     return failures == 0 ? 0 : 1;
 }

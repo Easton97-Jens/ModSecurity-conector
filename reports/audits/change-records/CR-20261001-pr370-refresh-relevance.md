@@ -2,99 +2,81 @@
 
 **Language:** English | [Deutsch](CR-20261001-pr370-refresh-relevance.de.md)
 
-PR maintenance, not a ten-profile readiness promotion.
+Current-master maintenance of PR #370; no readiness promotion.
 
 ## Identity
 
 | Field | Value |
 | --- | --- |
 | Change ID | CR-20261001-pr370-refresh-relevance |
-| Date (UTC) | 2026-10-01 |
-| Base revision | `e0b6cab3f46d73da0a10d7b4afca73e0cb584448` |
+| Date (UTC) | 2026-10-28 |
+| Base revision | `15cea9e4d778fa1ec6e27e6fe084b347010f1367` |
 
 ## Motivation and problem statement
 
-The user requested an update and relevance assessment of existing Draft PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370). Its published head conflicted with master and its description was stale. Two independent source audits found Apache P2/APXS, Envoy ext_authz path, Stock-lighttpd endpoints, Traefik native endpoints and NGINX receipt corrections still absent from master.
+The user requested that existing Draft PR [#370](https://github.com/Easton97-Jens/ModSecurity-conector/pull/370) be updated to current `master`, with `master` authoritative for Phase-4 processing. The published branch was 13 commits behind and its retained qualification code referenced removed Common and connector-limit APIs. Sonar new-code duplication must be exactly zero before completion. NGINX may follow `master`, but remains excluded from readiness-B qualification and runtime credit.
 
 ## Acceptance criteria
 
-Preserve published history; normally integrate observed master `b0f3bdab429717b5b0311c30c5b4d1153c672ac0`; retain current pins and security/Phase-4 behavior; resolve conflicts; rerun relevant checks; publish exact-head CI/Sonar and bilingual delivery status. No merge is authorized.
+Normally merge the observed base revision, leave no conflict, preserve current-master Phase-4 and technical-error semantics, retain only relevant additive corrections, keep the active inventory at no more than 100 cases, pass focused local validation, update this bilingual traceability, publish through the existing PR branch without force, and obtain exact-head CI and Sonar duplication density/lines/blocks of zero. No direct `master` push or merge is authorized.
 
 ## Implementation decision and rationale
 
-The earlier worktree is absent, so use a new task-owned worktree from the published head. Resolve the two NGINX conflicts with `EXPECTED_NGINX_VERSION = "1.31.6"`, shared by the source-root and both receipts; preserve HAProxy `3.2.25`. Remove only two unused `read_event_jsonl` result assignments (`c:S1854`). Adapt the Stock assertion to the mode-dependent Phase-4 budget. Restore necessary Apache bootstrap P2 marker/default-limit, audit-redaction, recovery and non-root controls; retain final curl status rather than first-header parsing (`100 Continue`). Keep all other published fixes and incoming master security/Phase-4 changes.
+The normal merge exposed 43 textual conflicts. Every conflicted product, Common, documentation, and workflow path was first restored to the exact `master` version. The remaining PR delta was then audited by connector. Obsolete qualification harnesses, removed body-limit configuration, orphaned composite APIs, stale lighttpd keepalive claims, and old technical-error oracles were removed from the net diff instead of restoring pre-master behavior.
+
+The retained changes are narrow: fresh external APXS profile-registry staging for retries; Envoy authorization-Path authority and response-companion smoke-rule selection; a forward-declaration-safe HAProxy source checker; stricter Traefik fixture framing, bounded reads/writes, and payload-digest verification; and two small deterministic test corrections. Reviewed source hashes and the generated specialist archive were updated without changing selectors or case counts.
 
 ## Changed files
 
-- `tests/run_nginx_body_buffer_fixture.py`, `tests/test_nginx_body_buffer_fixture.py`
-- `tests/transaction_phase_runtime_companion_test.c`
-- `connectors/lighttpd/tests/test_stock_sidecar_contract.py`
-- `ci/checks/connectors/apache/check-apache-autotools-bootstrap.sh`, `tests/test_apache_request_transaction_cleanup.py`
-- This EN/DE record, EN/DE archive index and cross-references in the earlier EN/DE readiness record. Other incoming master files are integration history, not separately selected edits.
-
-## Historical boundary
-
-Unless a later dated section says otherwise, this record describes the
-October 1 checkout and its observed results. Current successor status,
-including the materialized Framework checkout and the later current-master
-merge, is maintained in
-[`CR-20261003-pr370-composite-common-runtime.md`](CR-20261003-pr370-composite-common-runtime.md).
-
-## 2026-10-03 scope reconciliation
-
-The NGINX statements above describe the October 1 intermediate head. The user
-subsequently excluded NGINX. All four NGINX fixture/contract-test paths now
-match `origin/master`; the final PR neither delivers nor credits that receipt
-identity correction. The remaining nine-profile work is independent of those
-files.
-
-## 2026-10-07 scope clarification
-
-The exclusion applies to NGINX readiness-B qualification and runtime credit,
-not to repository updates. The successor integrates the complete NGINX state
-from current master while making no NGINX B claim.
-
-Fresh successor runtime evidence produced on 2026-10-07 is maintained in
-[CR-20261003-pr370-composite-common-runtime](CR-20261003-pr370-composite-common-runtime.md).
+- Apache build containment and EN/DE documentation: `connectors/apache/build/apxs-wrapper.in`, `connectors/apache/README.md`, `connectors/apache/README.de.md`, and `tests/test_apache_apxs_profile_registry_staging.py`.
+- Envoy protected-URI and response-companion smoke path plus EN/DE documentation and tests: `connectors/envoy/src/envoy_ext_authz_service_main.c`, `connectors/envoy/config/envoy-ext-authz-smoke.yaml.in`, `connectors/envoy/harness/run_envoy_connector_runtime.sh`, `common/rules/modsecurity_response_companion_smoke.conf`, `connectors/envoy/README.md`, `connectors/envoy/README.de.md`, and `tests/test_envoy_transport_hardening_contract.py`.
+- HAProxy and Traefik verification: `ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py`, `connectors/traefik/scripts/runtime_native_smoke.py`, and `tests/test_traefik_transport_hardening_contract.py`.
+- Deterministic test corrections: `tests/test_bounded_nginx_cases.py` and `tests/test_logical_connector_example_matrix.py`.
+- Inventory and generated companion: `config/testing/active-cases.json` and `reports/testing/test-selection-archive.generated.json`.
+- This EN/DE record pair and the EN/DE archive indexes.
 
 ## Commands executed
 
-All shell commands were RTK-wrapped. Existing `python3` is exact `3.14.7`; no dependency installation. Task output: `/var/tmp/codex/ModSecurity-conector/runs/pr370-refresh-20261001`.
+All project shell commands were RTK-wrapped. Heavy output and Go caches used private paths below `/var/tmp/codex/ModSecurity-conector`.
 
-| Check | Observed pre-delivery result |
+| Check | Observed local result |
 | --- | --- |
-| Focused Python suite including current security regressions | 224 cases: 217 passed, six skipped, one environment error at the hardcoded `/tmp` fixture's `mkdtemp`, before product execution. |
-| Stock/pins/body-buffer/Phase-4/forwardAuth suite | 143 cases: 137 passed, six prerequisite skips. |
-| Apache bootstrap source regression and shell syntax | 21/21 passed; `sh -n` passed. |
-| `make check-common-helpers-c17 check-common-sdk-contract check-common-security-contract check-apache-common-adoption` | Passed; Apache adoption also ran 12 focused cases. |
-| `make check-apache-c17 check-remaining-connectors-c17` | Passed with warnings as errors and explicit external output. Initial Apache default-output attempt failed on a read-only unapproved path; rerun used task-owned output. |
-| Direct companion C test with `cc` and `clang` | Both strict C17 builds and executions passed against system libmodsecurity, each bounded by 120 seconds. |
-| `make -C connectors/traefik test-native-middleware` | Go tests and vet passed. |
-| `python3 ci/tools/generate-connector-config-reference.py --check` | Passed: 21 generated files current. |
-| `git diff --check` | Passed before record authoring. |
-| `make check-apache-autotools-bootstrap` | Module build/configuration passed; non-root startup blocked by task-directory `chown` returning `EINVAL`. No host runtime pass. |
-| `make check-bilingual-docs` and `make check-doc-links` | Attempted; only missing local Framework link targets were reported. The new record/archive structure check passed. |
+| APXS focused module | 7/7 passed. |
+| Envoy focused transport module | 3/3 passed. |
+| Traefik focused transport module | 6/6 passed. |
+| NGINX umask plus logical-example regressions | 3/3 passed; no NGINX runtime or B qualification was run. |
+| `make check-haproxy-htx-overlay` | Passed. |
+| `python3 ci/tools/update-test-archive.py --check` | Passed. |
+| `make check-active-inventory` | Passed: 100 core cases, hard limit 100, 1,893 on-demand cases. |
+| Six-group active selection check | Passed: 22 executions and 26 expanded cases. |
+| Six-group active execution with `--strict-skips` | Final run passed all 26 cases with no skip. The first attempt lacked explicit libmodsecurity paths; the second exposed a read-only default Go cache. The successful rerun used existing system libmodsecurity and private external Go caches. |
+| Independent narrowed-diff security review | No validated new security vulnerability; `git diff --check origin/master` passed. |
+| Common/adapter static contract targets | All six selected targets passed. |
+| EN/DE, link, variable and generated connector-reference checks | Passed after read-only materialization of the exact Framework Gitlink. |
+| Direct repository Envoy connector build script | Passed against the existing system libmodsecurity and produced both service binaries. The Root lifecycle wrapper was separately interrupted after making no observable progress during preparation; no wrapper-build pass is claimed. |
+| `sh -n` for both changed shell paths | Passed. Direct ShellCheck also ran, but reported existing template shebang, `CDPATH`, dynamic-source, and intentional splitting findings outside the changed lines; no suppression was added. |
+| Change-Record structure and final whitespace checks | Passed locally. |
 
 ## Security impact
 
-No suppression, exclusion, Quality-Gate relaxation, dependency change or compiler-warning reduction. Trusted socket/path and body-limit controls remain protected. Independent merged-source review confirmed Apache P4 effective budgets and Stock P4 OFF/LOG_ONLY/shutdown alongside retained PR fixes. No Framework/MRTS source writes; their Gitlinks only follow incoming master history.
+Envoy no longer treats downstream original-URI hint headers as policy-selection authority; the authorization request Path is authoritative. Traefik evidence readers reject ambiguous Content-Length/Transfer-Encoding framing, noncanonical or oversized fixture lengths, truncated input, short output, and same-length payload substitution. APXS rebuilds avoid trusting or overwriting an earlier staged child. The HAProxy checker no longer mistakes a forward declaration for a function body. No suppression, Quality-Gate relaxation, dependency change, permission expansion, or compiler-warning reduction is introduced.
 
 ## Runtime evidence
 
-The direct Common companion binary validates escaped-event hashing and buffered forwardAuth P2-to-P3/P4 transfer against libmodsecurity. It bypasses host HTTP parsing, uses `safe`, and is not a host/readiness-B result. It is not wired into routine CI. Final-head Apache, NGINX and runtime-cell results are recorded in PR #370 after push, not inferred from historical September runs.
+The selected active run exercised 26 reviewed cases across Common, Apache, HAProxy, Envoy, Traefik, and lighttpd, including the real Stock-lighttpd loopback allow case. These are bounded contract and component/runtime checks for the selected inventory only. They do not establish three fresh starts, every G1–G9 gate, production readiness, or readiness B for every non-NGINX profile. NGINX was updated only through incoming `master` and received no readiness credit.
 
 ## Known limitations
 
-The October 1 worktree had no materialized Framework checkout. Five pin-bound cases and the Stock runtime-identity prerequisite skip were explicit local gaps. The newer directory regression could not create its hardcoded `/tmp` fixture in that sandbox. Full local framework-dependent lint/docs and all-ten-profile G1–G9 evidence were not established by that run.
+The APXS wrapper continues to assume a trusted external build-root ancestry; the patch narrows reuse below that boundary but does not claim protection from a hostile same-host writer controlling an ancestor. The retained Traefik changes harden the local evidence harness and do not expand connector capability claims. The selected active inventory is not the historical full I12 or all-profile qualification matrix.
 
 ## Remaining risks
 
-Hosted checks and Sonar must bind to the delivered SHA. Old green runtime cells and old 0.0% duplication do not validate the successor. The broader readiness-B objective remains incomplete; the PR is still a scoped corrective increment.
+Hosted checks and Sonar must bind to the final delivered SHA. Local success does not prove hosted workflow permissions, external service availability, or zero new-code duplication. The Root Envoy lifecycle wrapper did not complete locally, although the underlying repository build script passed. The larger readiness-B objective remains unproven until its required host/profile/run evidence exists.
 
 ## Checks not run and rationale
 
-No all-ten-profile G1–G9 campaign, dependency installation, Framework/MRTS write, direct master push, merge or force push. Exact-head CI is only available after push; its live results are published in PR #370 at handoff. Full local framework-dependent lint was not run; local native Apache startup and repository-wide docs attempts have the environment limitations listed above, never credited as passes.
+No historical full-matrix/I12 restart, all-profile G1–G9 campaign, Framework/MRTS source write, dependency installation, direct `master` push, force push, or merge was performed. Exact-head CI and Sonar are available only after publishing the successor commit and remain pending at this stage.
 
 ## Final diff and review status
 
-Relevance was independently audited against current master; merged Apache/Stock overlap was independently reviewed. Main owns final diff, bilingual review, delivery and CI/Sonar reconciliation. Observed delivery results are maintained in PR #370 rather than a self-referential commit SHA in this record.
+Master-first relevance and Phase-4 audits are complete. The narrowed diff received independent security, test-selection, and documentation review, and the selected local static, documentation, build, focused, and 26-case active checks passed as qualified above. Delivery SHA reconciliation and hosted CI/Sonar results are recorded only after they are actually observed.

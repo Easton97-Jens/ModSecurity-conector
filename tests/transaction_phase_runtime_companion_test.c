@@ -7,11 +7,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/profile_registry.h"
 #include "tests/transaction_phase_test_support.h"
+#include "connectors/traefik/src/traefik_provenance.h"
 
 typedef struct companion_worker {
     msconnector_runtime_response_companion_registry *registry;
@@ -28,16 +32,10 @@ static const char *test_private_directory(void)
     struct stat directory_stat;
 
     if (test_private_root[0] == '\0') {
-        char working_directory[TEST_PATH_SIZE];
-        const char *separator;
-        int path_length;
-
-        assert(getcwd(working_directory, sizeof(working_directory)) != NULL);
-        separator = strcmp(working_directory, "/") == 0 ? "" : "/";
-        path_length = snprintf(test_private_root, sizeof(test_private_root),
-            "%s%smsconnector-transaction-companion-XXXXXX", working_directory,
-            separator);
-        assert(path_length > 0 && (size_t)path_length < sizeof(test_private_root));
+        char tmpdir[TEST_PATH_SIZE];
+        assert(getcwd(tmpdir, sizeof(tmpdir)) != NULL);
+        assert(snprintf(test_private_root, sizeof(test_private_root),
+            "%s/msconnector-transaction-companion-XXXXXX", tmpdir) > 0);
         assert(mkdtemp(test_private_root) != NULL);
         assert(stat(test_private_root, &directory_stat) == 0);
         assert(directory_stat.st_uid == geteuid());
@@ -46,10 +44,15 @@ static const char *test_private_directory(void)
     return test_private_root;
 }
 
-static void create_runtime_fixture_enabled(char config_path[TEST_PATH_SIZE],
+typedef struct response_fixture_policy {
+    size_t limit;
+    const char *action;
+} response_fixture_policy;
+
+static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE],
     const char *rules_text, const char *request_body_mode,
-    const char *phase4_mode, const char *enabled) {
+    const char *phase4_mode, response_fixture_policy response_policy) {
     const char *directory = test_private_directory();
     FILE *config;
     FILE *rules;
@@ -75,18 +78,22 @@ static void create_runtime_fixture_enabled(char config_path[TEST_PATH_SIZE],
     assert(rules_text != NULL);
     assert(request_body_mode != NULL);
     assert(phase4_mode != NULL);
+    assert(response_policy.limit > 0U && response_policy.action != NULL);
+    assert(fputs("SecRequestBodyLimit 1048576\n"
+        "SecRequestBodyNoFilesLimit 1048576\n"
+        "SecRequestBodyLimitAction Reject\n", rules) != EOF);
+    assert(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
+        response_policy.limit, response_policy.action) > 0);
     assert(fputs(rules_text, rules) != EOF);
     assert(fclose(rules) == 0);
     config = fdopen(config_fd, "w");
     assert(config != NULL);
     assert(fprintf(config,
-        "enabled=%s\n"
+        "enabled=on\n"
         "rules_file=%s\n"
         "transaction_id_header=x-request-id\n"
         "request_body_mode=%s\n"
         "response_body_mode=none\n"
-        "request_body_limit=1024\n"
-        "response_body_limit=1024\n"
         "phase4_mode=%s\n"
         "default_block_status=403\n"
         "default_error_status=500\n"
@@ -95,53 +102,66 @@ static void create_runtime_fixture_enabled(char config_path[TEST_PATH_SIZE],
         "max_header_value_size=512\n"
         "max_total_header_bytes=4096\n"
         "max_event_json_bytes=16384\n"
-        "event_path=%s\n", enabled, rules_path, request_body_mode, phase4_mode,
+        "event_path=%s\n", rules_path, request_body_mode, phase4_mode,
         event_path) > 0);
     assert(fclose(config) == 0);
 }
 
-static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
-    char event_path[TEST_PATH_SIZE], char rules_path[TEST_PATH_SIZE],
-    const char *rules_text, const char *request_body_mode,
-    const char *phase4_mode) {
-    create_runtime_fixture_enabled(config_path, event_path, rules_path,
-        rules_text, request_body_mode, phase4_mode, "on");
-}
+static void read_event_contents(const char *event_path, char *contents,
+    size_t capacity) {
+    FILE *event_file;
+    size_t size;
 
-static size_t read_event_jsonl(const char *event_path, char *contents,
-    size_t contents_capacity);
+    event_file = fopen(event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, capacity - 1U, event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    contents[size] = '\0';
+}
 
 static void assert_terminal_events(const char *event_path) {
     char contents[32768];
 
-    (void)read_event_jsonl(event_path, contents, sizeof(contents));
+    read_event_contents(event_path, contents, sizeof(contents));
     assert(strstr(contents, "\"event\":\"engine_timeout\"") != NULL);
     assert(strstr(contents, "\"event\":\"client_cancel\"") != NULL);
     assert(strstr(contents, "\"event\":\"protocol_error\"") != NULL);
     assert(strstr(contents, "\"body_payload\"") == NULL);
 }
 
+typedef struct authz_runtime_fixture {
+    msconnector_runtime *runtime;
+    char config_path[TEST_PATH_SIZE];
+    char event_path[TEST_PATH_SIZE];
+    char rules_path[TEST_PATH_SIZE];
+} authz_runtime_fixture;
+
+static void create_authz_runtime_fixture(authz_runtime_fixture *fixture,
+    const char *rules_text, response_fixture_policy response_policy) {
+    create_runtime_fixture(fixture->config_path, fixture->event_path,
+        fixture->rules_path, rules_text, "none", "safe", response_policy);
+    assert(msconnector_runtime_create("envoy", fixture->config_path,
+        &fixture->runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(fixture->runtime, "ext_authz"));
+    assert(msconnector_runtime_set_transaction_profile(fixture->runtime,
+        msconnector_profile_registry_find("envoy-ext-authz")));
+}
+
 static void test_regular_block_emits_one_terminal_event(void) {
     static const char blocking_rules[] =
         "SecRuleEngine On\n"
         "SecRule REQUEST_URI \"@streq /blocked\" \"id:1001,phase:1,deny,status:403,log\"\n";
-    msconnector_runtime *runtime = NULL;
+    authz_runtime_fixture fixture = {0};
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_runtime_transaction_snapshot snapshot;
     msconnector_decision decision;
     msconnector_error error;
-    char config_path[TEST_PATH_SIZE];
-    char event_path[TEST_PATH_SIZE];
-    char rules_path[TEST_PATH_SIZE];
     char contents[16384];
 
-    create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
-        "none", "safe");
-    assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
-    assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
-    assert(msconnector_runtime_set_transaction_profile(runtime,
-        msconnector_profile_registry_find("envoy-ext-authz")));
-    assert(msconnector_test_begin_transaction(runtime, "/blocked", "rule-block",
+    create_authz_runtime_fixture(&fixture, blocking_rules,
+        (response_fixture_policy){1024U, "Reject"});
+    assert(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "rule-block",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -151,125 +171,110 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(snapshot.contract.completed_at_ms >= snapshot.contract.created_at_ms);
     assert(msconnector_runtime_transaction_finish(transaction, &error));
     msconnector_runtime_transaction_destroy(&transaction);
-    msconnector_runtime_destroy(&runtime);
+    msconnector_runtime_destroy(&fixture.runtime);
 
-    (void)read_event_jsonl(event_path, contents, sizeof(contents));
-    assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
+    assert(strstr(contents, "MSCONN_EVENT_ENGINE_DECISION") != NULL);
     assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
     assert(strstr(contents, "\"transaction_id\":\"rule-block\"") != NULL);
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
 }
 
-static size_t newline_count(const char *contents) {
-    size_t count = 0U;
-
-    assert(contents != NULL);
-    for (const char *cursor = contents; *cursor != '\0'; ++cursor) {
-        if (*cursor == '\n') {
-            ++count;
-        }
-    }
-    return count;
-}
-
-static uint64_t event_json_unsigned_field(const char *json, const char *field) {
-    const char *value;
-    char *end;
-    unsigned long long parsed;
-
-    assert(json != NULL);
-    assert(field != NULL);
-    value = strstr(json, field);
-    assert(value != NULL);
-    value += strlen(field);
-    parsed = strtoull(value, &end, 10);
-    assert(end != value);
-    assert(*end == ',' || *end == '}');
-    return (uint64_t)parsed;
-}
-
-static size_t read_event_jsonl(const char *event_path, char *contents,
-    size_t contents_capacity) {
-    FILE *event_file;
-    size_t size;
-
-    assert(event_path != NULL);
-    assert(contents != NULL);
-    assert(contents_capacity > 0U);
-    event_file = fopen(event_path, "r");
-    assert(event_file != NULL);
-    size = fread(contents, 1U, contents_capacity - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
-    contents[size] = '\0';
-    return size;
-}
-
-static void assert_completed_denied_block(msconnector_runtime *runtime,
-    const char *transaction_id) {
-    msconnector_runtime_transaction *transaction = NULL;
-    msconnector_decision decision;
-    msconnector_error error;
-
-    assert(runtime != NULL);
-    assert(transaction_id != NULL);
-    assert(msconnector_test_begin_transaction(runtime, "/blocked", transaction_id,
-        &transaction, &decision, &error));
-    assert(transaction != NULL);
-    assert(msconnector_decision_action_from_decision(&decision) ==
-        MSCONNECTOR_DECISION_ACTION_DENY);
-    assert(msconnector_runtime_transaction_finish(transaction, &error));
-    msconnector_runtime_transaction_destroy(&transaction);
-}
-
-static void initialize_blocked_request(msconnector_request *request,
-    const char *client_address) {
-    assert(request != NULL);
-    assert(client_address != NULL);
-    memset(request, 0, sizeof(*request));
-    request->method = "GET";
-    request->uri = "/blocked";
-    request->http_version = "HTTP/1.1";
-    request->client.address = client_address;
-    request->client.port = 12345;
-    request->server.address = "127.0.0.1";
-    request->server.port = 9191;
-}
-
-static void test_escaped_invalid_client_address_is_written_and_chained(void) {
+static void test_invalid_byte_event_is_losslessly_written(void) {
     static const char blocking_rules[] =
         "SecRuleEngine On\n"
         "SecRule REQUEST_URI \"@streq /blocked\" \"id:1002,phase:1,deny,status:403,log\"\n";
     static const char invalid_client_address[] = {
         '1', '2', '7', '.', '0', '.', '0', '.', (char)0x80, '\0'
     };
-    msconnector_runtime *runtime = NULL;
+    authz_runtime_fixture fixture = {0};
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_request request;
     msconnector_decision decision;
     msconnector_error error;
-    char config_path[TEST_PATH_SIZE];
-    char event_path[TEST_PATH_SIZE];
-    char rules_path[TEST_PATH_SIZE];
     char contents[16384];
-    size_t size;
-    uint64_t event_hash;
-    const char *second_event;
 
-    create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
-        "none", "safe");
-    assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
-    assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
-    assert(msconnector_runtime_set_transaction_profile(runtime,
-        msconnector_profile_registry_find("envoy-ext-authz")));
+    create_authz_runtime_fixture(&fixture, blocking_rules,
+        (response_fixture_policy){1024U, "Reject"});
 
-    initialize_blocked_request(&request, invalid_client_address);
+    memset(&request, 0, sizeof(request));
+    request.method = "GET";
+    request.uri = "/blocked";
+    request.http_version = "HTTP/1.1";
+    request.client.address = invalid_client_address;
+    request.client.port = 12345;
+    request.server.address = "127.0.0.1";
+    request.server.port = 9191;
     msconnector_error_init(&error);
     msconnector_decision_init(&decision);
-    assert(msconnector_runtime_transaction_begin(runtime, &request, "escaped-event",
+    /* A malformed UTF-8 byte has a reversible JSON byte escape; it is not
+     * serialization loss when the complete escaped value fits the field. */
+    assert(msconnector_runtime_transaction_begin(fixture.runtime, &request, "escaped-event",
+        &transaction, &decision, &error));
+    assert(transaction != NULL);
+    assert(msconnector_decision_action_from_decision(&decision) ==
+        MSCONNECTOR_DECISION_ACTION_DENY);
+    assert(msconnector_runtime_transaction_finish(transaction, &error));
+    msconnector_runtime_transaction_destroy(&transaction);
+    msconnector_runtime_destroy(&fixture.runtime);
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
+    assert(strstr(contents, "\"client_ip\":\"127.0.0.\\u0080\"") != NULL);
+    assert(strstr(contents, "\"phase\":\"request_headers\"") != NULL);
+    assert(strstr(contents, "\"rule_id\":\"1002\"") != NULL);
+    assert(strstr(contents, "\"truncated\":false") != NULL);
+    assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
+    assert(strstr(contents, "\"event_hash\":0") == NULL);
+    assert(strchr(contents, '\n') == strrchr(contents, '\n'));
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
+}
+
+static void test_lossy_event_is_not_written_or_chained(void) {
+    static const char blocking_rules[] =
+        "SecRuleEngine On\n"
+        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1002,phase:1,deny,status:403,log\"\n";
+    /* Eleven byte escapes need 66 bytes, exceeding the serializer's 64-byte
+     * client-IP field, although the raw input fits the Runtime metadata. */
+    char oversized_escaped_address[12];
+    authz_runtime_fixture fixture = {0};
+    msconnector_runtime_transaction *transaction = NULL;
+    msconnector_request request = {0};
+    msconnector_decision decision;
+    msconnector_error error;
+    char contents[16384];
+    FILE *event_file;
+    size_t size;
+
+    memset(oversized_escaped_address, 0x80, sizeof(oversized_escaped_address) - 1U);
+    oversized_escaped_address[sizeof(oversized_escaped_address) - 1U] = '\0';
+    create_authz_runtime_fixture(&fixture, blocking_rules,
+        (response_fixture_policy){1024U, "Reject"});
+    request.method = "GET";
+    request.uri = "/blocked";
+    request.http_version = "HTTP/1.1";
+    request.client.address = oversized_escaped_address;
+    request.client.port = 12345;
+    request.server.address = "127.0.0.1";
+    request.server.port = 9191;
+    msconnector_error_init(&error);
+    msconnector_decision_init(&decision);
+    assert(!msconnector_runtime_transaction_begin(fixture.runtime, &request, "lossy-event",
+        &transaction, &decision, &error));
+    assert(transaction == NULL);
+    assert(error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE);
+
+    event_file = fopen(fixture.event_path, "r");
+    assert(event_file != NULL);
+    size = fread(contents, 1U, sizeof(contents), event_file);
+    assert(ferror(event_file) == 0);
+    assert(fclose(event_file) == 0);
+    assert(size == 0U);
+
+    assert(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "post-lossy",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -277,89 +282,23 @@ static void test_escaped_invalid_client_address_is_written_and_chained(void) {
     assert(msconnector_runtime_transaction_finish(transaction, &error));
     msconnector_runtime_transaction_destroy(&transaction);
 
-    size = read_event_jsonl(event_path, contents, sizeof(contents));
-    assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
-    assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
-    assert(strstr(contents, "\"transaction_id\":\"escaped-event\"") != NULL);
-    assert(strstr(contents, "\"client_ip\":\"127.0.0.\\u0080\"") != NULL);
-    assert(memchr(contents, 0x80, size) == NULL);
-    assert(strstr(contents, "\"truncated\":false") != NULL);
-    assert(newline_count(contents) == 1U);
-    event_hash = event_json_unsigned_field(contents, "\"event_hash\":");
-    assert(event_hash != 0U);
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
+    assert(strstr(contents, "MSCONN_EVENT_ENGINE_DECISION") != NULL);
+    assert(strstr(contents, "\"transaction_id\":\"post-lossy\"") != NULL);
+    assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
+    assert(strchr(contents, '\n') == strrchr(contents, '\n'));
 
-    assert_completed_denied_block(runtime, "post-escaped");
-
-    (void)read_event_jsonl(event_path, contents, sizeof(contents));
-    assert(strstr(contents, "MSCONN_EVENT_REQUEST_BLOCKED") != NULL);
-    assert(strstr(contents, "\"transaction_id\":\"post-escaped\"") != NULL);
-    assert(newline_count(contents) == 2U);
-    second_event = strchr(contents, '\n');
-    assert(second_event != NULL);
-    ++second_event;
-    assert(event_json_unsigned_field(second_event, "\"previous_event_hash\":") ==
-        event_hash);
-
-    msconnector_runtime_destroy(&runtime);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    msconnector_runtime_destroy(&fixture.runtime);
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
 }
 
-static void test_oversized_escaped_client_address_is_not_written_or_chained(void) {
-    static const char blocking_rules[] =
-        "SecRuleEngine On\n"
-        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1003,phase:1,deny,status:403,log\"\n";
-    char invalid_client_address[64];
-    msconnector_runtime *runtime = NULL;
-    msconnector_runtime_transaction *transaction = NULL;
-    msconnector_request request;
-    msconnector_decision decision;
-    msconnector_error error;
-    char config_path[TEST_PATH_SIZE];
-    char event_path[TEST_PATH_SIZE];
-    char rules_path[TEST_PATH_SIZE];
-    char contents[16384];
-    size_t size;
-
-    memset(invalid_client_address, (char)0x80, sizeof(invalid_client_address) - 1U);
-    invalid_client_address[sizeof(invalid_client_address) - 1U] = '\0';
-    create_runtime_fixture(config_path, event_path, rules_path, blocking_rules,
-        "none", "safe");
-    assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
-    assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
-    assert(msconnector_runtime_set_transaction_profile(runtime,
-        msconnector_profile_registry_find("envoy-ext-authz")));
-
-    initialize_blocked_request(&request, invalid_client_address);
-    msconnector_error_init(&error);
-    msconnector_decision_init(&decision);
-    assert(!msconnector_runtime_transaction_begin(runtime, &request, "oversized-escaped",
-        &transaction, &decision, &error));
-    assert(transaction == NULL);
-    assert(error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE);
-
-    size = read_event_jsonl(event_path, contents, sizeof(contents));
-    assert(size == 0U);
-
-    assert_completed_denied_block(runtime, "post-oversized");
-
-    (void)read_event_jsonl(event_path, contents, sizeof(contents));
-    assert(strstr(contents, "\"transaction_id\":\"post-oversized\"") != NULL);
-    assert(event_json_unsigned_field(contents, "\"previous_event_hash\":") == 0U);
-    assert(newline_count(contents) == 1U);
-
-    msconnector_runtime_destroy(&runtime);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
-}
-
-static void begin_handed_off(
+static void begin_handed_off_ttl(
     msconnector_runtime *runtime,
     msconnector_runtime_response_companion_registry *registry,
     const char *transaction_id,
-    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE]) {
+    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE], uint64_t ttl) {
     msconnector_runtime_transaction *transaction = NULL;
     msconnector_decision decision;
     msconnector_error error;
@@ -369,7 +308,110 @@ static void begin_handed_off(
     assert(transaction != NULL);
     assert(strcmp(msconnector_runtime_transaction_id(transaction), transaction_id) == 0);
     assert(msconnector_runtime_response_companion_handoff_with_handle(registry,
-        transaction, UINT64_C(60000), handle, &error));
+        transaction, ttl, handle, &error));
+}
+
+static void begin_handed_off(msconnector_runtime *runtime,
+    msconnector_runtime_response_companion_registry *registry, const char *id,
+    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE]) {
+    begin_handed_off_ttl(runtime, registry, id, handle, UINT64_C(60000));
+}
+
+static int confirm_registry(void *userdata, const char *handle, msconnector_error *error) {
+    return msconnector_runtime_response_companion_confirm_preclaim(userdata, handle, error);
+}
+
+static void socket_exact(int fd, unsigned char *buffer, size_t size, int writing) {
+    while (size != 0U) {
+        ssize_t count = writing ? send(fd, buffer, size, 0) : recv(fd, buffer, size, 0);
+        assert(count > 0);
+        buffer += (size_t)count;
+        size -= (size_t)count;
+    }
+}
+
+/* Physical MTP1 confirmation uses the actual Common registry, not the Go
+ * fake MRC1 server. Ordinary handles still expire after five seconds. */
+static void test_trusted_preclaim_refresh(msconnector_runtime *runtime) {
+    msconnector_runtime_response_companion_registry registry;
+    msconnector_runtime_response_companion_session session;
+    msconnector_http_authorization_provenance_storage storage;
+    msconnector_error error;
+    char ordinary[65];
+    char trusted[65];
+    char claimed[65];
+    char expired[65];
+    char foreign[65];
+    char path[sizeof(((struct sockaddr_un *)0)->sun_path)];
+    struct sockaddr_un address = {.sun_family = AF_UNIX};
+    unsigned char reserve[] = {'M','T','P','1',1,1,0,0,0,0,0,10,
+        0,1,'r',0,1,'c',0,1,'i',0};
+    unsigned char reply[79];
+    unsigned char query[] = {'M','T','P','1',1,2,0,0,0,0,0,0};
+    char token[65];
+    msconnector_runtime_response_companion_registry_init(&registry);
+    begin_handed_off_ttl(runtime, &registry, "initial-five-second-control", ordinary, 30000U);
+    begin_handed_off_ttl(runtime, &registry, "trusted-thirty-second-control", trusted, 30000U);
+    const uint64_t original_deadline = registry.entries[1].preclaim_deadline_ms;
+    memset(foreign, 'f', 64U); foreign[64] = '\0';
+    assert(!confirm_registry(&registry, foreign, &error));
+    assert(snprintf(path, sizeof(path), "%s/p.sock", test_private_directory()) > 0);
+    assert(strlen(path) < sizeof(address.sun_path));
+    strcpy(address.sun_path, path);
+    assert(msconnector_traefik_provenance_start_with_confirmation(path, confirm_registry, &registry));
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    assert(fd >= 0 && connect(fd, (struct sockaddr *)&address, sizeof(address)) == 0);
+    socket_exact(fd, reserve, sizeof(reserve), 1);
+    socket_exact(fd, reply, 77U, 0);
+    assert(reply[12] == 0U);
+    memcpy(token, reply + 13U, 64U); token[64] = '\0';
+    msconnector_header header = {MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER,
+        sizeof(MSCONNECTOR_TRAEFIK_PROVENANCE_HEADER)-1U, token, 64U};
+    msconnector_request request = {.headers = &header, .header_count = 1U};
+    assert(msconnector_traefik_provenance_claim(NULL, &request, &storage, &error));
+    assert(msconnector_traefik_provenance_complete(NULL, &request, 200, trusted, &error));
+    socket_exact(fd, query, sizeof(query), 1);
+    socket_exact(fd, reply, sizeof(reply), 0);
+    assert(reply[12] == 0U && memcmp(reply + 15U, trusted, 64U) == 0);
+    while (atomic_flag_test_and_set_explicit(&registry.lock, memory_order_acquire)) {
+        /* The registry only holds this lock for bounded metadata updates. */
+    }
+    const int original_deadline_preserved =
+        registry.entries[1].expires_at_ms == original_deadline &&
+        registry.entries[1].trusted_preclaim_refreshed;
+    atomic_flag_clear_explicit(&registry.lock, memory_order_release);
+    assert(!confirm_registry(&registry, trusted, &error)); /* one refresh */
+    assert(close(fd) == 0);
+    msconnector_traefik_provenance_stop();
+    struct timespec wait = {.tv_sec = 5, .tv_nsec = 100000000L};
+    assert(nanosleep(&wait, NULL) == 0);
+    assert(!confirm_registry(&registry, ordinary, &error)); /* cannot resurrect */
+    assert(!msconnector_runtime_response_companion_claim_handle(&registry, ordinary, &session, &error));
+    assert(msconnector_runtime_response_companion_claim_handle(&registry, trusted, &session, &error));
+    assert(original_deadline_preserved); /* no fresh thirty-second window */
+    assert(!confirm_registry(&registry, trusted, &error));
+    assert(msconnector_runtime_response_companion_session_cancel(&session, 0, &error));
+    begin_handed_off_ttl(runtime, &registry, "already-claimed", claimed, 30000U);
+    assert(msconnector_runtime_response_companion_claim_handle(&registry, claimed, &session, &error));
+    assert(!confirm_registry(&registry, claimed, &error));
+    assert(msconnector_runtime_response_companion_session_cancel(&session, 0, &error));
+    begin_handed_off_ttl(runtime, &registry, "expired-confirmation", expired, 1U);
+    wait.tv_sec = 0; wait.tv_nsec = 10000000L;
+    assert(nanosleep(&wait, NULL) == 0);
+    assert(!confirm_registry(&registry, expired, &error));
+    assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    assert(!confirm_registry(&registry, expired, &error));
+    /* Shutdown latch with a real unclaimed native handle and one explicitly
+     * synthetic metadata-only blocking lease (no native/session ownership). */
+    msconnector_runtime_response_companion_registry_init(&registry);
+    begin_handed_off_ttl(runtime, &registry, "shutdown-unclaimed-live", foreign, 30000U);
+    registry.entries[1].occupied = 1;
+    registry.entries[1].in_use = 1;
+    assert(!msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    assert(!confirm_registry(&registry, foreign, &error));
+    assert(!registry.entries[0].trusted_preclaim_refreshed);
+    registry.entries[1].in_use = 0;
+    assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
 }
 
 /* ext_authz forwards a bounded request entity to P2 before transferring the
@@ -386,7 +428,7 @@ static void test_buffered_request_body_handoff(void) {
     msconnector_error error;
 
     create_runtime_fixture(config_path, event_path, rules_path,
-        "SecRuleEngine DetectionOnly\n", "buffered", "safe");
+        "SecRuleEngine DetectionOnly\n", "buffered", "safe", (response_fixture_policy){1024U, "Reject"});
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(msconnector_runtime_set_event_integration_mode(runtime, "ext_authz"));
     assert(msconnector_runtime_set_transaction_profile(runtime,
@@ -408,7 +450,7 @@ static void test_strict_profile_admission_is_fail_closed(void) {
     msconnector_runtime *runtime = NULL;
 
     create_runtime_fixture(config_path, event_path, rules_path,
-        "SecRuleEngine DetectionOnly\n", "none", "strict");
+        "SecRuleEngine DetectionOnly\n", "none", "strict", (response_fixture_policy){1024U, "Reject"});
     assert(msconnector_runtime_create("envoy", config_path, &runtime, NULL, 0U));
     assert(!msconnector_runtime_set_transaction_profile(runtime,
         msconnector_profile_registry_find("envoy-ext-authz")));
@@ -463,120 +505,6 @@ static int finish_response(
     return 1;
 }
 
-static void initialize_forwardauth_request(msconnector_request *request,
-    const unsigned char *body, size_t body_size) {
-    assert(request != NULL);
-    assert((body_size == 0U && body == NULL) || (body_size > 0U && body != NULL));
-    memset(request, 0, sizeof(*request));
-    request->method = "POST";
-    request->uri = "/forwardauth-buffered-p2";
-    request->http_version = "HTTP/1.1";
-    request->client.address = "127.0.0.1";
-    request->client.port = 12345;
-    request->server.address = "127.0.0.1";
-    request->server.port = 9192;
-    request->body.data = body;
-    request->body.size = body_size;
-}
-
-static void assert_buffered_forwardauth_handoff(msconnector_runtime *runtime,
-    msconnector_runtime_response_companion_registry *registry,
-    const char *transaction_id, const unsigned char *body, size_t body_size,
-    int assert_second_finish_rejected) {
-    msconnector_runtime_transaction *transaction = NULL;
-    msconnector_runtime_transaction_snapshot snapshot;
-    msconnector_request request;
-    msconnector_decision decision;
-    msconnector_error error;
-    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
-
-    assert(runtime != NULL);
-    assert(registry != NULL);
-    assert(transaction_id != NULL);
-    initialize_forwardauth_request(&request, body, body_size);
-    msconnector_error_init(&error);
-    msconnector_decision_init(&decision);
-    assert(msconnector_runtime_transaction_begin(runtime, &request, transaction_id,
-        &transaction, &decision, &error));
-    assert(transaction != NULL);
-    assert(msconnector_decision_action_from_decision(&decision) ==
-        MSCONNECTOR_DECISION_ACTION_ALLOW);
-    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-    assert(snapshot.request_body.finished);
-    assert(snapshot.request_body.bytes_seen == body_size);
-    assert(snapshot.request_body.bytes_inspected == body_size);
-    assert(!snapshot.request_body.truncated);
-    assert(snapshot.request_body.limit_outcome == MSCONNECTOR_BODY_LIMIT_OUTCOME_NONE);
-    assert(snapshot.contract.request_body_bytes == body_size);
-    assert(snapshot.contract.completed_phase_mask ==
-        (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2));
-    assert(snapshot.contract.status == MSCONNECTOR_TRANSACTION_STATUS_WAITING_FOR_NEXT_PHASE);
-
-    if (assert_second_finish_rejected) {
-        msconnector_error_init(&error);
-        msconnector_decision_init(&decision);
-        assert(!msconnector_runtime_transaction_finish_request_body(transaction,
-            &decision, &error));
-        assert(error.code == MSCONNECTOR_ERROR_INTERNAL);
-    }
-
-    msconnector_error_init(&error);
-    assert(msconnector_runtime_response_companion_handoff_with_handle(registry,
-        transaction, UINT64_C(60000), handle, &error));
-    assert(strlen(handle) == MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE - 1U);
-    transaction = NULL;
-    assert(finish_response(registry, handle));
-}
-
-/* The direct Common regression deliberately bypasses Traefik HTTP parsing.
- * It proves only that the selected forwardAuth profile completes buffered P2
- * for both legal empty and bounded non-empty bodies before its P3/P4 companion
- * takes ownership of the live transaction. */
-static void test_traefik_forwardauth_buffered_p2_handoff(void) {
-    static const unsigned char request_body[] = "traefik-forwardauth-p2";
-    char config_path[TEST_PATH_SIZE];
-    char event_path[TEST_PATH_SIZE];
-    char rules_path[TEST_PATH_SIZE];
-    msconnector_runtime *runtime = NULL;
-    msconnector_runtime_response_companion_registry registry;
-    msconnector_runtime_transaction *invalid_transaction = NULL;
-    msconnector_request invalid_request;
-    msconnector_decision decision;
-    msconnector_error error;
-
-    create_runtime_fixture(config_path, event_path, rules_path,
-        "SecRuleEngine DetectionOnly\n", "buffered", "safe");
-    assert(msconnector_runtime_create("traefik", config_path, &runtime, NULL, 0U));
-    assert(msconnector_runtime_set_event_integration_mode(runtime, "forwardAuth"));
-    assert(msconnector_runtime_set_transaction_profile(runtime,
-        msconnector_profile_registry_find("traefik-forwardauth")));
-    msconnector_runtime_response_companion_registry_init(&registry);
-
-    /* A non-empty body needs a borrowed buffer. The same runtime must remain
-     * usable for both legal body forms after this fail-closed validation. */
-    initialize_forwardauth_request(&invalid_request, request_body,
-        sizeof(request_body) - 1U);
-    invalid_request.body.data = NULL;
-    msconnector_error_init(&error);
-    msconnector_decision_init(&decision);
-    assert(!msconnector_runtime_transaction_begin(runtime, &invalid_request,
-        "forwardauth-invalid-body", &invalid_transaction, &decision, &error));
-    assert(invalid_transaction == NULL);
-    assert(error.code == MSCONNECTOR_ERROR_HOST_API_FAILURE);
-
-    assert_buffered_forwardauth_handoff(runtime, &registry,
-        "forwardauth-empty-body", NULL, 0U, 0);
-    assert_buffered_forwardauth_handoff(runtime, &registry,
-        "forwardauth-nonempty-body", request_body, sizeof(request_body) - 1U, 1);
-
-    msconnector_error_init(&error);
-    assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
-    msconnector_runtime_destroy(&runtime);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
-}
-
 static void *run_parallel_response(void *opaque) {
     companion_worker *worker = opaque;
 
@@ -584,163 +512,78 @@ static void *run_parallel_response(void *opaque) {
     return NULL;
 }
 
-static void test_deferred_buffered_request_body(void) {
-    static const unsigned char marker[] = "deferred-marker";
-    static const char rules[] =
-        "SecRuleEngine On\nSecRequestBodyAccess On\n"
-        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1010,phase:1,deny,status:403,log\"\n"
-        "SecRule REQUEST_BODY \"@contains deferred-marker\" \"id:1011,phase:2,deny,status:403,log\"\n";
-    char config_path[TEST_PATH_SIZE], event_path[TEST_PATH_SIZE], rules_path[TEST_PATH_SIZE];
-    msconnector_runtime *runtime = NULL;
+static void test_trusted_provenance_native_lifecycle_mode(int mode) {
+    static const char rules[] = "SecRuleEngine On\n"
+        "SecRule REQUEST_URI \"@streq /blocked\" \"id:1010,phase:1,deny,status:403,log\"\n";
+    authz_runtime_fixture fixture = {0};
     msconnector_runtime_transaction *transaction = NULL;
-    msconnector_runtime_transaction_snapshot snapshot;
-    msconnector_request request;
+    msconnector_runtime_response_companion_registry registry;
     msconnector_decision decision;
     msconnector_error error;
-    unsigned char bounded_body[1025];
-
-    create_runtime_fixture(config_path, event_path, rules_path, rules, "buffered", "safe");
-    assert(msconnector_runtime_create("traefik", config_path, &runtime, NULL, 0U));
-    assert(msconnector_runtime_set_event_integration_mode(runtime, "forwardAuth"));
-    assert(msconnector_runtime_set_transaction_profile(runtime,
+    msconnector_request request = {0};
+    char run_id[] = "trusted-native-run";
+    char connection_id[] = "trusted-native-connection";
+    msconnector_runtime_trusted_provenance provenance = {
+        run_id, "trusted-native-case", connection_id, 0};
+    char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+    char contents[32768];
+    create_runtime_fixture(fixture.config_path, fixture.event_path,
+        fixture.rules_path, rules, "buffered", "safe", (response_fixture_policy){1024U, "Reject"});
+    assert(msconnector_runtime_create("traefik", fixture.config_path, &fixture.runtime, NULL, 0U));
+    assert(msconnector_runtime_set_event_integration_mode(fixture.runtime, "forwardAuth"));
+    assert(msconnector_runtime_set_transaction_profile(fixture.runtime,
         msconnector_profile_registry_find("traefik-forwardauth")));
-    initialize_forwardauth_request(&request, NULL, 0U);
-
-    /* No body buffer, including a non-NULL zero-length buffer, is admitted. */
-    request.body.data = marker;
-    assert(!msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-        "deferred-invalid", &transaction, &decision, &error));
-    assert(transaction == NULL);
-    request.body.data = NULL;
-    request.body.size = 1U;
-    assert(!msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-        "deferred-invalid-size", &transaction, &decision, &error));
-    assert(transaction == NULL);
-    request.body.size = 0U;
-
-    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-        "deferred-body", &transaction, &decision, &error));
-    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-    assert(!snapshot.request_body.finished);
-    assert(snapshot.contract.completed_phase_mask == MSCONNECTOR_TRANSACTION_PHASE_MASK_P1);
-    assert(msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 8U, &error));
-    assert(msconnector_runtime_transaction_append_request_body_chunk(transaction,
-        marker + 8U, sizeof(marker) - 1U - 8U, &error));
-    assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-    assert(msconnector_decision_http_status(&decision) == 403);
-    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-    assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
-    msconnector_runtime_transaction_destroy(&transaction);
-
-    request.uri = "/blocked";
-    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-        "deferred-p1-deny", &transaction, &decision, &error));
-    assert(msconnector_decision_http_status(&decision) == 403);
-    assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
-    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-    assert((snapshot.contract.completed_phase_mask & MSCONNECTOR_TRANSACTION_PHASE_MASK_P2) == 0U);
-    msconnector_runtime_transaction_destroy(&transaction);
-
-    request.uri = "/empty";
-    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-        "deferred-empty", &transaction, &decision, &error));
-    assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-    assert(msconnector_decision_action_from_decision(&decision) == MSCONNECTOR_DECISION_ACTION_ALLOW);
-    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-    assert(!msconnector_runtime_transaction_finish_host_rejected_request_body(transaction, &error));
-    assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
-    msconnector_runtime_transaction_destroy(&transaction);
-
-    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-        "deferred-missing-eos", &transaction, &decision, &error));
-    assert(!msconnector_runtime_transaction_finish(transaction, &error));
-    assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
-    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-    assert(snapshot.contract.status == MSCONNECTOR_TRANSACTION_STATUS_TERMINAL);
-    msconnector_runtime_transaction_destroy(&transaction);
-
-    assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-        "deferred-host-rejected", &transaction, &decision, &error));
-    assert(msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
-    assert(msconnector_runtime_transaction_fail(transaction,
-        MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT, &error));
-    assert(msconnector_runtime_transaction_record_failure_host_action(transaction, 413, 0, &error));
-    assert(msconnector_runtime_transaction_finish_host_rejected_request_body(transaction, &error));
-    assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-    assert(!snapshot.request_body.finished);
-    assert((snapshot.contract.completed_phase_mask & MSCONNECTOR_TRANSACTION_PHASE_MASK_P2) == 0U);
-    assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction, marker, 1U, &error));
-    assert(!msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-    msconnector_runtime_transaction_destroy(&transaction);
-
-    memset(bounded_body, 'x', sizeof(bounded_body));
-    for (size_t size = 1023U; size <= 1025U; ++size) {
-        assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-            "deferred-limit", &transaction, &decision, &error));
-        assert(msconnector_runtime_transaction_append_request_body_chunk(transaction, bounded_body, 512U, &error));
-        if (size <= 1024U) {
-            assert(msconnector_runtime_transaction_append_request_body_chunk(transaction,
-                bounded_body + 512U, size - 512U, &error));
-            assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-            assert(msconnector_decision_action_from_decision(&decision) == MSCONNECTOR_DECISION_ACTION_ALLOW);
-            assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
-        } else {
-            assert(!msconnector_runtime_transaction_append_request_body_chunk(transaction,
-                bounded_body + 512U, size - 512U, &error));
-            assert(error.code == MSCONNECTOR_ERROR_BODY_TOO_LARGE);
-        }
-        msconnector_runtime_transaction_destroy(&transaction);
+    request.method = "GET";
+    request.uri = mode == 0 ? "/blocked" : "/allowed";
+    request.http_version = "HTTP/1.1";
+    request.client.address = "127.0.0.1"; request.client.port = 12345;
+    request.server.address = "127.0.0.1"; request.server.port = 9191;
+    msconnector_error_init(&error);
+    if (mode == 2) {
+        assert(msconnector_runtime_transaction_begin_request_stream_with_trusted_provenance(
+            fixture.runtime, &request, "trusted-cancel", &provenance, &transaction, &decision, &error));
+    } else {
+        assert(msconnector_runtime_transaction_begin_with_trusted_provenance(
+            fixture.runtime, &request, mode == 0 ? "trusted-deny" : "trusted-allow",
+            &provenance, &transaction, &decision, &error));
     }
-    msconnector_runtime_destroy(&runtime);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    memset(run_id, 'x', sizeof(run_id)-1U);
+    memset(connection_id, 'x', sizeof(connection_id)-1U);
+    if (mode == 1) {
+        msconnector_runtime_response_companion_registry_init(&registry);
+        assert(msconnector_runtime_response_companion_handoff_with_handle(&registry,
+            transaction, UINT64_C(60000), handle, &error));
+        transaction = NULL;
+        assert(finish_response(&registry, handle));
+        assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
+    } else {
+        msconnector_runtime_transaction_snapshot snapshot;
+        if (mode == 2) assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
+        assert(msconnector_runtime_transaction_finalize_and_snapshot(&transaction, &snapshot, &error));
+        assert(transaction == NULL && snapshot.contract.cleanup_complete);
+    }
+    msconnector_runtime_destroy(&fixture.runtime);
+    read_event_contents(fixture.event_path, contents, sizeof(contents));
+    assert(strstr(contents, "\"run_id\":\"trusted-native-run\"") != NULL);
+    assert(strstr(contents, "\"connection_id\":\"trusted-native-connection\"") != NULL);
+    assert(strstr(contents, "\"transport_case_id\":\"trusted-native-case\"") != NULL);
+    assert(strstr(contents, "\"connection_reused\":false") != NULL);
+    assert(strstr(contents, "\"event\":\"transaction_cleanup\"") != NULL);
+    assert(strstr(contents, "xxxxxxxx") == NULL);
+    if (mode == 0) assert(strstr(contents, "\"rule_id\":\"1010\"") != NULL);
+    if (mode == 1) assert(strstr(contents, "\"eos_seen\":true") != NULL);
+    if (mode == 2) {
+        assert(strstr(contents, "\"cleanup_reason\":\"client_cancel\"") != NULL);
+        assert(strstr(contents, "\"eos_seen\":true") == NULL);
+    }
+    assert(unlink(fixture.config_path) == 0);
+    assert(unlink(fixture.event_path) == 0);
+    assert(unlink(fixture.rules_path) == 0);
 }
 
-static void test_deferred_mode_admission_and_disabled_engine(void) {
-    static const char *modes[] = {"none", "streaming", "buffered"};
-    for (size_t index = 0U; index < sizeof(modes) / sizeof(modes[0]); ++index) {
-        char config_path[TEST_PATH_SIZE], event_path[TEST_PATH_SIZE], rules_path[TEST_PATH_SIZE];
-        msconnector_runtime *runtime = NULL;
-        msconnector_runtime_transaction *transaction = NULL;
-        msconnector_runtime_transaction_snapshot snapshot;
-        msconnector_request request;
-        msconnector_decision decision;
-        msconnector_error error;
-        create_runtime_fixture_enabled(config_path, event_path, rules_path,
-            "SecRuleEngine On\n", modes[index], "safe", "off");
-        assert(msconnector_runtime_create("traefik", config_path, &runtime, NULL, 0U));
-        assert(msconnector_runtime_set_event_integration_mode(runtime, "forwardAuth"));
-        assert(msconnector_runtime_set_transaction_profile(runtime,
-            msconnector_profile_registry_find("traefik-forwardauth")));
-        initialize_forwardauth_request(&request, NULL, 0U);
-        if (strcmp(modes[index], "buffered") != 0) {
-            assert(!msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-                "deferred-wrong-mode", &transaction, &decision, &error));
-            assert(transaction == NULL);
-        } else {
-            assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-                "deferred-disabled", &transaction, &decision, &error));
-            assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-            assert(snapshot.contract.completed_phase_mask == MSCONNECTOR_TRANSACTION_PHASE_MASK_P1);
-            assert(!msconnector_runtime_transaction_finish(transaction, &error));
-            assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
-            msconnector_runtime_transaction_destroy(&transaction);
-            assert(msconnector_runtime_transaction_begin_request_headers(runtime, &request,
-                "deferred-disabled-eos", &transaction, &decision, &error));
-            assert(msconnector_runtime_transaction_finish_request_body(transaction, &decision, &error));
-            assert(msconnector_runtime_transaction_snapshot_get(transaction, &snapshot));
-            assert(snapshot.request_body.finished);
-            assert(snapshot.contract.completed_phase_mask ==
-                (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2));
-            assert(msconnector_runtime_transaction_cancel(transaction, 0, &error));
-            msconnector_runtime_transaction_destroy(&transaction);
-        }
-        msconnector_runtime_destroy(&runtime);
-        assert(unlink(config_path) == 0);
-        assert(unlink(event_path) == 0);
-        assert(unlink(rules_path) == 0);
+static void test_trusted_provenance_native_lifecycle(void) {
+    for (int mode = 0; mode < 3; ++mode) {
+        test_trusted_provenance_native_lifecycle_mode(mode);
     }
 }
 
@@ -759,7 +602,7 @@ int main(void) {
     char rules_path[TEST_PATH_SIZE];
 
     create_runtime_fixture(config_path, event_path, rules_path,
-        "SecRuleEngine DetectionOnly\n", "none", "safe");
+        "SecRuleEngine DetectionOnly\n", "none", "safe", (response_fixture_policy){1024U, "Reject"});
     assert(msconnector_runtime_create("envoy", config_path,
         &runtime, NULL, 0U));
     assert(runtime != NULL);
@@ -769,6 +612,7 @@ int main(void) {
     msconnector_runtime_response_companion_registry_init(&registry);
 
     char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
+    test_trusted_preclaim_refresh(runtime);
     begin_handed_off(runtime, &registry, "live-happy", handle);
     assert(finish_response(&registry, handle));
     msconnector_error_init(&error);
@@ -872,12 +716,10 @@ int main(void) {
     assert(unlink(rules_path) == 0);
     test_strict_profile_admission_is_fail_closed();
     test_regular_block_emits_one_terminal_event();
-    test_escaped_invalid_client_address_is_written_and_chained();
-    test_oversized_escaped_client_address_is_not_written_or_chained();
+    test_invalid_byte_event_is_losslessly_written();
+    test_lossy_event_is_not_written_or_chained();
     test_buffered_request_body_handoff();
-    test_traefik_forwardauth_buffered_p2_handoff();
-    test_deferred_buffered_request_body();
-    test_deferred_mode_admission_and_disabled_engine();
+    test_trusted_provenance_native_lifecycle();
     assert(rmdir(test_private_root) == 0);
     return 0;
 }

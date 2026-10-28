@@ -37,7 +37,7 @@ class RevisionFixture(unittest.TestCase):
         self.lock.parent.mkdir(parents=True)
         self.pins = {
             "schema_version": 1, "framework_sha": "a" * 40, "mrts_sha": "b" * 40,
-            "python_version": "3.14.7", "go_version": "1.27.1",
+            "python_version": "3.15.7", "go_version": "1.27.1",
         }
         self.write_lock()
 
@@ -52,11 +52,11 @@ class RevisionLockTests(RevisionFixture):
 
     def test_toolchain_versions_reject_prereleases_flags_and_unsupported_python_minor(self) -> None:
         for field in ("python_version", "go_version"):
-            for value in (None, 1.27, "latest", "--help", "3.14.7; id", "1.27.1-rc1", "1.27.01", "1.２７.1"):
+            for value in (None, 1.27, "latest", "--help", "3.15.7; id", "1.27.1-rc1", "1.27.01", "1.２７.1"):
                 data = json.dumps({**self.pins, field: value}).encode()
                 with self.subTest(field=field, value=value), self.assertRaises(FrameworkRevisionPinsError):
                     parse_framework_revision_pins(data)
-        for value in ("3.13.12", "3.15.0", "3.14.07"):
+        for value in ("3.13.12", "3.14.9", "3.16.0", "3.15.07"):
             data = json.dumps({**self.pins, "python_version": value}).encode()
             with self.subTest(value=value), self.assertRaises(FrameworkRevisionPinsError):
                 parse_framework_revision_pins(data)
@@ -132,7 +132,7 @@ class RevisionProvenanceTests(RevisionFixture):
         self.initialize(self.root)
         self.pins = {
             "schema_version": 1, "framework_sha": self.framework_sha, "mrts_sha": self.mrts_sha,
-            "python_version": "3.14.7", "go_version": "1.27.1",
+            "python_version": "3.15.7", "go_version": "1.27.1",
         }
         self.write_lock()
         self.git(self.root, "add", LOCK_RELATIVE_PATH)
@@ -243,6 +243,13 @@ class RevisionProvenanceTests(RevisionFixture):
         self.assertEqual(failed.returncode, 1)
         self.assertEqual(failed.stdout, "")
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,38 +2,16 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Go composite Common runtime and observed lifecycle
-
-The separately built `msconnector-composite --mode envoy` selects the canonical
-`envoy / ext_authz / envoy-ext-authz` identity with buffered requests and
-streaming responses. It uses the additive header-only buffered start,
-explicit request append/EOS, and the private Common response-companion session
-for P3/P4. Direct `envoy-ext-proc` keeps streaming requests and responses.
-
-The Go lease/context/deadline is checked before the native claim. Native
-expiry consumes ownership; consumed cleanup errors are not retried. Unresolved
-cleanup permanently faults the coordinator and closes admission for controlled
-restart. Terminal cleanup is guarded once and retains entry ownership until
-it completes. A real Common body-limit failure is mapped to 413 and recorded
-with the actual host action; terminal incomplete-body cleanup does not invent
-EOS or P2 rule evaluation.
-
-On 2026-10-03 the external run `p370efix.LLQmPm7g` passed the native build,
-344 named tagged tests with zero skips, C17 companion checks, direct real-Envoy
-traffic, and the Go composite lifecycle matrix. The focused corrected run
-`p370efu.Ggj72Jct` supplies the same-service failure/follow-up evidence.
-The matrix remains `lifecycle_only` with `catalog_acceptance=false`; P4 Strict
-is not promoted. This evidence applies to the Go executable and selected
-configuration, not to the retained C `ext_authz` route. Its existing
-`implemented_not_asserted` limitations remain.
-
-Source manifests, executable/library hashes, loaded-library observations,
-resource sampling, and cleanup outcomes are retained with the external runs.
-
-Complete G1–G9 acceptance for all nine non-NGINX profiles remains open;
-production readiness is not claimed. See the
-[Change Record](../../reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.md)
-for scope, commands and remaining gaps.
+The Linux response-observer listener requires a canonical service-UID-owned
+`0700` socket directory, procfs descriptor paths and `Renameat2(RENAME_NOREPLACE)`.
+It binds a private temporary name and publishes the configured socket atomically;
+it never removes an existing destination during startup. Socket and parent
+directory descriptors retain identity through once-only cleanup, including
+directory replacement. Peer-credential checks remain mandatory. Processes of
+the same service UID are trusted directory writers: Linux has no conditional
+inode unlink, so they must not replace the entry adversarially during cleanup.
+Missing procfs or atomic-publication support fails closed. Configured addresses
+and supported socket-path lengths are preserved.
 
 Status: `minimal_runtime_smoke` / `connector-gap`
 
@@ -94,9 +72,9 @@ non-promotion conditions are documented in the
 
 ## Source layout
 
-- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, which
-  evaluates the generated authorization-request target and consumes no
-  client-supplied original-URI override header, plus the service entry point.
+- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile and the
+  service entry point. The authorization request Path is the protected URI;
+  downstream original-URI hint headers cannot override it.
 - `src/envoy_modsecurity_mapper.c` contains thin C17 calls to the Common generic
   request and response mappers.
 - `config/envoy-ext-authz.conf` is the checked-in configuration template.
@@ -159,13 +137,11 @@ loopback HTTP service. Missing binaries are BLOCKED; config, process, mapping,
 and status errors fail the smoke. All processes are stopped on success or
 failure.
 
-When `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1` is set without an explicit
-`RULES_FILE`, the smoke selects the checked-in response-companion P1/P3/P4
-fixture. Its P3 case binds `/phase3-block` and the upstream-created
-`X-Modsec-Upstream: block` response header; its P4 fixture emits the bounded
-marker. An explicit `RULES_FILE` remains an operator selection. This restores a
-source/harness contract only; a real Envoy run is still required for host
-evidence.
+When `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1` and `RULES_FILE` is unset, the
+runtime smoke selects
+`common/rules/modsecurity_response_companion_smoke.conf`. An explicit
+`RULES_FILE` remains operator-owned. The result records `rules_file` and
+`rules_source` so the selected policy input is not inferred from the outcome.
 
 For an operator-controlled foreground service:
 
@@ -176,14 +152,9 @@ make -C connectors/envoy serve-envoy-connector \
 ```
 
 The template config enables request processing, uses `x-request-id` as the host
-transaction ID header, caps request bodies at 4096 bytes, uses 403/500
-block/error defaults, applies explicit header/event limits, and writes
-metadata-only JSONL outside the checkout. Its HTTP authorization request has no
-callback path prefix, so Envoy supplies the protected downstream request target
-as `Path`; the profile and template refuse `x-envoy-original-path`,
-`x-forwarded-uri`, and `x-original-uri` as policy-selection inputs. The direct
-service itself does not receive response bodies; the mandatory response observer
-handles P3/P4.
+transaction ID header, disables response-body
+processing, uses 403/500 block/error defaults, applies explicit header/event
+limits, and writes metadata-only JSONL outside the checkout.
 
 The independent ext_proc full-lifecycle service has its own commands. Its
 normal executable requires explicit libmodsecurity headers and library paths:
@@ -271,9 +242,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+Connector/runtime cumulative response-size settings have been removed;
+unknown legacy keys are rejected during configuration loading. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not
@@ -281,3 +251,33 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+## Native body policy and remaining host limits
+
+Request limit/action belong exclusively to `SecRequestBodyLimit` and
+`SecRequestBodyLimitAction`; response limit/action belong exclusively to
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector adds no
+body-size option, default or cumulative enforcement. Bounded IO blocks and
+checked counters do not select an engine limit or action.
+
+The ext_authz host still buffers one authorization request: smoke config
+`max_request_bytes=4096`, composite config `max_request_bytes=33`. These are
+remaining total-request host restrictions; native ext_proc is a separate profile.
+Both templates require complete samples with `allow_partial_message: false`.
+The adapter rejects an explicit partial or ambiguous
+`x-envoy-auth-partial-body` marker before opening a Common transaction. It does
+not turn a captured prefix into native EOS or choose ProcessPartial. A complete
+sample accepted by the transport has no additional connector size threshold.
+
+The composite response companion preserves Envoy's pre-authorization buffer
+rejection with status 413 only when internal host attributes attest
+`response.code=413` and `response.code_details=request_payload_too_large`, with
+no ext_authz metadata and an unambiguous response status. This path opens no
+Common transaction and records no native P2/P4 decision. Client/upstream headers
+cannot select it; other lease-less responses retain the existing failure path.
+
+An observed composite lease timeout records Common's existing typed timeout;
+a controlled coordinator restart records its typed connector error before
+checked finish/destruction. Neither fabricates response phases or EOS.
+Ordinary incomplete stream closure, timeout-event output failures and retained
+adapter errors remain cleanup failures.
