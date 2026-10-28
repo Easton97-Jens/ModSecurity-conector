@@ -1,0 +1,424 @@
+{
+  "schema_version": 1,
+  "project": "Easton97-Jens_ModSecurity-conector",
+  "branch": "master",
+  "analysis": {
+    "id": "f3a71e52-18b2-4b1e-a575-fbdf36ec2b8e",
+    "revision": "c5993ed9a7b59fc0bd58f105595ec79f596c88d6",
+    "date": "2026-10-28T18:39:38+0000"
+  },
+  "scope": [
+    "connectors/"
+  ],
+  "excluded_by_user": [
+    "ci/",
+    "tests/"
+  ],
+  "counts": {
+    "open_positions": 35,
+    "host_api_const_positions": 34,
+    "operator_input_path_positions": 1,
+    "source_corrections": 0,
+    "server_transitions": 0,
+    "security_hotspots": 0
+  },
+  "master_gate": {
+    "status": "ERROR",
+    "failing_metric": "new_security_rating",
+    "actual": "5",
+    "required_maximum": "1",
+    "new_code_period_start": "2026-05-14T18:30:31+0000"
+  },
+  "user_decision": "False-positive candidates are documented in the PR only. Sonar status transitions were declined. ci/ and root tests/ findings are outside this task; no analysis configuration exclusion is made.",
+  "interpretation": "Fresh current-source/header/registration/CLI-contract review found no legitimate source-only correction that preserves the required interfaces. This report reconciles the current connector findings after merged PR430; it does not fix code, close server findings, accept risk or turn the failing master gate into a pass.",
+  "findings": [
+    {
+      "id": "AaF2pxHsgQ6c6GT24UWg",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/harness/mod_phase4_terminal_rogue.c",
+      "line_at_analysis": 371,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHsgQ6c6GT24UWh",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/harness/mod_phase4_terminal_rogue.c",
+      "line_at_analysis": 406,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHsgQ6c6GT24UWi",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/harness/mod_phase4_terminal_rogue.c",
+      "line_at_analysis": 471,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"pool\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UV6",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 931,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_log\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UV7",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 932,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_temp\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UV8",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 963,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UV9",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 963,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_log\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UV-",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 964,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_temp\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UV_",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 997,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"conn\" is \"struct conn_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UWC",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 1049,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxHNgQ6c6GT24UWF",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/mod_security3.c",
+      "line_at_analysis": 1483,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"pool\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxGvgQ6c6GT24UVk",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/msc_config.c",
+      "line_at_analysis": 118,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxGvgQ6c6GT24UVl",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/msc_config.c",
+      "line_at_analysis": 134,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxGvgQ6c6GT24UVm",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/msc_config.c",
+      "line_at_analysis": 156,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxGvgQ6c6GT24UVn",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/msc_config.c",
+      "line_at_analysis": 178,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxGvgQ6c6GT24UVo",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/msc_config.c",
+      "line_at_analysis": 240,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxGvgQ6c6GT24UVp",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/msc_config.c",
+      "line_at_analysis": 257,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxGvgQ6c6GT24UVt",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/apache/src/msc_config.c",
+      "line_at_analysis": 378,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"path\" is \"char *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UW4",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 1728,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UW5",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 1774,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UW6",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 1792,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UW8",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 1811,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaGD07fOwwLz-2WJP5Uj",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 2004,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"msg\" is \"struct http_msg *\".",
+      "review_basis": "Host flt_ops.http_payload declares struct http_msg * in HAProxy filters-t.h:190. The registered callback must retain this function-pointer signature after its private callees became read-only; native host build confirms compatible signature.",
+      "treatment": "documentation_only_server_status_unchanged",
+      "identity_note": "New master issue ID for the already-reviewed haproxy_modsecurity_htx_filter_http_payload/msg parameter; actual registered flt_ops.http_payload requires mutable struct http_msg *."
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UW-",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 2173,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UW_",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 2173,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"msg\" is \"struct http_msg *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UXA",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 2185,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxICgQ6c6GT24UXB",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "line_at_analysis": 2396,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF0erukXd_g6jxuNaGe",
+      "rule": "pythonsecurity:S8707",
+      "type": "VULNERABILITY",
+      "severity": "MAJOR",
+      "path": "connectors/lighttpd/harness/patched_event_validation.py",
+      "line_at_analysis": 17,
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments in patched_event_validation.load_events()",
+      "review_basis": "Explicit operator-selected event input; the host caller supplies its private fixed event file. Only bounded validated numeric metadata reaches output; no lower-trust attacker path was established.",
+      "treatment": "documentation_only_server_status_unchanged",
+      "additional_contract_evidence": "connectors/lighttpd/tests/test_patched_event_validation.py::test_first_byte_writer_accepts_phase_aliases_and_preserves_schema explicitly succeeds with event input outside --runtime-output-root. Restricting inputs to the output root would change supported CLI behavior. The actual hosted caller passes a fixed private event snapshot.",
+      "source_description_correction": "The analyzer describes argparse.parse_args() in the local CLI as an HTTP request source; this entry point is a local operator tool, not an HTTP request handler."
+    },
+    {
+      "id": "AaF2pxIvgQ6c6GT24UXV",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "line_at_analysis": 1041,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxIvgQ6c6GT24UXZ",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "line_at_analysis": 1076,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxIvgQ6c6GT24UXd",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "line_at_analysis": 1111,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxIvgQ6c6GT24UXe",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "line_at_analysis": 1111,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxIvgQ6c6GT24UXf",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "line_at_analysis": 1120,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxIvgQ6c6GT24UXg",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "line_at_analysis": 1158,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    },
+    {
+      "id": "AaF2pxIvgQ6c6GT24UXj",
+      "rule": "c:S995",
+      "type": "CODE_SMELL",
+      "severity": "MINOR",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "line_at_analysis": 1177,
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "treatment": "documentation_only_server_status_unchanged"
+    }
+  ]
+}
