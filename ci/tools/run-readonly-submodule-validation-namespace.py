@@ -657,8 +657,7 @@ def _candidate_script() -> str:
         'git config --global --add safe.directory "$GITHUB_WORKSPACE"\n'
         'git config --global --add safe.directory "$FRAMEWORK_ROOT"\n'
         'touch "$VALIDATOR_EXTERNAL_ROOT/write-probe"; test -f "$VALIDATOR_EXTERNAL_ROOT/write-probe"\n'
-        '"$PYTHON" -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes '
-        '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"\n'
+        '"$PYTHON" -I -c "import yaml; assert not yaml.__with_libyaml__"\n'
         'exec make PYTHON="$PYTHON" quick-check'
     )
 

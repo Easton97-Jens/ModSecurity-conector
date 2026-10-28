@@ -279,6 +279,9 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
     errors: list[str] = []
     required = (
         "Create private read-only candidate guard",
+        "Prepare reviewed Python dependency before runtime protection",
+        "python3 ci/tools/install-ci-dependencies.py --ci-toolcache --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock",
+        "python3 -m pip check",
         "id: create-readonly-candidate-sandbox-guard",
         READONLY_SUBMODULE_SANDBOX_CALL,
         READONLY_SUBMODULE_NAMESPACE_CALL,
@@ -376,6 +379,15 @@ def readonly_submodule_validator_errors(validator: str) -> list[str]:
         errors.append("physical verification must follow a failed candidate but not failed preparation")
 
     setup_index = normalized.find(READONLY_SUBMODULE_SANDBOX_CALL)
+    contract_index = normalized.find("Validate Framework component-pin data contract")
+    dependency_index = normalized.find("Prepare reviewed Python dependency before runtime protection")
+    dependency_install_index = normalized.find("python3 ci/tools/install-ci-dependencies.py --ci-toolcache")
+    dependency_check_index = normalized.find("python3 -m pip check")
+    guard_index = normalized.find("Create private read-only candidate guard")
+    if min(contract_index, dependency_index, dependency_install_index, dependency_check_index, guard_index) < 0 or not (
+        contract_index < dependency_index < dependency_install_index < dependency_check_index < guard_index < setup_index
+    ):
+        errors.append("reviewed dependency preparation must follow candidate data validation and precede runtime protection")
     namespace_index = normalized.find(READONLY_SUBMODULE_NAMESPACE_CALL)
     verification_index = normalized.find("Verify candidate source inventory and external outputs")
     result_index = normalized.find("Enforce isolated candidate result after verification")
@@ -587,7 +599,7 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
         "/dev/.readonly-validator-device-probe",
         "validator obtained sudo",
         'exec make PYTHON="$PYTHON" quick-check',
-        '--target "$PYTHONPATH" --requirement "$GITHUB_WORKSPACE/ci/requirements/update-submodules-validation-linux-x86_64.txt"',
+        '"$PYTHON" -I -c "import yaml; assert not yaml.__with_libyaml__"',
     )
     for term in required:
         if term not in runner:
@@ -597,6 +609,8 @@ def readonly_namespace_runner_errors(runner: str) -> list[str]:
             errors.append(f"namespace runner must not use {term!r}")
     if 'exec make PYTHON="$PYTHON" BUILD_ROOT=' in runner:
         errors.append("namespace runner must pass BUILD_ROOT through the environment")
+    if "-m pip install" in runner:
+        errors.append("namespace runner must consume prepared dependencies without installing packages")
     if 'Path("/opt"),' in runner:
         errors.append("namespace runner must never expose the broad host /opt tree")
     for term in (
@@ -2984,6 +2998,17 @@ jobs:
         """Run the exact workflow prelude with a test-local sudo implementation."""
         workflow_payload = yaml.safe_load(self.workflow("update-submodules.yml"))
         steps = workflow_payload["jobs"]["validate-submodule-update"]["steps"]
+        dependency_name = "Prepare reviewed Python dependency before runtime protection"
+        dependency_step = next(step for step in steps if step["name"] == dependency_name)
+        self.assertEqual(set(dependency_step), {"name", "run"})
+        self.assertEqual(normalize_shell_script(dependency_step["run"]),
+                         "set -euo pipefail python3 ci/tools/install-ci-dependencies.py --ci-toolcache "
+                         "--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock "
+                         "python3 -m pip check")
+        names = [step.get("name") for step in steps]
+        self.assertLess(names.index("Validate Framework component-pin data contract"),
+                        names.index(dependency_name))
+        self.assertLess(names.index(dependency_name), names.index("Create private read-only candidate guard"))
         candidate_step = next(
             step for step in steps if step["name"] == "Run quick check in the private read-only namespace"
         )

@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "b5dd35e66495182dc1854a5fb566a4dd58183e1ec7268cc9dae02580cd3b5a1e",
-  "on_demand_definition_count": 6192,
+  "inventory_sha256": "521eb47109509ed1b8ee83edfb4ccb3c227be22b848b4064283b9a9ea6fab9a9",
+  "on_demand_definition_count": 6193,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
   "sources": [
@@ -2951,7 +2951,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "dfff28472364078b62e0edad04a3ebd91b72b86d6dfac95f080e17f2f3ad218e"
+      "source_sha256": "5eca90d4a2208281b4e728ba9f4091bf93e85a50ba91c4921a10c8e56567f466"
     },
     {
       "contains_selected_definitions": [],
@@ -8091,6 +8091,7 @@
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_mount_layout_forces_traversable_root_validator_modes_despite_umask",
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_launcher_never_uses_tempfile_or_python_chmod_for_mount_layout",
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_fixed_candidate_program_keeps_all_isolation_probes_and_pid1_exec",
+        "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_dependency_preflight_failure_stops_make_and_preserves_selected_python",
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_candidate_proc_status_parser_preserves_capability_and_no_new_privs_checks",
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_jail_path_and_runtime_allowlist_are_fixed",
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_unapproved_inherited_descriptors_are_closed",
@@ -8101,7 +8102,7 @@
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_external_virtualenv_alias_resolves_to_existing_jail_runtime"
       ],
       "source": "tests/test_run_readonly_submodule_validation_namespace.py",
-      "source_sha256": "f65a304b05167fb7cf5fae888e0fec7ede21ef25e7869a5af2af69f8a2b61435"
+      "source_sha256": "0317fb2ee60d4530fcc8b4dad2e901bb4891224caf281cb9291df76cfe930179"
     },
     {
       "contains_selected_definitions": [],
