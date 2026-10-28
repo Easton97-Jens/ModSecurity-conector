@@ -8,137 +8,182 @@
 | --- | --- |
 | Change-ID | `CR-20261028-documentation-reconciliation` |
 | Datum (UTC) | 2026-10-28 |
-| Pull Request | #383 |
-| Branch | `docs-refresh-root-readmes` |
-| Vorheriger Dokumentations-Head | `ab01cc60e638f03915fc0cc4f1541d91f9c6a62e` |
+| Basis-Revision | `ab01cc60e638f03915fc0cc4f1541d91f9c6a62e` |
 | Abgeglichener master | `15cea9e4d778fa1ec6e27e6fe084b347010f1367` |
 | Vorherige gemeinsame Basis | `820b6975495bdf0f90aca67eee86e27a3b7d329b` |
+| Pull Request | #383 |
+| Branch | `docs-refresh-root-readmes` |
+| Abgleich-Merge | `34dffc40f31cdb870e64283ebaee32b8cdd44bca` |
 
-## Motivation und Akzeptanzkriterien
+## Motivation und Problemstellung
 
 Der Benutzer hat die Fertigstellung der Dokumentation auf dem neuen
 Repository-Stand und die Lösung der Merge-Konflikte in PR #383 angefordert.
-Der frühere Oktober-Dokumentations-Head hatte seine beobachteten Workflows
-erfolgreich abgeschlossen; master wurde danach mit Source-, Konfigurations-,
-Test-, Toolchain- und Evidence-Änderungen weiterentwickelt. Diese Ergebnisse
-des alten Heads validieren das neue Merge-Ergebnis nicht.
+Der frühere Dokumentations-Head hatte seine beobachteten Workflows erfolgreich
+abgeschlossen; master wurde danach mit Source-, Konfigurations-, Test-,
+Toolchain- und Evidence-Änderungen weiterentwickelt. Ergebnisse des alten Heads
+validieren das neue Merge-Ergebnis nicht.
 
-Die finale Dokumentation muss aktuellen master-Source und generierte Verträge
-erhalten, heutiges Verhalten für Einsteiger erklären, vollständige englische
-und deutsche Begleitdateien pflegen und den Git-Konflikt ohne Force-Push oder
-Merge des PRs nach master lösen. Entfernte Connector-Body-Limits dürfen nicht
-als Kompatibilitätsoptionen zurückkehren. Aktuelle Testauswahl und Grenzen
-abgeschlossener Spezialkampagnen bleiben ausdrücklich sichtbar.
+Frühere Übergangstexte behandelten Connector-Response-Limits als
+Kompatibilitäts- oder Kapazitätswerte. Aktueller Source entfernt stattdessen
+kumulative Request- und Response-Connector-Einstellungen. Standardtests nutzen
+nun das aktive Inventar mit gesondert autorisierter Offline-Ausnahme.
+Einstiegsseiten müssen diese Änderungen erklären, ohne altes Verhalten
+wiederherzustellen oder den Umfang zu übertreiben.
 
-## Umsetzung und Konfliktentscheidungen
+## Akzeptanzkriterien
 
-Der vorgeschlagene Merge-Baum baut auf dem exakten aktuellen master-Baum auf.
-Er erhält sämtliche aktuellen Produktquellen, Tests, Workflows, Versions-Pins,
-Gitlinks, generierten Referenzen und neuen technischen/Evidence-Dokumente.
-Darauf werden geprüfte leserorientierte Dokumentationsänderungen übernommen.
+Aktuellen master-Source, generierte Verträge und neue technische/Evidence-
+Dokumente erhalten. Einrichtung, Profilwahl, Konfigurationsmigration und
+Testauswahl in gleichwertigen englischen/deutschen Begleitdateien verständlich
+erklären. Die zehn logischen Lösungen mit Kompatibilitäts-/Companion-Grenzen
+erhalten. Git-Konflikte ohne Force-Push, Branchlöschung oder PR-Merge nach
+master lösen. Checker nicht abschwächen und entfernte Einstellungen nicht
+wiedereinführen.
 
-Wo master technische Dokumentation weiterentwickelt hat, bleibt dieser aktuelle
-Inhalt erhalten, statt durch eine ältere ganze Datei ersetzt zu werden.
-Stabile frühere Orientierungsergänzungen bleiben dort bestehen, wo sich das
-zugrunde liegende master-Dokument nicht geändert hat. Root-READMEs,
-Dokumentationsindex, Einstieg, Konfigurationsguide und Beispielindex werden auf
-Basis aktueller Verträge neu formuliert. Ein neuer Migrationsguide erklärt
-entfernte Einstellungen, unveränderte Host-/Transport-Controls, aktive Tests,
-Versions-Pins und die Zuständigkeit für generierte Dateien.
+## Implementierungsentscheidung und Begründung
 
-Das ersetzt bewusst die alte pauschale Dateizahl des PRs. Der finale
-GitHub-Diff bestimmt den tatsächlichen Umfang und nicht eine historische Zahl.
-Die Konfliktlösung erhält neuere Detailguides und generierte Ausgaben auch dann,
-wenn dadurch eine veraltete PR-eigene Einführung dieser Datei entfällt.
+Der Merge-Baum basiert auf dem exakten aktuellen master-Baum und erhält
+Produktquellen, Tests, Workflows, Pins, Gitlinks, generierte Referenzen und
+neuere Detaildokumente. Kompatible Leserorientierung bleibt dort erhalten, wo
+die zugrunde liegende master-Datei unverändert ist. Bei weiterentwickelter
+technischer Dokumentation haben aktuelle master-Details Vorrang vor veralteten
+Ganzdatei-Ersetzungen des früheren PRs.
 
-## Dokumentiertes aktuelles Verhalten
+Root-READMEs, Dokumentationsindex, Einstieg, Konfigurationsguide und
+Beispielindex werden anhand aktueller Verträge neu formuliert. Der neue
+Migrationsguide trennt Engine-Inspection-Limits von echter Host- und
+Transportkapazität, erklärt abgewiesene entfernte Optionen, nennt den
+Phase-4-Source-Standard `off` und dokumentiert aktive Tests sowie explizite
+Spezialauswahl, ohne I12 erneut zu eröffnen.
 
-Request- und Response-Inspection-Limits/-Aktionen gehören zu libModSecurity.
-Entfernte kumulative Connector-Einstellungen aus Common, nativen Direktiven
-und Hostservices führen zu Konfigurationsfehlern; sie sind keine still
-akzeptierten Aliase. Request-No-files-Limits, Zugriffs-/MIME-Einstellungen,
-native Interventionsergebnisse und unabhängige Host-/Transportkapazität werden
-getrennt behandelt. Phase-4-Modi steuern unterstütztes spätes Verhalten und
-keine Byte-Budgets. Der gemeinsame Source-Standard ist `off`, definiert in
-`common/include/msconnector/options.h`.
+Der reine Herkunftszweck von `licenses/` bleibt erhalten: Upstream-Herkunft,
+aufgezeichnete Revisions-/Lizenzbasis, aufbewahrte Hinweise und lokale
+Unterschiede. Originale Upstream-Dateien LICENSE/AUTHORS/CHANGES werden nicht
+umgeschrieben; es wird keine repositoryweite Lizenz erklärt.
 
-Normale funktionale Auswahl verwendet `config/testing/active-cases.json` mit
-Kerngrenze und separat autorisierter geschützter Offline-Python-Ausnahme.
-`make check-active-inventory` prüft die gesamte Auswahl ohne Ausführung;
-`make quick-check` enthält statische Checks und zugelassene funktionale
-Teilmengen. Spezialausführung benötigt einen getrennten aktuellen Auftrag und
-`ON_DEMAND_TESTS=1`; diese Dokumentationsarbeit eröffnet I12 nicht erneut.
+Der finale Diff ersetzt die alte pauschale Zahl von 86 Dateien. Der historische
+Record `CR-20260921-root-readme-refresh` dokumentiert frühere
+Vorbereitungsstufen, nicht die aktuelle abgeglichene Dateizahl,
+Übergangseinstellungen oder Validierung.
 
-Der reine Herkunfts-/Referenzzweck von `licenses/` bleibt erhalten. Originale
-Upstream-Dateien LICENSE/AUTHORS/CHANGES werden nicht umgeschrieben, und es wird
-keine repositoryweite Lizenz erklärt.
+## Geänderte Dateien
 
-## Geänderte Dokumentation
-
-Neue oder vollständig überarbeitete Einstiege dieses Abgleichs:
+Der abgeglichene PR-Diff gegen den ausgewählten master enthält diese Dokumente:
 
 - `README.md` / `README.de.md`
+- `SECURITY.md` / `SECURITY.de.md`
 - `docs/README.md` / `docs/README.de.md`
-- `docs/getting-started.md` / `docs/getting-started.de.md`
+- `docs/architecture.md` / `docs/architecture.de.md`
+- `docs/change-traceability.md` / `docs/change-traceability.de.md`
 - `docs/configuration.md` / `docs/configuration.de.md`
+- `docs/connectors/apache.md` / `docs/connectors/apache.de.md`
+- `docs/connectors/envoy.md` / `docs/connectors/envoy.de.md`
+- `docs/connectors/traefik.md` / `docs/connectors/traefik.de.md`
+- `docs/decisions/ADR-003-shared-p1-p4-lifecycle-semantics.md` / `docs/decisions/ADR-003-shared-p1-p4-lifecycle-semantics.de.md`
+- `docs/decisions/README.md` / `docs/decisions/README.de.md`
+- `docs/getting-started.md` / `docs/getting-started.de.md`
 - `docs/migration.md` / `docs/migration.de.md`
+- `docs/operations-and-security.md` / `docs/operations-and-security.de.md`
+- `docs/reference/glossary.md` / `docs/reference/glossary.de.md`
+- `docs/reference/with-crs-no-mrts-profile-contract.md` / `docs/reference/with-crs-no-mrts-profile-contract.de.md`
 - `examples/README.md` / `examples/README.de.md`
-- Dieses englische/deutsche Change-Record-Paar.
+- `licenses/README.md` / `licenses/README.de.md`
+- `licenses/apache/ORIGIN.md` / `licenses/apache/ORIGIN.de.md`
+- `licenses/modsecurity/README.md` / `licenses/modsecurity/README.de.md`
+- `licenses/nginx/ORIGIN.md` / `licenses/nginx/ORIGIN.de.md`
+- `reports/audits/change-records/CR-20260921-root-readme-refresh.md` / `reports/audits/change-records/CR-20260921-root-readme-refresh.de.md`
+- `reports/audits/change-records/CR-20261028-documentation-reconciliation.md` / `reports/audits/change-records/CR-20261028-documentation-reconciliation.de.md`
 
-Der finale PR erhält außerdem kompatible frühere Änderungen an Security- und
-Herkunftserklärungen, Architektur, Betrieb, Nachvollziehbarkeit,
-Entscheidungsdokumenten, ausgewählten Connector-Einführungen,
-Glossar-/Profilreferenzen und dem historischen Record
-`CR-20260921-root-readme-refresh`. Der ältere Record dokumentiert frühere
-Vorbereitungsstufen; seine damaligen Aktualitätsbeschreibungen und Dateizahlen
-sind keine Aussage über den final abgeglichenen Baum.
+## Ausgeführte Befehle
 
-## Tatsächlich vorgenommene Validierung
+Repository-Dateien, aktuelle master-/PR-Metadaten, Source-Definitionen und
+Workflow-Ergebnisse wurden über den GitHub-Connector gelesen. Git-Baum-/Blob-
+Identitäten trennten unveränderte technische Dateien von master-Änderungen.
+Aussagen zu entfernten Optionen und Engine-Zuständigkeit wurden anhand von
+`docs/phase4-mode-budget.md` geprüft, der gemeinsame Standard anhand von
+`common/include/msconnector/options.h`.
 
-Repository-Dateien, aktuelle master-/PR-Metadaten, ausgewählte
-Source-Definitionen und Workflow-Ergebnisse des alten Heads wurden über den
-GitHub-Connector gelesen. Baum- und Blob-Identitäten unterscheiden unveränderte
-technische Dateien von auf master weiterentwickelten Dateien.
-Konfigurationsmigration wurde anhand von `docs/phase4-mode-budget.md` und der
-gemeinsamen Optionsdefinition geprüft.
+Der Branch wurde durch einen nicht erzwungenen, auf den erwarteten Head
+geprüften Ref-Update zum Abgleich-Merge mit zwei Eltern aktualisiert. GitHub-
+Vergleich bestätigte master als Merge-Basis, keinen fehlenden Commit und einen
+reinen Markdown-Diff. GitHub meldete den PR anschließend als mergebar.
 
-Repository-native lokale Shell-Validierung wird nicht behauptet: In dieser
-Umgebung wurde kein vollständiger lokaler Checkout hergestellt. Hosted-
-Validierung des finalen Heads bleibt von Erfolgen des alten Heads getrennt und
-muss aus den Checks dieses Heads abgelesen werden. Die PR-Beschreibung hält das
-beobachtete Ergebnis des finalen Heads nach Veröffentlichung fest; ausstehende,
-übersprungene oder wegen Voraussetzungen blockierte Arbeit darf nicht als
-Erfolg ausgegeben werden.
+Hosted-Lint für Abgleich-Head
+`34dffc40f31cdb870e64283ebaee32b8cdd44bca` führte
+`python ci/checks/documentation/check-bilingual-docs.py` aus und meldete fehlende
+kanonische Change-Record-Abschnitts-/Identitätsbezeichnungen in diesem neuen
+Record. Der Nachfolger korrigiert diese Bezeichnungen und trennt die
+Pflichtabschnitte, ohne den Checker zu ändern. Derselbe beobachtete Lint-Job
+meldete aktuelle generierte Konfigurationsausgaben und eine bestandene
+Semantikprüfung der Konfigurationsreferenzen. Das sind Ergebnisse dieses
+Abgleich-Heads, kein vorweggenommener Erfolg des Nachfolgers.
+Repository-native lokale Testbefehle werden nicht behauptet.
 
-## Security- und Kompatibilitätsauswirkung
+## Security-Auswirkung
 
-Gegenüber dem abgeglichenen master fügt die Änderung kein Runtime-Verhalten,
-keine Standards, Berechtigungen, Netzwerkexposition, Credentials,
-Dependency-Auswahl oder Testumgehung hinzu. Die master-Synchronisierung
-übernimmt vorhandene geprüfte master-Änderungen, statt in einem Dokumentations-PR
-neue Source-Änderungen zu erfinden.
+Gegenüber abgeglichenem master ändert sich nur Dokumentation. Kein
+Runtime-Verhalten, Standard, Berechtigungsumfang, Netzwerkzugriff,
+Credential-Flow, keine Dependency-Auswahl, kein Workflow, Testbypass oder
+Aufbewahrungsverhalten wird ergänzt. Die master-Synchronisierung übernimmt
+vorhandene geprüfte master-Arbeit, statt neue Source-Änderungen in einem
+Dokumentations-PR zu erzeugen.
 
-Der Migrationsguide dokumentiert bereits im Source vorhandene inkompatible
-Konfigurationsentfernungen. Er autorisiert weder beliebige Engine-Limitstandards
-noch das Entfernen echter Host-Autorisierungsgrenzen. Beispiele bleiben vom
-Betreiber anzupassende Referenzen und keine sicheren Deployment-Manifeste.
+Der Migrationstext dokumentiert bereits vorhandene Source-Entfernungen; er
+autorisiert weder beliebige Engine-Standards noch das Entfernen echter
+Autorisierungs-Hostgrenzen. Beispiele bleiben anzupassende Referenzen, keine
+sicheren Deployment-Manifeste. Es werden keine Credentials oder sensiblen
+Traffic-Artefakte hinzugefügt.
 
-## Runtime-Nachweise und nicht ausgeführte Prüfungen
+## Runtime-Evidence
 
 Durch die Dokumentationsbearbeitung wurde keine neue Host-Laufzeitkampagne,
-I12-Aufzeichnung, CRS-Prüfung, Protokollmatrix, Sanitizer-Ausführung oder
-Produktionsqualifikation vorgenommen. Vor Hosted-Checks werden weder lokales
-vollständiges `make test`, `make quick-check`, Regeneration generierter Ausgaben
-noch repositoryweite Linkvalidierung behauptet. Generierte Dateien bleiben
-aktuelle master-Ausgaben; ihre normalen CI-Verträge werden nicht abgeschwächt.
+I12-Aufzeichnung, CRS-Prüfung, Protokollmatrix oder Produktionsqualifikation
+ausgeführt. Bestehende Reports bleiben an aufgezeichnetes Profil, Revision,
+Regeln, Run-ID und Artefakte gebunden. Alte erfolgreiche Workflows sind keine
+Laufzeitnachweise für den finalen Head.
 
-## Abschließendes Review und verbleibende Grenze
+## Bekannte Einschränkungen
 
-Beabsichtigt ist ein Merge-Commit mit zwei Eltern auf dem vorhandenen
-Dokumentations-Branch. Er erhält die alte PR-Historie und enthält die geprüfte
-master-Revision. Dieser Record autorisiert weder Force-Push noch PR-Merge oder
-Branchlöschung.
+In dieser Bearbeitungsumgebung war kein vollständiger lokaler
+Repository-Checkout verfügbar. Vollständige Repository-Validierung hängt daher
+von Hosted-Checks des veröffentlichten Heads ab. Generierte Compiler- und
+Konfigurationsreferenzen bleiben aktuelle master-Ausgaben; lokale Regeneration
+wird nicht behauptet.
 
-Finalen Diff und CI des finalen Heads prüfen. Laufzeitaussagen bleiben an ihr
-tatsächliches Profil, Revision, Regeln, Run-ID und Artefakte gebunden; eine grüne
+Technische Referenzen behalten bewusst ihre Tiefe. Die neuen Guides bilden
+eine Navigations- und Migrationsschicht und ersetzen weder hostspezifische
+Syntax, tatsächliche Voraussetzungen, Source-Verträge noch Deployment-Review.
+
+## Verbleibende Risiken
+
+Künftige Source-, Host-, Testinventar- oder Pin-Änderungen können erneut
+Dokumentationsdrift erzeugen. Aktuellen Source und Checks des finalen Heads
+prüfen, statt sich auf ein fixes README-Datum, historische Dateizahl oder den
+Erfolg eines früheren Commits zu verlassen. Nicht unterstützte Strict-Aktionen
+und unvollständige Autorisierungsstichproben müssen als Grenzen sichtbar
+bleiben, statt als allgemeine Laufzeitunterstützung dargestellt zu werden.
+
+## Nicht ausgeführte Prüfungen mit Begründung
+
+Lokales vollständiges `make test`, `make quick-check`, `make check-bilingual-docs`,
+`make check-doc-links`, `git diff --check`, Regeneration generierter Ausgaben,
+All-host-Kampagnen, Sanitizer und Protokollmatrizen wurden nicht ausgeführt,
+weil kein vollständiger lokaler Checkout mit Toolchain eingerichtet wurde.
+Aus Remote-Source-Inspektion wird kein Validierungsergebnis erfunden.
+
+Hosted-Ergebnisse des finalen Heads müssen nach Abschluss in der PR-
+Validierungszusammenfassung festgehalten werden. Ausstehende, übersprungene
+oder wegen Voraussetzungen blockierte Arbeit ist kein Erfolg. Dieser Record
+autorisiert weder eine I12-Kampagne noch zusätzliche On-demand-Suiten.
+
+## Finaler Diff- und Review-Status
+
+Der Abgleich nutzt einen Merge mit zwei Eltern auf dem vorhandenen
+Dokumentations-Branch, erhält die bisherige PR-Historie und enthält die exakt
+geprüfte master-Revision. Es gab weder Force-Push noch PR-Merge oder
+Branchlöschung. Der beobachtete Change-Record-Formatfehler wird durch einen
+normalen Nachfolge-Commit behoben.
+
+Vor Freigabe finalen Diff und CI des finalen Heads prüfen. Eine erfolgreiche
 Dokumentationsänderung ist keine Produktions- oder Vollprotokollzertifizierung.
