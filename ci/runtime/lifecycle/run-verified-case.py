@@ -26,6 +26,7 @@ from runtime_path_utils import (
     is_read_only_source_path,
     prepare_verified_runtime_artifact_root,
     runtime_artifact_path,
+    write_runtime_artifact_text_atomic,
 )
 
 
@@ -81,8 +82,9 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def write_json(root: Path, path: Path, data: dict[str, Any]) -> None:
-    path = runtime_artifact_path(root, path, "case-run JSON output")
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_runtime_artifact_text_atomic(
+        root, path, json.dumps(data, indent=2, sort_keys=True) + "\n", "case-run JSON output"
+    )
 
 
 def canonical_roots(connector_root: str, framework_root: str) -> tuple[Path, Path]:
