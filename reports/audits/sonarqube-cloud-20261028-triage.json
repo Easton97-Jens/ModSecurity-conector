@@ -11,7 +11,10 @@
     "follow_up_pr_positions": 23,
     "follow_up_source_correction_positions": 22,
     "follow_up_new_candidate_positions": 1,
-    "remaining_candidate_positions": 82
+    "remaining_candidate_positions": 83,
+    "second_follow_up_pr_positions": 3,
+    "second_follow_up_source_correction_positions": 1,
+    "second_follow_up_new_candidate_positions": 1
   },
   "projects": [
     {
@@ -2072,6 +2075,20 @@
           "issue_id": "AaGDEkR5UXasrgTfnCsH"
         }
       ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 2004,
+      "source_revision": "839eb00795f5c2622a4cfad3d4034def5765ac7b",
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"msg\" is \"struct http_msg *\".",
+      "review_basis": "Host flt_ops.http_payload declares struct http_msg * in HAProxy filters-t.h:190. The registered callback must retain this function-pointer signature after its private callees became read-only; native host build confirms compatible signature.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_id": "AaGDKYFVqQ1WESW1bbaP"
+        }
+      ]
     }
   ],
   "follow_up_analysis": {
@@ -2082,5 +2099,14 @@
     "main_vulnerabilities": 0,
     "main_maintainability_findings": 23,
     "note": "Historical first PR source analysis; follow-up corrections require a fresh current-head scan."
+  },
+  "second_follow_up_analysis": {
+    "source_revision": "839eb00795f5c2622a4cfad3d4034def5765ac7b",
+    "pull_request": 430,
+    "main_quality_gate": "OK",
+    "main_bugs": 0,
+    "main_vulnerabilities": 0,
+    "main_maintainability_findings": 3,
+    "note": "One inherited native cleanup signature candidate, one newly exposed host callback signature candidate, and one regex finding corrected in the next commit. Historical source evidence; not proof for a later head."
   }
 }

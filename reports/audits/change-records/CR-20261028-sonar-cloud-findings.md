@@ -26,7 +26,7 @@ Python simplifies archive canonicalization while retaining original bytes on sem
 
 ## Changed files
 
-Affected native Apache/NGINX/HAProxy/lighttpd files and fixtures; `common/scripts/modsecurity_targeted_eval.cc`; reported Python/Shell helpers under `ci/`; `scripts/version_updater_common.py`; three SDK observer sources; affected Apache/NGINX tests and Framework-updater assertion. Only thirteen reviewed digests change in `config/testing/active-cases.json`; definitions/selection are unchanged. `reports/testing/test-selection-archive.generated.json` is regenerated through its existing generator. Reader-facing documentation is this record and its German companion. The manually reviewed decision source [triage JSON](../sonarqube-cloud-20261028-triage.json) enumerates all 82 current candidate positions and their original project/issue IDs. Framework/MRTS, gitlinks, dependencies, analysis scope, rules and gates are unchanged.
+Affected native Apache/NGINX/HAProxy/lighttpd files and fixtures; `common/scripts/modsecurity_targeted_eval.cc`; reported Python/Shell helpers under `ci/`; `scripts/version_updater_common.py`; three SDK observer sources; affected Apache/NGINX tests and Framework-updater assertion. Only thirteen reviewed digests change in `config/testing/active-cases.json`; definitions/selection are unchanged. `reports/testing/test-selection-archive.generated.json` is regenerated through its existing generator. Reader-facing documentation is this record and its German companion. The manually reviewed decision source [triage JSON](../sonarqube-cloud-20261028-triage.json) enumerates all 83 current candidate positions and their original project/issue IDs. Framework/MRTS, gitlinks, dependencies, analysis scope, rules and gates are unchanged.
 
 ## Commands executed
 
@@ -57,11 +57,13 @@ First-head CI exposed two source-checker spelling incompatibilities. Apache dire
 
 The first-head secret gate reported 287 generic matches, all in the triage JSON. Every immutable matched line was individually verified to contain an issue/analysis/event identifier from the authenticated Sonar response. Following the existing `.gitleaksignore` contract, only exact first-commit/file/rule/line fingerprints were classified. The unchanged default redacted PR-range scan then passed. A new-commit control detects all 287 identical file/rule/line occurrences at a new revision (expected scanner exit 1), proving the fingerprint does not exempt future occurrences. Current JSON uses `id`/`issue_id` for identifiers to avoid misleading credential-like field names. No rule/path exclusion, threshold change, credential exposure, or history rewrite occurred.
 
+The second source revision `839eb00795f5c2622a4cfad3d4034def5765ac7b` passed the required Sonar gate and both advisory jobs; main readback reports zero bugs/vulnerabilities/hotspots and three maintainability findings. The existing cleanup API candidate remains; one newly exposed HAProxy host callback likewise requires its mutable signature (`flt_ops.http_payload`). Individual triage therefore contains 83 candidates. The third finding concerns overlapping whitespace quantifiers in the directive regex; an optional block delimited by `&` removes the ambiguity. All nine existing callback entries remain identical; invalid inputs with 4,000/8,000 whitespace characters took 0.212/0.880 s before and 0.000724/0.001457 s after. These are bounded local observations. All 21 generated references remain current and both focused configuration regressions pass. The follow-up revision needs fresh CI/Cloud proof.
+
 ## Security impact
 
 Controls, callback ABI, ownership checks, JSON escaping, rules and gates remain active. Independent read-only investigation traced Python path/argv and native taint candidates; no supplied flow established a remaining exploitable vulnerability. A fresh independent candidate reviewer found no concrete bypass/regression. This is bounded review, not repository-wide assurance.
 
-The 82 current candidates comprise 21 Apache and 15 NGINX host/API callback parameters; eight HAProxy callbacks and three C struct-member namespace reports; nine bounded/escaped native reports; twenty Python path/argument/content-flow reports; three intentional HTTP fixture references; three bounded in-memory text copies reported as logging. Existing root checks, strict SHA/variant validation, JSON escaping and allocation bounds remain. Explicit operator-selected paths are not silently restricted. Server candidates remain open; false-positive approval or risk acceptance is not inferred.
+The 83 current candidates comprise 21 Apache and 15 NGINX host/API callback parameters; nine HAProxy callbacks and three C struct-member namespace reports; nine bounded/escaped native reports; twenty Python path/argument/content-flow reports; three intentional HTTP fixture references; three bounded in-memory text copies reported as logging. Existing root checks, strict SHA/variant validation, JSON escaping and allocation bounds remain. Explicit operator-selected paths are not silently restricted. Server candidates remain open; false-positive approval or risk acceptance is not inferred.
 
 ## Runtime evidence
 
@@ -73,7 +75,7 @@ Local Python is 3.15.2 rather than pinned 3.15.1; the existing virtual environme
 
 ## Remaining risks
 
-Unit fixtures do not prove actual hosted Apache redirect/subrequest lookup: some substitute module-vector lookup, while the cleanup harness exercises real vector storage and owner cleanup. All 82 candidate positions and any new Cloud findings require follow-through. A source correction alone does not close a Cloud issue.
+Unit fixtures do not prove actual hosted Apache redirect/subrequest lookup: some substitute module-vector lookup, while the cleanup harness exercises real vector storage and owner cleanup. All 83 candidate positions and any new Cloud findings require follow-through. A source correction alone does not close a Cloud issue.
 
 ## Checks not run and rationale
 

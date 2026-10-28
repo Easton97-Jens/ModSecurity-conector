@@ -392,7 +392,7 @@ def extract_apache(root: Path) -> list[dict[str, Any]]:
     text = _read(root, source)
     macros = directive_macros(root)
     expected = re.findall(
-        r"AP_INIT_(TAKE[12])\s*\(\s*(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\s*,\s*&?\s*(msc_[a-z0-9_]+)",
+        r"AP_INIT_(TAKE[12])\s*\(\s*(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\s*,\s*(?:&\s*)?(msc_[a-z0-9_]+)",
         text,
         flags=re.S,
     )

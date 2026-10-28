@@ -26,7 +26,7 @@ Python vereinfacht Archivkanonisierung bei Erhalt ursprünglicher Bytes bei sema
 
 ## Geänderte Dateien
 
-Betroffene native Apache-/NGINX-/HAProxy-/lighttpd-Dateien und Fixtures; `common/scripts/modsecurity_targeted_eval.cc`; gemeldete Python-/Shell-Helfer unter `ci/`; `scripts/version_updater_common.py`; drei SDK-Observer-Quellen; betroffene Apache-/NGINX-Tests und Framework-Updater-Assertion. In `config/testing/active-cases.json` ändern sich ausschließlich dreizehn geprüfte Digests; Definitionen/Auswahl bleiben gleich. `reports/testing/test-selection-archive.generated.json` wird über den bestehenden Generator regeneriert. Leserorientierte Dokumentation sind dieser Record und sein englischer Begleiter. Die manuell geprüfte Entscheidungsquelle [Triage-JSON](../sonarqube-cloud-20261028-triage.json) nennt alle 82 aktuellen Kandidatenpositionen und ihre ursprünglichen Projekt-/Issue-IDs. Framework/MRTS, Gitlinks, Dependencies, Analyseumfang, Regeln und Gates bleiben gleich.
+Betroffene native Apache-/NGINX-/HAProxy-/lighttpd-Dateien und Fixtures; `common/scripts/modsecurity_targeted_eval.cc`; gemeldete Python-/Shell-Helfer unter `ci/`; `scripts/version_updater_common.py`; drei SDK-Observer-Quellen; betroffene Apache-/NGINX-Tests und Framework-Updater-Assertion. In `config/testing/active-cases.json` ändern sich ausschließlich dreizehn geprüfte Digests; Definitionen/Auswahl bleiben gleich. `reports/testing/test-selection-archive.generated.json` wird über den bestehenden Generator regeneriert. Leserorientierte Dokumentation sind dieser Record und sein englischer Begleiter. Die manuell geprüfte Entscheidungsquelle [Triage-JSON](../sonarqube-cloud-20261028-triage.json) nennt alle 83 aktuellen Kandidatenpositionen und ihre ursprünglichen Projekt-/Issue-IDs. Framework/MRTS, Gitlinks, Dependencies, Analyseumfang, Regeln und Gates bleiben gleich.
 
 ## Ausgeführte Befehle
 
@@ -57,11 +57,13 @@ CI am ersten Head zeigte zwei Schreibweisen-Inkompatibilitäten in Quellcodeprü
 
 Das Secret-Gate am ersten Head meldete 287 generische Treffer, alle im Triage-JSON. Jede unveränderliche Trefferzeile wurde einzeln als Issue-/Analyse-/Event-Bezeichner aus der authentifizierten Sonar-Antwort bestätigt. Gemäß bestehendem `.gitleaksignore`-Vertrag wurden ausschließlich exakte Fingerprints aus erstem Commit/Datei/Regel/Zeile eingestuft. Der unveränderte redigierte Standard-PR-Bereichsscan bestand anschließend. Eine Kontrolle mit neuem Commit erkennt alle 287 identischen Datei-/Regel-/Zeilenvorkommen an einer neuen Revision (erwarteter Scanner-Exit 1) und belegt, dass der Fingerprint zukünftige Vorkommen nicht ausnimmt. Aktuelles JSON nutzt `id`/`issue_id` für Bezeichner, um irreführende Credential-artige Feldnamen zu vermeiden. Kein Regel-/Pfadausschluss, keine Schwellwertänderung, Credential-Offenlegung oder History-Umschreibung erfolgte.
 
+Die zweite Quellrevision `839eb00795f5c2622a4cfad3d4034def5765ac7b` bestand das erforderliche Sonar-Gate und beide Advisory-Jobs; die Hauptanalyse meldete null Bugs/Schwachstellen/Hotspots und drei Wartbarkeitshinweise. Der vorhandene Cleanup-API-Kandidat bleibt; ein neu sichtbarer HAProxy-Host-Callback benötigt ebenfalls seine mutable Signatur (`flt_ops.http_payload`). Damit stehen 83 Kandidaten in der Einzeltriage. Der dritte Hinweis betrifft überlappende Whitespace-Quantifizierer im Direktiven-Regex; ein optionaler, durch `&` abgegrenzter Block entfernt die Mehrdeutigkeit. Alle neun vorhandenen Callback-Einträge bleiben identisch; ungültige Eingaben mit 4.000/8.000 Leerzeichen benötigten vorher 0,212/0,880 s und danach 0,000724/0,001457 s. Dies sind begrenzte lokale Messungen. Die 21 generierten Referenzen bleiben unverändert; beide gezielten Konfigurationsregressionen bestehen. Die Folgerevision benötigt erneut CI-/Cloud-Nachweis.
+
 ## Security-Auswirkung
 
 Kontrollen, Callback-ABI, Ownership-Prüfungen, JSON-Escaping, Regeln und Gates bleiben aktiv. Unabhängige Read-only-Untersuchung verfolgte Python-Pfad-/Argument- und native Taint-Kandidaten; keiner der vorgelegten Flüsse belegte eine verbleibende ausnutzbare Schwachstelle. Ein weiterer unabhängiger Kandidaten-Reviewer fand keinen konkreten Bypass/Rückschritt. Dies ist eine abgegrenzte Prüfung, keine Sicherheitszusage für das gesamte Repository.
 
-Die 82 aktuellen Kandidaten umfassen 21 Apache- und 15 NGINX-Host-/API-Callback-Parameter; acht HAProxy-Callbacks und drei C-Struct-Member-Namensraummeldungen; neun begrenzte/escapte native Meldungen; zwanzig Python-Pfad-/Argument-/Inhaltsflussmeldungen; drei beabsichtigte HTTP-Fixture-Referenzen; drei begrenzte In-Memory-Textkopien, die als Logging gemeldet wurden. Vorhandene Root-Prüfungen, strikte SHA-/Variantenvalidierung, JSON-Escaping und Allokationsgrenzen bleiben erhalten. Explizite Operator-Pfade werden nicht stillschweigend eingeschränkt. Serverkandidaten bleiben offen; False-Positive-Freigabe oder Risikoakzeptanz werden nicht abgeleitet.
+Die 83 aktuellen Kandidaten umfassen 21 Apache- und 15 NGINX-Host-/API-Callback-Parameter; neun HAProxy-Callbacks und drei C-Struct-Member-Namensraummeldungen; neun begrenzte/escapte native Meldungen; zwanzig Python-Pfad-/Argument-/Inhaltsflussmeldungen; drei beabsichtigte HTTP-Fixture-Referenzen; drei begrenzte In-Memory-Textkopien, die als Logging gemeldet wurden. Vorhandene Root-Prüfungen, strikte SHA-/Variantenvalidierung, JSON-Escaping und Allokationsgrenzen bleiben erhalten. Explizite Operator-Pfade werden nicht stillschweigend eingeschränkt. Serverkandidaten bleiben offen; False-Positive-Freigabe oder Risikoakzeptanz werden nicht abgeleitet.
 
 ## Runtime-Evidence
 
@@ -73,7 +75,7 @@ Lokales Python ist 3.15.2 statt des Pins 3.15.1; die vorhandene virtuelle Umgebu
 
 ## Verbleibende Risiken
 
-Unit-Fixtures belegen keine tatsächliche gehostete Apache-Redirect-/Subrequest-Suche: einige ersetzen den Modulvektor-Lookup, während der Cleanup-Harness reale Vektorspeicherung und Owner-Bereinigung ausführt. Alle 82 Kandidatenpositionen und neue Cloud-Befunde benötigen Weiterbearbeitung. Eine Quellcodekorrektur allein schließt kein Cloud-Issue.
+Unit-Fixtures belegen keine tatsächliche gehostete Apache-Redirect-/Subrequest-Suche: einige ersetzen den Modulvektor-Lookup, während der Cleanup-Harness reale Vektorspeicherung und Owner-Bereinigung ausführt. Alle 83 Kandidatenpositionen und neue Cloud-Befunde benötigen Weiterbearbeitung. Eine Quellcodekorrektur allein schließt kein Cloud-Issue.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
