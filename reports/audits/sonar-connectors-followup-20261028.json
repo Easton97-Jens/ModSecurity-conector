@@ -15,12 +15,13 @@
     "tests/"
   ],
   "counts": {
-    "open_positions": 35,
     "host_api_const_positions": 34,
     "operator_input_path_positions": 1,
     "source_corrections": 0,
-    "server_transitions": 0,
-    "security_hotspots": 0
+    "server_transitions": 35,
+    "security_hotspots": 0,
+    "baseline_open_positions": 35,
+    "current_open_positions": 0
   },
   "master_gate": {
     "status": "ERROR",
@@ -29,8 +30,8 @@
     "required_maximum": "1",
     "new_code_period_start": "2026-05-14T18:30:31+0000"
   },
-  "user_decision": "False-positive candidates are documented in the PR only. Sonar status transitions were declined. ci/ and root tests/ findings are outside this task; no analysis configuration exclusion is made.",
-  "interpretation": "Fresh current-source/header/registration/CLI-contract review found no legitimate source-only correction that preserves the required interfaces. This report reconciles the current connector findings after merged PR430; it does not fix code, close server findings, accept risk or turn the failing master gate into a pass.",
+  "user_decision": "Individually classify exactly the 35 reviewed main-project connector findings as FALSE_POSITIVE with technical comments; preserve ci/, tests/, common/ and all other project/status/configuration boundaries.",
+  "interpretation": "Source remains unchanged. The 35 reviewed findings are now server-classified FALSE_POSITIVE after explicit user authorization and individual technical comments. Connector issue metrics are zero. No accepted risk, source correction, disabled rule/gate or analysis exclusion is involved; the global master gate remains ERROR from unrelated findings.",
   "findings": [
     {
       "id": "AaF2pxHsgQ6c6GT24UWg",
@@ -41,7 +42,9 @@
       "line_at_analysis": 371,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHsgQ6c6GT24UWh",
@@ -52,7 +55,9 @@
       "line_at_analysis": 406,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHsgQ6c6GT24UWi",
@@ -63,7 +68,9 @@
       "line_at_analysis": 471,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"pool\" is \"struct apr_pool_t *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UV6",
@@ -74,7 +81,9 @@
       "line_at_analysis": 931,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_log\" is \"struct apr_pool_t *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UV7",
@@ -85,7 +94,9 @@
       "line_at_analysis": 932,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_temp\" is \"struct apr_pool_t *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UV8",
@@ -96,7 +107,9 @@
       "line_at_analysis": 963,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp\" is \"struct apr_pool_t *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UV9",
@@ -107,7 +120,9 @@
       "line_at_analysis": 963,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_log\" is \"struct apr_pool_t *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UV-",
@@ -118,7 +133,9 @@
       "line_at_analysis": 964,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_temp\" is \"struct apr_pool_t *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UV_",
@@ -129,7 +146,9 @@
       "line_at_analysis": 997,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"conn\" is \"struct conn_rec *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UWC",
@@ -140,7 +159,9 @@
       "line_at_analysis": 1049,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxHNgQ6c6GT24UWF",
@@ -151,7 +172,9 @@
       "line_at_analysis": 1483,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"pool\" is \"struct apr_pool_t *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxGvgQ6c6GT24UVk",
@@ -162,7 +185,9 @@
       "line_at_analysis": 118,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxGvgQ6c6GT24UVl",
@@ -173,7 +198,9 @@
       "line_at_analysis": 134,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxGvgQ6c6GT24UVm",
@@ -184,7 +211,9 @@
       "line_at_analysis": 156,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxGvgQ6c6GT24UVn",
@@ -195,7 +224,9 @@
       "line_at_analysis": 178,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxGvgQ6c6GT24UVo",
@@ -206,7 +237,9 @@
       "line_at_analysis": 240,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxGvgQ6c6GT24UVp",
@@ -217,7 +250,9 @@
       "line_at_analysis": 257,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxGvgQ6c6GT24UVt",
@@ -228,7 +263,9 @@
       "line_at_analysis": 378,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"path\" is \"char *\".",
       "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UW4",
@@ -239,7 +276,9 @@
       "line_at_analysis": 1728,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UW5",
@@ -250,7 +289,9 @@
       "line_at_analysis": 1774,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UW6",
@@ -261,7 +302,9 @@
       "line_at_analysis": 1792,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UW8",
@@ -272,7 +315,9 @@
       "line_at_analysis": 1811,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaGD07fOwwLz-2WJP5Uj",
@@ -283,8 +328,10 @@
       "line_at_analysis": 2004,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"msg\" is \"struct http_msg *\".",
       "review_basis": "Host flt_ops.http_payload declares struct http_msg * in HAProxy filters-t.h:190. The registered callback must retain this function-pointer signature after its private callees became read-only; native host build confirms compatible signature.",
-      "treatment": "documentation_only_server_status_unchanged",
-      "identity_note": "New master issue ID for the already-reviewed haproxy_modsecurity_htx_filter_http_payload/msg parameter; actual registered flt_ops.http_payload requires mutable struct http_msg *."
+      "treatment": "false_positive_user_authorized",
+      "identity_note": "New master issue ID for the already-reviewed haproxy_modsecurity_htx_filter_http_payload/msg parameter; actual registered flt_ops.http_payload requires mutable struct http_msg *.",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UW-",
@@ -295,7 +342,9 @@
       "line_at_analysis": 2173,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UW_",
@@ -306,7 +355,9 @@
       "line_at_analysis": 2173,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"msg\" is \"struct http_msg *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UXA",
@@ -317,7 +368,9 @@
       "line_at_analysis": 2185,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxICgQ6c6GT24UXB",
@@ -328,7 +381,9 @@
       "line_at_analysis": 2396,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
       "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF0erukXd_g6jxuNaGe",
@@ -339,9 +394,11 @@
       "line_at_analysis": 17,
       "message": "Path Traversal via faulty LLM-supplied CLI arguments in patched_event_validation.load_events()",
       "review_basis": "Explicit operator-selected event input; the host caller supplies its private fixed event file. Only bounded validated numeric metadata reaches output; no lower-trust attacker path was established.",
-      "treatment": "documentation_only_server_status_unchanged",
+      "treatment": "false_positive_user_authorized",
       "additional_contract_evidence": "connectors/lighttpd/tests/test_patched_event_validation.py::test_first_byte_writer_accepts_phase_aliases_and_preserves_schema explicitly succeeds with event input outside --runtime-output-root. Restricting inputs to the output root would change supported CLI behavior. The actual hosted caller passes a fixed private event snapshot.",
-      "source_description_correction": "The analyzer describes argparse.parse_args() in the local CLI as an HTTP request source; this entry point is a local operator tool, not an HTTP request handler."
+      "source_description_correction": "The analyzer describes argparse.parse_args() in the local CLI as an HTTP request source; this entry point is a local operator tool, not an HTTP request handler.",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxIvgQ6c6GT24UXV",
@@ -352,7 +409,9 @@
       "line_at_analysis": 1041,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
       "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxIvgQ6c6GT24UXZ",
@@ -363,7 +422,9 @@
       "line_at_analysis": 1076,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
       "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxIvgQ6c6GT24UXd",
@@ -374,7 +435,9 @@
       "line_at_analysis": 1111,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
       "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxIvgQ6c6GT24UXe",
@@ -385,7 +448,9 @@
       "line_at_analysis": 1111,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
       "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxIvgQ6c6GT24UXf",
@@ -396,7 +461,9 @@
       "line_at_analysis": 1120,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
       "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxIvgQ6c6GT24UXg",
@@ -407,7 +474,9 @@
       "line_at_analysis": 1158,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
       "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     },
     {
       "id": "AaF2pxIvgQ6c6GT24UXj",
@@ -418,7 +487,40 @@
       "line_at_analysis": 1177,
       "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
       "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
-      "treatment": "documentation_only_server_status_unchanged"
+      "treatment": "false_positive_user_authorized",
+      "issue_status_after": "FALSE_POSITIVE",
+      "technical_comment_verified": true
     }
-  ]
+  ],
+  "decision_history": [
+    {
+      "stage": "initial",
+      "decision": "Documentation only; no server transition."
+    },
+    {
+      "stage": "current",
+      "date_utc": "2026-10-28",
+      "decision": "User explicitly requested removing these reviewed connector findings from scoring. This authorizes individual FALSE_POSITIVE treatment for exactly 35 main-project connector issues; ci/ and tests/ remain excluded."
+    }
+  ],
+  "disposition_readback": {
+    "date_utc": "2026-10-28",
+    "reviewed_source_revision": "c5993ed9a7b59fc0bd58f105595ec79f596c88d6",
+    "pr_head_at_classification": "4aebdf305f8309c6455b12cc24ef71ef3e5b731d",
+    "target_project": "Easton97-Jens_ModSecurity-conector",
+    "false_positive_count": 35,
+    "technical_comments_verified": 35,
+    "remaining_open_connector_issues": 0,
+    "unrelated_open_issues_unchanged": 24,
+    "connector_metrics": {
+      "reliability_rating": "1.0",
+      "bugs": "0",
+      "code_smells": "0",
+      "security_rating": "1.0",
+      "vulnerabilities": "0",
+      "security_hotspots": "0",
+      "sqale_rating": "1.0"
+    },
+    "master_gate_after": "ERROR"
+  }
 }
