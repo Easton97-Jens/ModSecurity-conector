@@ -19,6 +19,7 @@ from tests.c_source_contract import function_definition
 ROOT = Path(__file__).resolve().parents[1]
 PREAMBLE = r'''
 #define _POSIX_C_SOURCE 200809L
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +36,7 @@ typedef unsigned long ngx_uint_t;
 typedef int ngx_flag_t;
 typedef unsigned char u_char;
 typedef void ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
 typedef struct { int error; void *log; } connection_t;
 typedef struct { unsigned status; ngx_str_t content_type, status_line; void *location; long content_length_n; } headers_t;

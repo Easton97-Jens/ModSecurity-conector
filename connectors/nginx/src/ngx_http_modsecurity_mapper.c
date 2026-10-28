@@ -39,7 +39,7 @@ static char *ngx_http_modsecurity_pool_cstrdup(ngx_pool_t *pool, const char *val
     return ngx_http_modsecurity_pool_strndup(pool, (const u_char *)value, ngx_strlen(value));
 }
 
-static char *ngx_http_modsecurity_http_version(ngx_pool_t *pool, ngx_http_request_t *r)
+static char *ngx_http_modsecurity_http_version(ngx_pool_t *pool, const ngx_http_request_t *r)
 {
     const char *version;
 
@@ -79,10 +79,9 @@ static int ngx_http_modsecurity_copy_headers(ngx_pool_t *pool, ngx_list_t *list,
     size_t extra_capacity, msconnector_header **out_headers, size_t *out_count)
 {
     ngx_list_part_t *part = &list->part;
-    ngx_table_elt_t *data = part->elts;
+    const ngx_table_elt_t *data = part->elts;
     size_t count = ngx_http_modsecurity_count_list_headers(list);
     size_t written = 0U;
-    ngx_uint_t i;
     msconnector_header *headers;
 
     *out_headers = NULL;
@@ -96,7 +95,7 @@ static int ngx_http_modsecurity_copy_headers(ngx_pool_t *pool, ngx_list_t *list,
         return 0;
     }
 
-    for (i = 0; ; i++) {
+    for (ngx_uint_t i = 0; ; i++) {
         if (i >= part->nelts) {
             if (part->next == NULL) {
                 break;
@@ -120,8 +119,8 @@ static int ngx_http_modsecurity_copy_headers(ngx_pool_t *pool, ngx_list_t *list,
 static int ngx_http_modsecurity_append_header(ngx_pool_t *pool, msconnector_header *headers,
     size_t *header_count, const char *name, const char *value)
 {
-    char *copied_name;
-    char *copied_value;
+    const char *copied_name;
+    const char *copied_value;
 
     copied_name = ngx_http_modsecurity_pool_cstrdup(pool, name);
     copied_value = ngx_http_modsecurity_pool_cstrdup(pool, value);
@@ -136,8 +135,8 @@ static int ngx_http_modsecurity_append_header(ngx_pool_t *pool, msconnector_head
     return 1;
 }
 
-static char *ngx_http_modsecurity_request_hostname(ngx_pool_t *pool, ngx_http_request_t *r,
-    msconnector_header *headers, size_t header_count)
+static char *ngx_http_modsecurity_request_hostname(ngx_pool_t *pool, const ngx_http_request_t *r,
+    const msconnector_header *headers, size_t header_count)
 {
     const msconnector_header *host;
 
@@ -220,7 +219,7 @@ static int ngx_http_modsecurity_add_synthetic_response_headers(ngx_http_request_
 {
     char content_length[NGX_OFF_T_LEN + 1];
     u_char *last;
-    char *content_type;
+    const char *content_type;
 
     if (r->headers_out.content_type.len > 0U &&
         msconnector_headers_find_first(headers, *header_count, "content-type") == NULL) {

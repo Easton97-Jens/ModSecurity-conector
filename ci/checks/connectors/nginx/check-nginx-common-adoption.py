@@ -30,8 +30,8 @@ BODY_RESPONSE_CHAIN_APPEND_CONTRACT_PATTERN = re.compile(
     r'ngx_http_modsecurity_append_response_chain_buffer\s*\(\s*'
     r'ngx_http_request_t\s*\*\s*r\s*,\s*'
     r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
-    r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
-    r'ngx_chain_t\s*\*\s*chain\s*\)\s*\{\s*'
+    r'const\s+ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
+    r'const\s+ngx_chain_t\s*\*\s*chain\s*\)\s*\{\s*'
     r'return\s+ngx_http_modsecurity_append_response_body_buffer\s*\(\s*'
     r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*chain\s*->\s*buf\s*\)\s*;\s*\}'
 )
@@ -58,10 +58,10 @@ BODY_RESPONSE_BUFFER_CONTRACT_PATTERN = re.compile(
     r'ngx_http_modsecurity_append_response_body_buffer\s*\(\s*'
     r'ngx_http_request_t\s*\*\s*r\s*,\s*'
     r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
-    r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
-    r'ngx_buf_t\s*\*\s*buffer\s*\)\s*\{\s*'
+    r'const\s+ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
+    r'const\s+ngx_buf_t\s*\*\s*buffer\s*\)\s*\{\s*'
     r'if\s*\(\s*ngx_buf_in_memory\s*\(\s*buffer\s*\)\s*\)\s*\{\s*'
-    r'u_char\s*\*\s*data\s*=\s*buffer\s*->\s*pos\s*;\s*'
+    r'const\s+u_char\s*\*\s*data\s*=\s*buffer\s*->\s*pos\s*;\s*'
     r'size_t\s+len\s*=\s*buffer\s*->\s*last\s*>=\s*buffer\s*->\s*pos\s*'
     r'\?\s*\(\s*size_t\s*\)\s*\(\s*buffer\s*->\s*last\s*-\s*'
     r'buffer\s*->\s*pos\s*\)\s*:\s*0\s*;\s*'
@@ -76,8 +76,8 @@ BODY_RESPONSE_LIMITED_CONTRACT_PATTERN = re.compile(
     r'static\s+ngx_int_t\s+'
     r'ngx_http_modsecurity_append_accounted_response_body\s*\(\s*'
     r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
-    r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
-    r'u_char\s*\*\s*data\s*,\s*size_t\s+len\s*\)\s*\{\s*'
+    r'const\s+ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
+    r'const\s+u_char\s*\*\s*data\s*,\s*size_t\s+len\s*\)\s*\{\s*'
     r'size_t\s+allowed\s*;\s*'
     r'if\s*\(\s*ngx_http_modsecurity_account_response_body\s*\(\s*'
     r'ctx\s*,\s*mcf\s*,\s*len\s*,\s*&\s*allowed\s*\)\s*'
@@ -91,14 +91,13 @@ BODY_RESPONSE_CHAIN_CALL_CONTRACT_PATTERN = re.compile(
     r'ngx_http_request_t\s*\*\s*r\s*,\s*'
     r'ngx_chain_t\s*\*\s*in\s*,\s*'
     r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*\)\s*\{\s*'
-    r'ngx_chain_t\s*\*\s*chain\s*;\s*'
     r'ngx_chain_t\s*\*\s*segment_start\s*=\s*in\s*;\s*'
     r'ngx_chain_t\s*\*\s*segment_previous\s*=\s*NULL\s*;\s*'
-    r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*;\s*'
+    r'const\s+ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*;\s*'
     r'int\s+is_request_processed\s*=\s*0\s*;\s*'
     r'mcf\s*=\s*ngx_http_get_module_loc_conf\s*\(\s*r\s*,\s*'
     r'ngx_http_modsecurity_module\s*\)\s*;\s*'
-    r'for\s*\(\s*chain\s*=\s*in\s*;\s*chain\s*!=\s*NULL\s*;\s*'
+    r'for\s*\(\s*ngx_chain_t\s*\*\s*chain\s*=\s*in\s*;\s*chain\s*!=\s*NULL\s*;\s*'
     r'chain\s*=\s*chain\s*->\s*next\s*\)\s*\{\s*'
     r'ngx_int_t\s+ret\s*;\s*'
     r'ngx_uint_t\s+final_body_forwarded\s*;\s*'
@@ -154,12 +153,12 @@ HEADER_CTX_DECLARATION_PREFIX_PATTERN = re.compile(
     r'\s*ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*;\s*'
     r'int\s+ret\s*=\s*0\s*;\s*'
     r'ngx_uint_t\s+status\s*;\s*'
-    r'char\s*\*\s*http_response_ver\s*;\s*'
-    r'ngx_pool_t\s*\*\s*old_pool\s*;\s*'
-    r'ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*;\s*'
+    r'const\s+char\s*\*\s*http_response_ver\s*;\s*'
+    r'ngx_http_modsecurity_pcre_pool_snapshot_t\s+old_pool\s*;\s*'
+    r'const\s+ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*;\s*'
     r'size_t\s+response_header_count\s*;\s*'
     r'size_t\s+response_header_bytes\s*;\s*'
-    r'char\s*\*\s*response_content_type\s*=\s*NULL\s*;\s*'
+    r'const\s+char\s*\*\s*response_content_type\s*=\s*NULL\s*;\s*'
     r'ngx_http_modsecurity_engine_call_measurement\s+measurement\s*;\s*'
 )
 HEADER_CTX_DIAGNOSTIC_CALL_PATTERN = re.compile(
@@ -225,7 +224,7 @@ HEADER_RESPONSE_HEADER_COLLECTION_PREFIX_CONTRACT_PATTERN = re.compile(
     r'ngx_list_part_t\s*\*\s*part\s*=\s*&\s*r\s*->\s*headers_out\s*'
     r'\.\s*headers\s*\.\s*part\s*;\s*'
     r'ngx_table_elt_t\s*\*\s*data\s*=\s*part\s*->\s*elts\s*;\s*'
-    r'ngx_table_elt_t\s*\*\s*header\s*;\s*'
+    r'const\s+ngx_table_elt_t\s*\*\s*header\s*;\s*'
     r'ngx_uint_t\s+i\s*;\s*'
     r'for\s*\(\s*i\s*=\s*0\s*;\s*'
     r'ngx_http_modsecurity_headers_out\s*\[\s*i\s*\]\s*\.\s*name\s*\.\s*len\s*;\s*'
@@ -694,6 +693,7 @@ C_ALLOWED_EXTERNAL_ANGLE_INCLUDES = frozenset((
     'atomic',
     'ctype.h',
     'inttypes.h',
+    'limits.h',
     'modsecurity/modsecurity.h',
     'modsecurity/rules.h',
     'modsecurity/rules_set.h',

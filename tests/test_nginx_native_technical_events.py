@@ -38,7 +38,7 @@ static ngx_http_modsecurity_event_request_metadata_t ngx_http_modsecurity_event_
     (void)r;return (ngx_http_modsecurity_event_request_metadata_t){"GET","/actual-fault", ""};
 }
 static ngx_int_t ngx_http_modsecurity_write_phase_event_jsonl(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *conf,const msconnector_event *event,const char *phase) {
+    const ngx_http_modsecurity_conf_t *conf,const msconnector_event *event,const char *phase) {
     char line[4096];int truncated=0;
     (void)r;(void)conf;
     if (strcmp(phase,"technical") != 0) abort();

@@ -35,6 +35,7 @@ PREAMBLE = r'''
 typedef unsigned char u_char;
 typedef int ngx_int_t;
 typedef struct { int unused; } ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
 typedef struct { ngx_str_t name; int fd; } ngx_file_t;
 typedef struct { ngx_file_t file; off_t offset; } ngx_temp_file_t;
@@ -146,7 +147,7 @@ static int ngx_http_modsecurity_process_intervention(void *transaction,
     (void)transaction; (void)request; (void)early; return 0;
 }
 static void ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *request,
-        ngx_http_modsecurity_conf_t *config, enum msconnector_phase phase, const char *reason) {
+        const ngx_http_modsecurity_conf_t *config, enum msconnector_phase phase, const char *reason) {
     (void)request; (void)config; (void)phase; (void)reason;
 }
 '''

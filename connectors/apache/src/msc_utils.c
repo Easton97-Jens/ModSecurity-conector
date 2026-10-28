@@ -48,9 +48,10 @@ apr_status_t msc_cleanup_request_transaction(void *data)
     msr->t = NULL;
     msr->owner_request = NULL;
 
-    if (owner_request != NULL && owner_request->notes != NULL)
+    if (owner_request != NULL && owner_request->request_config != NULL)
     {
-        apr_table_unset(owner_request->notes, NOTE_MSR);
+        ap_set_module_config(owner_request->request_config, &security3_module,
+            NULL);
     }
 
     if (transaction != NULL)
@@ -112,7 +113,7 @@ static apr_status_t pass_error_bucket(ap_filter_t *f, int status,
  * Sends a brigade with an error bucket down an output filter's remaining
  * output chain.
  */
-apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status)
+apr_status_t send_error_bucket(const msc_t *msr, ap_filter_t *f, int status)
 {
     (void)msr;
 

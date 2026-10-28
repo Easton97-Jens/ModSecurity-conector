@@ -1081,7 +1081,6 @@ def _derive_inventory_companions(
     if not isinstance(sources, list):
         raise SyncError("Framework maintenance archive must contain its source array")
     seen: set[str] = set()
-    changed = False
     for row in sources:
         if not isinstance(row, dict) or not isinstance(row.get("source"), str):
             raise SyncError("Framework maintenance archive source row is invalid")
@@ -1096,14 +1095,9 @@ def _derive_inventory_companions(
         replacement = inventory_updates.digest(after[name])
         if replacement != row["source_sha256"]:
             row["source_sha256"] = replacement
-            changed = True
-    if changed:
-        # The native archive generator uses sorted keys. Existing definitions,
-        # membership and all non-SHA metadata are preserved exactly.
-        outputs[inventory_updates.ARCHIVE] = (json.dumps(updated, indent=2, sort_keys=True) + "\n").encode()
-    elif outputs[inventory_updates.ARCHIVE] != archive:
-        # Keep the generator's canonical ordering even for a lock-only update.
-        outputs[inventory_updates.ARCHIVE] = (json.dumps(updated, indent=2, sort_keys=True) + "\n").encode()
+    # Match the native generator's canonical ordering, including lock-only updates.
+    # A semantic no-op below retains the exact original bytes.
+    outputs[inventory_updates.ARCHIVE] = (json.dumps(updated, indent=2, sort_keys=True) + "\n").encode()
     if old_archive == updated:
         outputs[inventory_updates.ARCHIVE] = archive
     return outputs

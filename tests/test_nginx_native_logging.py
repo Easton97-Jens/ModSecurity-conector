@@ -22,6 +22,7 @@ PREAMBLE = r'''
 #include "msconnector/transaction_contract.h"
 typedef int ngx_int_t;
 typedef struct { int unused; } ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { void *log; } connection_t;
 typedef struct { connection_t *connection; ngx_pool_t *pool; } ngx_http_request_t;
 typedef struct {

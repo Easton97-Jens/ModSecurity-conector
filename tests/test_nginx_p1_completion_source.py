@@ -35,6 +35,7 @@ typedef unsigned long ngx_uint_t;
 typedef int ngx_flag_t;
 typedef unsigned char u_char;
 typedef void ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
 typedef struct { int error; void *log; } connection_t;
 typedef struct { connection_t *connection; int header_sent, error_page; ngx_pool_t *pool; ngx_str_t method_name, unparsed_uri, uri; } ngx_http_request_t;

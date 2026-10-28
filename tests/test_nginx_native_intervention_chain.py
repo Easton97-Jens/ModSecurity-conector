@@ -23,8 +23,8 @@ NATIVE = ROOT / "connectors/nginx/src"
 FUNCTIONS = {
     "ngx_http_modsecurity_module.c": (
         ("ngx_int_t", "ngx_http_modsecurity_contract_record_intervention"),
-        ("ngx_int_t", "ngx_http_modsecurity_process_status_intervention"),
-        ("ngx_int_t", "ngx_http_modsecurity_reject_native_intervention"),
+        ("int", "ngx_http_modsecurity_process_status_intervention"),
+        ("int", "ngx_http_modsecurity_reject_native_intervention"),
         ("ngx_int_t", "ngx_http_modsecurity_collect_native_intervention"),
         ("int", "ngx_http_modsecurity_defer_late_phase4_intervention"),
         ("void", "ngx_http_modsecurity_extract_intervention_rule_id"),
@@ -58,6 +58,7 @@ typedef long ngx_int_t;
 typedef unsigned long ngx_uint_t;
 typedef unsigned char u_char;
 typedef struct { int unused; } ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { int unused; } ngx_chain_t;
 typedef struct { int unused; } Transaction;
 typedef struct { int status, disruptive; char *url, *log; } ModSecurityIntervention;
@@ -159,27 +160,27 @@ static ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
     (void)r; (void)phase; (void)value; (void)result; return NGX_OK;
 }
 static ngx_int_t ngx_http_modsecurity_phase4_log_native_completion(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *conf, ngx_http_modsecurity_ctx_t *ctx, int result) {
+    const ngx_http_modsecurity_conf_t *conf, ngx_http_modsecurity_ctx_t *ctx, int result) {
     (void)r; (void)conf; (void)ctx;
     return result == 1 ? NGX_OK : NGX_ERROR;
 }
 static ngx_int_t ngx_http_modsecurity_log_handler(ngx_http_request_t *r) { (void)r; return NGX_OK; }
-static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
-        ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention) {
+static int ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
+        ngx_http_modsecurity_ctx_t *ctx, const ModSecurityIntervention *intervention) {
     (void)ctx; ++redirects; return r->header_sent ? NGX_ERROR : intervention->status;
 }
 static ngx_int_t ngx_http_next_body_filter(ngx_http_request_t *r, ngx_chain_t *chain) {
     (void)r; (void)chain; ++forwards; return NGX_OK;
 }
 static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r,
-        ngx_http_modsecurity_conf_t *mcf, const char *wanted,
+        const ngx_http_modsecurity_conf_t *mcf, const char *wanted,
         const char *actual, const char *reason) {
     (void)r; (void)mcf; (void)wanted; (void)reason; ++events;
     snprintf(observed_action, sizeof(observed_action), "%s", actual);
     return sink_result;
 }
 static ngx_int_t ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
-        ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx) {
+        const ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx) {
     (void)r; (void)mcf; (void)ctx; ++errors; return NGX_OK;
 }
 static ngx_int_t ngx_http_filter_finalize_request(ngx_http_request_t *r, int *module,

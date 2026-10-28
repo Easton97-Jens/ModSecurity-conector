@@ -10,7 +10,7 @@ Current-Master-Wartung von PR #370; keine Readiness-Promotion.
 | --- | --- |
 | Change-ID | CR-20261001-pr370-refresh-relevance |
 | Datum (UTC) | 2026-10-28 |
-| Basis-Revision | `3ef5068885b737ede074c3f7c11f58f302f23310` |
+| Basis-Revision | `c5993ed9a7b59fc0bd58f105595ec79f596c88d6` |
 
 ## Motivation und Problemstellung
 
@@ -25,6 +25,8 @@ Die beobachtete Basisrevision normal mergen, keine Konflikte hinterlassen, aktue
 Der normale Merge legte 43 Textkonflikte offen. Jeder konfliktbehaftete Produkt-, Common-, Dokumentations- und Workflowpfad wurde zunächst auf die exakte `master`-Version gesetzt. Anschließend wurde der verbleibende PR-Diff connectorweise geprüft. Veraltete Qualifikations-Harnesses, entfernte Body-Limit-Konfiguration, verwaiste Composite-APIs, überholte lighttpd-Keepalive-Behauptungen und alte Orakel für technische Fehler wurden aus dem Netto-Diff entfernt, statt Verhalten vor dem aktuellen Master wiederherzustellen.
 
 Nach der Veröffentlichung rückte `master` durch Dokumentations-PR #383 erneut vor. Ein zweiter normaler Merge integrierte Revision `3ef5068885b737ede074c3f7c11f58f302f23310` konfliktfrei; dieses Master-Delta berührte keine Phase-4-Produktverarbeitung.
+
+Während der Aufgabenpause erreichte jeder Hosted-Job auf dem veröffentlichten Head `f15e02ae097d77a0a96106c54bcae79cf599f8c1` ein terminales Ergebnis: 56 Prüfungen bestanden, darunter alle fünf CRS-Runtime-Zellen und alle zwölf Native-Security-Ziele; nur die ausdrücklich beratenden C++20-/C++23-Sonar-Jobs wurden abgebrochen. Anschließend rückte `master` durch PR #430 auf `c5993ed9a7b59fc0bd58f105595ec79f596c88d6` vor. Ein dritter normaler Merge erhielt die eingehenden Apache-, HAProxy-, lighttpd-, NGINX- und Common-Quellversionen einschließlich ihrer Phase-4-Verarbeitung bytegenau. Sein einziger Textkonflikt betraf das generierte Testauswahlarchiv dieses Branches; die Datei wurde aus dem sauber zusammengeführten aktiven Inventar durch `ci/tools/update-test-archive.py` neu erzeugt und nicht manuell editiert.
 
 Die erhaltenen Änderungen sind eng begrenzt: frische externe APXS-Profilregistrierungs-Stages für Wiederholungen; Envoy-Authorization-Path-Autorität und Auswahl der Response-Companion-Smoke-Regeln; ein HAProxy-Source-Checker, der Forward-Deklarationen korrekt behandelt; strengere Traefik-Fixture-Grenzen für Framing, begrenztes Lesen/Schreiben und Payload-Digests; sowie zwei kleine deterministische Testkorrekturen. Geprüfte Source-Hashes und das generierte Specialist-Archiv wurden ohne Änderung von Selektoren oder Fallzahlen aktualisiert.
 
@@ -52,7 +54,7 @@ Alle Projekt-Shell-Befehle liefen RTK-wrapped. Umfangreiche Ausgabe und Go-Cache
 | `python3 ci/tools/update-test-archive.py --check` | Bestanden. |
 | `make check-active-inventory` | Bestanden: 100 Core-Fälle, Hard-Limit 100, 1.893 On-Demand-Fälle. |
 | Prüfung der aktiven Sechs-Gruppen-Auswahl | Bestanden: 22 Ausführungen und 26 expandierte Fälle. |
-| Aktive Sechs-Gruppen-Ausführung mit `--strict-skips` | Der finale Lauf bestand alle 26 Fälle ohne Skip. Beim ersten Versuch fehlten explizite libmodsecurity-Pfade; der zweite zeigte einen schreibgeschützten Standard-Go-Cache. Der erfolgreiche Wiederholungslauf verwendete vorhandenes System-libmodsecurity und private externe Go-Caches. |
+| Aktive Sechs-Gruppen-Ausführung mit `--strict-skips` | Der finale Lauf nach dem Merge von `c5993ed9` bestand alle 26 Fälle ohne Skip. Bei einem früheren Versuch fehlten explizite libmodsecurity-Pfade; die erfolgreiche Ausführung verwendete vorhandenes System-libmodsecurity und private externe Go-Caches. |
 | Unabhängiges Security-Review des eingegrenzten Diffs | Keine validierte neue Security-Schwachstelle; `git diff --check origin/master` bestand. |
 | Statische Common-/Adapter-Contract-Targets | Alle sechs ausgewählten Targets bestanden. |
 | EN/DE-, Link-, Variablen- und generierte Connector-Referenzprüfungen | Nach read-only Materialisierung des exakten Framework-Gitlinks bestanden. |
@@ -77,11 +79,11 @@ Der APXS-Wrapper setzt weiterhin vertrauenswürdige Vorfahren des externen Build
 
 ## Verbleibende Risiken
 
-Hosted-Prüfungen und Sonar müssen an die final ausgelieferte SHA gebunden sein. Lokaler Erfolg belegt weder Hosted-Workflow-Berechtigungen noch externe Service-Verfügbarkeit oder null Duplizierung auf neuem Code. Der Root-Envoy-Lifecycle-Wrapper wurde lokal nicht abgeschlossen, obwohl das darunterliegende repositoryeigene Buildskript bestand. Das größere Readiness-B-Ziel bleibt unbewiesen, bis die erforderliche Host-/Profil-/Run-Evidence vorliegt.
+Hosted-Prüfungen und Sonar müssen an die final ausgelieferte SHA gebunden sein. Die 56 erfolgreichen Prüfungen und das Sonar Quality Gate mit 0,0 % Duplizierung, null duplizierten Zeilen und null duplizierten Blöcken wurden auf dem zuvor veröffentlichten Head `f15e02ae` beobachtet; sie sind keine Evidence für die noch unveröffentlichte Nachfolger-Merge-Revision. Lokaler Erfolg belegt weder Hosted-Workflow-Berechtigungen noch externe Service-Verfügbarkeit oder null Duplizierung auf diesem Nachfolger. Der Root-Envoy-Lifecycle-Wrapper wurde lokal nicht abgeschlossen, obwohl das darunterliegende repositoryeigene Buildskript bestand. Das größere Readiness-B-Ziel bleibt unbewiesen, bis die erforderliche Host-/Profil-/Run-Evidence vorliegt.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Kein Neustart der historischen Vollmatrix/I12, keine G1–G9-Kampagne über alle Profile, kein Framework-/MRTS-Source-Schreibvorgang, keine Dependency-Installation, kein direkter `master`-Push, Force-Push oder Merge. Exact-Head-CI und Sonar sind erst nach Veröffentlichung des Nachfolger-Commits verfügbar und stehen zu diesem Zeitpunkt noch aus.
+Kein Neustart der historischen Vollmatrix/I12, keine G1–G9-Kampagne über alle Profile, kein Framework-/MRTS-Source-Schreibvorgang, keine Dependency-Installation, kein direkter `master`-Push, Force-Push oder Merge. Exact-Head-CI und Sonar für den `c5993ed9`-Nachfolger sind erst nach seiner Veröffentlichung verfügbar und stehen zu diesem Zeitpunkt noch aus; die terminalen Ergebnisse auf `f15e02ae` sind oben getrennt festgehalten.
 
 ## Finaler Diff- und Review-Status
 

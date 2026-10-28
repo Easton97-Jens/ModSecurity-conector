@@ -75,7 +75,7 @@ static handler_t mod_msconnector_fail_request(request_st *r, msconnector_runtime
         handler_ctx *ctx, msconnector_error_code code) {
     (void)r; (void)p; (void)ctx; (void)code; ++host_calls; return HANDLER_ERROR;
 }
-static handler_t mod_msconnector_apply_decision(request_st *r, plugin_data *p,
+static handler_t mod_msconnector_apply_decision(request_st *r, const plugin_data *p,
         handler_ctx *ctx, const msconnector_decision *decision) {
     (void)r; (void)p; (void)ctx;
     assert(!msconnector_decision_is_disruptive(decision));

@@ -10,7 +10,7 @@ Current-master maintenance of PR #370; no readiness promotion.
 | --- | --- |
 | Change ID | CR-20261001-pr370-refresh-relevance |
 | Date (UTC) | 2026-10-28 |
-| Base revision | `3ef5068885b737ede074c3f7c11f58f302f23310` |
+| Base revision | `c5993ed9a7b59fc0bd58f105595ec79f596c88d6` |
 
 ## Motivation and problem statement
 
@@ -25,6 +25,8 @@ Normally merge the observed base revision, leave no conflict, preserve current-m
 The normal merge exposed 43 textual conflicts. Every conflicted product, Common, documentation, and workflow path was first restored to the exact `master` version. The remaining PR delta was then audited by connector. Obsolete qualification harnesses, removed body-limit configuration, orphaned composite APIs, stale lighttpd keepalive claims, and old technical-error oracles were removed from the net diff instead of restoring pre-master behavior.
 
 After publication, `master` advanced once more through documentation PR #383. A second normal merge integrated revision `3ef5068885b737ede074c3f7c11f58f302f23310` without conflict; that master delta did not touch Phase-4 product processing.
+
+While the task was paused, every hosted job on published head `f15e02ae097d77a0a96106c54bcae79cf599f8c1` reached a terminal result: 56 checks succeeded, including all five CRS runtime cells and all twelve native-security targets; only the explicitly advisory C++20/C++23 Sonar jobs were cancelled. `master` then advanced through PR #430 to `c5993ed9a7b59fc0bd58f105595ec79f596c88d6`. A third normal merge retained the incoming Apache, HAProxy, lighttpd, NGINX, and Common source versions byte-for-byte, including their Phase-4 processing. Its sole textual conflict was this branch's generated test-selection archive; the file was regenerated from the cleanly merged active inventory through `ci/tools/update-test-archive.py`, not hand-edited.
 
 The retained changes are narrow: fresh external APXS profile-registry staging for retries; Envoy authorization-Path authority and response-companion smoke-rule selection; a forward-declaration-safe HAProxy source checker; stricter Traefik fixture framing, bounded reads/writes, and payload-digest verification; and two small deterministic test corrections. Reviewed source hashes and the generated specialist archive were updated without changing selectors or case counts.
 
@@ -52,7 +54,7 @@ All project shell commands were RTK-wrapped. Heavy output and Go caches used pri
 | `python3 ci/tools/update-test-archive.py --check` | Passed. |
 | `make check-active-inventory` | Passed: 100 core cases, hard limit 100, 1,893 on-demand cases. |
 | Six-group active selection check | Passed: 22 executions and 26 expanded cases. |
-| Six-group active execution with `--strict-skips` | Final run passed all 26 cases with no skip. The first attempt lacked explicit libmodsecurity paths; the second exposed a read-only default Go cache. The successful rerun used existing system libmodsecurity and private external Go caches. |
+| Six-group active execution with `--strict-skips` | The final run after merging `c5993ed9` passed all 26 cases with no skip. An earlier attempt lacked explicit libmodsecurity paths; successful execution used existing system libmodsecurity and private external Go caches. |
 | Independent narrowed-diff security review | No validated new security vulnerability; `git diff --check origin/master` passed. |
 | Common/adapter static contract targets | All six selected targets passed. |
 | EN/DE, link, variable and generated connector-reference checks | Passed after read-only materialization of the exact Framework Gitlink. |
@@ -77,11 +79,11 @@ The APXS wrapper continues to assume a trusted external build-root ancestry; the
 
 ## Remaining risks
 
-Hosted checks and Sonar must bind to the final delivered SHA. Local success does not prove hosted workflow permissions, external service availability, or zero new-code duplication. The Root Envoy lifecycle wrapper did not complete locally, although the underlying repository build script passed. The larger readiness-B objective remains unproven until its required host/profile/run evidence exists.
+Hosted checks and Sonar must bind to the final delivered SHA. The 56 successful checks and Sonar Quality Gate with 0.0% duplication, zero duplicated lines, and zero duplicated blocks were observed on prior published head `f15e02ae`; they are not evidence for the still-unpublished successor merge revision. Local success does not prove hosted workflow permissions, external service availability, or zero new-code duplication on that successor. The Root Envoy lifecycle wrapper did not complete locally, although the underlying repository build script passed. The larger readiness-B objective remains unproven until its required host/profile/run evidence exists.
 
 ## Checks not run and rationale
 
-No historical full-matrix/I12 restart, all-profile G1–G9 campaign, Framework/MRTS source write, dependency installation, direct `master` push, force push, or merge was performed. Exact-head CI and Sonar are available only after publishing the successor commit and remain pending at this stage.
+No historical full-matrix/I12 restart, all-profile G1–G9 campaign, Framework/MRTS source write, dependency installation, direct `master` push, force push, or merge was performed. Exact-head CI and Sonar for the `c5993ed9` successor are available only after publishing it and remain pending at this stage; the terminal results on `f15e02ae` are recorded separately above.
 
 ## Final diff and review status
 

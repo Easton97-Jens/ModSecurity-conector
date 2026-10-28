@@ -102,7 +102,6 @@ static apr_status_t phase4_fragmented_bucket_pass(request_rec *r,
     apr_bucket_brigade *brigade;
     apr_bucket *bucket;
     apr_status_t rc;
-    unsigned int index;
 
     brigade = apr_brigade_create(r->pool, r->connection->bucket_alloc);
     if (brigade == NULL)
@@ -112,7 +111,7 @@ static apr_status_t phase4_fragmented_bucket_pass(request_rec *r,
     /* The first pass deliberately has no EOS.  The second pass provides the
      * remaining data and EOS, exercising the persistent counter across
      * separate Apache output-filter invocations. */
-    for (index = 0U; index < bucket_count; ++index)
+    for (unsigned int index = 0U; index < bucket_count; ++index)
     {
         bucket = apr_bucket_immortal_create(payload, 1U,
             r->connection->bucket_alloc);
@@ -478,11 +477,11 @@ static void phase4_terminal_rogue_register_hooks(apr_pool_t *pool)
         APR_HOOK_MIDDLE);
     ap_hook_handler(phase4_internal_redirect_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
-    ap_hook_handler(phase4_internal_redirect_target_handler, NULL, NULL,
+    ap_hook_handler(&phase4_internal_redirect_target_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
     ap_hook_handler(phase4_nested_error_document_redirect_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
-    ap_hook_handler(phase4_preoutput_error_document_handler, NULL, NULL,
+    ap_hook_handler(&phase4_preoutput_error_document_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
     ap_hook_handler(phase4_downstream_error_handler, NULL, NULL,
         APR_HOOK_MIDDLE);
@@ -501,6 +500,6 @@ module AP_MODULE_DECLARE_DATA phase4_terminal_rogue_module =
     NULL,
     NULL,
     NULL,
-    phase4_terminal_rogue_register_hooks,
+    &phase4_terminal_rogue_register_hooks,
     AP_MODULE_FLAG_NONE
 };
