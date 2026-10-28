@@ -2,6 +2,14 @@
 
 **Language:** English | [Deutsch](with-crs-no-mrts-profile-contract.de.md)
 
+## Quick orientation
+
+This reference describes one specific test/evidence profile: **CRS enabled,
+MRTS not selected**. Keep it separate from No-CRS runs and from profiles that
+select MRTS. A passing result in this profile proves only the recorded
+connector/profile/rules/protocol scope for that run; it is not a general CRS
+certification.
+
 This page defines the Parent-owned evidence boundary implemented by
 `ci/runtime/lifecycle/with-crs-no-mrts-profile.py` and
 `ci/runtime/lifecycle/aggregate-five-connector-with-crs-no-mrts.py`. It is a

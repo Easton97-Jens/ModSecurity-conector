@@ -2,6 +2,17 @@
 
 **Sprache:** [English](SECURITY.md) | Deutsch
 
+## Schnellorientierung
+
+Für Operational Hardening, Secrets-/Datenhandling, Runtime-Pfade,
+Berechtigungen und Deployment-Grenzen lesen Sie
+[Betrieb und Sicherheit](docs/operations-and-security.de.md).
+
+Credentials, Cookies, Authorization-Werte, Private Keys oder sensible
+Request-/Response-Bodies gehören nicht in Issues, Pull Requests, Logs, Run-IDs
+oder für Reviews geteilte Evidence. Security-Meldungen sollen den unten
+beschriebenen privaten Meldeweg verwenden.
+
 ## Meldung einer Schwachstelle
 
 Bitte eröffne für eine vermutete Sicherheitslücke kein öffentliches Issue und

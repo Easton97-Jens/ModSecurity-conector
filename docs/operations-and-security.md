@@ -2,6 +2,25 @@
 
 **Language:** English | [Deutsch](operations-and-security.de.md)
 
+## Quick orientation
+
+Use this guide before running a connector outside a disposable local test.
+The safest baseline is simple:
+
+- keep listeners, admin endpoints, processors, and private companions on
+  loopback or private UDS unless exposure is explicitly designed;
+- keep generated runtime/build/evidence data outside the source checkout;
+- use bounded request/response, header, message/frame, timeout, and storage
+  limits rather than removing safeguards;
+- protect rules files, sockets, logs, event files, credentials, and service
+  identities with least privilege;
+- never place secrets, cookies, authorization values, private keys, or
+  request/response bodies into run IDs or review evidence.
+
+An example configuration is not a secure deployment by itself. Host exposure,
+TLS, service accounts, filesystem permissions, logging/retention, and network
+policy remain deployment-specific decisions.
+
 ## Scope
 
 This guide consolidates repository-level operational and security boundaries.
