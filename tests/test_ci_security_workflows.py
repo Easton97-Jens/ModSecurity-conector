@@ -1623,6 +1623,16 @@ jobs:
         requirements = go_module_requirements(
             (ROOT / "connectors" / "envoy" / "ext_proc" / "go.mod").read_text(encoding="utf-8")
         )
+        proto_module = "github.com/envoyproxy/go-control-plane/envoy"
+        version_lock = (ROOT / "connectors" / "envoy" / "config" / "envoy-ext-proc-versions.env").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(re.findall(r"(?m)^ENVOY_GO_PROTO_MODULE=(.+)$", version_lock), [proto_module])
+        self.assertIn(proto_module, requirements)
+        self.assertEqual(
+            re.findall(r"(?m)^ENVOY_GO_PROTO_VERSION=(.+)$", version_lock),
+            ["v" + ".".join(str(part) for part in requirements[proto_module])],
+        )
         security_floors = {
             "google.golang.org/grpc": (1, 83, 2),
             "golang.org/x/net": (0, 58, 0),
