@@ -39397,7 +39397,7 @@
     },
     {
       "path": ".github/workflows/update-submodules.yml",
-      "sha256": "f93b715fc260588487a3e687fb57cd38cfbc7f74196bc3789d451a3791f9614d"
+      "sha256": "5f60eb699d01c1fe543f9b048f929d639f84b118f1b3a4127adcd2915c079571"
     },
     {
       "path": ".github/workflows/update-workflow-tools.yml",
@@ -39989,7 +39989,7 @@
     },
     {
       "path": "ci/tools/run-readonly-submodule-validation-namespace.py",
-      "sha256": "5f5422b1c755c035b06e9ba3c2bd7edb99b5eda291764c76c6588e00754f7529"
+      "sha256": "38551ed97674475d7b4cd2fb969f277a29dc0563108c908f8baa84c64b117e1f"
     },
     {
       "path": "ci/tools/sync-framework-component-versions.py",
@@ -41441,7 +41441,7 @@
     },
     {
       "path": "tests/test_ci_security_workflows.py",
-      "sha256": "5eca90d4a2208281b4e728ba9f4091bf93e85a50ba91c4921a10c8e56567f466"
+      "sha256": "840fda39043d3114bf7ffe7a981d07dafa3abcc4900b648c71e56b7eca05e3ba"
     },
     {
       "path": "tests/test_compiler_guides.py",
@@ -41629,7 +41629,7 @@
     },
     {
       "path": "tests/test_run_readonly_submodule_validation_namespace.py",
-      "sha256": "0317fb2ee60d4530fcc8b4dad2e901bb4891224caf281cb9291df76cfe930179"
+      "sha256": "e5ccb77301d35d098f7d39f2f7e891233933a0a87bac6063d5fde4792de4e4d1"
     },
     {
       "path": "tests/test_runtime_event_sink_failures.py",

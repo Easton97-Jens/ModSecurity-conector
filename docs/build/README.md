@@ -206,7 +206,17 @@ evidence.
 ### Read-only Framework-submodule candidate validation
 
 `update-submodules.yml` separates candidate validation from publication. Its
-`validate-submodule-update` job creates a fresh `mktemp -d`
+validator installs the same `build-essential apache2-dev libmodsecurity-dev`
+prerequisites as the ordinary quick-check jobs after the Python interpreter
+contract and before capturing the immutable source baseline. The selected Apache
+lifecycle tests compile against real Apache/APR/ModSecurity headers and APR
+libraries; their assertions require those prerequisites. Tools and headers are
+then available through the existing read-only runtime mounts. The fixed
+`APACHE_C_STANDARDS_OUT` points to `/external/build/apache-c-standards`, so the
+Apache C17 check does not attempt its default output below the absent `/var`.
+No additional host directory becomes visible or writable.
+
+Its `validate-submodule-update` job creates a fresh `mktemp -d`
 `/tmp/modsecurity-readonly-namespace.XXXXXX` direct child under sticky `/tmp`,
 then makes that parent exactly `root:modsecurity-validator` mode `0750` before
 passing it through the required `--namespace-parent` argument. The trusted
@@ -269,6 +279,13 @@ import or unexpected LibYAML extension stops validation before `quick-check`.
 No dependency installation or builder virtual environment is created in the
 validator output tree. Its strict permission and escaping-link checks remain
 unchanged.
+
+The workflow prints captured namespace stdout on failure as well as success;
+stderr remains visible directly. It preserves the original nonzero exit code
+before examining the completion marker. A printed marker cannot turn a failed
+candidate into success. Root-side source/output verification and both cleanup
+paths still run according to their existing gates, so a future failure retains
+its test/compiler diagnostics before temporary outputs are removed.
 
 This replaces host-ancestor ACL handling: the candidate does not receive a
 host-level traversal or read grant merely to reach `RUNNER_TEMP`. Parent,

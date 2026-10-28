@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "521eb47109509ed1b8ee83edfb4ccb3c227be22b848b4064283b9a9ea6fab9a9",
-  "on_demand_definition_count": 6193,
+  "inventory_sha256": "a6431783d5ab604fe58a370fe87965dc92b45d19e62d9ea6a3570543e294d8ad",
+  "on_demand_definition_count": 6194,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
   "sources": [
@@ -2939,6 +2939,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_alternate_secret_access",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_cleanup_jobs_do_not_checkout_or_execute_project_code",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_ci_security_contracts_run_the_local_submodule_git_regressions",
+        "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_submodule_namespace_failure_keeps_diagnostics_status_and_cleanup",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_update_submodules_separates_validation_from_publishing",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_framework_gitlink_staging_contract_normalizes_layout_only",
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_framework_gitlink_raw_diff_contract_is_functional",
@@ -2951,7 +2952,7 @@
         "tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "5eca90d4a2208281b4e728ba9f4091bf93e85a50ba91c4921a10c8e56567f466"
+      "source_sha256": "840fda39043d3114bf7ffe7a981d07dafa3abcc4900b648c71e56b7eca05e3ba"
     },
     {
       "contains_selected_definitions": [],
@@ -8102,7 +8103,7 @@
         "tests.test_run_readonly_submodule_validation_namespace.ReadonlySubmoduleValidationNamespaceTests.test_external_virtualenv_alias_resolves_to_existing_jail_runtime"
       ],
       "source": "tests/test_run_readonly_submodule_validation_namespace.py",
-      "source_sha256": "0317fb2ee60d4530fcc8b4dad2e901bb4891224caf281cb9291df76cfe930179"
+      "source_sha256": "e5ccb77301d35d098f7d39f2f7e891233933a0a87bac6063d5fde4792de4e4d1"
     },
     {
       "contains_selected_definitions": [],

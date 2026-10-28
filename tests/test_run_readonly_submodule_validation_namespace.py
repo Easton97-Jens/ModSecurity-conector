@@ -377,6 +377,10 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
         self.assertEqual(environment["CXX"], "/usr/bin/g++-15")
         self.assertEqual(environment["GITHUB_ACTIONS"], "true")
         self.assertEqual(environment["BUILD_ROOT"], "/tmp/task/external/build")
+        self.assertEqual(
+            environment["APACHE_C_STANDARDS_OUT"],
+            "/tmp/task/external/build/apache-c-standards",
+        )
         self.assertEqual(environment["VALIDATION_WRITE_ROOT"], "/tmp/task")
         self.assertNotIn("SUDO", " ".join(environment))
         self.assertEqual(
@@ -387,7 +391,7 @@ class ReadonlySubmoduleValidationNamespaceTests(unittest.TestCase):
                 "PYTHONPYCACHEPREFIX", "PYTHONUSERBASE", "PYTHONPATH", "PYTHONNOUSERSITE",
                 "PYTHONDONTWRITEBYTECODE", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM",
                 "GIT_OPTIONAL_LOCKS", "GITHUB_ACTIONS", "GITHUB_WORKSPACE", "FRAMEWORK_ROOT", "VALIDATOR_EXTERNAL_ROOT",
-                "BUILD_ROOT",
+                "BUILD_ROOT", "APACHE_C_STANDARDS_OUT",
                 "VALIDATION_WRITE_ROOT", "VERIFIED_RUN_ROOT", "VERIFIED_STATE_ROOT", "VERIFIED_BUILD_ROOT",
                 "VERIFIED_SOURCE_ROOT", "VERIFIED_TMP_ROOT", "VERIFIED_LOG_ROOT", "CACHE_ROOT",
                 "VERIFIED_COMPONENT_CACHE", "CONNECTOR_COMPONENT_CACHE", "VERIFIED_EVIDENCE_ROOT",
