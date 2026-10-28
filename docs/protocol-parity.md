@@ -35,6 +35,20 @@ validated security issue. Current-head hosted CI and Sonar validation remain
 pending at this revision. The earlier test deferral is superseded for CI repair;
 full H1/H2/H3 runtime qualification remains incomplete.
 
+On the first published candidate `2a6089c3`, the required C++17 Sonar job and
+all five previously failing structure/lint jobs pass; the const-cast issue is
+absent. Two new `python:S1192` checker literals are now shared constants, and
+the same eight Apache positive/negative scenarios pass again. The advisory
+C++20 analysis reports a lighttpd null dereference even though its own source
+view contains the explicit null return; independent review establishes no
+reachable null edge. Its redundant error guards are combined into one
+NULL-first short-circuit guard without changing behavior. Both existing native
+null/normal-completion cases pass. This adds two scenarios (67 total with the
+earlier selection) and one source-digest refresh; the 100-case selection stays
+unchanged. After Framework setup, bilingual/path/link checks also pass. Hosted
+validation of this follow-up remains pending; no Sonar server state, rule or
+gate is changed.
+
 ## Historical update on 2026-10-24: master synchronization and NGINX issue #401
 
 PR #348 incorporates `master` revision

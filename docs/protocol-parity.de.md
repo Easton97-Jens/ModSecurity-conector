@@ -33,6 +33,21 @@ Sicherheitsproblem. Hosted-CI und Sonar für den aktuellen Head stehen an dieser
 Revision noch aus. Die frühere Testzurückstellung ist für CI-Reparaturen
 aufgehoben; vollständige H1-/H2-/H3-Laufzeitqualifikation bleibt unvollständig.
 
+Auf dem ersten veröffentlichten Kandidaten `2a6089c3` bestehen der erforderliche
+C++17-Sonar-Job und alle fünf zuvor fehlgeschlagenen Struktur-/Lint-Jobs; der
+Const-Cast-Befund fehlt. Zwei neue `python:S1192`-Checker-Literale sind jetzt
+gemeinsame Konstanten; dieselben acht positiven/negativen Apache-Szenarien
+bestehen erneut. Die unverbindliche C++20-Analyse meldet eine lighttpd-
+Null-Dereferenz, obwohl ihre eigene Quellansicht den expliziten Null-Return
+enthält; unabhängiges Review findet keinen erreichbaren Nullpfad. Die
+redundanten Fehler-Guards werden ohne Verhaltensänderung zu einer NULL-first-
+Kurzschlussprüfung verbunden. Beide bestehenden nativen Null-/Normalabschluss-
+Fälle bestehen. Dies ergänzt zwei Szenarien (insgesamt 67 mit der früheren
+Auswahl) und eine Source-Digest-Erneuerung; die Auswahl von 100 Fällen bleibt
+unverändert. Nach Framework-Setup bestehen auch Bilingual-/Pfad-/Link-Prüfungen.
+Hosted-Validierung dieses Follow-ups steht noch aus; kein Sonar-Serverzustand,
+keine Regel und kein Gate werden geändert.
+
 ## Historische Aktualisierung am 2026-10-24: Master-Abgleich und NGINX-Issue #401
 
 PR #348 übernimmt `master`-Revision

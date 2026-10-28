@@ -311,6 +311,20 @@ diff checks pass. Independent bounded source review found no new validated
 security issue. Hosted CI and Sonar results for the successor are pending;
 this is not full H1/H2/H3 runtime qualification or permission to merge to master.
 
+The first successor `2a6089c3` passes required Sonar C++17 and all five repaired
+structure/lint jobs. Its cast issue is absent; two new `python:S1192` issues
+(`AaGD5oa6tqzpX64G6ssQ`, `AaGD5oa6tqzpX64G6ssR`) are addressed with shared
+regex constants, and the eight affected Apache scenarios pass again. The
+C++20 advisory's `AaGD49pqgIkAXNgRzIvR` / `c:S2259` issue flow contradicts
+its current source view: an explicit null return already precedes the alleged
+dereference. Independent review establishes no reachable null edge. A minimal
+clarification combines the redundant lighttpd error guards into one NULL-first
+short-circuit check, preserving behavior. Its two existing native null/normal
+cases pass, giving 67 distinct selected scenarios overall. The ninth source
+binding is refreshed without selection changes. Bilingual, repository-path
+and documentation-link checks pass after dependency setup. Fresh successor
+hosted validation is still required; no server issue state or gate is weakened.
+
 **2026-10-24 update:** PR #348 is refreshed from old head
 `81ccd883678c83dda8b4fee61a9acc8a4c4c633c` with current `origin/master`
 `42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` through a normal merge. All nine

@@ -40933,7 +40933,7 @@
     },
     {
       "path": "connectors/lighttpd/module/mod_msconnector.c",
-      "sha256": "4475833c63d660b169a31575500e45a3f8a973ccdeac260bf3fbac5f43a2deba"
+      "sha256": "cdd6ad6646846e9c0a7f1c5c8fa548410193a357ddf6757a387f4baec4354146"
     },
     {
       "path": "connectors/lighttpd/tests/test_stock_sidecar_contract.py",

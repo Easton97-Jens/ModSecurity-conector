@@ -331,6 +331,22 @@ Sicherheitsproblem. Hosted-CI- und Sonar-Ergebnisse des Successors stehen noch
 aus; dies ist weder eine vollständige H1-/H2-/H3-Laufzeitqualifikation noch eine
 Erlaubnis zum Merge nach Master.
 
+Der erste Successor `2a6089c3` besteht erforderliches Sonar C++17 und alle fünf
+reparierten Struktur-/Lint-Jobs. Sein Cast-Befund fehlt; zwei neue
+`python:S1192`-Issues (`AaGD5oa6tqzpX64G6ssQ`, `AaGD5oa6tqzpX64G6ssR`)
+werden durch gemeinsame Regex-Konstanten behoben; die acht betroffenen Apache-
+Szenarien bestehen erneut. Der Fehlerpfad des C++20-Advisory-Issues
+`AaGD49pqgIkAXNgRzIvR` / `c:S2259` widerspricht seiner aktuellen Quellansicht:
+Ein expliziter Null-Return steht bereits vor der angeblichen Dereferenz.
+Unabhängiges Review findet keinen erreichbaren Nullpfad. Eine minimale
+Klarstellung verbindet die redundanten lighttpd-Fehler-Guards ohne
+Verhaltensänderung zu einer NULL-first-Kurzschlussprüfung. Die zwei bestehenden
+nativen Null-/Normalfälle bestehen; insgesamt sind es 67 unterschiedliche
+ausgewählte Szenarien. Das neunte Source-Binding ist ohne Auswahländerung
+erneuert. Bilingual-, Repository-Pfad- und Dokumentationslink-Prüfungen bestehen
+nach Abhängigkeitssetup. Frische Hosted-Validierung des Successors bleibt
+erforderlich; kein Server-Issue-Zustand oder Gate wird abgeschwächt.
+
 **Aktualisierung vom 2026-10-24:** PR #348 wird vom alten Head
 `81ccd883678c83dda8b4fee61a9acc8a4c4c633c` mit aktuellem `origin/master`
 `42fd5a8e895aca3a36b09eb09fe5c7cf9c3399e3` durch einen normalen Merge
