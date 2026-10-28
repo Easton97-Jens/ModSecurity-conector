@@ -40549,7 +40549,7 @@
     },
     {
       "path": "connectors/apache/src/mod_security3.c",
-      "sha256": "cf9b23dd4c474fc2080742f548dd52dc41a069284d56b3b36d1db592207653e8"
+      "sha256": "76b7a71f38fa8dbea33ddf390f460e9d2442b55cc46973444210f38757fe34a9"
     },
     {
       "path": "connectors/apache/src/msc_config.c",
@@ -40557,7 +40557,7 @@
     },
     {
       "path": "connectors/apache/src/msc_filters.c",
-      "sha256": "b95e19448d1d63af6ba723d44d42f7da798aadcf03fa39b944c1499efd4e8431"
+      "sha256": "92ae93e73af19b35569934dd3d09d4a632bf65bd33877bf25a6f2cff9fd24a14"
     },
     {
       "path": "connectors/envoy/Makefile",
@@ -40933,7 +40933,7 @@
     },
     {
       "path": "connectors/lighttpd/module/mod_msconnector.c",
-      "sha256": "aa6399822e05c3780c268935be07a298ebbedf668928858e2896f365fe0a3f93"
+      "sha256": "4475833c63d660b169a31575500e45a3f8a973ccdeac260bf3fbac5f43a2deba"
     },
     {
       "path": "connectors/lighttpd/tests/test_stock_sidecar_contract.py",
@@ -41565,7 +41565,7 @@
     },
     {
       "path": "tests/test_native_sonar_null_guards.py",
-      "sha256": "61e47d51e45b200dd8993ab67a469bd7163c68ececf27a7c8032dacc27a2ff27"
+      "sha256": "1ea4843706fac13a5b4fd157e482e3bea84f47d2686e5e5d729473db5506b06a"
     },
     {
       "path": "tests/test_nginx_exact_head_diagnostics.py",
@@ -41593,7 +41593,7 @@
     },
     {
       "path": "tests/test_nginx_request_native_results.py",
-      "sha256": "b7571346e135ff77682a0d6be586978a19ed27e9fbd10b0f569fe61eb6a8406e"
+      "sha256": "53cbfb13ad1df864c133ff3c9fc518a628334e8cad560abed0d5b50374405c53"
     },
     {
       "path": "tests/test_nginx_root_broker.py",

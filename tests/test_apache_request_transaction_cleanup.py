@@ -64,7 +64,7 @@ class ApacheRequestTransactionCleanupTests(unittest.TestCase):
         )
         self.transaction_id_resolution = c_function(
             self.module,
-            "static int apache_resolve_transaction_id(request_rec *r, msc_conf_t *config,\n"
+            "static int apache_resolve_transaction_id(request_rec *r, const msc_conf_t *config,\n"
             "    const char **transaction_id, const char **failure_reason)",
         )
         self.request_headers = c_function(

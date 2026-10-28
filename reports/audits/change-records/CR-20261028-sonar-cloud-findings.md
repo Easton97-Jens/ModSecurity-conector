@@ -16,7 +16,7 @@ The requested remediation covers all 15 configured Parent Cloud projects (main C
 
 ## Acceptance criteria
 
-Preserve C17/C++17 compatibility and host callback ABI, correct applicable source findings, verify affected behavior and create a Draft PR. Source corrections target 180 positions; 81 individually investigated candidates remain pending Cloud confirmation or explicit false-positive disposition. No server-side transitions were performed. Full closure requires current-head CI/Cloud evidence and resolution of those candidates; it is not claimed.
+Preserve C17/C++17 compatibility and host callback ABI, correct applicable source findings, verify affected behavior and create a Draft PR. Initial baseline source corrections target 180 positions; 81 individually investigated baseline candidates remain pending Cloud confirmation or explicit false-positive disposition. No server-side transitions were performed. Full closure requires current-head CI/Cloud evidence and resolution of those candidates; it is not claimed.
 
 ## Implementation decision and rationale
 
@@ -26,7 +26,7 @@ Python simplifies archive canonicalization while retaining original bytes on sem
 
 ## Changed files
 
-Affected native Apache/NGINX/HAProxy/lighttpd files and fixtures; `common/scripts/modsecurity_targeted_eval.cc`; reported Python/Shell helpers under `ci/`; `scripts/version_updater_common.py`; three SDK observer sources; affected Apache/NGINX tests and Framework-updater assertion. Only twelve reviewed digests change in `config/testing/active-cases.json`; definitions/selection are unchanged. `reports/testing/test-selection-archive.generated.json` is regenerated through its existing generator. Reader-facing documentation is this record and its German companion. The manually reviewed decision source [triage JSON](../sonarqube-cloud-20261028-triage.json) enumerates all 81 candidate positions and their original project/issue IDs. Framework/MRTS, gitlinks, dependencies, analysis scope, rules and gates are unchanged.
+Affected native Apache/NGINX/HAProxy/lighttpd files and fixtures; `common/scripts/modsecurity_targeted_eval.cc`; reported Python/Shell helpers under `ci/`; `scripts/version_updater_common.py`; three SDK observer sources; affected Apache/NGINX tests and Framework-updater assertion. Only thirteen reviewed digests change in `config/testing/active-cases.json`; definitions/selection are unchanged. `reports/testing/test-selection-archive.generated.json` is regenerated through its existing generator. Reader-facing documentation is this record and its German companion. The manually reviewed decision source [triage JSON](../sonarqube-cloud-20261028-triage.json) enumerates all 82 current candidate positions and their original project/issue IDs. Framework/MRTS, gitlinks, dependencies, analysis scope, rules and gates are unchanged.
 
 ## Commands executed
 
@@ -47,15 +47,21 @@ All commands used RTK and external task-owned build/output roots; detailed argv/
 | Changed Python `ast.parse`; legacy smoke script `sh -n`; `shellcheck -x` | PASS |
 | `ci/tools/run-active-tests.py --group apache --group null-guard --execution common.targeted-cpp-allow --group nginx --group haproxy` with private external roots | PASS, 15 selected active cases, including actual evaluator allow execution |
 | `make check-bilingual-docs`; `make check-doc-links`; Change Record archive check | PASS |
+| Follow-up: native Apache/HAProxy/lighttpd build, 36 NGINX compilations and three SDK accessor standards | PASS |
+| `make check-apache-common-adoption`; `make check-nginx-common-adoption`; `make check-lighttpd-common-adoption`; `make check-haproxy-htx-overlay`; two config reference tests and three focused NGINX checker controls | PASS; positive contract and rejection of wrapper bypass/unknown include confirmed |
 | `make check-active-inventory PYTHON=/usr/local/bin/python3.15` | PASS, 100 standard cases / 80 executions; 1,893 on-demand cases separate; archive matches |
 
-The first active-runner attempt rejected a missing output parent before cases; the next rejected a final whitespace edit's stale source digest. Bindings/archive were refreshed before the final run. Neither rejected attempt is success. Native-context preparation configured and checksum-verified host sources but its final unchanged-checkout guard rejected concurrent edits. Strict ISO C17 parsing of HAProxy's upstream GNU extensions failed; the actual native host build above passed. Documentation checks initially failed because the pinned Framework was not materialized in the new worktree. After initializing the exact existing gitlink, bilingual/link gates passed and `shellcheck -x` passed; no diagnostic was suppressed. The active NGINX extraction fixture initially lacked the new private snapshot type; eight affected fixtures were synchronized, the exact active case passed, and seven sibling setups compiled without executing their scenarios. The subsequent evaluator selection required explicit `RUNNER_TEMP`; the missing-variable failure was retained and the final selection rerun with a private external root. Final selected-run/documentation results belong to the PR after execution.
+The first active-runner attempt rejected a missing output parent before cases; the next rejected a final whitespace edit's stale source digest. Bindings/archive were refreshed before the final run. Neither rejected attempt is success. Native-context preparation configured and checksum-verified host sources but its final unchanged-checkout guard rejected concurrent edits. Strict ISO C17 parsing of HAProxy's upstream GNU extensions failed; the actual native host build above passed. Documentation checks initially failed because the pinned Framework was not materialized in the new worktree. After initializing the exact existing gitlink, bilingual/link gates passed and `shellcheck -x` passed; no diagnostic was suppressed. The active NGINX extraction fixture initially lacked the new private snapshot type; eight affected fixtures were synchronized, the exact active case passed, and seven sibling setups compiled without executing their scenarios. The subsequent evaluator selection required explicit `RUNNER_TEMP`; the missing-variable failure was retained and the final selection rerun with a private external root. Final selected-run/documentation results belong to the PR after execution. The first PR head `108530d96b3b8dd783264831edc7714dd6db75b1` passed the three general Sonar jobs/gates, but reported 23 additional maintainability findings: follow-up source corrections target 22; one more native cleanup API candidate remains. This yields 82 current decision proposals; the initial 261-position baseline stays separately recorded.
+
+First-head CI exposed two source-checker spelling incompatibilities. Apache directive extraction now admits an optional explicit callback address; Apache/NGINX structural checks retain their invariants while recognizing current const/C17 forms. The config reference check passes with all 21 generated files unchanged, and two focused configuration regressions pass.
+
+The first-head secret gate reported 287 generic matches, all in the triage JSON. Every immutable matched line was individually verified to contain an issue/analysis/event identifier from the authenticated Sonar response. Following the existing `.gitleaksignore` contract, only exact first-commit/file/rule/line fingerprints were classified. The unchanged default redacted PR-range scan then passed. A new-commit control detects all 287 identical file/rule/line occurrences at a new revision (expected scanner exit 1), proving the fingerprint does not exempt future occurrences. Current JSON uses `id`/`issue_id` for identifiers to avoid misleading credential-like field names. No rule/path exclusion, threshold change, credential exposure, or history rewrite occurred.
 
 ## Security impact
 
 Controls, callback ABI, ownership checks, JSON escaping, rules and gates remain active. Independent read-only investigation traced Python path/argv and native taint candidates; no supplied flow established a remaining exploitable vulnerability. A fresh independent candidate reviewer found no concrete bypass/regression. This is bounded review, not repository-wide assurance.
 
-The 81 remaining candidates comprise 20 Apache and 15 NGINX host/API callback parameters; eight HAProxy callbacks and three C struct-member namespace reports; nine bounded/escaped native reports; twenty Python path/argument/content-flow reports; three intentional HTTP fixture references; three bounded in-memory text copies reported as logging. Existing root checks, strict SHA/variant validation, JSON escaping and allocation bounds remain. Explicit operator-selected paths are not silently restricted. Server candidates remain open; false-positive approval or risk acceptance is not inferred.
+The 82 current candidates comprise 21 Apache and 15 NGINX host/API callback parameters; eight HAProxy callbacks and three C struct-member namespace reports; nine bounded/escaped native reports; twenty Python path/argument/content-flow reports; three intentional HTTP fixture references; three bounded in-memory text copies reported as logging. Existing root checks, strict SHA/variant validation, JSON escaping and allocation bounds remain. Explicit operator-selected paths are not silently restricted. Server candidates remain open; false-positive approval or risk acceptance is not inferred.
 
 ## Runtime evidence
 
@@ -67,7 +73,7 @@ Local Python is 3.15.2 rather than pinned 3.15.1; the existing virtual environme
 
 ## Remaining risks
 
-Unit fixtures do not prove actual hosted Apache redirect/subrequest lookup: some substitute module-vector lookup, while the cleanup harness exercises real vector storage and owner cleanup. All 81 candidate positions and any new Cloud findings require follow-through. A source correction alone does not close a Cloud issue.
+Unit fixtures do not prove actual hosted Apache redirect/subrequest lookup: some substitute module-vector lookup, while the cleanup harness exercises real vector storage and owner cleanup. All 82 candidate positions and any new Cloud findings require follow-through. A source correction alone does not close a Cloud issue.
 
 ## Checks not run and rationale
 
@@ -75,4 +81,4 @@ No full default suite, all-connector runtime matrix, historical I12 campaign, re
 
 ## Final diff and review status
 
-Independent bounded candidate review found no concrete bypass/regression; scoped worker whitespace checks passed. Final integrated selected checks, documentation gates and delivery facts must be read at the current PR head. Prepared for a Draft PR; all-findings task closure remains partial until remaining candidates and current-head evidence are resolved.
+Independent bounded candidate review found no concrete bypass/regression; scoped worker whitespace checks passed. Final integrated selected checks, documentation gates and delivery facts must be read at the current PR head. Draft [PR #430](https://github.com/Easton97-Jens/ModSecurity-conector/pull/430) exists; all-findings task closure remains partial until remaining candidates and current-head evidence are resolved.

@@ -147,7 +147,7 @@ static int ngx_http_modsecurity_process_intervention(void *transaction,
     (void)transaction; (void)request; (void)early; return 0;
 }
 static void ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *request,
-        ngx_http_modsecurity_conf_t *config, enum msconnector_phase phase, const char *reason) {
+        const ngx_http_modsecurity_conf_t *config, enum msconnector_phase phase, const char *reason) {
     (void)request; (void)config; (void)phase; (void)reason;
 }
 '''

@@ -378,7 +378,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
     int ret;
 
     msc_t *msr = (msc_t *)f->ctx;
-    msc_conf_t *conf = NULL;
+    const msc_conf_t *conf = NULL;
 
     /* Do we have the context? */
     if (msr == NULL)
@@ -543,7 +543,7 @@ static const char *apache_intervention_message_id(
     return MSCONN_EVENT_RESPONSE_BLOCKED;
 }
 
-static const char *apache_intervention_content_type(request_rec *r,
+static const char *apache_intervention_content_type(const request_rec *r,
     enum msconnector_phase phase)
 {
     if (phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||

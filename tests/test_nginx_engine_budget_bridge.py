@@ -73,7 +73,7 @@ static ngx_http_modsecurity_event_request_metadata_t ngx_http_modsecurity_event_
     return (ngx_http_modsecurity_event_request_metadata_t){"GET", "/budget-control", "text/plain"};
 }
 static ngx_int_t ngx_http_modsecurity_write_phase_event_jsonl(ngx_http_request_t *r,
-        ngx_http_modsecurity_conf_t *conf, const msconnector_event *event, const char *phase) {
+        const ngx_http_modsecurity_conf_t *conf, const msconnector_event *event, const char *phase) {
     int truncated=0;
     char line[4096];
     (void)r; (void)conf; (void)phase;

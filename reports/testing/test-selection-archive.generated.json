@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "ca88faacab45d7d6d782a5cf9b857164446029d9084e3bb3ca989b5829bd727d",
+  "inventory_sha256": "36d662d5c86164cf2529af5becb8cb0eafe8b84b487664affd143a3f8d995472",
   "on_demand_definition_count": 6200,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
@@ -2693,7 +2693,7 @@
         "tests.test_apache_request_transaction_cleanup.ApacheRequestTransactionCleanupTests.test_contract_records_apache_lifecycle_timestamps_without_inferring_order"
       ],
       "source": "tests/test_apache_request_transaction_cleanup.py",
-      "source_sha256": "e755ed196e5b2218d81d1eee9c00f68e828e8f14c347fa4bf1042863764db3ae"
+      "source_sha256": "d54d955778c067b27aee51c398369f8c101ab1e44220efb74b85f32e1ecf7559"
     },
     {
       "contains_selected_definitions": [],
@@ -5660,7 +5660,7 @@
       ],
       "on_demand_definitions": [],
       "source": "tests/test_native_sonar_null_guards.py",
-      "source_sha256": "61e47d51e45b200dd8993ab67a469bd7163c68ececf27a7c8032dacc27a2ff27"
+      "source_sha256": "1ea4843706fac13a5b4fd157e482e3bea84f47d2686e5e5d729473db5506b06a"
     },
     {
       "contains_selected_definitions": [],
@@ -6020,7 +6020,7 @@
         "tests.test_nginx_engine_budget_bridge.EngineBudgetBridgeTests.test_response_headers_emit_real_budget_and_technical_timeout"
       ],
       "source": "tests/test_nginx_engine_budget_bridge.py",
-      "source_sha256": "8ff4a6028c6845e6b51d251e50df4a385f440677e2bcaac013a592878b7f433f"
+      "source_sha256": "b38a7cf406233def0050642b87168fe64445b9e44ca30918a4bc7f0dab806cb5"
     },
     {
       "contains_selected_definitions": [],
@@ -6380,7 +6380,7 @@
         "tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_completion_observation_failure_is_terminal_before_intervention"
       ],
       "source": "tests/test_nginx_late_error_results.py",
-      "source_sha256": "8e6a9193da6ed5832877e280b9e7c4832b4ea9390188dfd30ccc9016fae61e5c"
+      "source_sha256": "9d7e4d8caa7e73b97e7c8483b098178fbaea9516023bdde05ed16e8c87e5d679"
     },
     {
       "contains_selected_definitions": [],
@@ -6534,7 +6534,7 @@
         "tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_safe_sink_failure_never_forwards_body"
       ],
       "source": "tests/test_nginx_native_intervention_chain.py",
-      "source_sha256": "a0fbbe4862911864f81ffac0b95a968065836dcbce6796ad2a63d4f4af55e405"
+      "source_sha256": "69bbe5127f034189ba95cdd6f3679a2b3659e4d7f48caeb15898ea293fb8efd0"
     },
     {
       "contains_selected_definitions": [],
@@ -6620,7 +6620,7 @@
         "tests.test_nginx_native_technical_events.NativeTechnicalEventsTests.test_actual_incomplete_common_finish_keeps_protocol_taxonomy"
       ],
       "source": "tests/test_nginx_native_technical_events.py",
-      "source_sha256": "c96d464c99aa6791b1d85841556b516a1df2f3a31647f7ef90e9e566c8ae70ee"
+      "source_sha256": "6c19949897b5d6ffdce2ae45696bab2cd4740e2f7db0b86be748ceb5f4b4fbb5"
     },
     {
       "contains_selected_definitions": [],
@@ -6726,7 +6726,7 @@
         "tests.test_nginx_phase4_native_body_source.NativeBodySourceTests.test_timeout_has_native_eos_but_no_common_completion"
       ],
       "source": "tests/test_nginx_phase4_native_body_source.py",
-      "source_sha256": "519c83e4c2979af35205d5e0fef7d5a03f60aeadc5144d52408834f3cbc133d5"
+      "source_sha256": "b3945b8ef15537cc8c4e062ce6b47245458c268698849f3951f6d283d8b603e0"
     },
     {
       "contains_selected_definitions": [],
@@ -6873,7 +6873,7 @@
         "tests.test_nginx_request_error_events.NginxMissingRequestBodyTests.test_absent_storage_does_not_hide_a_failed_native_finalization"
       ],
       "source": "tests/test_nginx_request_error_events.py",
-      "source_sha256": "b75927ddf540782b5958b1d6eb055faa78f168556db57a43f29b6d99c9f0a640"
+      "source_sha256": "d6ef8ba04ed6e1a06c7e8aab60ede9a1a33879e6734ccd69f3464ba958857ebb"
     },
     {
       "contains_selected_definitions": [],
@@ -6907,7 +6907,7 @@
         "tests.test_nginx_request_native_results.NginxRequestNativeResultsTests.test_phase_one_checks_native_result_before_canonical_completion"
       ],
       "source": "tests/test_nginx_request_native_results.py",
-      "source_sha256": "b7571346e135ff77682a0d6be586978a19ed27e9fbd10b0f569fe61eb6a8406e"
+      "source_sha256": "53cbfb13ad1df864c133ff3c9fc518a628334e8cad560abed0d5b50374405c53"
     },
     {
       "contains_selected_definitions": [],

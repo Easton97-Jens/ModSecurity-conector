@@ -51,11 +51,11 @@ ngx_http_modsecurity_contract_record_response_commit(
     return msconnector_transaction_contract_set_response_committed(&ctx->contract, 1) ==
         MSCONNECTOR_TRANSACTION_TRANSITION_OK ? NGX_OK : NGX_ERROR;
 }
-static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
-static ngx_int_t ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx);
-static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
+static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
+static ngx_int_t ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx);
+static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf);
 static ngx_int_t ngx_http_modsecurity_phase4_fail_control(
-    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
     ngx_http_modsecurity_ctx_t *ctx, msconnector_transaction_error_class cause);
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
 static ngx_int_t ngx_http_modsecurity_account_response_body(
@@ -64,28 +64,28 @@ static ngx_int_t ngx_http_modsecurity_account_response_body(
 static ngx_int_t ngx_http_modsecurity_append_response_body_chunk(
     ngx_http_modsecurity_ctx_t *ctx, const u_char *data, size_t bytes);
 static ngx_int_t ngx_http_modsecurity_phase4_log_native_completion(
-    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
     ngx_http_modsecurity_ctx_t *ctx, int native_result);
-static ngx_int_t ngx_http_modsecurity_append_accounted_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
+static ngx_int_t ngx_http_modsecurity_append_accounted_response_body(ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf, const u_char *data, size_t len);
 static ngx_int_t ngx_http_modsecurity_append_file_response_body(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_buf_t *buffer);
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_buf_t *buffer);
 static ngx_int_t ngx_http_modsecurity_append_response_body_buffer(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_buf_t *buffer);
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_buf_t *buffer);
 static ngx_int_t ngx_http_modsecurity_prepare_response_body_filter(
     ngx_http_request_t *r, ngx_chain_t *in,
     ngx_http_modsecurity_ctx_t **context);
 static ngx_int_t ngx_http_modsecurity_append_response_chain_buffer(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *chain);
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_chain_t *chain);
 static ngx_int_t ngx_http_modsecurity_forward_response_body_prefix(
     ngx_http_request_t *r, ngx_chain_t *segment_start,
     ngx_chain_t *segment_previous, ngx_chain_t *chain,
     ngx_chain_t **terminal_input);
 static ngx_int_t ngx_http_modsecurity_finalize_terminal_response_body(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *in,
+    const ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *in,
     ngx_uint_t *forwarded, ngx_uint_t *processed);
 static ngx_int_t ngx_http_modsecurity_process_response_body_chain(
     ngx_http_request_t *r, ngx_chain_t *in,
@@ -93,7 +93,7 @@ static ngx_int_t ngx_http_modsecurity_process_response_body_chain(
 static void ngx_http_modsecurity_discard_replaced_response_body(ngx_chain_t *in);
 static ngx_int_t ngx_http_modsecurity_process_final_response_body(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *in,
+    const ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *in,
     ngx_uint_t *forwarded);
 static const char *ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action, const char *requested_action);
 static int ngx_http_modsecurity_phase4_original_status(const ngx_http_request_t *r);
@@ -209,7 +209,7 @@ ngx_http_modsecurity_phase4_log_native_append(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, int native_result, size_t bytes,
     size_t retained)
 {
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     msconnector_event event;
     char reason[256];
     char content_type[256];
@@ -235,7 +235,7 @@ ngx_http_modsecurity_phase4_log_native_append(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_phase4_log_native_completion(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
+    const ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
     int native_result)
 {
     msconnector_event event;
@@ -322,7 +322,7 @@ ngx_http_modsecurity_append_response_body_chunk(
 
 static ngx_int_t
 ngx_http_modsecurity_append_accounted_response_body(ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len)
+    const ngx_http_modsecurity_conf_t *mcf, const u_char *data, size_t len)
 {
     size_t allowed;
 
@@ -336,7 +336,7 @@ ngx_http_modsecurity_append_accounted_response_body(ngx_http_modsecurity_ctx_t *
 static ngx_int_t
 ngx_http_modsecurity_append_file_response_body(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_buf_t *buffer)
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_buf_t *buffer)
 {
     uintmax_t file_length;
     size_t allowed;
@@ -416,10 +416,10 @@ ngx_http_modsecurity_append_file_response_body(
 static ngx_int_t
 ngx_http_modsecurity_append_response_body_buffer(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ngx_http_modsecurity_conf_t *mcf, ngx_buf_t *buffer)
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_buf_t *buffer)
 {
     if (ngx_buf_in_memory(buffer)) {
-        u_char *data = buffer->pos;
+        const u_char *data = buffer->pos;
         size_t len = buffer->last >= buffer->pos
             ? (size_t) (buffer->last - buffer->pos)
             : 0;
@@ -449,7 +449,7 @@ ngx_http_modsecurity_discard_replaced_response_body(ngx_chain_t *in)
  * Preserve an earlier specific cause rather than replacing it with a default. */
 static ngx_int_t
 ngx_http_modsecurity_phase4_fail_control(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
+    const ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
     msconnector_transaction_error_class cause)
 {
     int status;
@@ -479,7 +479,7 @@ ngx_http_modsecurity_phase4_fail_control(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf,
     ngx_chain_t *in, ngx_uint_t *forwarded)
 {
     ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
@@ -623,7 +623,7 @@ static ngx_int_t
 ngx_http_modsecurity_run_response_header_sanity_checks(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx)
 {
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
     ngx_table_elt_t *header;
@@ -713,8 +713,8 @@ ngx_http_modsecurity_prepare_response_body_filter(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_append_response_chain_buffer(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
-    ngx_chain_t *chain)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf,
+    const ngx_chain_t *chain)
 {
     return ngx_http_modsecurity_append_response_body_buffer(r, ctx, mcf,
         chain->buf);
@@ -747,7 +747,7 @@ ngx_http_modsecurity_forward_response_body_prefix(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_finalize_terminal_response_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf,
     ngx_chain_t *in, ngx_uint_t *forwarded, ngx_uint_t *processed)
 {
     *forwarded = 0;
@@ -775,7 +775,7 @@ ngx_http_modsecurity_process_response_body_chain(ngx_http_request_t *r,
 {
     ngx_chain_t *segment_start = in;
     ngx_chain_t *segment_previous = NULL;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     int is_request_processed = 0;
 
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
@@ -839,7 +839,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 }
 
 static ngx_int_t
-ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf)
+ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
     msconnector_late_intervention_policy policy;
@@ -1035,7 +1035,7 @@ ngx_http_modsecurity_phase4_copy_intervention_identifier(
 }
 
 static ngx_int_t
-ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason)
+ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason)
 {
     msconnector_event event;
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
@@ -1114,7 +1114,7 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
 
 static ngx_int_t
 ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx)
+    const ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx)
 {
     msconnector_event event;
     ngx_http_modsecurity_event_request_metadata_t metadata;

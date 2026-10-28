@@ -38,7 +38,7 @@ static ngx_int_t ngx_http_modsecurity_resolv_header_connection(ngx_http_request_
 static ngx_int_t ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_str_t name, off_t offset);
 static ngx_int_t ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, off_t offset);
 static ngx_int_t ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, int original_status,
+    const ngx_http_modsecurity_conf_t *mcf, int original_status,
     const char *wanted, const char *actual);
 
 ngx_http_modsecurity_header_out_t ngx_http_modsecurity_headers_out[] = {
@@ -114,7 +114,7 @@ int
 ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, const ngx_str_t *name, const ngx_str_t *value)
 {
     ngx_http_modsecurity_ctx_t     *ctx;
-    ngx_http_modsecurity_conf_t    *mcf;
+    const ngx_http_modsecurity_conf_t    *mcf;
     ngx_http_modsecurity_header_t  *hdr;
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
@@ -443,7 +443,7 @@ ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, o
  */
 static ngx_int_t
 ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, int original_status,
+    const ngx_http_modsecurity_conf_t *mcf, int original_status,
     const char *wanted, const char *actual)
 {
     msconnector_event event;
@@ -545,7 +545,7 @@ static ngx_int_t
 ngx_http_modsecurity_handle_response_header_intervention(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, ngx_uint_t status, int ret)
 {
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     const char *wanted;
     msconnector_nginx_intervention_disposition disposition;
 

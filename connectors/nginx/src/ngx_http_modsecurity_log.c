@@ -33,7 +33,7 @@ ngx_http_modsecurity_log_rule_match_event(ngx_http_request_t *r,
 {
     msconnector_event event;
     const ngx_http_modsecurity_ctx_t *ctx;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     ngx_http_modsecurity_event_request_metadata_t request_metadata;
 
     if (r == NULL || !msconnector_rule_id_validate(rule_id)) {

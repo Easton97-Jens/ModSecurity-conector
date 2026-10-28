@@ -107,7 +107,7 @@ static int ngx_http_modsecurity_process_intervention(Transaction *tx, ngx_http_r
     }
     return intervention_return;
 }
-static int ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf) { (void)r; (void)mcf; return NGX_OK; }
+static int ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf) { (void)r; (void)mcf; return NGX_OK; }
 static int ngx_http_next_body_filter(ngx_http_request_t *r, ngx_chain_t *in) { (void)r; (void)in; ++forward_calls; return NGX_OK; }
 static int ngx_http_modsecurity_engine_call_begin(ngx_http_request_t *r, enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *measurement) { (void)r; (void)phase; (void)measurement; return begin_failure ? NGX_ERROR : NGX_OK; }
 static int ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r, enum msconnector_phase phase, ngx_http_modsecurity_engine_call_measurement *measurement, int native_result) {
@@ -122,23 +122,23 @@ static int ngx_http_modsecurity_phase4_event_write_result(ngx_http_request_t *r,
 }
 static ngx_http_modsecurity_event_request_metadata_t ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r) { (void)r; return (ngx_http_modsecurity_event_request_metadata_t){"GET", "/unit-native"}; }
 static int ngx_http_modsecurity_phase4_original_status(ngx_http_request_t *r) { return r->headers_out.status; }
-static int ngx_http_modsecurity_write_phase_event_jsonl(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const msconnector_event *event, const char *phase) {
+static int ngx_http_modsecurity_write_phase_event_jsonl(ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf, const msconnector_event *event, const char *phase) {
     char line[4096]; int truncated = 0; (void)r; (void)mcf; (void)phase;
     if (log_failure || !msconnector_event_write_jsonl_line(event, line, sizeof(line), &truncated)) return NGX_ERROR;
     if (strlen(lines) + strlen(line) >= sizeof(lines)) abort();
     strcat(lines, line); ++writes; return NGX_OK;
 }
-static ngx_int_t ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *, ngx_http_modsecurity_conf_t *, ngx_http_modsecurity_ctx_t *);
-static ngx_int_t ngx_http_modsecurity_phase4_fail_control(ngx_http_request_t *, ngx_http_modsecurity_conf_t *, ngx_http_modsecurity_ctx_t *, msconnector_transaction_error_class);
+static ngx_int_t ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *, const ngx_http_modsecurity_conf_t *, ngx_http_modsecurity_ctx_t *);
+static ngx_int_t ngx_http_modsecurity_phase4_fail_control(ngx_http_request_t *, const ngx_http_modsecurity_conf_t *, ngx_http_modsecurity_ctx_t *, msconnector_transaction_error_class);
 static ngx_int_t ngx_http_modsecurity_append_response_body_chunk(ngx_http_modsecurity_ctx_t *, const u_char *, size_t);
-static ngx_int_t ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *, ngx_http_modsecurity_ctx_t *, ngx_http_modsecurity_conf_t *, ngx_chain_t *, ngx_uint_t *);
-static int ngx_http_modsecurity_append_response_chain_buffer(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *chain) {
+static ngx_int_t ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *, ngx_http_modsecurity_ctx_t *, const ngx_http_modsecurity_conf_t *, ngx_chain_t *, ngx_uint_t *);
+static int ngx_http_modsecurity_append_response_chain_buffer(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf, const ngx_chain_t *chain) {
     (void)r; (void)mcf; return ngx_http_modsecurity_append_response_body_chunk(ctx, chain->buf->data, chain->buf->bytes);
 }
 static int ngx_http_modsecurity_forward_response_body_prefix(ngx_http_request_t *r, ngx_chain_t *start, ngx_chain_t *previous, ngx_chain_t *chain, ngx_chain_t **in) {
     (void)r; (void)start; (void)previous; (void)chain; (void)in; return NGX_OK;
 }
-static int ngx_http_modsecurity_finalize_terminal_response_body(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *in, ngx_uint_t *forwarded, ngx_uint_t *processed) {
+static int ngx_http_modsecurity_finalize_terminal_response_body(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *in, ngx_uint_t *forwarded, ngx_uint_t *processed) {
     *processed = 1; return ngx_http_modsecurity_process_final_response_body(r, ctx, mcf, in, forwarded);
 }
 '''

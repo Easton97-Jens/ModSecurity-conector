@@ -221,7 +221,7 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             phase4_normalize_helper,
-            "for (bucket = APR_BRIGADE_FIRST(bb_in);",
+            "for (apr_bucket *bucket = APR_BRIGADE_FIRST(bb_in);",
             "bucket != APR_BRIGADE_SENTINEL(bb_in); bucket = next)",
             "next = APR_BUCKET_NEXT(bucket);",
             "if (eos != NULL)",
@@ -235,7 +235,7 @@ review_guards: list[tuple[bool, str]] = [
         and base.tokens_in_order(
             prepare_response_brigade,
             NORMALIZE_ASSIGNMENT,
-            "for (bucket = APR_BRIGADE_FIRST(*brigade);",
+            "for (apr_bucket *bucket = APR_BRIGADE_FIRST(*brigade);",
         ),
         "Apache Phase4 advances through normalization, destroys every suffix bucket after the first EOS, returns that EOS, and binds the prepare call site",
     ),
@@ -243,7 +243,7 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             error_bucket_classifier,
             "first = APR_BRIGADE_FIRST(bb_in);",
-            "for (bucket = first; bucket != APR_BRIGADE_SENTINEL(bb_in);",
+            "for (apr_bucket *bucket = first; bucket != APR_BRIGADE_SENTINEL(bb_in);",
             BUCKET_NEXT_LOOP,
             "if (!AP_BUCKET_IS_ERROR(bucket))",
             "if (bucket != first)",
@@ -258,7 +258,7 @@ review_guards: list[tuple[bool, str]] = [
     (
         base.tokens_in_order(
             response_start_classifier,
-            "for (bucket = APR_BRIGADE_FIRST(brigade);",
+            "for (apr_bucket *bucket = APR_BRIGADE_FIRST(brigade);",
             "bucket != APR_BRIGADE_SENTINEL(brigade);",
             BUCKET_NEXT_LOOP,
             "if (APR_BUCKET_IS_FLUSH(bucket) ||",
@@ -286,7 +286,7 @@ review_guards: list[tuple[bool, str]] = [
         base.tokens_in_order(
             prepare_response_brigade,
             NORMALIZE_ASSIGNMENT,
-            "for (bucket = APR_BRIGADE_FIRST(*brigade);",
+            "for (apr_bucket *bucket = APR_BRIGADE_FIRST(*brigade);",
             "bucket != APR_BRIGADE_SENTINEL(*brigade);",
             BUCKET_NEXT_LOOP,
             "rc = apache_phase4_append_bucket(msr, conf, bucket);",

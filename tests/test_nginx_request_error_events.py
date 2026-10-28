@@ -109,7 +109,7 @@ static ngx_int_t ngx_http_modsecurity_process_request_uri(ngx_http_request_t *r,
     (void)r; (void)ctx; return header_case ? selected_result : NGX_OK;
 }
 static ngx_int_t ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf) {
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf) {
     (void)r; (void)ctx; (void)mcf; return NGX_OK;
 }
 static ngx_http_modsecurity_event_request_metadata_t
@@ -138,7 +138,7 @@ static ssize_t ngx_write_fd(int fd, u_char *line, size_t length) {
 """
 BODY_SEAM = r"""
 static ngx_int_t ngx_http_modsecurity_process_request_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf) {
+    const ngx_http_modsecurity_conf_t *mcf) {
     ++body_calls;
     if (context.contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_ALLOW) {
         ngx_http_modsecurity_request_intervention_log_event(r, mcf,

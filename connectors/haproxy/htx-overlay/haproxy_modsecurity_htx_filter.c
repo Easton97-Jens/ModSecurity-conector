@@ -1152,10 +1152,16 @@ static int haproxy_modsecurity_htx_append_payload(
     htx = htxbuf(&msg->chn->buf);
     found = htx_find_offset(htx, offset);
     offset = found.ret;
-    for (const struct htx_blk *blk = found.blk; blk && remaining;
+    for (const struct htx_blk *blk = found.blk; blk;
             blk = htx_get_next_blk(htx, blk)) {
-        enum htx_blk_type type = htx_get_blk_type(blk);
-        uint32_t block_size = htx_get_blksz(blk);
+        enum htx_blk_type type;
+        uint32_t block_size;
+
+        if (remaining == 0U) {
+            break;
+        }
+        type = htx_get_blk_type(blk);
+        block_size = htx_get_blksz(blk);
 
         if (type == HTX_BLK_UNUSED) {
             continue;
@@ -1190,7 +1196,7 @@ static int haproxy_modsecurity_htx_append_payload(
 }
 
 static int haproxy_modsecurity_htx_append_request_payload(
-    struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len)
+    struct filter *filter, const struct http_msg *msg, unsigned int offset, unsigned int len)
 {
     return haproxy_modsecurity_htx_append_payload(
         filter, msg, offset, len,
@@ -1601,7 +1607,7 @@ static int haproxy_modsecurity_htx_append_companion_response_payload(
 }
 
 static int haproxy_modsecurity_htx_append_response_payload(
-    struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len)
+    struct filter *filter, const struct http_msg *msg, unsigned int offset, unsigned int len)
 {
     return haproxy_modsecurity_htx_append_payload(
         filter, msg, offset, len,
@@ -1930,7 +1936,7 @@ static int haproxy_modsecurity_htx_filter_http_headers(
 }
 
 static int haproxy_modsecurity_htx_filter_request_payload(
-    struct stream *s, struct filter *filter, struct http_msg *msg,
+    struct stream *s, struct filter *filter, const struct http_msg *msg,
     unsigned int offset, unsigned int len)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
@@ -1963,7 +1969,7 @@ static int haproxy_modsecurity_htx_filter_request_payload(
 }
 
 static int haproxy_modsecurity_htx_filter_response_payload(
-    struct stream *s, struct filter *filter, struct http_msg *msg,
+    struct stream *s, struct filter *filter, const struct http_msg *msg,
     unsigned int offset, unsigned int len)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;

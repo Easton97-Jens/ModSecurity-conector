@@ -90,7 +90,7 @@ int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ctx,
  * Nothing here interrupts an Engine call or claims a hard deadline. */
 static ngx_int_t
 ngx_http_modsecurity_engine_call_log_budget(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, const ngx_http_modsecurity_ctx_t *ctx,
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase,
     const ngx_http_modsecurity_engine_call_measurement *measurement,
     int native_result)
@@ -181,7 +181,7 @@ ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
     int native_result)
 {
     ngx_http_modsecurity_ctx_t *ctx;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     struct timespec end;
     int result;
 
@@ -704,7 +704,7 @@ ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
     msconnector_transaction_error_class cause, ngx_int_t http_status)
 {
     msconnector_event event;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     ngx_http_modsecurity_event_request_metadata_t metadata;
     const char *message_id;
     const char *event_name;
@@ -794,7 +794,7 @@ ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
     msconnector_event event;
     char reason[256];
     ngx_http_request_t *r;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
 
     r = ctx->r;
     if (r == NULL || r->connection == NULL) {
@@ -880,7 +880,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     u_char                            *transaction_id_end;
     ngx_pool_cleanup_t                *cln;
     ngx_http_modsecurity_ctx_t        *ctx;
-    ngx_http_modsecurity_conf_t       *mcf;
+    const ngx_http_modsecurity_conf_t       *mcf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
     const msconnector_transaction_profile *profile;
 

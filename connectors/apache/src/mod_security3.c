@@ -634,7 +634,7 @@ static int apache_transaction_id_from_expression(request_rec *r,
     return 1;
 }
 
-static int apache_resolve_transaction_id(request_rec *r, msc_conf_t *config,
+static int apache_resolve_transaction_id(request_rec *r, const msc_conf_t *config,
     const char **transaction_id, const char **failure_reason)
 {
     const char *resolved = NULL;
@@ -696,7 +696,7 @@ static int apache_store_transaction_id(msc_t *msr, request_rec *r,
 static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,
     const char **failure_reason) {
     msc_t *msr = NULL;
-    msc_conf_t *z = NULL;
+    const msc_conf_t *z = NULL;
     const char *modsecurity_transaction_id = NULL;
     const char *transaction_id = NULL;
 

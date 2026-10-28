@@ -616,7 +616,7 @@ static int mod_msconnector_append_request_body_range(
 
 static handler_t mod_msconnector_finish_request_body(
         request_st *r,
-        plugin_data *p,
+        const plugin_data *p,
         handler_ctx *ctx) {
     msconnector_decision decision;
     msconnector_error runtime_error;
@@ -661,7 +661,7 @@ static handler_t mod_msconnector_reject_request_body_gate_conflict(
 
 static handler_t mod_msconnector_prepare_request_body(
         request_st *r,
-        plugin_data *p,
+        const plugin_data *p,
         handler_ctx *ctx) {
     handler_t rc;
 
@@ -722,7 +722,7 @@ static handler_t mod_msconnector_handle_request_body(
         off_t stream_offset,
         int eos,
         void *p_d) {
-    plugin_data *p = p_d;
+    const plugin_data *p = p_d;
     handler_ctx *ctx = r->plugin_ctx[p->id];
     mod_msconnector_body_append_context append;
     char mapper_error[256] = "";
@@ -797,7 +797,7 @@ static int mod_msconnector_response_body_committed(
 
 static plugin_body_hook_result mod_msconnector_finish_response_body(
         request_st *r,
-        plugin_data *p,
+        const plugin_data *p,
         handler_ctx *ctx) {
     msconnector_decision decision;
     msconnector_error runtime_error;
@@ -1166,7 +1166,7 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
 }
 
 REQUEST_FUNC(mod_msconnector_handle_response_start) {
-    plugin_data * const p = p_d;
+    const plugin_data * const p = p_d;
     handler_ctx *ctx;
     msconnector_response_mapper_contract contract;
     msconnector_decision decision;

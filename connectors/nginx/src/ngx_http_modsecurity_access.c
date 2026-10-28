@@ -28,7 +28,7 @@
 #include "msconnector/native_result.h"
 
 static void ngx_http_modsecurity_request_intervention_log_event(
-    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
     enum msconnector_phase phase, const char *reason);
 
 void
@@ -71,7 +71,7 @@ ngx_http_modsecurity_request_has_rule_decision(
  * mode comes from the selected native module rather than a report collector. */
 static void
 ngx_http_modsecurity_request_intervention_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
+    const ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
     const char *reason)
 {
     msconnector_event event;
@@ -192,7 +192,7 @@ ngx_http_modsecurity_request_error_message_id(
  * request that may have failed validation. No client observation is invented. */
 static void
 ngx_http_modsecurity_request_error_log_event(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
+    const ngx_http_modsecurity_conf_t *mcf, ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase, msconnector_transaction_error_class cause)
 {
     msconnector_event event;
@@ -257,7 +257,7 @@ ngx_http_modsecurity_request_terminal_status(ngx_http_request_t *r,
  * values, not libModSecurity append results. Mode never changes this rule. */
 static ngx_int_t
 ngx_http_modsecurity_request_result(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
+    const ngx_http_modsecurity_conf_t *mcf, enum msconnector_phase phase,
     ngx_int_t result)
 {
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
@@ -533,7 +533,7 @@ ngx_http_modsecurity_request_header_metrics(ngx_http_request_t *r,
  * Request-event sink failure remains warning-only, as with existing metadata. */
 static void
 ngx_http_modsecurity_request_completion_log_event(ngx_http_request_t *r,
-    const ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf,
+    const ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf,
     int native_result)
 {
     msconnector_event event;
@@ -558,7 +558,7 @@ ngx_http_modsecurity_request_completion_log_event(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     const char *method;
@@ -658,7 +658,7 @@ ngx_http_modsecurity_process_request_headers(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_initialize_request(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf)
+    const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_ctx_t *ctx;
     ngx_int_t rc;
@@ -858,7 +858,7 @@ ngx_http_modsecurity_inspect_request_body_file(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf)
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_int_t rc;
@@ -948,7 +948,7 @@ ngx_http_modsecurity_inspect_request_body(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_process_request_body(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf)
+    const ngx_http_modsecurity_conf_t *mcf)
 {
     ngx_http_modsecurity_ctx_t *ctx;
     ngx_int_t rc;
@@ -989,7 +989,7 @@ ngx_http_modsecurity_process_request_body(ngx_http_request_t *r,
 ngx_int_t
 ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
 {
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_conf_t *mcf;
     const ngx_http_modsecurity_ctx_t *ctx;
     ngx_int_t rc;
 

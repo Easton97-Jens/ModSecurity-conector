@@ -36,11 +36,11 @@ extern "C" int msconnector_lifecycle_sdk_transaction_id(
     const auto *native = static_cast<const modsecurity::Transaction *>(transaction);
     const std::string &id = native->m_id;
 #if defined(__cpp_lib_string_contains) && __cpp_lib_string_contains >= 202011L
-    const bool embedded_nul = id.contains('\0');
+    if (const bool embedded_nul = id.contains('\0');
 #else
-    const bool embedded_nul = id.find('\0') != std::string::npos;
+    if (const bool embedded_nul = id.find('\0') != std::string::npos;
 #endif
-    if (id.empty() || id.size() >= capacity || embedded_nul)
+        id.empty() || id.size() >= capacity || embedded_nul)
         return restore_errno(saved, -1);
     std::memcpy(output, id.data(), id.size());
     output[id.size()] = '\0';
