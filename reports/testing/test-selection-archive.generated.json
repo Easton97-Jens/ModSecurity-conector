@@ -2,7 +2,7 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "7a67ae04505c71bf3ef92a6d00d9ac7147c46dbcb09db7e465220abf8cc12352",
+  "inventory_sha256": "ca88faacab45d7d6d782a5cf9b857164446029d9084e3bb3ca989b5829bd727d",
   "on_demand_definition_count": 6200,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
@@ -2529,7 +2529,7 @@
         "tests.test_apache_native_lifecycle.ApacheNativeLifecycleTests.test_host_failure_keeps_its_distinct_cause"
       ],
       "source": "tests/test_apache_native_lifecycle.py",
-      "source_sha256": "50f114de26fe121dc3ec50b7ca22ae7112e67c3d3dfadbe8fea4913a481c4ccc"
+      "source_sha256": "57b50fd8518f1258f0ee50029ccb44812605d26d6b40f44e1a3cc6b28b168ffe"
     },
     {
       "contains_selected_definitions": [],
@@ -2545,7 +2545,7 @@
         "tests.test_apache_native_response_limit.ApacheNativeResponseLimitTests.test_append_allow_partial_detection_and_ordinary_rule_keep_streaming"
       ],
       "source": "tests/test_apache_native_response_limit.py",
-      "source_sha256": "088d653cf49f179330a25e9befe413198a3065b99a7d5572d992a185e9079276"
+      "source_sha256": "1b460dc2d3d12bfdfe8a9b7bb560182cf50b3c321c438c76e2ac7dfb27fabac6"
     },
     {
       "contains_selected_definitions": [],
@@ -2693,7 +2693,7 @@
         "tests.test_apache_request_transaction_cleanup.ApacheRequestTransactionCleanupTests.test_contract_records_apache_lifecycle_timestamps_without_inferring_order"
       ],
       "source": "tests/test_apache_request_transaction_cleanup.py",
-      "source_sha256": "3c3c6ecc8166f9c319c61179abd79589b3b9002eb49de7ba8652682895b86385"
+      "source_sha256": "e755ed196e5b2218d81d1eee9c00f68e828e8f14c347fa4bf1042863764db3ae"
     },
     {
       "contains_selected_definitions": [],
@@ -6380,7 +6380,7 @@
         "tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_completion_observation_failure_is_terminal_before_intervention"
       ],
       "source": "tests/test_nginx_late_error_results.py",
-      "source_sha256": "2725092ae97354520bef9c8d0c6da19934fd6a5bb4c730021f7481d4f6eddc2c"
+      "source_sha256": "8e6a9193da6ed5832877e280b9e7c4832b4ea9390188dfd30ccc9016fae61e5c"
     },
     {
       "contains_selected_definitions": [],
@@ -6534,7 +6534,7 @@
         "tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_safe_sink_failure_never_forwards_body"
       ],
       "source": "tests/test_nginx_native_intervention_chain.py",
-      "source_sha256": "1fb974592071249fb7b894bcd317520112dda545d54832ccda97993fff7155ff"
+      "source_sha256": "a0fbbe4862911864f81ffac0b95a968065836dcbce6796ad2a63d4f4af55e405"
     },
     {
       "contains_selected_definitions": [],
@@ -6549,7 +6549,7 @@
         "tests.test_nginx_native_logging.NativeLoggingTests.test_missing_request_is_rejected"
       ],
       "source": "tests/test_nginx_native_logging.py",
-      "source_sha256": "6523bef837af089709456daffe14778c8cc4a12cbf6b6106244beb78273a48cf"
+      "source_sha256": "2e2a5f2709f60d419530148a4b9c311a480e039f3d1272c62a599eb660149c55"
     },
     {
       "contains_selected_definitions": [],
@@ -6642,7 +6642,7 @@
         "tests.test_nginx_p1_completion_source.P1CompletionSourceTests.test_missing_or_failed_request_sink_does_not_change_enforcement"
       ],
       "source": "tests/test_nginx_p1_completion_source.py",
-      "source_sha256": "dda05d303db94a7e790f8f5a073611c5bc18704e57b567670246f124cc251444"
+      "source_sha256": "3cb495e311700f28cfdc2deea61c82223b7021cae7a415fdefff2ed65e7635c5"
     },
     {
       "contains_selected_definitions": [],
@@ -6665,7 +6665,7 @@
         "tests.test_nginx_p3_technical_source.P3TechnicalSourceTests.test_disabled_success_and_at_budget_complete_actual_p3_then_forward"
       ],
       "source": "tests/test_nginx_p3_technical_source.py",
-      "source_sha256": "f8a2a3065fc17f49ab35274090c8d90d5c5b4a9495709844deac12f1db65ee3b"
+      "source_sha256": "a0c4618bd12c4ac6b71840cfb32d4f4f0fb3e09327f05ef9a600df7b33a4187e"
     },
     {
       "contains_selected_definitions": [],
@@ -6726,7 +6726,7 @@
         "tests.test_nginx_phase4_native_body_source.NativeBodySourceTests.test_timeout_has_native_eos_but_no_common_completion"
       ],
       "source": "tests/test_nginx_phase4_native_body_source.py",
-      "source_sha256": "c6bc6772b33ee7bb6771e73392d93989a1ccbb4c8e260fad53e0be0168c9362a"
+      "source_sha256": "519c83e4c2979af35205d5e0fef7d5a03f60aeadc5144d52408834f3cbc133d5"
     },
     {
       "contains_selected_definitions": [],
@@ -6907,7 +6907,7 @@
         "tests.test_nginx_request_native_results.NginxRequestNativeResultsTests.test_phase_one_checks_native_result_before_canonical_completion"
       ],
       "source": "tests/test_nginx_request_native_results.py",
-      "source_sha256": "bb53bbd3e5e031bd92def96d4f835389c4004959d15920b8cdde2100afe710e9"
+      "source_sha256": "b7571346e135ff77682a0d6be586978a19ed27e9fbd10b0f569fe61eb6a8406e"
     },
     {
       "contains_selected_definitions": [],
@@ -6920,7 +6920,7 @@
         "tests.test_nginx_request_phase_completion.NginxRequestPhaseCompletionTests.test_conversion_and_local_address_failures_never_enter_native_code"
       ],
       "source": "tests/test_nginx_request_phase_completion.py",
-      "source_sha256": "322f706452425824b6489728617cf8cfd7b7a3d4e0dfda17fcb510a11325ba38"
+      "source_sha256": "ec72ef6366f5ac9050ea7a4bcc1a31827dc9c93ef58af07d4260fafe8c518d67"
     },
     {
       "contains_selected_definitions": [],
@@ -9382,7 +9382,7 @@
         "tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_postwrite_admission_failure_rolls_back_transaction"
       ],
       "source": "tests/test_update_framework_versions.py",
-      "source_sha256": "65629d0274d00f4bab1d389dc9fefbdadc68a6ab94be2e8a0713587b9f0efbc9"
+      "source_sha256": "02da8de5533acf339190a295b23fbc3d922fcd212817f0f204ab3101d42f5e8f"
     },
     {
       "contains_selected_definitions": [

@@ -42,7 +42,7 @@ MODULE_FUNCTIONS = (
     "msc_apache_contract_record_decision", "apache_intervention_decision_kind",
     "msc_apache_contract_record_intervention_decision", "msc_apache_contract_intervention_action",
     "msc_release_intervention_buffers", "apache_failure_phase", "apache_record_failure",
-    "apache_store_native_intervention", "process_intervention",
+    "apache_store_native_intervention", "apache_request_context", "process_intervention",
 )
 EXTRA = r'''
 #include "msconnector/intervention.h"
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
     conf.common_config.phase4_mode = (enum msconnector_phase4_mode)atoi(argv[6]);
     conf.common_config.default_block_status = HTTP_FORBIDDEN;
     msr.r = &request; msr.contract_initialized = 1; msr.event_transaction_id = "native-apache-limit";
-    apr_table_setn(request.notes, NOTE_MSR, (const char *)&msr);
+    request.request_config = (ap_conf_vector_t *)&msr;
     REQUIRE(msconnector_transaction_contract_init(&msr.contract,
         msconnector_profile_registry_find("apache"), msr.event_transaction_id,
         NULL, NULL, MSCONNECTOR_TRANSACTION_MODE_SAFE, 1U) == MSCONNECTOR_TRANSACTION_TRANSITION_OK);
@@ -204,7 +204,10 @@ class ApacheNativeResponseLimitTests(unittest.TestCase):
             dir=os.environ.get("RUNNER_TEMP"))
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.directory = Path(cls.temporary.name)
-        preamble = PREAMBLE
+        preamble = PREAMBLE.replace(
+            "#define ap_get_module_config(vector, module) (vector)",
+            "#define ap_get_module_config(vector, module) ((void *)(vector))",
+        )
         for name in ("msc_append_request_body", "msc_append_response_body",
                      "msc_apache_contract_begin", "msc_apache_contract_complete", "msc_apache_contract_record_body",
                      "msc_add_response_header", "msc_process_response_headers",

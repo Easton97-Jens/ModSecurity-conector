@@ -381,7 +381,7 @@ static int haproxy_modsecurity_htx_copy_response_handle(
 }
 
 static int haproxy_modsecurity_htx_set_transaction_id(
-    struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx)
+    const struct stream *s, struct haproxy_modsecurity_htx_filter_context *ctx)
 {
     if (s == NULL || ctx == NULL) {
         return -1;
@@ -399,7 +399,7 @@ static int haproxy_modsecurity_htx_copy_headers(
     const struct htx *htx,
     struct haproxy_modsecurity_htx_owned_headers *headers)
 {
-    struct htx_blk *blk;
+    const struct htx_blk *blk;
     unsigned int count = 0U;
     size_t total_header_bytes = 0U;
 
@@ -443,7 +443,7 @@ static int haproxy_modsecurity_htx_copy_headers(
         }
         name = htx_get_blk_name(htx, blk);
         value = htx_get_blk_value(htx, blk);
-        if (name.len == 0U ||
+        if (headers->count >= count || name.len == 0U ||
             name.ptr == NULL || (value.len > 0U && value.ptr == NULL) ||
             name.len > HAPROXY_MODSECURITY_HTX_MAX_HEADER_NAME_BYTES ||
             value.len > HAPROXY_MODSECURITY_HTX_MAX_HEADER_VALUE_BYTES ||
@@ -989,11 +989,11 @@ static int haproxy_modsecurity_htx_request_version(struct ist version, char outp
 }
 
 static int haproxy_modsecurity_htx_capture_request_headers(
-    struct filter *filter, struct http_msg *msg)
+    struct filter *filter, const struct http_msg *msg)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
-    struct htx *htx;
-    struct htx_sl *sl;
+    const struct htx *htx;
+    const struct htx_sl *sl;
     struct ist method;
     struct ist uri;
 
@@ -1031,7 +1031,7 @@ static int haproxy_modsecurity_htx_capture_request_headers(
  * a real peer/local endpoint: the Common mapper treats both endpoints as
  * required transaction metadata. */
 static int haproxy_modsecurity_htx_capture_request_endpoints(
-    struct stream *s, haproxy_modsecurity_request *request,
+    const struct stream *s, haproxy_modsecurity_request *request,
     char client_address[INET6_ADDRSTRLEN],
     char server_address[INET6_ADDRSTRLEN])
 {
@@ -1136,13 +1136,12 @@ static int haproxy_modsecurity_htx_append_data(
 }
 
 static int haproxy_modsecurity_htx_append_payload(
-    struct filter *filter, struct http_msg *msg, unsigned int offset, unsigned int len,
+    struct filter *filter, const struct http_msg *msg, unsigned int offset, unsigned int len,
     haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
     size_t *body_bytes_seen)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct htx *htx;
-    struct htx_blk *blk;
     struct htx_ret found;
     unsigned int remaining = len;
 
@@ -1152,9 +1151,9 @@ static int haproxy_modsecurity_htx_append_payload(
     }
     htx = htxbuf(&msg->chn->buf);
     found = htx_find_offset(htx, offset);
-    blk = found.blk;
     offset = found.ret;
-    for (; blk && remaining; blk = htx_get_next_blk(htx, blk)) {
+    for (const struct htx_blk *blk = found.blk; blk && remaining;
+            blk = htx_get_next_blk(htx, blk)) {
         enum htx_blk_type type = htx_get_blk_type(blk);
         uint32_t block_size = htx_get_blksz(blk);
 
@@ -1200,12 +1199,12 @@ static int haproxy_modsecurity_htx_append_request_payload(
 }
 
 static int haproxy_modsecurity_htx_process_response_headers(
-    struct stream *s, struct filter *filter, struct http_msg *msg)
+    struct stream *s, struct filter *filter, const struct http_msg *msg)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct haproxy_modsecurity_htx_owned_headers headers;
-    struct htx *htx;
-    struct htx_sl *sl;
+    const struct htx *htx;
+    const struct htx_sl *sl;
     struct ist protocol;
     char *protocol_copy = NULL;
     haproxy_modsecurity_response response;
@@ -1398,14 +1397,14 @@ static int haproxy_modsecurity_htx_companion_commit(
 }
 
 static int haproxy_modsecurity_htx_process_companion_response_headers(
-    struct stream *s, struct filter *filter, struct http_msg *msg)
+    struct stream *s, struct filter *filter, const struct http_msg *msg)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     const struct haproxy_modsecurity_htx_filter_config *config = FLT_CONF(filter);
     struct haproxy_modsecurity_htx_owned_headers headers;
     msconnector_header *common_headers = NULL;
-    struct htx *htx;
-    struct htx_sl *sl;
+    const struct htx *htx;
+    const struct htx_sl *sl;
     struct ist protocol;
     char *protocol_copy = NULL;
     msconnector_response response;
@@ -1537,7 +1536,7 @@ static int haproxy_modsecurity_htx_send_companion_response_chunk(
 
 static int haproxy_modsecurity_htx_append_companion_response_block(
     struct haproxy_modsecurity_htx_filter_context *ctx,
-    struct htx *htx, struct htx_blk *blk, unsigned int *offset,
+    const struct htx *htx, const struct htx_blk *blk, unsigned int *offset,
     unsigned int *remaining)
 {
     enum htx_blk_type type = htx_get_blk_type(blk);
@@ -1574,7 +1573,7 @@ static int haproxy_modsecurity_htx_append_companion_response_block(
 }
 
 static int haproxy_modsecurity_htx_append_companion_response_payload(
-    struct filter *filter, struct http_msg *msg, unsigned int offset,
+    struct filter *filter, const struct http_msg *msg, unsigned int offset,
     unsigned int len)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
@@ -1999,7 +1998,7 @@ static int haproxy_modsecurity_htx_filter_http_payload(
     struct stream *s, struct filter *filter, struct http_msg *msg,
     unsigned int offset, unsigned int len)
 {
-    struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
+    const struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
 
     if (!ctx || !msg || !msg->chn || ctx->lifecycle.fail_closed) {
         return -1;

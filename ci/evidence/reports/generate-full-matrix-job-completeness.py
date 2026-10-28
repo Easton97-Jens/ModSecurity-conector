@@ -535,7 +535,7 @@ def rewrite_manifest_when_requested(
                 "refusing to rewrite full-matrix manifest: source verified_run_id does not match --verified-run-id"
             )
         sealed_receipt_path = aggregate_receipt_path(build_root, verified_run_id)
-    except (AggregateReceiptError, ValueError) as exc:
+    except ValueError as exc:
         parser.error(str(exc))
     try:
         rewrite_manifest(manifest_path, jobs, sealed_receipt_path=sealed_receipt_path)

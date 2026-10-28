@@ -286,7 +286,7 @@ static apr_status_t apache_input_filter_handle_eos(msc_t *msr, request_rec *r,
 }
 
 static apr_status_t apache_input_filter_process_bucket(msc_t *msr,
-    request_rec *r, ap_filter_t *f, msc_conf_t *conf,
+    request_rec *r, ap_filter_t *f, const msc_conf_t *conf,
     apr_bucket_brigade *output, apr_bucket *bucket, apr_read_type_e block)
 {
     const char *data;
@@ -426,7 +426,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
     return APR_SUCCESS;
 }
 
-static const char *apache_response_content_type(request_rec *r)
+static const char *apache_response_content_type(const request_rec *r)
 {
     const char *value = r->content_type;
 
@@ -443,7 +443,7 @@ static const char *apache_response_content_type(request_rec *r)
 }
 
 
-static const char *apache_request_content_type(request_rec *r)
+static const char *apache_request_content_type(const request_rec *r)
 {
     if (r == NULL || r->headers_in == NULL)
     {
@@ -716,7 +716,7 @@ static msconnector_error_code apache_intervention_write_event(msc_t *msr,
 static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_rec *r,
     const apache_intervention_event_input *input)
 {
-    msc_conf_t *conf;
+    const msc_conf_t *conf;
     msconnector_event event;
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
 
@@ -919,7 +919,7 @@ msconnector_error_code apache_emit_contract_failure_event(msc_t *msr, request_re
 msconnector_error_code apache_log_rule_match_event(msc_t *msr, request_rec *r,
     enum msconnector_phase phase, const char *rule_id)
 {
-    msc_conf_t *conf;
+    const msc_conf_t *conf;
     msconnector_event event;
 
     if (msr == NULL || r == NULL || r->per_dir_config == NULL ||
@@ -1008,7 +1008,7 @@ static msconnector_error_code apache_phase3_log_event(msc_t *msr, request_rec *r
 
 
 static apr_status_t apache_phase4_append_bucket(msc_t *msr,
-    msc_conf_t *conf, apr_bucket *bucket)
+    const msc_conf_t *conf, apr_bucket *bucket)
 {
     const char *data = NULL;
     apr_size_t len = 0;
@@ -1088,11 +1088,10 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
 static apr_bucket *apache_phase4_normalize_response_brigade(
     apr_bucket_brigade *bb_in)
 {
-    apr_bucket *bucket;
     apr_bucket *next;
     apr_bucket *eos = NULL;
 
-    for (bucket = APR_BRIGADE_FIRST(bb_in);
+    for (apr_bucket *bucket = APR_BRIGADE_FIRST(bb_in);
         bucket != APR_BRIGADE_SENTINEL(bb_in); bucket = next)
     {
         next = APR_BUCKET_NEXT(bucket);
@@ -1125,16 +1124,15 @@ static apr_bucket *apache_phase4_normalize_response_brigade(
  * path. An error bucket after any other bucket is malformed and fails closed. */
 static int apache_phase4_error_bucket_status(apr_bucket_brigade *bb_in)
 {
-    apr_bucket *bucket;
     apr_bucket *first;
-    ap_bucket_error *error;
+    const ap_bucket_error *error;
 
     if (bb_in == NULL)
     {
         return 0;
     }
     first = APR_BRIGADE_FIRST(bb_in);
-    for (bucket = first; bucket != APR_BRIGADE_SENTINEL(bb_in);
+    for (apr_bucket *bucket = first; bucket != APR_BRIGADE_SENTINEL(bb_in);
         bucket = APR_BUCKET_NEXT(bucket))
     {
         if (!AP_BUCKET_IS_ERROR(bucket))
@@ -1189,7 +1187,6 @@ static apr_array_header_t *apache_phase3_clone_content_languages(
 {
     apr_array_header_t *copy;
     char **source;
-    int i;
 
     if (pool == NULL || languages == NULL)
     {
@@ -1201,7 +1198,7 @@ static apr_array_header_t *apache_phase3_clone_content_languages(
         return NULL;
     }
     source = (char **)languages->elts;
-    for (i = 0; i < languages->nelts; ++i)
+    for (int i = 0; i < languages->nelts; ++i)
     {
         char **value = apr_array_push(copy);
 
@@ -1317,7 +1314,7 @@ static int apache_phase3_snapshot_response_state(msc_t *msr,
 }
 
 
-static int apache_phase3_restore_response_state(msc_t *msr,
+static int apache_phase3_restore_response_state(const msc_t *msr,
     request_rec *r)
 {
     apr_table_t *headers;
@@ -1391,13 +1388,11 @@ static apr_status_t apache_phase4_abort_response_connection(ap_filter_t *f);
 static int apache_phase4_brigade_starts_response(
     const apr_bucket_brigade *brigade)
 {
-    apr_bucket *bucket;
-
     if (brigade == NULL)
     {
         return 0;
     }
-    for (bucket = APR_BRIGADE_FIRST(brigade);
+    for (apr_bucket *bucket = APR_BRIGADE_FIRST(brigade);
         bucket != APR_BRIGADE_SENTINEL(brigade);
         bucket = APR_BUCKET_NEXT(bucket))
     {
@@ -1485,7 +1480,7 @@ static apr_status_t apache_phase4_release_response_brigade(msc_t *msr,
 apr_status_t phase4_terminal_guard_filter(ap_filter_t *f,
     apr_bucket_brigade *bb_in)
 {
-    msc_t *msr = f != NULL ? (msc_t *)f->ctx : NULL;
+    const msc_t *msr = f != NULL ? (msc_t *)f->ctx : NULL;
 
     /* This guard lives in r->proto_output_filters, which Apache preserves
      * when it resets a request's resource filters to emit an error response.
@@ -1733,7 +1728,7 @@ static apr_status_t apache_finish_unread_request_body(ap_filter_t *f)
 }
 
 
-static apr_status_t apache_output_filter_terminal_result(msc_t *msr,
+static apr_status_t apache_output_filter_terminal_result(const msc_t *msr,
     ap_filter_t *filter, apr_bucket_brigade *brigade, int *handled)
 {
     *handled = 0;
@@ -1762,11 +1757,10 @@ static apr_status_t apache_output_filter_terminal_result(msc_t *msr,
     return APR_SUCCESS;
 }
 
-static int apache_add_response_headers(msc_t *msr, apr_table_t *headers)
+static int apache_add_response_headers(msc_t *msr, const apr_table_t *headers)
 {
     const apr_array_header_t *entries;
     const apr_table_entry_t *header;
-    int index;
 
     if (msr == NULL || msr->t == NULL) {
         return 0;
@@ -1782,7 +1776,7 @@ static int apache_add_response_headers(msc_t *msr, apr_table_t *headers)
         return 0;
     }
     header = (const apr_table_entry_t *)entries->elts;
-    for (index = 0; index < entries->nelts; index++)
+    for (int index = 0; index < entries->nelts; index++)
     {
         if (header[index].key == NULL || header[index].val == NULL ||
             msc_add_response_header(msr->t,
@@ -1800,7 +1794,6 @@ static int apache_response_header_metrics(const apr_table_t *headers,
 {
     const apr_array_header_t *entries;
     const apr_table_entry_t *header;
-    int index;
 
     if (headers == NULL || count == NULL || bytes == NULL)
     {
@@ -1812,7 +1805,7 @@ static int apache_response_header_metrics(const apr_table_t *headers,
         return 1;
     }
     header = (const apr_table_entry_t *)entries->elts;
-    for (index = 0; index < entries->nelts; ++index)
+    for (int index = 0; index < entries->nelts; ++index)
     {
         size_t name_size = header[index].key == NULL ? 0U : strlen(header[index].key);
         size_t value_size = header[index].val == NULL ? 0U : strlen(header[index].val);
@@ -1855,7 +1848,7 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
 {
     const char *content_type;
     const char *wanted;
-    msc_conf_t *conf;
+    const msc_conf_t *conf;
     int original_status;
     int intervention;
     int error_headers_added;
@@ -2011,7 +2004,6 @@ static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
     msc_conf_t *conf, ap_filter_t *filter, apr_bucket_brigade **brigade,
     apr_bucket **eos_bucket)
 {
-    apr_bucket *bucket;
     apr_status_t rc;
     int error_status;
 
@@ -2033,7 +2025,7 @@ static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
             error_status);
     }
     *eos_bucket = apache_phase4_normalize_response_brigade(*brigade);
-    for (bucket = APR_BRIGADE_FIRST(*brigade);
+    for (apr_bucket *bucket = APR_BRIGADE_FIRST(*brigade);
         bucket != APR_BRIGADE_SENTINEL(*brigade);
         bucket = APR_BUCKET_NEXT(bucket))
     {
@@ -2122,7 +2114,7 @@ static apr_status_t apache_phase4_finish_response_body(msc_t *msr,
 }
 
 static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
-    msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
+    const msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
     int intervention)
 {
     request_rec *r;

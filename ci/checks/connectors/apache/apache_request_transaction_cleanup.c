@@ -22,6 +22,7 @@ static unsigned int native_cleanup_calls;
 static Transaction *native_cleanup_seen[8];
 static msc_t *expected_msr;
 static request_rec *expected_owner;
+module AP_MODULE_DECLARE_DATA security3_module = { .module_index = 0 };
 
 
 void msc_transaction_cleanup(Transaction *transaction)
@@ -33,7 +34,8 @@ void msc_transaction_cleanup(Transaction *transaction)
     assert(expected_owner != NULL);
     assert(expected_msr->t == NULL);
     assert(expected_msr->owner_request == NULL);
-    assert(apr_table_get(expected_owner->notes, NOTE_MSR) == NULL);
+    assert(ap_get_module_config(expected_owner->request_config,
+        &security3_module) == NULL);
 
     native_cleanup_seen[native_cleanup_calls] = transaction;
     native_cleanup_calls++;
@@ -42,12 +44,11 @@ void msc_transaction_cleanup(Transaction *transaction)
 
 static void reset_observations(void)
 {
-    unsigned int index;
 
     native_cleanup_calls = 0U;
     expected_msr = NULL;
     expected_owner = NULL;
-    for (index = 0U;
+    for (unsigned int index = 0U;
         index < (sizeof(native_cleanup_seen) / sizeof(native_cleanup_seen[0]));
         index++)
     {
@@ -80,7 +81,9 @@ static msc_t *create_request_context(apr_pool_t *pool,
     msr->r = owner;
     msr->owner_request = owner;
     msr->t = transaction;
-    apr_table_setn(owner->notes, NOTE_MSR, (void *)msr);
+    owner->request_config = apr_pcalloc(pool, sizeof(void *));
+    assert(owner->request_config != NULL);
+    ap_set_module_config(owner->request_config, &security3_module, msr);
     apr_pool_cleanup_register(pool, msr, msc_cleanup_request_transaction,
         apr_pool_cleanup_null);
 
@@ -133,7 +136,8 @@ static void test_keepalive_request_pools_are_independent(void)
     assert(native_cleanup_calls == 1U);
     assert(native_cleanup_seen[0] == (Transaction *)(void *)&first_native);
     assert(second_msr->t == (Transaction *)(void *)&second_native);
-    assert(apr_table_get(second_owner->notes, NOTE_MSR) == (const char *)second_msr);
+    assert(ap_get_module_config(second_owner->request_config,
+        &security3_module) == second_msr);
 
     expect_cleanup(second_msr, second_owner);
     apr_pool_destroy(second_request_pool);
@@ -146,7 +150,7 @@ static void test_keepalive_request_pools_are_independent(void)
 static void test_failed_creation_has_no_cleanup(void)
 {
     apr_pool_t *pool;
-    msc_t *msr;
+    const msc_t *msr;
 
     reset_observations();
     assert(apr_pool_create(&pool, NULL) == APR_SUCCESS);
@@ -202,7 +206,8 @@ static void test_abort_and_duplicate_cleanup_are_safe(void)
     assert(native_cleanup_calls == 1U);
     assert(msr->t == NULL);
     assert(msr->owner_request == NULL);
-    assert(apr_table_get(owner->notes, NOTE_MSR) == NULL);
+    assert(ap_get_module_config(owner->request_config,
+        &security3_module) == NULL);
 
     apr_pool_destroy(pool);
     assert(native_cleanup_calls == 1U);

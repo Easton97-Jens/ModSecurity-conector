@@ -1,0 +1,2058 @@
+{
+  "schema_version": 1,
+  "kind": "manually_reviewed_triage_source",
+  "purpose": "Individual decision proposals; not scanner closure evidence. No server status transitions or accepted risk.",
+  "date": "2026-10-28",
+  "base_revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367",
+  "counts": {
+    "source_correction_pending_cloud": 180,
+    "requires_individual_disposition": 81
+  },
+  "projects": [
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+      "open_occurrences": 228,
+      "analysis": {
+        "key": "e0c37025-c299-4a48-b1f7-b9a34f9a5d05",
+        "date": "2026-10-28T14:26:14+0000",
+        "events": [
+          {
+            "key": "AaGC6mzkrZx55YrGZ8WZ",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "1d161212124ad882064f8acfcefb721c67bc3d1d"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+      "open_occurrences": 238,
+      "analysis": {
+        "key": "539d59a7-a170-4270-89d3-da59fec56629",
+        "date": "2026-10-28T14:26:06+0000",
+        "events": [
+          {
+            "key": "AaGC6mQKUXasrgTfkTMO",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "1d161212124ad882064f8acfcefb721c67bc3d1d"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector",
+      "open_occurrences": 223,
+      "analysis": {
+        "key": "526d96a1-96ef-470e-a79e-2f2773f43f03",
+        "date": "2026-10-28T12:56:20+0000",
+        "events": [
+          {
+            "key": "AaGCmHOuNuZ7cW_LKl6L",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+      "open_occurrences": 55,
+      "analysis": {
+        "key": "ef0e43e8-84ef-471a-aeca-e2d1b352c849",
+        "date": "2026-10-28T13:10:25+0000",
+        "events": [
+          {
+            "key": "AaGCosA-fE9cW9D1Ej5D",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_common_targeted_evaluator",
+      "open_occurrences": 5,
+      "analysis": {
+        "key": "41388d68-3562-4755-bd09-90c9fc2d8412",
+        "date": "2026-10-28T13:25:29+0000",
+        "events": [
+          {
+            "key": "AaGCsFXrkB6UKbpYyQhy",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_envoy_composite",
+      "open_occurrences": 3,
+      "analysis": {
+        "key": "5cb6c607-91b7-4341-971e-6df55233db42",
+        "date": "2026-10-28T13:15:45+0000",
+        "events": [
+          {
+            "key": "AaGCqKZlBpM_a0gDZSPx",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_authz",
+      "open_occurrences": 4,
+      "analysis": {
+        "key": "32ae4f1c-4aab-4721-81ab-7c6c716cc0fc",
+        "date": "2026-10-28T13:22:19+0000",
+        "events": [
+          {
+            "key": "AaGCroIk2egcPnKkt-am",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_proc",
+      "open_occurrences": 3,
+      "analysis": {
+        "key": "96d6d762-cadf-4e98-b0df-e3f4555391aa",
+        "date": "2026-10-28T13:14:03+0000",
+        "events": [
+          {
+            "key": "AaGCpyAQTPYNfH6Kp5Xj",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+      "open_occurrences": 31,
+      "analysis": {
+        "key": "4399bdf9-add6-4389-9129-6e40cd1d1dc7",
+        "date": "2026-10-28T13:11:22+0000",
+        "events": [
+          {
+            "key": "AaGCpDTEEqA-RmwkQvRS",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_spoa_runtime",
+      "open_occurrences": 4,
+      "analysis": {
+        "key": "d387ac3f-8af2-4981-b0a3-074f1b10cac1",
+        "date": "2026-10-28T13:06:15+0000",
+        "events": [
+          {
+            "key": "AaGCoEv4z0SBbb0_b4VS",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_patched_module",
+      "open_occurrences": 7,
+      "analysis": {
+        "key": "24b55bfc-23ab-4b25-a548-c93ee607efb8",
+        "date": "2026-10-28T13:17:42+0000",
+        "events": [
+          {
+            "key": "AaGCqheqCQVFzPFzza23",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+      "open_occurrences": 7,
+      "analysis": {
+        "key": "0aa0c467-8e23-4dc3-bd53-32db4f5ac73a",
+        "date": "2026-10-28T13:20:31+0000",
+        "events": [
+          {
+            "key": "AaGCrLAbgpBxlhCUfP3A",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+      "open_occurrences": 90,
+      "analysis": {
+        "key": "ede8b937-5a8e-42dc-b232-cc0ba0175c97",
+        "date": "2026-10-28T13:19:22+0000",
+        "events": [
+          {
+            "key": "AaGCqzI-5ZYDiRoZATNk",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+      "open_occurrences": 7,
+      "analysis": {
+        "key": "6c36008d-b17e-4f5e-9ff4-cbae0a34fa55",
+        "date": "2026-10-28T13:06:10+0000",
+        "events": [
+          {
+            "key": "AaGCoF0tYh5VKFr_YDyE",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    },
+    {
+      "project": "Easton97-Jens_ModSecurity-conector_native_traefik_forwardauth",
+      "open_occurrences": 4,
+      "analysis": {
+        "key": "46c8afde-becb-4f3e-b304-ad202b88f483",
+        "date": "2026-10-28T13:23:12+0000",
+        "events": [
+          {
+            "key": "AaGCr2_fz0SBbb0_ctqv",
+            "category": "VERSION",
+            "name": "not provided"
+          }
+        ],
+        "projectVersion": "not provided",
+        "manualNewCodePeriodBaseline": false,
+        "revision": "15cea9e4d778fa1ec6e27e6fe084b347010f1367"
+      }
+    }
+  ],
+  "remaining_candidates": [
+    {
+      "path": "ci/checks/connectors/apache/apache_rules_set_cleanup.c",
+      "baseline_line": 106,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"rules_dst\" is \"struct Rules_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxB7gQ6c6GT24UVJ"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y17aF0XFUMkHWcp5"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz0KaVChWkKVlx8X"
+        }
+      ]
+    },
+    {
+      "path": "ci/checks/connectors/apache/apache_rules_set_cleanup.c",
+      "baseline_line": 106,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"rules_from\" is \"struct Rules_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxB7gQ6c6GT24UVK"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y17aF0XFUMkHWcp6"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz0KaVChWkKVlx8Y"
+        }
+      ]
+    },
+    {
+      "path": "ci/lib/framework_revision_pins.py",
+      "baseline_line": 106,
+      "rule": "pythonsecurity:S8705",
+      "message": "Command Argument Injection via faulty LLM-supplied CLI arguments in framework_revision_pins._git()",
+      "review_basis": "All user-derived Git revisions pass exact lowercase ASCII 40-hex validation; actual commands/path operands are fixed, separated argv and no shell.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0eroXXd_g6jxuNaF2"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlbb7GRUxAPzGll5"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnLmLhxv2LRQWeOE"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/common/hostruntime_preflight.py",
+      "baseline_line": 169,
+      "rule": "pythonsecurity:S8707",
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments in hostruntime_preflight._lock_document()",
+      "review_basis": "Current source validates managed runtime/source containment or explicitly selected Framework/config roots before the reported read/hash; preserve documented operator root selection and same-descriptor file checks.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0errHXd_g6jxuNaGG"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlcx7GRUxAPzGlmM"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnM8Lhxv2LRQWeOX"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/common/response-header-test-backend.py",
+      "baseline_line": 226,
+      "rule": "python:S5332",
+      "message": "Using HTTP protocol is insecure. Use HTTPS instead.",
+      "review_basis": "Intentional HTTP framing fixture binds literal 127.0.0.1; switching the test backend to HTTPS changes the protocol under test. No remote production transport is configured here.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlct7GRUxAPzGlmL"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnM4Lhxv2LRQWeOW"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/apache-i12/acceptance/backend.py",
+      "baseline_line": 222,
+      "rule": "python:S5332",
+      "message": "Using HTTP protocol is insecure. Use HTTPS instead.",
+      "review_basis": "Intentional HTTP framing fixture binds literal 127.0.0.1; switching the test backend to HTTPS changes the protocol under test. No remote production transport is configured here.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RZDI5fXcO_YnfRr"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/apache-i12/paths.py",
+      "baseline_line": 84,
+      "rule": "pythonsecurity:S6549",
+      "message": "Filesystem Oracle via file content in paths.fixture_path()",
+      "review_basis": "fixture_path rejects absolute/parent selectors and symlink escapes, and resolves regular files strictly below the fixed fixture root.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RZKI5fXcO_YnfRt"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+      "baseline_line": 710,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content in patched_qualification.extend_mime_capture()",
+      "review_basis": "Reported file contents become source-overlay payload, not the destination pathname. disposable_collector/evidence_path validation and disposable markers independently constrain writes.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RX-I5fXcO_YnfRM"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+      "baseline_line": 740,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content in patched_qualification.extend_constructor_capture()",
+      "review_basis": "Reported file contents become source-overlay payload, not the destination pathname. disposable_collector/evidence_path validation and disposable markers independently constrain writes.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RX-I5fXcO_YnfRK"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+      "baseline_line": 776,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content in patched_qualification.rebase_host_observation()",
+      "review_basis": "Reported file contents become source-overlay payload, not the destination pathname. disposable_collector/evidence_path validation and disposable markers independently constrain writes.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RX-I5fXcO_YnfRN"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+      "baseline_line": 818,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content in patched_qualification.extend_fault_capture()",
+      "review_basis": "Reported file contents become source-overlay payload, not the destination pathname. disposable_collector/evidence_path validation and disposable markers independently constrain writes.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RX-I5fXcO_YnfRL"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/i12/lighttpd/patched_qualification.py",
+      "baseline_line": 823,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content in patched_qualification.extend_fault_capture()",
+      "review_basis": "Reported file contents become source-overlay payload, not the destination pathname. disposable_collector/evidence_path validation and disposable markers independently constrain writes.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RX-I5fXcO_YnfRJ"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/resolve-full-lifecycle-profile.py",
+      "baseline_line": 243,
+      "rule": "pythonsecurity:S8707",
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments",
+      "review_basis": "Current source validates managed runtime/source containment or explicitly selected Framework/config roots before the reported read/hash; preserve documented operator root selection and same-descriptor file checks.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erqkXd_g6jxuNaGD"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlcj7GRUxAPzGlmI"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnMuLhxv2LRQWeOT"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/run-full-matrix-job.py",
+      "baseline_line": 139,
+      "rule": "pythonsecurity:S8705",
+      "message": "Command Argument Injection via faulty LLM-supplied CLI arguments",
+      "review_basis": "Canonical source roots, validated runtime paths/run ID, allowlisted connector/CRS/MRTS and bounded decimal timeout constrain child argv; no shell expansion.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erq1Xd_g6jxuNaGF"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlcq7GRUxAPzGlmK"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnM0Lhxv2LRQWeOV"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/run-full-matrix-resume.py",
+      "baseline_line": 88,
+      "rule": "pythonsecurity:S8705",
+      "message": "Command Argument Injection via faulty LLM-supplied CLI arguments",
+      "review_basis": "Canonical source roots, validated runtime paths/run ID, allowlisted connector/CRS/MRTS and bounded decimal timeout constrain child argv; no shell expansion.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erqcXd_g6jxuNaGC"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlch7GRUxAPzGlmH"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnMrLhxv2LRQWeOS"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/run-full-matrix-resume.py",
+      "baseline_line": 165,
+      "rule": "pythonsecurity:S8705",
+      "message": "Command Argument Injection via faulty LLM-supplied CLI arguments",
+      "review_basis": "Canonical source roots, validated runtime paths/run ID, allowlisted connector/CRS/MRTS and bounded decimal timeout constrain child argv; no shell expansion.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erqcXd_g6jxuNaGB"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlch7GRUxAPzGlmG"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnMrLhxv2LRQWeOR"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/run-verified-case.py",
+      "baseline_line": 85,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content",
+      "review_basis": "JSON-derived values enter serialized payload. The output pathname is independently selected/validated through runtime_artifact_path or canonical report_path.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erpfXd_g6jxuNaF6"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlb57GRUxAPzGll_"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnMCLhxv2LRQWeOK"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/run-verified-case.py",
+      "baseline_line": 85,
+      "rule": "pythonsecurity:S8707",
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments",
+      "review_basis": "JSON-derived values enter serialized payload. The output pathname is independently selected/validated through runtime_artifact_path or canonical report_path.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erpfXd_g6jxuNaF7"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlb57GRUxAPzGlmA"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnMCLhxv2LRQWeOL"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/run-verified-report-run.py",
+      "baseline_line": 1746,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content",
+      "review_basis": "JSON-derived values enter serialized payload. The output pathname is independently selected/validated through runtime_artifact_path or canonical report_path.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erp1Xd_g6jxuNaF8"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0ZlcF7GRUxAPzGlmB"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnMPLhxv2LRQWeON"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/write-engine-lifecycle-artifacts.py",
+      "baseline_line": 59,
+      "rule": "pythonsecurity:S8707",
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments",
+      "review_basis": "Current source validates managed runtime/source containment or explicitly selected Framework/config roots before the reported read/hash; preserve documented operator root selection and same-descriptor file checks.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erpTXd_g6jxuNaF5"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlb07GRUxAPzGll-"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnL-Lhxv2LRQWeOJ"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/write-first-byte-host-metadata.py",
+      "baseline_line": 108,
+      "rule": "pythonsecurity:S2083",
+      "message": "Path Traversal via file content",
+      "review_basis": "JSON-derived values enter serialized payload. The output pathname is independently selected/validated through runtime_artifact_path or canonical report_path.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF09RZcI5fXcO_YnfRw"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF09KW-Y4cSrRUGVFu3"
+        }
+      ]
+    },
+    {
+      "path": "ci/runtime/lifecycle/write-transport-lifecycle-artifacts.py",
+      "baseline_line": 487,
+      "rule": "pythonsecurity:S8707",
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments",
+      "review_basis": "Current source validates managed runtime/source containment or explicitly selected Framework/config roots before the reported read/hash; preserve documented operator root selection and same-descriptor file checks.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erquXd_g6jxuNaGE"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlco7GRUxAPzGlmJ"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnMyLhxv2LRQWeOU"
+        }
+      ]
+    },
+    {
+      "path": "ci/tools/prepare-reviewed-framework-handoff.py",
+      "baseline_line": 292,
+      "rule": "pythonsecurity:S8707",
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments",
+      "review_basis": "Explicit operator-selected new patch output uses exclusive creation and verified content; no lower-trust attacker boundary was established. Restricting all output to runtime roots changes the supported contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erogXd_g6jxuNaF3"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlbd7GRUxAPzGll6"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnLpLhxv2LRQWeOF"
+        }
+      ]
+    },
+    {
+      "path": "common/include/msconnector/request.h",
+      "baseline_line": 32,
+      "rule": "c:S1117",
+      "message": "Declaration shadows a global variable \"hostname\" in the outer scope.",
+      "review_basis": "Member identifiers occupy a separate C member namespace; changing public fields is incompatible and no variable is hidden.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxJkgQ6c6GT24UYg"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOylIES1tmkRWQlK"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHFUgQ6c6GT2j3Th"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmo73xGlY_CHgbrm"
+        }
+      ]
+    },
+    {
+      "path": "common/include/msconnector/request_mapper_contract.h",
+      "baseline_line": 22,
+      "rule": "c:S1117",
+      "message": "Declaration shadows a global variable \"hostname\" in the outer scope.",
+      "review_basis": "Member identifiers occupy a separate C member namespace; changing public fields is incompatible and no variable is hidden.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxJugQ6c6GT24UYh"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOyyIES1tmkRWQlL"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHFcgQ6c6GT2j3Ti"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmnQ3xGlY_CHgbrl"
+        }
+      ]
+    },
+    {
+      "path": "common/runtime/msconnector_runtime.c",
+      "baseline_line": 549,
+      "rule": "csecurity:S9340",
+      "message": "Array index injection via user-controlled \"value\"",
+      "review_basis": "trim_left indexes only through isspace((unsigned char)*value); unsigned-char conversion guarantees valid ctype table domain. fgets supplies bounded NUL-terminated configuration storage.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_composite",
+          "issue_key": "AaGAGYI5QWCEle05FUXm"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_authz",
+          "issue_key": "AaGAIW6hM6SWF0SrjraO"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_proc",
+          "issue_key": "AaGAFLKpIUpYYHplnejs"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_spoa_runtime",
+          "issue_key": "AaF__6R6y-TvlviSaAML"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_patched_module",
+          "issue_key": "AaGAG7gbQWCEle05FaXT"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+          "issue_key": "AaGAHlPbqX0shq78LzST"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+          "issue_key": "AaF_9GgDr02T78jL-KDL"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_forwardauth",
+          "issue_key": "AaGAIRWDfKOJbCNLg49v"
+        }
+      ]
+    },
+    {
+      "path": "common/runtime/msconnector_runtime.c",
+      "baseline_line": 577,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"key\" argument",
+      "review_basis": "These snprintf sinks create bounded in-memory diagnostics from operator-owned configuration-file keys, not attacker network input or a raw log sink; source-to-sink attacker boundary not established.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_composite",
+          "issue_key": "AaGAGYI5QWCEle05FUXn"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_authz",
+          "issue_key": "AaGAIW6hM6SWF0SrjraP"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_proc",
+          "issue_key": "AaGAFLKpIUpYYHplnejt"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_spoa_runtime",
+          "issue_key": "AaF__6R6y-TvlviSaAMM"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_patched_module",
+          "issue_key": "AaGAG7gbQWCEle05FaXU"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+          "issue_key": "AaGAHlPbqX0shq78LzSU"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+          "issue_key": "AaF_9GgDr02T78jL-KDM"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_forwardauth",
+          "issue_key": "AaGAIRWDfKOJbCNLg49w"
+        }
+      ]
+    },
+    {
+      "path": "common/runtime/msconnector_runtime.c",
+      "baseline_line": 827,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"key\" argument",
+      "review_basis": "These snprintf sinks create bounded in-memory diagnostics from operator-owned configuration-file keys, not attacker network input or a raw log sink; source-to-sink attacker boundary not established.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_composite",
+          "issue_key": "AaGAGYI5QWCEle05FUXp"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_authz",
+          "issue_key": "AaGAIW6hM6SWF0SrjraR"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_proc",
+          "issue_key": "AaGAFLKpIUpYYHplnejv"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_spoa_runtime",
+          "issue_key": "AaF__6R6y-TvlviSaAMO"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_patched_module",
+          "issue_key": "AaGAG7gbQWCEle05FaXW"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+          "issue_key": "AaGAHlPbqX0shq78LzSW"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+          "issue_key": "AaF_9GgDr02T78jL-KDO"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_forwardauth",
+          "issue_key": "AaGAIRWDfKOJbCNLg49y"
+        }
+      ]
+    },
+    {
+      "path": "common/runtime/response_companion_transport.h",
+      "baseline_line": 157,
+      "rule": "c:S1117",
+      "message": "Declaration shadows a global variable \"stopping\" in the outer scope.",
+      "review_basis": "Member identifiers occupy a separate C member namespace; changing public fields is incompatible and no variable is hidden.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxKegQ6c6GT24UYv"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOz1IES1tmkRWQlM"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHGogQ6c6GT2j3Tj"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpk3xGlY_CHgbrn"
+        }
+      ]
+    },
+    {
+      "path": "common/src/event.c",
+      "baseline_line": 161,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"parts\" argument",
+      "review_basis": "All text comes through bounded escape_field -> msconnector_json_escape_n before fixed-format JSON snprintf; names are static field literals. JSON escaping handles quotes, slashes, CR/LF and control bytes. No raw logging sink.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+          "issue_key": "AaGAHlNKqX0shq78LzSP"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdMKJjUL15nnEs4P"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+          "issue_key": "AaF_9GdQr02T78jL-KDG"
+        }
+      ]
+    },
+    {
+      "path": "common/src/event.c",
+      "baseline_line": 492,
+      "rule": "c:S3519",
+      "message": "Memory copy function accesses out-of-bound array element",
+      "review_basis": "event_uri_query_is_redacted initializes output sizes and computes bounded input_size, with query_offset<input_size on redacted return. copied<=safe_length and copied<dst_size; redacted prefix_copied<=query_offset+1<=input_size, suffix<=sizeof(replacement)-1; nonredacted copied<=input_size. Zero-length copies do not access an array element.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdMKJjUL15nnEs4O"
+        }
+      ]
+    },
+    {
+      "path": "common/src/event.c",
+      "baseline_line": 497,
+      "rule": "c:S3519",
+      "message": "Memory copy function accesses out-of-bound array element",
+      "review_basis": "event_uri_query_is_redacted initializes output sizes and computes bounded input_size, with query_offset<input_size on redacted return. copied<=safe_length and copied<dst_size; redacted prefix_copied<=query_offset+1<=input_size, suffix<=sizeof(replacement)-1; nonredacted copied<=input_size. Zero-length copies do not access an array element.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdMKJjUL15nnEs4N"
+        }
+      ]
+    },
+    {
+      "path": "common/src/event.c",
+      "baseline_line": 532,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"value\" argument",
+      "review_basis": "All text comes through bounded escape_field -> msconnector_json_escape_n before fixed-format JSON snprintf; names are static field literals. JSON escaping handles quotes, slashes, CR/LF and control bytes. No raw logging sink.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+          "issue_key": "AaGAHlNKqX0shq78LzSQ"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdMKJjUL15nnEs4Q"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+          "issue_key": "AaF_9GdQr02T78jL-KDH"
+        }
+      ]
+    },
+    {
+      "path": "common/src/event.c",
+      "baseline_line": 640,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"field_value\" argument",
+      "review_basis": "All text comes through bounded escape_field -> msconnector_json_escape_n before fixed-format JSON snprintf; names are static field literals. JSON escaping handles quotes, slashes, CR/LF and control bytes. No raw logging sink.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+          "issue_key": "AaGAHlNKqX0shq78LzSR"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdMKJjUL15nnEs4R"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+          "issue_key": "AaF_9GdQr02T78jL-KDI"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/harness/mod_phase4_terminal_rogue.c",
+      "baseline_line": 372,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHsgQ6c6GT24UWg"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2CMF0XFUMkHWcsj"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz40aVChWkKVlx_B"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/harness/mod_phase4_terminal_rogue.c",
+      "baseline_line": 407,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHsgQ6c6GT24UWh"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2CMF0XFUMkHWcsk"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz40aVChWkKVlx_C"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/harness/mod_phase4_terminal_rogue.c",
+      "baseline_line": 472,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"pool\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHsgQ6c6GT24UWi"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2CMF0XFUMkHWcsl"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz40aVChWkKVlx_D"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 918,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_log\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UV6"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcr9"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-b"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBQ_"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 919,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_temp\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UV7"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcr-"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-c"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBRA"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 950,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UV8"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcr_"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-d"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBRB"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 950,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_log\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UV9"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcsA"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-e"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBRC"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 951,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"mp_temp\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UV-"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcsB"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-f"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBRD"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 984,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"conn\" is \"struct conn_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UV_"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcsC"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-g"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBRE"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 1036,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"r\" is \"struct request_rec *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UWC"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcsF"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-j"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBRH"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/mod_security3.c",
+      "baseline_line": 1468,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"pool\" is \"struct apr_pool_t *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxHNgQ6c6GT24UWF"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BlF0XFUMkHWcsI"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz4YaVChWkKVlx-m"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACIKgbW79cXrHwBRK"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/msc_config.c",
+      "baseline_line": 118,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxGvgQ6c6GT24UVk"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BAF0XFUMkHWcro"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz36aVChWkKVlx-G"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACILtbW79cXrHwBRf"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/msc_config.c",
+      "baseline_line": 134,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxGvgQ6c6GT24UVl"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BAF0XFUMkHWcrp"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz36aVChWkKVlx-H"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACILtbW79cXrHwBRg"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/msc_config.c",
+      "baseline_line": 156,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxGvgQ6c6GT24UVm"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BAF0XFUMkHWcrq"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz36aVChWkKVlx-I"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACILtbW79cXrHwBRh"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/msc_config.c",
+      "baseline_line": 178,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxGvgQ6c6GT24UVn"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BAF0XFUMkHWcrr"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz36aVChWkKVlx-J"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACILtbW79cXrHwBRi"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/msc_config.c",
+      "baseline_line": 240,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxGvgQ6c6GT24UVo"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BAF0XFUMkHWcrs"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz36aVChWkKVlx-K"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACILtbW79cXrHwBRj"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/msc_config.c",
+      "baseline_line": 257,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct cmd_parms_struct *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxGvgQ6c6GT24UVp"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BAF0XFUMkHWcrt"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz36aVChWkKVlx-L"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACILtbW79cXrHwBRk"
+        }
+      ]
+    },
+    {
+      "path": "connectors/apache/src/msc_config.c",
+      "baseline_line": 378,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"path\" is \"char *\".",
+      "review_basis": "Mutable callback/stub signature required by Apache/APR/native API. Explicit callback address registrations now express function-pointer role without ABI casts or trampolines; actual const qualification would be incompatible.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxGvgQ6c6GT24UVt"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0y2BAF0XFUMkHWcrx"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0yz36aVChWkKVlx-P"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_apache_native_module",
+          "issue_key": "AaGACILtbW79cXrHwBRn"
+        }
+      ]
+    },
+    {
+      "path": "connectors/envoy/src/envoy_ext_authz_response_companion.c",
+      "baseline_line": 43,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"selected\" argument",
+      "review_basis": "The reported snprintf copies bounded text into in-memory socket/pending fields; socket paths reject CR/LF, and eventual event serialization escapes data. This call is not a raw logging sink.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_envoy_ext_authz",
+          "issue_key": "AaGAIW8AM6SWF0SrjraT"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/harness/haproxy_htx_smoke_helper.py",
+      "baseline_line": 414,
+      "rule": "python:S5332",
+      "message": "Using HTTP protocol is insecure. Use HTTPS instead.",
+      "review_basis": "Intentional HTTP framing fixture binds literal 127.0.0.1; switching the test backend to HTTPS changes the protocol under test. No remote production transport is configured here.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0ZlfL7GRUxAPzGlml"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnPdLhxv2LRQWeOw"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 1723,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UW4"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjp"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SA"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbr6"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 1769,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UW5"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjq"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SB"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbr7"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 1787,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UW6"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjr"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SC"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbr8"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 1806,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UW8"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjt"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SE"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbr9"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 2168,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"msg\" is \"struct http_msg *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UW_"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjw"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SH"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbsA"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 2168,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UW-"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjv"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SG"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbr_"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 2180,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"s\" is \"struct stream *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UXA"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjx"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SI"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbsB"
+        }
+      ]
+    },
+    {
+      "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+      "baseline_line": 2391,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"px\" is \"struct proxy *\".",
+      "review_basis": "Host flt_ops/flt_kw callback requires the exact non-const pointer signature; adding pointee const breaks the host function pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxICgQ6c6GT24UXB"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOwGIES1tmkRWQjy"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHDZgQ6c6GT2j3SJ"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_haproxy_htx",
+          "issue_key": "AaGAEmpz3xGlY_CHgbsC"
+        }
+      ]
+    },
+    {
+      "path": "connectors/lighttpd/harness/patched_event_validation.py",
+      "baseline_line": 17,
+      "rule": "pythonsecurity:S8707",
+      "message": "Path Traversal via faulty LLM-supplied CLI arguments in patched_event_validation.load_events()",
+      "review_basis": "Explicit operator-selected event input; the host caller supplies its private fixed event file. Only bounded validated numeric metadata reaches output; no lower-trust attacker path was established.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF0erukXd_g6jxuNaGe"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF0Zlex7GRUxAPzGlmk"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF0ZnPCLhxv2LRQWeOv"
+        }
+      ]
+    },
+    {
+      "path": "connectors/lighttpd/stock_sidecar/stock_sidecar.c",
+      "baseline_line": 553,
+      "rule": "csecurity:S9340",
+      "message": "Array index injection via user-controlled \"used\"",
+      "review_basis": "calloc(limit+1) after 0<limit<=fixed maximum; used starts at zero, wanted<=limit-used, recv returns <=wanted; used<=limit and buffer[used] remains in allocated storage.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_lighttpd_stock_sidecar",
+          "issue_key": "AaGAHlP_qX0shq78LzSe"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1043,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxIvgQ6c6GT24UXV"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOxFIES1tmkRWQj9"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHELgQ6c6GT2j3SU"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4e"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1078,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxIvgQ6c6GT24UXZ"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOxFIES1tmkRWQkB"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHELgQ6c6GT2j3SY"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4i"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1113,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxIvgQ6c6GT24UXd"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOxFIES1tmkRWQkF"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHELgQ6c6GT2j3Sc"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4m"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1113,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxIvgQ6c6GT24UXe"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOxFIES1tmkRWQkG"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHELgQ6c6GT2j3Sd"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4n"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1122,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxIvgQ6c6GT24UXf"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOxFIES1tmkRWQkH"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHELgQ6c6GT2j3Se"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4o"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1160,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxIvgQ6c6GT24UXg"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOxFIES1tmkRWQkI"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHELgQ6c6GT2j3Sf"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4p"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1179,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxIvgQ6c6GT24UXj"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOxFIES1tmkRWQkL"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHELgQ6c6GT2j3Si"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4s"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1269,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF3rrWIG3GX7O6dF242"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF3rsUQl7mfjQObZ_IL"
+        }
+      ]
+    },
+    {
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "baseline_line": 1566,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF3rrWIG3GX7O6dF243"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF3rsUQl7mfjQObZ_IM"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_nginx_dynamic_module",
+          "issue_key": "AaGAHdN0JjUL15nnEs4y"
+        }
+      ]
+    },
+    {
+      "path": "connectors/traefik/src/traefik_engine_service.c",
+      "baseline_line": 838,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"source\" argument",
+      "review_basis": "The reported snprintf copies bounded text into in-memory socket/pending fields; socket paths reject CR/LF, and eventual event serialization escapes data. This call is not a raw logging sink.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_engine_service",
+          "issue_key": "AaF_9Ggjr02T78jL-KDS"
+        }
+      ]
+    },
+    {
+      "path": "connectors/traefik/src/traefik_forwardauth_response_companion.c",
+      "baseline_line": 43,
+      "rule": "csecurity:S5145",
+      "message": "Logging injection via user-controlled \"selected\" argument",
+      "review_basis": "The reported snprintf copies bounded text into in-memory socket/pending fields; socket paths reject CR/LF, and eventual event serialization escapes data. This call is not a raw logging sink.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_native_traefik_forwardauth",
+          "issue_key": "AaGAIRXefKOJbCNLg490"
+        }
+      ]
+    },
+    {
+      "path": "tests/nginx_body_buffer_fixture/ngx_http_body_buffer_fixture_module.c",
+      "baseline_line": 247,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxFggQ6c6GT24UVQ"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOq6IES1tmkRWQi5"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHAagQ6c6GT2j3RQ"
+        }
+      ]
+    },
+    {
+      "path": "tests/nginx_body_buffer_fixture/ngx_http_body_buffer_fixture_module.c",
+      "baseline_line": 516,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxFggQ6c6GT24UVT"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOq6IES1tmkRWQi8"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHAagQ6c6GT2j3RT"
+        }
+      ]
+    },
+    {
+      "path": "tests/nginx_body_buffer_fixture/ngx_http_body_buffer_fixture_module.c",
+      "baseline_line": 526,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxFggQ6c6GT24UVV"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOq6IES1tmkRWQi-"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHAagQ6c6GT2j3RV"
+        }
+      ]
+    },
+    {
+      "path": "tests/nginx_p3_header_injector_fixture/ngx_http_p3_header_injector_fixture_module.c",
+      "baseline_line": 285,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxFrgQ6c6GT24UVb"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOrnIES1tmkRWQjK"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHA7gQ6c6GT2j3Rh"
+        }
+      ]
+    },
+    {
+      "path": "tests/nginx_p3_header_injector_fixture/ngx_http_p3_header_injector_fixture_module.c",
+      "baseline_line": 295,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cmd\" is \"struct ngx_command_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxFrgQ6c6GT24UVc"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOrnIES1tmkRWQjL"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHA7gQ6c6GT2j3Ri"
+        }
+      ]
+    },
+    {
+      "path": "tests/nginx_p3_header_observer_fixture/ngx_http_p3_header_observer_fixture_module.c",
+      "baseline_line": 62,
+      "rule": "c:S995",
+      "message": "Make the type of this parameter a pointer-to-const. The current type of \"cf\" is \"struct ngx_conf_s *\".",
+      "review_basis": "The native NGINX callback declaration requires mutable cf/cmd parameters; const qualification would change the host function-pointer contract.",
+      "occurrences": [
+        {
+          "project": "Easton97-Jens_ModSecurity-conector",
+          "issue_key": "AaF2pxF1gQ6c6GT24UVe"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp23_advisory",
+          "issue_key": "AaF1IOr3IES1tmkRWQjN"
+        },
+        {
+          "project": "Easton97-Jens_ModSecurity-conector_cpp20_advisory",
+          "issue_key": "AaF1JHBEgQ6c6GT2j3Rk"
+        }
+      ]
+    }
+  ]
+}

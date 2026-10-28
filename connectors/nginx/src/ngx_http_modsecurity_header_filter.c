@@ -14,6 +14,7 @@
  */
 
 #include <ngx_config.h>
+#include <limits.h>
 #include <stdint.h>
 
 #ifndef MODSECURITY_DDEBUG
@@ -110,7 +111,7 @@ ngx_http_modsecurity_header_out_t ngx_http_modsecurity_headers_out[] = {
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
 int
-ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, ngx_str_t *name, ngx_str_t *value)
+ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, const ngx_str_t *name, const ngx_str_t *value)
 {
     ngx_http_modsecurity_ctx_t     *ctx;
     ngx_http_modsecurity_conf_t    *mcf;
@@ -155,7 +156,7 @@ ngx_http_modsecurity_resolv_header_server(ngx_http_request_t *r, ngx_str_t name,
     static char ngx_http_server_full_string[] = NGINX_VER;
     static char ngx_http_server_string[] = "nginx";
 
-    ngx_http_core_loc_conf_t *clcf = NULL;
+    const ngx_http_core_loc_conf_t *clcf = NULL;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_str_t value;
 
@@ -280,7 +281,7 @@ ngx_http_modsecurity_resolv_header_last_modified(ngx_http_request_t *r, ngx_str_
     (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     u_char buf[1024];
-    u_char *p;
+    const u_char *p;
     ngx_str_t value;
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
@@ -311,7 +312,7 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
 {
     (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
-    ngx_http_core_loc_conf_t *clcf = NULL;
+    const ngx_http_core_loc_conf_t *clcf = NULL;
     char *connection = NULL;
     ngx_str_t value;
 
@@ -411,7 +412,7 @@ ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, o
     (void)offset;
 #if (NGX_HTTP_GZIP)
     ngx_http_modsecurity_ctx_t *ctx = NULL;
-    ngx_http_core_loc_conf_t *clcf = NULL;
+    const ngx_http_core_loc_conf_t *clcf = NULL;
 
     clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
     if (r->gzip_vary && clcf->gzip_vary) {
@@ -446,7 +447,7 @@ ngx_http_modsecurity_phase3_log_event(ngx_http_request_t *r,
     const char *wanted, const char *actual)
 {
     msconnector_event event;
-    ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
+    const ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
 
     if (mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
@@ -492,7 +493,7 @@ ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
 {
     ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
-    ngx_table_elt_t *header;
+    const ngx_table_elt_t *header;
     ngx_uint_t i;
 
     for (i = 0; ngx_http_modsecurity_headers_out[i].name.len; i++) {
@@ -605,12 +606,12 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
     ngx_http_modsecurity_ctx_t *ctx;
     int ret = 0;
     ngx_uint_t status;
-    char *http_response_ver;
-    ngx_pool_t *old_pool;
-    ngx_http_modsecurity_conf_t *mcf;
+    const char *http_response_ver;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
+    const ngx_http_modsecurity_conf_t *mcf;
     size_t response_header_count;
     size_t response_header_bytes;
-    char *response_content_type = NULL;
+    const char *response_content_type = NULL;
     ngx_http_modsecurity_engine_call_measurement measurement;
 
 
@@ -684,8 +685,9 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             r->pool);
     }
     /* The contract tracks body bytes for overflow/lifecycle integrity only;
-     * libModSecurity owns response-inspection limits in every P4 mode. */
-    if (mcf == NULL || response_content_type == (char *)-1 ||
+     * libModSecurity owns response-inspection limits in every P4 mode. Check
+     * the host's wider status before converting it to the Engine/Common int. */
+    if (mcf == NULL || status > INT_MAX || response_content_type == (char *)-1 ||
         ngx_http_modsecurity_response_header_metrics(r, &response_header_count,
             &response_header_bytes) != NGX_OK ||
         msconnector_transaction_contract_record_response_metadata(
@@ -731,7 +733,7 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             NGX_HTTP_INTERNAL_SERVER_ERROR);
         return NGX_ERROR;
     }
-    ret = msc_process_response_headers(ctx->modsec_transaction, status, http_response_ver);
+    ret = msc_process_response_headers(ctx->modsec_transaction, (int)status, http_response_ver);
     if (ngx_http_modsecurity_engine_call_finish(r,
             MSCONNECTOR_PHASE_RESPONSE_HEADERS, &measurement, ret) != NGX_OK) {
         ngx_http_modsecurity_pcre_malloc_done(old_pool);

@@ -5007,10 +5007,9 @@ static void run_spop_bridge_native_operation(spop_bridge_task_context *context,
         response.status = command->response == NULL ? 0 : command->response->status;
         response.protocol = "HTTP/1.1";
         response.headers = context->headers;
-        response.header_count = command->response == NULL ? 0U :
-            command->response->header_count;
         if (command->response != NULL &&
-                response.header_count <= SPOP_BRIDGE_MAX_HEADERS) {
+                command->response->header_count <= SPOP_BRIDGE_MAX_HEADERS) {
+            response.header_count = (unsigned int)command->response->header_count;
             context->success = haproxy_modsecurity_transaction_process_response_headers(
                 context->transaction, &response, native_decision) == 0;
         }

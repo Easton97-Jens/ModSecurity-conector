@@ -57,6 +57,7 @@ typedef unsigned char u_char;
 typedef long ngx_int_t;
 typedef unsigned long ngx_uint_t;
 typedef struct { int unused; } ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
 typedef struct { int fd; } ngx_open_file_t;
 typedef struct { int error; void *log; } connection_t;

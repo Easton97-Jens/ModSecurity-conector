@@ -30,6 +30,7 @@ typedef long ngx_int_t;
 typedef unsigned long ngx_uint_t;
 typedef unsigned char u_char;
 typedef void ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { int fd; } ngx_open_file_t;
 typedef struct { int error; void *log; } connection_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
@@ -86,7 +87,7 @@ static int ngx_http_modsecurity_contract_complete(ngx_http_modsecurity_ctx_t *ct
     ctx->contract.active_phase = -1; ctx->contract.last_completed_phase = phase;
     ctx->contract.completed_phase_mask |= MSCONNECTOR_TRANSACTION_PHASE_MASK_P4; return NGX_OK;
 }
-static int msc_append_response_body(Transaction *tx, u_char *data, size_t bytes) {
+static int msc_append_response_body(Transaction *tx, const u_char *data, size_t bytes) {
     (void)tx; (void)data; (void)bytes;
     if (!active_ctx->native_event_phase_active || active_ctx->native_event_phase != MSCONNECTOR_PHASE_RESPONSE_BODY) abort();
     ++append_calls; return append_return;
@@ -129,7 +130,7 @@ static int ngx_http_modsecurity_write_phase_event_jsonl(ngx_http_request_t *r, n
 }
 static ngx_int_t ngx_http_modsecurity_phase4_log_failure(ngx_http_request_t *, ngx_http_modsecurity_conf_t *, ngx_http_modsecurity_ctx_t *);
 static ngx_int_t ngx_http_modsecurity_phase4_fail_control(ngx_http_request_t *, ngx_http_modsecurity_conf_t *, ngx_http_modsecurity_ctx_t *, msconnector_transaction_error_class);
-static ngx_int_t ngx_http_modsecurity_append_response_body_chunk(ngx_http_modsecurity_ctx_t *, u_char *, size_t);
+static ngx_int_t ngx_http_modsecurity_append_response_body_chunk(ngx_http_modsecurity_ctx_t *, const u_char *, size_t);
 static ngx_int_t ngx_http_modsecurity_process_final_response_body(ngx_http_request_t *, ngx_http_modsecurity_ctx_t *, ngx_http_modsecurity_conf_t *, ngx_chain_t *, ngx_uint_t *);
 static int ngx_http_modsecurity_append_response_chain_buffer(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, ngx_chain_t *chain) {
     (void)r; (void)mcf; return ngx_http_modsecurity_append_response_body_chunk(ctx, chain->buf->data, chain->buf->bytes);

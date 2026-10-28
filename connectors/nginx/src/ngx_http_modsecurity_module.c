@@ -55,12 +55,12 @@ static char *ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *
 static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_engine_call_budget(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static ngx_int_t ngx_http_modsecurity_process_redirect_intervention(
+static int ngx_http_modsecurity_process_redirect_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ModSecurityIntervention *intervention);
-static ngx_int_t ngx_http_modsecurity_process_status_intervention(
+    const ModSecurityIntervention *intervention);
+static int ngx_http_modsecurity_process_status_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
-    ModSecurityIntervention *intervention, ngx_int_t early_log);
+    const ModSecurityIntervention *intervention, ngx_int_t early_log);
 static ngx_int_t ngx_http_modsecurity_contract_record_intervention(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     const ModSecurityIntervention *intervention);
@@ -301,7 +301,7 @@ ngx_http_modsec_pcre_free(void *ptr)
 ngx_pool_t *
 ngx_http_modsecurity_pcre_malloc_init(ngx_pool_t *pool)
 {
-    ngx_pool_t  *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
 
     if (pcre_malloc != ngx_http_modsec_pcre_malloc) {
         ngx_http_modsec_pcre_pool = pool;
@@ -357,16 +357,15 @@ ngx_inline char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p)
     return str;
 }
 
-static ngx_int_t
+static int
 ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention)
+    ngx_http_modsecurity_ctx_t *ctx, const ModSecurityIntervention *intervention)
 {
     ngx_str_t location_value;
     ngx_table_elt_t *location;
     ngx_table_elt_t *headers;
     const u_char *redirect_url;
     u_char location_name[] = "Location";
-    size_t i;
 
     if (r->header_sent) {
         dd("Headers are already sent. Cannot perform the redirection at this point.");
@@ -377,7 +376,7 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
      * conventions, independently of the phase that produced the redirect. */
     location_value.len = ngx_strlen(intervention->url);
     redirect_url = (const u_char *) intervention->url;
-    for (i = 0; i < location_value.len; i++) {
+    for (size_t i = 0; i < location_value.len; i++) {
         if (redirect_url[i] == '\r' || redirect_url[i] == '\n') {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                 "modsecurity intervention redirect URL contains CR or LF");
@@ -449,9 +448,9 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
     return intervention->status;
 }
 
-static ngx_int_t
+static int
 ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, ModSecurityIntervention *intervention,
+    ngx_http_modsecurity_ctx_t *ctx, const ModSecurityIntervention *intervention,
     ngx_int_t early_log)
 {
     /* Preserve the intervention status in the audit log when an NGINX
@@ -474,7 +473,7 @@ ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
     return intervention->status;
 }
 
-static ngx_int_t
+static int
 ngx_http_modsecurity_reject_native_intervention(ngx_http_modsecurity_ctx_t *ctx,
     msconnector_transaction_error_class cause)
 {
@@ -583,10 +582,10 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
 {
     ModSecurityIntervention intervention;
     msconnector_intervention common_intervention;
-    ngx_int_t result = 0;
+    int result = 0;
     ngx_int_t native_result;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
-    ngx_http_modsecurity_conf_t  *mcf;
+    const ngx_http_modsecurity_conf_t  *mcf;
     int request_body_limit_rejection;
 
     ngx_memzero(&intervention, sizeof(intervention));
@@ -941,7 +940,7 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         }
         transaction_id_end = ngx_snprintf(transaction_id, 64U, "%ui-%ui",
             (ngx_uint_t) r->connection->number,
-            (ngx_uint_t) r->connection->requests);
+            r->connection->requests);
         *transaction_id_end = '\0';
         ctx->event_transaction_id.data = transaction_id;
         ctx->event_transaction_id.len = (size_t) (transaction_id_end - transaction_id);
@@ -988,13 +987,13 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
 
     dd("transaction created");
 
-    ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module);
+    ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module)
 
     cln = ngx_pool_cleanup_add(r->pool, 0);
     if (cln == NULL)
     {
         dd("failed to create the ModSecurity context cleanup");
-        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module);
+        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module)
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         ngx_http_modsecurity_cleanup(ctx);
@@ -1028,9 +1027,8 @@ ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r)
          * if module context was reset, the original address
          * can still be found in the cleanup handler
          */
-        ngx_pool_cleanup_t *cln;
-        for (cln = r->pool->cleanup; cln; cln = cln->next) {
-            if (cln->handler == ngx_http_modsecurity_cleanup) {
+        for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
+            if (cln->handler == &ngx_http_modsecurity_cleanup) {
                 ctx = cln->data;
                 break;
             }
@@ -1044,10 +1042,10 @@ ngx_conf_set_rules(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
     int                                res;
-    char                              *rules;
-    ngx_str_t                         *value;
+    const char                        *rules;
+    const ngx_str_t                   *value;
     const char                        *error;
-    ngx_pool_t                        *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_conf_t       *mcf = conf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
 
@@ -1079,10 +1077,10 @@ ngx_conf_set_rules_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
     int                                res;
-    char                              *rules_set;
-    ngx_str_t                         *value;
+    const char                        *rules_set;
+    const ngx_str_t                   *value;
     const char                        *error;
-    ngx_pool_t                        *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_conf_t       *mcf = conf;
     ngx_http_modsecurity_main_conf_t  *mmcf;
 
@@ -1161,8 +1159,8 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    char *mode = ngx_str_to_char(value[1], cf->pool);
+    const ngx_str_t *value = cf->args->elts;
+    const char *mode = ngx_str_to_char(value[1], cf->pool);
     enum msconnector_phase4_mode parsed;
     if (mode == (char *)-1 || mode == NULL) {
         return NGX_CONF_ERROR;
@@ -1182,7 +1180,7 @@ ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t *value = cf->args->elts;
     ngx_open_file_t *event_file;
     ngx_pool_cleanup_t *cleanup;
-    char *path;
+    const char *path;
     int fd = -1;
 
     (void)cmd;
@@ -1240,8 +1238,8 @@ static char *
 ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_modsecurity_conf_t *mcf = conf;
-    ngx_str_t *value = cf->args->elts;
-    char *flag = ngx_str_to_char(value[1], cf->pool);
+    const ngx_str_t *value = cf->args->elts;
+    const char *flag = ngx_str_to_char(value[1], cf->pool);
     enum msconnector_bool_option parsed;
     char *rc;
 
@@ -1397,7 +1395,7 @@ ngx_http_modsecurity_init(ngx_conf_t *cf)
     ngx_http_handler_pt *h_access;
     ngx_http_handler_pt *h_log;
     ngx_http_core_main_conf_t *cmcf;
-    int rc = 0;
+    ngx_int_t rc = 0;
 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
     if (cmcf == NULL)
@@ -1492,7 +1490,7 @@ ngx_http_modsecurity_create_main_conf(ngx_conf_t *cf)
 static char *
 ngx_http_modsecurity_init_main_conf(ngx_conf_t *cf, void *conf)
 {
-    ngx_http_modsecurity_main_conf_t  *mmcf;
+    const ngx_http_modsecurity_main_conf_t  *mmcf;
     msconnector_rule_load_stats        stats;
 
     mmcf = (ngx_http_modsecurity_main_conf_t *) conf;
@@ -1637,7 +1635,7 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 static void
 ngx_http_modsecurity_cleanup_instance(void *data)
 {
-    ngx_pool_t                        *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_main_conf_t  *mmcf;
 
     mmcf = (ngx_http_modsecurity_main_conf_t *) data;
@@ -1653,7 +1651,7 @@ ngx_http_modsecurity_cleanup_instance(void *data)
 static void
 ngx_http_modsecurity_cleanup_rules(void *data)
 {
-    ngx_pool_t                   *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_conf_t  *mcf;
 
     mcf = (ngx_http_modsecurity_conf_t *) data;

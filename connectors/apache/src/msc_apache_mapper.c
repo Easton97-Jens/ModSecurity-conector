@@ -35,7 +35,6 @@ static void copy_apr_header_table(const apr_table_t *table,
 {
     const apr_array_header_t *arr;
     const apr_table_entry_t *te;
-    int i;
 
     if (table == NULL)
     {
@@ -44,7 +43,7 @@ static void copy_apr_header_table(const apr_table_t *table,
 
     arr = apr_table_elts(table);
     te = (const apr_table_entry_t *)arr->elts;
-    for (i = 0; i < arr->nelts; i++)
+    for (int i = 0; i < arr->nelts; i++)
     {
         headers[*offset].name = te[i].key;
         headers[*offset].name_size = te[i].key != NULL ? strlen(te[i].key) : 0U;

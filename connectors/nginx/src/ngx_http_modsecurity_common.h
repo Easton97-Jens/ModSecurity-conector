@@ -118,7 +118,7 @@ ngx_http_modsecurity_header_metrics(ngx_list_t *headers,
     size_t *count, size_t *bytes)
 {
     ngx_list_part_t *part;
-    ngx_table_elt_t *data;
+    const ngx_table_elt_t *data;
     ngx_uint_t index;
 
     if (headers == NULL || count == NULL || bytes == NULL) {
@@ -448,7 +448,7 @@ ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
     ngx_http_modsecurity_event_request_metadata_t metadata = {
         "", "", ""
     };
-    char *value;
+    const char *value;
 
     if (r == NULL) {
         return metadata;
@@ -534,7 +534,7 @@ ngx_http_modsecurity_apply_event_provenance(const ngx_http_request_t *r,
  * write tail used by request metadata events. */
 static ngx_inline int
 ngx_http_modsecurity_write_event_jsonl(
-    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
     const msconnector_event *event,
     const char *serialization_failure_message,
     const char *write_failure_message)
@@ -574,7 +574,7 @@ ngx_http_modsecurity_write_event_jsonl(
  * logging, serialization, write, and short-write failures must propagate. */
 static ngx_inline ngx_int_t
 ngx_http_modsecurity_write_phase_event_jsonl(
-    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
     const msconnector_event *event, const char *phase)
 {
     char line[4096];
@@ -615,9 +615,13 @@ ngx_http_modsecurity_write_phase_event_jsonl(
 }
 
 #if !(NGX_PCRE) || (NGX_PCRE2)
+/* With no legacy PCRE allocator override the saved pool is never restored or
+ * mutated. PCRE1 below retains the mutable pool required by ngx_palloc(). */
+typedef const ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 #define ngx_http_modsecurity_pcre_malloc_init(x) NULL
 #define ngx_http_modsecurity_pcre_malloc_done(x) (void)x
 #else
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 ngx_pool_t *ngx_http_modsecurity_pcre_malloc_init(ngx_pool_t *pool);
 void ngx_http_modsecurity_pcre_malloc_done(ngx_pool_t *old_pool);
 #endif
@@ -630,7 +634,7 @@ ngx_int_t ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *i
 ngx_int_t ngx_http_modsecurity_header_filter_init(void);
 ngx_int_t ngx_http_modsecurity_header_filter(ngx_http_request_t *r);
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
-int ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, ngx_str_t *name, ngx_str_t *value);
+int ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, const ngx_str_t *name, const ngx_str_t *value);
 #endif
 
 /* ngx_http_modsecurity_log.c */

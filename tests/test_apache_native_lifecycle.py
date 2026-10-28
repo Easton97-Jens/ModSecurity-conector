@@ -24,7 +24,7 @@ FUNCTIONS = (
     "msc_apache_contract_finish", "apache_intervention_decision_kind",
     "msc_apache_contract_record_intervention_decision", "msc_release_intervention_buffers",
     "apache_failure_phase", "apache_record_failure", "apache_store_native_intervention",
-    "process_intervention", "retrieve_tx_context", "apache_fail_closed_with_cause",
+    "apache_request_context", "process_intervention", "retrieve_tx_context", "apache_fail_closed_with_cause",
     "apache_fail_closed", "apache_native_failed", "msc_module_cleanup",
     "msc_apache_init", "msc_apache_cleanup", "msc_hook_pre_config", "hook_log_transaction",
 )
@@ -60,7 +60,7 @@ static void fixture_log(const char *file, ...) { (void)file; ++diagnostics; }
 #define ap_log_rerror(...) fixture_log(__VA_ARGS__)
 #define ap_log_error(...) fixture_log(__VA_ARGS__)
 #undef ap_get_module_config
-#define ap_get_module_config(vector, module) (vector)
+#define ap_get_module_config(vector, module) ((void *)(vector))
 
 msconnector_error_code apache_emit_contract_failure_event(msc_t *msr, request_rec *r,
         enum msconnector_phase phase, msconnector_transaction_error_class cause,
@@ -200,7 +200,7 @@ static int prepare(request_rec *r, msc_t *msr, apr_pool_t *pool, int complete) {
             MSCONNECTOR_PHASE_REQUEST_HEADERS, 100U) ==
             MSCONNECTOR_TRANSACTION_TRANSITION_OK);
     }
-    apr_table_setn(r->notes, NOTE_MSR, (const char *)msr);
+    r->request_config = (ap_conf_vector_t *)msr;
     current_request = r;
     return 0;
 }

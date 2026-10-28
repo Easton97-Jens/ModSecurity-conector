@@ -453,7 +453,8 @@ def _run_framework_guard(
     except RuntimeError as exc:
         return None, f"failed:{exc}"
     except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or b"").decode("utf-8", errors="replace").strip()
+        output = exc.stdout or b""
+        output = output.decode("utf-8", errors="replace").strip()
         return None, f"failed:timeout loading common.sh {output}"
     if proc.returncode != 0:
         stderr = proc.stderr.decode("utf-8", errors="replace").strip()

@@ -447,7 +447,7 @@ static int mod_msconnector_emit_host_transaction_id(
 
 static handler_t mod_msconnector_apply_decision(
         request_st * const r,
-        plugin_data * const p,
+        const plugin_data * const p,
         handler_ctx * const ctx,
         const msconnector_decision * const decision) {
     handler_t result;
@@ -983,7 +983,7 @@ static plugin_body_hook_result mod_msconnector_handle_response_abort(
         request_st *r,
         plugin_response_abort_reason reason,
         void *p_d) {
-    plugin_data *p = p_d;
+    const plugin_data *p = p_d;
     handler_ctx *ctx = r->plugin_ctx[p->id];
     msconnector_error runtime_error;
 
@@ -1253,7 +1253,7 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
 }
 
 REQUEST_FUNC(mod_msconnector_handle_request_reset) {
-    plugin_data * const p = p_d;
+    const plugin_data * const p = p_d;
     handler_ctx **ctx_slot = (handler_ctx **)&r->plugin_ctx[p->id];
     handler_ctx *ctx = *ctx_slot;
     msconnector_error runtime_error;

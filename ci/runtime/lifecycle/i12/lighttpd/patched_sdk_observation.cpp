@@ -63,7 +63,11 @@ static int observe_transaction(const modsecurity::Transaction& native, char* out
     std::string qresponse;
     if (std::string qrequest; quoted_metadata(mime, qmime) && quoted_metadata(raw_response, qresponse)
             && quoted_metadata(raw_request, qrequest)) {
+#if __cplusplus >= 202002L
+        const bool selected = policy.m_value.contains(mime);
+#else
         const bool selected = policy.m_value.find(mime) != policy.m_value.end();
+#endif
         std::ostringstream json;
         json.imbue(std::locale::classic());
         json << R"({"sdk_version":"3.0.14","response_content_type":)" << qmime

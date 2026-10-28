@@ -952,7 +952,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         candidate = replace_rhs(candidate, "MODSECURITY_V3_APPROVED_COMMIT", '"' + "f" * 40 + '"')
         self.write_common(candidate)
         changed = SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
-        self.assertTrue(SYNC.inventory_updates.COMPANIONS <= set(changed))
+        self.assertLessEqual(SYNC.inventory_updates.COMPANIONS, set(changed))
         admitted = SYNC.load_inventory(self.root)
         self.assertEqual(len(admitted.case_ids), 2)
         expected_inventory = copy.deepcopy(original_inventory)
