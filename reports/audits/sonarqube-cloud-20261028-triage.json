@@ -14,7 +14,8 @@
     "remaining_candidate_positions": 83,
     "second_follow_up_pr_positions": 3,
     "second_follow_up_source_correction_positions": 1,
-    "second_follow_up_new_candidate_positions": 1
+    "second_follow_up_new_candidate_positions": 1,
+    "full_advisory_additional_source_correction_positions": 2
   },
   "projects": [
     {
@@ -2108,5 +2109,33 @@
     "main_vulnerabilities": 0,
     "main_maintainability_findings": 3,
     "note": "One inherited native cleanup signature candidate, one newly exposed host callback signature candidate, and one regex finding corrected in the next commit. Historical source evidence; not proof for a later head."
+  },
+  "full_advisory_snapshot": {
+    "source_revision": "9060770ae03c04b9dbfb2b5dd553a7505b79949d",
+    "cpp20": {
+      "quality_gate": "OK",
+      "open_findings": 66,
+      "hotspots": 0
+    },
+    "cpp23": {
+      "quality_gate": "OK",
+      "open_findings": 73,
+      "hotspots": 0
+    },
+    "additional_source_corrections": [
+      {
+        "path": "connectors/apache/src/msc_filters.c",
+        "line": 2223,
+        "rule": "c:S995",
+        "change": "Complete const propagation through the private response-config reader graph."
+      },
+      {
+        "path": "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c",
+        "line": 1587,
+        "rule": "c:S5350",
+        "change": "Read-only HTX block iterator is pointer-to-const."
+      }
+    ],
+    "note": "Full advisory inventories, unlike PR NewCode, exposed two more source positions. Corrected in a follow-up; this snapshot does not qualify that later head."
   }
 }

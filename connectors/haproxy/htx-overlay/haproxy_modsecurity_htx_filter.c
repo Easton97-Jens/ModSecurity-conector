@@ -1584,7 +1584,7 @@ static int haproxy_modsecurity_htx_append_companion_response_payload(
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct htx *htx;
-    struct htx_blk *blk;
+    const struct htx_blk *blk;
     struct htx_ret found;
     unsigned int remaining = len;
 

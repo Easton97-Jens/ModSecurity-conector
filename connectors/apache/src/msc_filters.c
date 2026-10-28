@@ -392,7 +392,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
 
     if (r->per_dir_config != NULL)
     {
-        conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+        conf = (const msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
     }
     if (conf == NULL)
@@ -726,7 +726,7 @@ static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_
         return MSCONNECTOR_ERROR_NONE;
     }
 
-    conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+    conf = (const msc_conf_t *)ap_get_module_config(r->per_dir_config,
         &security3_module);
     if (conf == NULL || conf->common_config.phase4_log_path == NULL)
     {
@@ -928,7 +928,7 @@ msconnector_error_code apache_log_rule_match_event(msc_t *msr, request_rec *r,
         return MSCONNECTOR_ERROR_NONE;
     }
 
-    conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+    conf = (const msc_conf_t *)ap_get_module_config(r->per_dir_config,
         &security3_module);
     if (conf == NULL || conf->common_config.phase4_log_path == NULL)
     {
@@ -1863,7 +1863,7 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
     {
         return APR_SUCCESS;
     }
-    conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+    conf = (const msc_conf_t *)ap_get_module_config(r->per_dir_config,
         &security3_module);
     if (conf == NULL)
     {
@@ -1997,11 +1997,11 @@ static apr_status_t apache_output_filter_process_headers(msc_t *msr,
 }
 
 static apr_status_t apache_output_filter_finish_response(msc_t *msr,
-    msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
+    const msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
     apr_bucket_brigade *terminal_brigade);
 
 static apr_status_t apache_output_filter_prepare_response_brigade(msc_t *msr,
-    msc_conf_t *conf, ap_filter_t *filter, apr_bucket_brigade **brigade,
+    const msc_conf_t *conf, ap_filter_t *filter, apr_bucket_brigade **brigade,
     apr_bucket **eos_bucket)
 {
     apr_status_t rc;
@@ -2220,7 +2220,7 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
 }
 
 static apr_status_t apache_output_filter_finish_response(msc_t *msr,
-    msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
+    const msc_conf_t *conf, ap_filter_t *f, apr_bucket_brigade *bb_in,
     apr_bucket_brigade *terminal_brigade)
 {
     int intervention = N_INTERVENTION_STATUS;
@@ -2266,7 +2266,7 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
 {
     request_rec *r = f->r;
     msc_t *msr = (msc_t *)f->ctx;
-    msc_conf_t *conf = NULL;
+    const msc_conf_t *conf = NULL;
     apr_status_t rc;
     apr_bucket *eos_bucket = NULL;
     apr_bucket_brigade *terminal_brigade = NULL;
@@ -2293,7 +2293,7 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         return rc;
     }
 
-    conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+    conf = (const msc_conf_t *)ap_get_module_config(r->per_dir_config,
         &security3_module);
     if (conf == NULL)
     {

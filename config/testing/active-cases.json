@@ -40557,7 +40557,7 @@
     },
     {
       "path": "connectors/apache/src/msc_filters.c",
-      "sha256": "92ae93e73af19b35569934dd3d09d4a632bf65bd33877bf25a6f2cff9fd24a14"
+      "sha256": "2baf8337c00c767b40d3b7533529a5c45534d354e98814475c0a9618996a4266"
     },
     {
       "path": "connectors/envoy/Makefile",
