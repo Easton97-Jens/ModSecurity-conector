@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-  "on_demand_definition_count": 6200,
+  "inventory_sha256": "d940ac8b1b4777e2a690893486f222471b2af3371ffd4e6a96bb00e6e53638f7",
+  "on_demand_definition_count": 6209,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
   "sources": [
@@ -1732,11 +1732,14 @@
       "on_demand_definitions": [
         "tests.test_apache_apxs_profile_registry_staging.ApacheApxsProfileRegistryStagingTest.test_apxs_receives_staged_registry_and_cannot_dirty_canonical_checkout",
         "tests.test_apache_apxs_profile_registry_staging.ApacheApxsProfileRegistryStagingTest.test_refuses_a_profile_registry_build_root_inside_the_canonical_checkout",
+        "tests.test_apache_apxs_profile_registry_staging.ApacheApxsProfileRegistryStagingTest.test_failed_apxs_build_can_retry_under_the_same_external_root",
+        "tests.test_apache_apxs_profile_registry_staging.ApacheApxsProfileRegistryStagingTest.test_repeated_build_uses_a_fresh_stage_in_the_same_external_root",
         "tests.test_apache_apxs_profile_registry_staging.ApacheApxsProfileRegistryStagingTest.test_refuses_a_symlinked_build_root_before_it_can_create_checkout_content",
+        "tests.test_apache_apxs_profile_registry_staging.ApacheApxsProfileRegistryStagingTest.test_refuses_a_symlinked_connectors_child_before_copying_or_running_apxs",
         "tests.test_apache_apxs_profile_registry_staging.ApacheApxsProfileRegistryStagingTest.test_autotools_bootstrap_uses_a_private_stage_outside_its_source_snapshot"
       ],
       "source": "tests/test_apache_apxs_profile_registry_staging.py",
-      "source_sha256": "ffc2fa5115bd3c2d19d93560a3604e16ff584fde068e9ad0f7693465f1174de9"
+      "source_sha256": "93d536544d171cca3676da6ffd26718060f1dbc8a3d51f89dfd5f07c12b081f2"
     },
     {
       "contains_selected_definitions": [],
@@ -2831,7 +2834,7 @@
         "tests.test_bounded_nginx_cases.BoundedNginxCasesTests.test_case_group_is_terminated_on_native_timeout"
       ],
       "source": "tests/test_bounded_nginx_cases.py",
-      "source_sha256": "6db7aba23f0d42d389136eaa1863d9e9cdd7353945b23060ef14c7f2d899b0e5"
+      "source_sha256": "a8b3a9f5f30c4373e9bb6791c958cc5d089b79bced00b576f1e3857c70943509"
     },
     {
       "contains_selected_definitions": [],
@@ -3350,12 +3353,14 @@
         "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_tls_path_materializer_keeps_paths_data_in_yaml_and_sed",
         "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_tls_renderer_explicitly_accepts_control_free_paths",
         "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_authz_compat_runtime_uses_private_loopback_tls",
+        "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_authz_response_companion_profile_is_selected_and_complete",
+        "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_authz_protected_uri_cannot_be_overridden_by_request_headers",
         "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_envoy_smokes_reject_unsafe_root_without_tls_cleanup",
         "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_runtime_probe_keeps_cancellation_unattributed_and_nonpromoting",
         "tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_runtime_uses_an_unambiguous_allow_transaction"
       ],
       "source": "tests/test_envoy_transport_hardening_contract.py",
-      "source_sha256": "331f86e74214a649d3714e97214bf9f03b16b6d9e033919bf6e5a9c03068e6fd"
+      "source_sha256": "900f79e3cee66f92aea21e9a538de1807da2da1631852c929f45b3d9aa28f06a"
     },
     {
       "contains_selected_definitions": [],
@@ -5508,7 +5513,7 @@
         "tests.test_logical_connector_example_matrix.LogicalConnectorExampleMatrixTests.test_missing_companion_is_reported"
       ],
       "source": "tests/test_logical_connector_example_matrix.py",
-      "source_sha256": "513737455f38eff521c19c6b9d24ab7b31633dad2d6a22781bde0112daf2841e"
+      "source_sha256": "2de8d6df14688906df024feda9d8df95c15dcf7e5a3adfe3aa1addebc2bbedaf"
     },
     {
       "contains_selected_definitions": [],
@@ -9265,6 +9270,10 @@
       "on_demand_definitions": [
         "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_safe_followup_requires_the_same_http11_connection",
         "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_synchronized_safe_followup_observes_a_byte_before_upstream_eos",
+        "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_synchronized_safe_followup_rejects_same_length_payload_mutation",
+        "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_response_readers_require_one_canonical_content_length_and_no_te",
+        "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_upstream_fixture_request_requires_bounded_canonical_framing",
+        "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_upstream_fixture_write_rejects_a_short_write",
         "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_real_barrier_sidecar_and_strict_boundary_are_explicit",
         "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_p1_alternative_status_is_bound_to_a_real_host_transaction",
         "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_p1_allow_event_is_payload_free_and_selected_after_the_p4_barrier",
@@ -9272,7 +9281,7 @@
         "tests.test_traefik_transport_hardening_contract.TraefikTransportHardeningContractTest.test_first_byte_host_event_carries_the_exact_canonical_run_id"
       ],
       "source": "tests/test_traefik_transport_hardening_contract.py",
-      "source_sha256": "75055d1b01fb86b816a73865ec826dc8116acf580cc123e6839fb7153b337cbc"
+      "source_sha256": "4e6f366c62249fff77bf4740d01dbe02ffb36d79f89a8af32fe5265b068cdb01"
     },
     {
       "contains_selected_definitions": [

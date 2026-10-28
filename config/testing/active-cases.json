@@ -40657,7 +40657,7 @@
     },
     {
       "path": "connectors/envoy/harness/run_envoy_connector_runtime.sh",
-      "sha256": "66f68521380123c1399fd23f1b72111f57ae9f888813b1189dc699730d343b34"
+      "sha256": "fb539fb32fdf824b08701dcedd004775565ad8038f1fee64432f7ff4bb73fbb1"
     },
     {
       "path": "connectors/envoy/harness/run_envoy_ext_proc_runtime.sh",
@@ -41293,7 +41293,7 @@
     },
     {
       "path": "connectors/traefik/scripts/runtime_native_smoke.py",
-      "sha256": "4d9cad62e510939c074946ce6101f15b0679ddab0fd719f76b3fa202323ccc09"
+      "sha256": "a4674311d0b8cba2f39efa39a6a55f3d859524d5336f40269dfb8ca9f3252718"
     },
     {
       "path": "connectors/traefik/scripts/runtime_smoke.py",

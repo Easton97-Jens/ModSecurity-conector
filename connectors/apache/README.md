@@ -112,6 +112,13 @@ make
 test -f src/.libs/mod_security3.so
 ```
 
+Each APXS invocation stages the connector-owned profile-registry sources under
+the external `MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT`. If an earlier stage is
+already present, a fresh private rebuild child is used; symlinked stage roots
+or `connectors` children are rejected and earlier artifacts are not
+overwritten. This is build-input containment and does not establish runtime or
+production readiness.
+
 The expected module output is `src/.libs/mod_security3.so`. To validate the
 entire fresh-source route, run the focused check from the Parent root:
 

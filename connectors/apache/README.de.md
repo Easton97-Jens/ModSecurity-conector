@@ -116,6 +116,13 @@ make
 test -f src/.libs/mod_security3.so
 ```
 
+Jeder APXS-Aufruf stellt die connectoreigenen Profilregistrierungsquellen unter
+dem externen `MSCONNECTOR_PROFILE_REGISTRY_BUILD_ROOT` bereit. Wenn bereits
+eine frühere Stage vorhanden ist, wird ein frisches privates Rebuild-
+Unterverzeichnis verwendet; verlinkte Stage-Roots oder `connectors`-
+Unterverzeichnisse werden abgewiesen und frühere Artefakte nicht überschrieben.
+Dies begrenzt Build-Eingaben und belegt keine Laufzeit- oder Produktionsreife.
+
 Der erwartete Modulausgabepfad lautet `src/.libs/mod_security3.so`. Zur
 Validierung des vollständigen Frischquellpfads die fokussierte Prüfung vom
 Parent-Root ausführen:

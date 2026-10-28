@@ -77,8 +77,10 @@ die Nichtförderungsbedingungen stehen im
 
 ## Quelllayout
 
-- `src/envoy_ext_authz_service_main.c` definiert das Envoy-Hostprofil,
-  Original-URI-Header-Präferenzen und den Service-Einstiegspunkt.
+- `src/envoy_ext_authz_service_main.c` definiert das Envoy-Hostprofil und den
+  Service-Einstiegspunkt. Der Path des Authorization-Requests ist die
+  geschützte URI; nachgelagerte Original-URI-Hinweisheader können ihn nicht
+  überschreiben.
 - `src/envoy_modsecurity_mapper.c` enthält schlanke C17-Aufrufe an die
   generischen Common-Request- und Response-Mapper.
 - `config/envoy-ext-authz.conf` ist die eingecheckte Konfigurationsvorlage.
@@ -142,6 +144,13 @@ Loopback-HTTP-Dienst. Fehlende Binärdateien sind GESPERRT; Konfigurations-, Pro
 Zuordnungs- und Statusfehler lassen den Smoke fehlschlagen. Alle Prozesse werden bei
 Erfolg oder Misserfolg gestoppt.
 
+Wenn `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1` gesetzt und `RULES_FILE` nicht
+gesetzt ist, wählt der Runtime-Smoke
+`common/rules/modsecurity_response_companion_smoke.conf`. Ein explizites
+`RULES_FILE` bleibt unter Kontrolle des Betreibers. Das Ergebnis zeichnet
+`rules_file` und `rules_source` auf, damit die ausgewählte Policy-Eingabe nicht
+aus dem Ergebnis abgeleitet wird.
+
 Für einen vom Bediener gesteuerten Vordergrunddienst:
 
 ```sh
@@ -150,10 +159,11 @@ make -C connectors/envoy serve-envoy-connector \
   LISTEN_ADDRESS=127.0.0.1 LISTEN_PORT=18082
 ```
 
-Die Vorlagenkonfiguration ermöglicht die Anforderungsverarbeitung und verwendet `x-request-id` als Host
-Transaktions-ID-Header, begrenzt den Anforderungstext auf 4096 Bytes und deaktiviert den Antworttext
-Verarbeitung, verwendet 403/500-Block-/Fehler-Standardwerte, wendet explizite Header/Ereignisse an
-begrenzt und schreibt JSONL, das nur Metadaten enthält, außerhalb des Checkouts.
+Die Vorlagenkonfiguration ermöglicht die Anforderungsverarbeitung und verwendet
+`x-request-id` als Host-Transaktions-ID-Header, deaktiviert die
+Response-Body-Verarbeitung, verwendet 403/500-Block-/Fehler-Standardwerte,
+wendet explizite Header-/Ereignisgrenzen an und schreibt ausschließlich
+Metadaten enthaltendes JSONL außerhalb des Checkouts.
 
 Der unabhängige ext_proc-Volllebenszyklusdienst verfügt über eigene Befehle. Es ist
 Eine normale ausführbare Datei erfordert explizite libmodsecurity-Header und Bibliothekspfade:

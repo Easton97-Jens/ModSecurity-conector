@@ -76,6 +76,7 @@ d175b7c9352984200289d06566b0c70a335baa9b:ci/runtime/lifecycle/i12/nginx/evidence
 d175b7c9352984200289d06566b0c70a335baa9b:ci/runtime/lifecycle/i12/nginx/evidence-20261015.json:generic-api-key:21278
 d175b7c9352984200289d06566b0c70a335baa9b:ci/runtime/lifecycle/i12/nginx/evidence-20261015.json:generic-api-key:21279
 d175b7c9352984200289d06566b0c70a335baa9b:ci/runtime/lifecycle/i12/nginx/evidence-20261015.json:generic-api-key:21280
+dd7cd4a26862a6ee44cf466c2b636a652020e2d8:reports/audits/change-records/CR-20261003-pr370-composite-common-runtime.de.md:generic-api-key:38
 de348eec93721741a3eca6e945009fc4a7b3e979:connectors/traefik/harness/fixtures/i12_original_inventory.json:generic-api-key:15169
 de348eec93721741a3eca6e945009fc4a7b3e979:connectors/traefik/harness/fixtures/i12_original_inventory.json:generic-api-key:15185
 de348eec93721741a3eca6e945009fc4a7b3e979:connectors/traefik/harness/fixtures/i12_original_inventory.json:generic-api-key:15186

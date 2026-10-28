@@ -304,6 +304,8 @@ class BoundedNginxCasesTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), b"original")
 
     def test_committed_input_failure_stops_before_privileged_execution(self):
+        previous_umask = os.umask(0o077)
+        self.addCleanup(os.umask, previous_umask)
         with mock.patch.object(COORDINATOR.os, "geteuid", return_value=1001), mock.patch.dict(os.environ, {"EXPECTED_PARENT_SHA": "a" * 40}), mock.patch.object(COORDINATOR, "verify_committed_inputs", side_effect=COORDINATOR.CaseRunError("identity mismatch")), mock.patch.object(COORDINATOR.subprocess, "run") as execute:
             self.assertEqual(COORDINATOR.main(["--variant", "no-crs"]), 1)
             execute.assert_not_called()

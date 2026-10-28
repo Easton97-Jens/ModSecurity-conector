@@ -72,8 +72,9 @@ non-promotion conditions are documented in the
 
 ## Source layout
 
-- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, original
-  URI header preferences, and the service entry point.
+- `src/envoy_ext_authz_service_main.c` defines the Envoy host profile and the
+  service entry point. The authorization request Path is the protected URI;
+  downstream original-URI hint headers cannot override it.
 - `src/envoy_modsecurity_mapper.c` contains thin C17 calls to the Common generic
   request and response mappers.
 - `config/envoy-ext-authz.conf` is the checked-in configuration template.
@@ -135,6 +136,12 @@ loopback TLS listener. The local `ext_authz` sidecar remains an internal
 loopback HTTP service. Missing binaries are BLOCKED; config, process, mapping,
 and status errors fail the smoke. All processes are stopped on success or
 failure.
+
+When `MSCONNECTOR_RESPONSE_PHASE_SMOKE=1` and `RULES_FILE` is unset, the
+runtime smoke selects
+`common/rules/modsecurity_response_companion_smoke.conf`. An explicit
+`RULES_FILE` remains operator-owned. The result records `rules_file` and
+`rules_source` so the selected policy input is not inferred from the outcome.
 
 For an operator-controlled foreground service:
 

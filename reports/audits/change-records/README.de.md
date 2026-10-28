@@ -11,6 +11,15 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.de.md)
+  | English companion: `CR-20261001-pr370-refresh-relevance.md` — der vom
+  Benutzer autorisierte Current-Master-Refresh des bestehenden Draft-PR #370.
+  Er macht Master für Phase 4 maßgeblich, entfernt veraltete Qualifikations-/
+  API-Reste, erhält die engen APXS-, Envoy-, HAProxy- und Traefik-Korrekturen
+  und bindet lokale Evidence ohne G1–G9- oder Readiness-B-Behauptung. NGINX
+  folgt Master, erhält aber keine B-Qualifikationsanrechnung; Exact-Head-CI und
+  Sonar bleiben erforderlich.
+
 - [CR-20261013-pr382-consolidated](CR-20261013-pr382-consolidated.de.md) | English companion: `CR-20261013-pr382-consolidated.md` — vom Benutzer autorisierte Zusammenfassung der 122 in PR #382 hinzugefügten EN/DE-Paare; vollständige historische Evidence bleibt über unveränderliche Git-Links erhalten. Bestehende `origin/master`-Records bleiben erhalten; aktuelle Remediation und offene I12-Evidence werden getrennt ausgewiesen.
 
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)

@@ -26,9 +26,9 @@ class LogicalConnectorExampleMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             copytree(ROOT / "examples", root / "examples")
-            (root / "examples/haproxy/spoe-spop/minimal/spoa-agent.conf").unlink()
+            (root / "examples/haproxy/spoe-spop/safe/spoa-agent.conf").unlink()
             errors = CHECKER.logical_connector_example_errors(root)
-            matching_errors = [error for error in errors if "haproxy-spoe-spop/minimal" in error]
+            matching_errors = [error for error in errors if "haproxy-spoe-spop/safe" in error]
             self.assertEqual(len(matching_errors), 1)
             self.assertIn("spoa-agent.conf", matching_errors[0])
 

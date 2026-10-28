@@ -10,6 +10,14 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20261001-pr370-refresh-relevance](CR-20261001-pr370-refresh-relevance.md)
+  | [Deutsch](CR-20261001-pr370-refresh-relevance.de.md) — the user-authorized
+  current-master refresh of existing Draft PR #370. It makes master
+  authoritative for Phase 4, removes obsolete qualification/API remnants,
+  retains the narrow APXS, Envoy, HAProxy, and Traefik corrections, and binds
+  local evidence without claiming G1–G9 or readiness B. NGINX follows master
+  but receives no B qualification credit; exact-head CI/Sonar remain required.
+
 - [CR-20261013-pr382-consolidated](CR-20261013-pr382-consolidated.md) | [Deutsch](CR-20261013-pr382-consolidated.de.md) — user-authorized consolidation of the 122 EN/DE pairs added in PR #382; complete historical evidence remains available through immutable Git links. Existing `origin/master` records are retained; current remediation and open I12 evidence are recorded separately.
 
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)
