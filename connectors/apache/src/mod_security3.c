@@ -37,6 +37,16 @@ static int hook_log_transaction(request_rec *r);
 static void hook_insert_filter(request_rec *r);
 static int process_request_headers(request_rec *r, msc_t *msr);
 
+/* Apache configuration vectors carry mutable module state without treating it
+ * as a string value in the request's public notes table. */
+static msc_t *apache_request_context(const request_rec *r)
+{
+    if (r == NULL || r->request_config == NULL) {
+        return NULL;
+    }
+    return ap_get_module_config(r->request_config, &security3_module);
+}
+
 static uint64_t apache_contract_now_ms(void)
 {
     apr_time_t now = apr_time_now();
@@ -73,7 +83,6 @@ static int apache_header_table_metrics(const apr_table_t *headers,
 {
     const apr_array_header_t *entries;
     const apr_table_entry_t *header;
-    int index;
 
     if (headers == NULL || count == NULL || bytes == NULL) {
         return headers == NULL;
@@ -83,7 +92,7 @@ static int apache_header_table_metrics(const apr_table_t *headers,
         return 1;
     }
     header = (const apr_table_entry_t *)entries->elts;
-    for (index = 0; index < entries->nelts; ++index) {
+    for (int index = 0; index < entries->nelts; ++index) {
         size_t name_size = header[index].key == NULL ? 0U : strlen(header[index].key);
         size_t value_size = header[index].val == NULL ? 0U : strlen(header[index].val);
 
@@ -102,7 +111,7 @@ static int apache_header_table_metrics(const apr_table_t *headers,
 
 int msc_apache_contract_record_request_metadata(msc_t *msr, request_rec *r)
 {
-    msc_conf_t *conf;
+    const msc_conf_t *conf;
     size_t header_count = 0U;
     size_t header_bytes = 0U;
     const char *content_type;
@@ -345,10 +354,10 @@ void modsecurity_log_cb(void *log, const void* data)
     }
     msg = (const char *) data;
     request_rec *r = (request_rec *) log;
-    msc_conf_t *conf = NULL;
+    const msc_conf_t *conf = NULL;
     msc_t *msr = NULL;
 
-    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    msr = apache_request_context(r);
     rule_id[0] = '\0';
     if (msr != NULL && msr->native_event_phase_active &&
         (msr->native_event_phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
@@ -441,7 +450,7 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
     const ModSecurityIntervention *intervention)
 {
     msconnector_intervention common_intervention;
-    msc_conf_t *config = NULL;
+    const msc_conf_t *config = NULL;
     const char *log;
     const char *location = NULL;
     int status;
@@ -500,10 +509,10 @@ int process_intervention (Transaction *t, request_rec *r)
     int native_result;
     int result;
 
-    if (r == NULL || r->notes == NULL) {
+    if (r == NULL || r->request_config == NULL) {
         return HTTP_INTERNAL_SERVER_ERROR;
     }
-    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    msr = apache_request_context(r);
     if (msr == NULL || !msr->contract_initialized || t == NULL ||
         msr->t != t || r->pool == NULL) {
         return apache_record_failure(msr, r,
@@ -600,7 +609,7 @@ int msc_apache_cleanup()
  */
 static void store_tx_context(msc_t *msr, request_rec *r)
 {
-    apr_table_setn(r->notes, NOTE_MSR, (void *)msr);
+    ap_set_module_config(r->request_config, &security3_module, msr);
 }
 
 typedef enum apache_tx_context_result {
@@ -610,7 +619,7 @@ typedef enum apache_tx_context_result {
 } apache_tx_context_result;
 
 static int apache_transaction_id_from_expression(request_rec *r,
-    msc_conf_t *config, const char **transaction_id)
+    const msc_conf_t *config, const char **transaction_id)
 {
     const char *expr_error = NULL;
 
@@ -625,7 +634,7 @@ static int apache_transaction_id_from_expression(request_rec *r,
     return 1;
 }
 
-static int apache_resolve_transaction_id(request_rec *r, msc_conf_t *config,
+static int apache_resolve_transaction_id(request_rec *r, const msc_conf_t *config,
     const char **transaction_id, const char **failure_reason)
 {
     const char *resolved = NULL;
@@ -673,8 +682,8 @@ static int apache_store_transaction_id(msc_t *msr, request_rec *r,
         }
         msr->event_transaction_id = apr_pstrdup(r->pool, transaction_id);
     } else {
-        msr->event_transaction_id = apr_psprintf(r->pool, "%ld-%ld",
-            (long)r->request_time, (long)r->connection->id);
+        msr->event_transaction_id = apr_psprintf(r->pool, "%" APR_TIME_T_FMT "-%ld",
+            r->request_time, r->connection->id);
     }
     if (msr->event_transaction_id == NULL) {
         *failure_reason = "failed to allocate canonical transaction identifier";
@@ -687,8 +696,8 @@ static int apache_store_transaction_id(msc_t *msr, request_rec *r,
 static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,
     const char **failure_reason) {
     msc_t *msr = NULL;
-    msc_conf_t *z = NULL;
-    char *modsecurity_transaction_id = NULL;
+    const msc_conf_t *z = NULL;
+    const char *modsecurity_transaction_id = NULL;
     const char *transaction_id = NULL;
 
     if (out != NULL) {
@@ -698,6 +707,10 @@ static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,
         *failure_reason = "request transaction context construction failed";
     }
     if (out == NULL || failure_reason == NULL || r == NULL) {
+        return APACHE_TX_CONTEXT_RESULT_ERROR;
+    }
+    if (r->request_config == NULL) {
+        *failure_reason = "request module configuration is unavailable";
         return APACHE_TX_CONTEXT_RESULT_ERROR;
     }
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
@@ -793,7 +806,7 @@ static msc_t *retrieve_tx_context(request_rec *r) {
     request_rec *rx = NULL;
 
     /* Look in the current request first. */
-    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    msr = apache_request_context(r);
     if (msr != NULL)
     {
         msr->r = r;
@@ -803,7 +816,7 @@ static msc_t *retrieve_tx_context(request_rec *r) {
     /* If this is a subrequest then look in the main request. */
     if (r->main != NULL)
     {
-        msr = (msc_t *)apr_table_get(r->main->notes, NOTE_MSR);
+        msr = apache_request_context(r->main);
         if (msr != NULL)
         {
             msr->r = r;
@@ -815,7 +828,7 @@ static msc_t *retrieve_tx_context(request_rec *r) {
     rx = r->prev;
     while (rx != NULL)
     {
-        msr = (msc_t *)apr_table_get(rx->notes, NOTE_MSR);
+        msr = apache_request_context(rx);
         if (msr != NULL)
         {
             msr->r = r;
@@ -992,18 +1005,18 @@ static int hook_connection_early(conn_rec *conn)
 
 
 #if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER < 3
-static const char *msc_apache_client_ip(request_rec *r)
+static const char *msc_apache_client_ip(const request_rec *r)
 {
     return r->connection->remote_ip;
 }
 
 
-static int msc_apache_client_port(request_rec *r)
+static int msc_apache_client_port(const request_rec *r)
 {
     return r->connection->remote_addr->port;
 }
 #else
-static const char *msc_apache_client_ip(request_rec *r)
+static const char *msc_apache_client_ip(const request_rec *r)
 {
     if (r->useragent_ip != NULL) {
         return r->useragent_ip;
@@ -1013,7 +1026,7 @@ static const char *msc_apache_client_ip(request_rec *r)
 }
 
 
-static int msc_apache_client_port(request_rec *r)
+static int msc_apache_client_port(const request_rec *r)
 {
     if (r->useragent_addr != NULL) {
         return r->useragent_addr->port;
@@ -1034,12 +1047,15 @@ static int msc_apache_client_port(request_rec *r)
  * a transaction context.
  */
 static int hook_request_early(request_rec *r) {
+    (void)r;
+#ifdef REQUEST_EARLY
     /* This function needs to run only once per transaction
      * (i.e. subrequests and redirects are excluded).
      */
     if ((r->main != NULL) || (r->prev != NULL)) {
         return DECLINED;
     }
+#endif
 
     /* Initialise transaction context and
      * create the initial configuration.
@@ -1390,12 +1406,11 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
     {
         const apr_array_header_t *arr = NULL;
         const apr_table_entry_t *te = NULL;
-        int i;
         int it;
 
         arr = apr_table_elts(r->headers_in);
         te = (apr_table_entry_t *)arr->elts;
-        for (i = 0; i < arr->nelts; i++)
+        for (int i = 0; i < arr->nelts; i++)
         {
             const char *key = te[i].key;
             const char *val = te[i].val;
@@ -1509,17 +1524,17 @@ static void msc_register_hooks(apr_pool_t *pool)
     };
 
     /* Module initialization */
-    ap_hook_pre_config(msc_hook_pre_config, NULL, NULL, APR_HOOK_FIRST);
-    ap_hook_post_config(msc_hook_post_config, postconfig_beforeme_list,
+    ap_hook_pre_config(&msc_hook_pre_config, NULL, NULL, APR_HOOK_FIRST);
+    ap_hook_post_config(&msc_hook_post_config, postconfig_beforeme_list,
         postconfig_afterme_list, APR_HOOK_REALLY_LAST);
 
 
     /* Connection processing hooks - only global configuration. */
-    ap_hook_post_read_request(hook_request_early,
+    ap_hook_post_read_request(&hook_request_early,
         postread_beforeme_list, postread_afterme_list, APR_HOOK_REALLY_FIRST);
 
     /* still, we don't have location configuration yet. */
-    ap_hook_process_connection(hook_connection_early, NULL, NULL, APR_HOOK_FIRST);
+    ap_hook_process_connection(&hook_connection_early, NULL, NULL, APR_HOOK_FIRST);
 
     ap_hook_fixups(hook_request_late, fixups_beforeme_list, NULL, APR_HOOK_REALLY_FIRST);
 
@@ -1555,12 +1570,12 @@ static void msc_register_hooks(apr_pool_t *pool)
 module AP_MODULE_DECLARE_DATA security3_module =
 {
     STANDARD20_MODULE_STUFF,
-    msc_hook_create_config_directory,  // Per-directory configuration.
+    &msc_hook_create_config_directory,  // Per-directory configuration.
     msc_hook_merge_config_directory,   // Merge handler for per-directory.
     NULL,                              // Per-server conf handler.
     NULL,                              // Merge handler for per-server
                                        // configurations.
     module_directives,
-    msc_register_hooks,
+    &msc_register_hooks,
     AP_MODULE_FLAG_NONE
 };

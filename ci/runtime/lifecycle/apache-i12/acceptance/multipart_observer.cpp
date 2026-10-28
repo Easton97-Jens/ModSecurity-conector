@@ -118,7 +118,11 @@ std::string common(const modsecurity::Transaction *key, const std::string &id, c
     return out.str();
 }
 bool has_path_separator(std::string_view path) {
+#if defined(__cpp_lib_string_contains) && __cpp_lib_string_contains >= 202011L
+    return path.contains('/');
+#else
     return path.find('/') != std::string_view::npos;
+#endif
 }
 std::string path_metadata(int root, const std::string &directory, const std::string &path) {
     std::ostringstream out; out << R"({"path_fingerprint_fnv1a64":)" << json_quoted(fingerprint(path));

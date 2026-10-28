@@ -32,8 +32,8 @@ ngx_http_modsecurity_log_rule_match_event(ngx_http_request_t *r,
     enum msconnector_phase phase, const char *rule_id)
 {
     msconnector_event event;
-    ngx_http_modsecurity_ctx_t *ctx;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_conf_t *mcf;
     ngx_http_modsecurity_event_request_metadata_t request_metadata;
 
     if (r == NULL || !msconnector_rule_id_validate(rule_id)) {
@@ -88,8 +88,8 @@ ngx_http_modsecurity_log(void *log, const void* data)
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     const char *msg;
     ngx_http_request_t *r;
-    ngx_http_modsecurity_ctx_t *ctx;
-    ngx_http_modsecurity_conf_t *mcf;
+    const ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_conf_t *mcf;
 
     if (log == NULL || data == NULL) {
         return;
@@ -143,7 +143,7 @@ ngx_http_modsecurity_logging_failure(ngx_http_request_t *r,
 ngx_int_t
 ngx_http_modsecurity_log_handler(ngx_http_request_t *r)
 {
-    ngx_pool_t *old_pool;
+    ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
     ngx_http_modsecurity_ctx_t *ctx;
     int result;
     int contract_valid = 1;

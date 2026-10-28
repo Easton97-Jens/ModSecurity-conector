@@ -57,6 +57,7 @@ typedef unsigned char u_char;
 typedef long ngx_int_t;
 typedef unsigned long ngx_uint_t;
 typedef struct { int unused; } ngx_pool_t;
+typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { size_t len; u_char *data; } ngx_str_t;
 typedef struct { int fd; } ngx_open_file_t;
 typedef struct { int error; void *log; } connection_t;
@@ -156,7 +157,7 @@ static ngx_int_t ngx_http_modsecurity_engine_call_finish(ngx_http_request_t *r,
 }
 /* Keep successful completion observations separate from late-error writes. */
 static ngx_int_t ngx_http_modsecurity_phase4_log_native_completion(
-    ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf,
+    ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
     ngx_http_modsecurity_ctx_t *ctx, int result) {
     (void)r; (void)mcf;
     if (result != 1 || !ctx->native_response_body_eos || completions != 1) abort();
@@ -185,7 +186,7 @@ ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r) {
     return (ngx_http_modsecurity_event_request_metadata_t){"GET", "/case", "text/plain"};
 }
 static ngx_int_t ngx_http_modsecurity_write_phase_event_jsonl(ngx_http_request_t *r,
-    ngx_http_modsecurity_conf_t *mcf, const msconnector_event *event, const char *phase) {
+    const ngx_http_modsecurity_conf_t *mcf, const msconnector_event *event, const char *phase) {
     (void)r; (void)phase;
     if (mcf == NULL || mcf->phase4_log_file == NULL || mcf->phase4_log_file->fd < 0) {
         abort();

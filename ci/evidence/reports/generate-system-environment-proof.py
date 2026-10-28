@@ -163,7 +163,8 @@ def run(cmd: list[str], cwd: Path, timeout: int = 300) -> dict[str, Any]:
         rc = 127
         status = "missing"
     except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or "") + "\nTIMEOUT"
+        output = exc.stdout or ""
+        output += "\nTIMEOUT"
         rc = 124
         status = "timeout"
     finished_at = utc_now()
@@ -248,7 +249,8 @@ def load_framework_environment(connector_root: Path, framework_root: Path) -> di
             environment=base_env,
         )
     except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or b"") + b"\nTIMEOUT"
+        output = exc.stdout or b""
+        output += b"\nTIMEOUT"
         return framework_environment_result(
             framework_root,
             common_sh,
@@ -383,7 +385,8 @@ def run_common_helper(
             "output_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
         }
     except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or "") + "\nTIMEOUT"
+        output = exc.stdout or ""
+        output += "\nTIMEOUT"
         return {
             "return_code": 124,
             "status": "timeout",

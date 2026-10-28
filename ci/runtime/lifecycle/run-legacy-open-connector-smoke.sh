@@ -41,6 +41,7 @@ case "$connector" in
         selected_binary=$LIGHTTPD_BIN
         export LIGHTTPD_BIN
         ;;
+    *) echo "FAIL: unsupported legacy connector" >&2; exit 2 ;;
 esac
 
 set -- "$selected_binary" "$expected_binary"
@@ -71,4 +72,5 @@ case "$connector" in
     envoy) exec sh "$FRAMEWORK_ROOT/ci/runtime/run-envoy-smoke.sh" ;;
     traefik) exec sh "$FRAMEWORK_ROOT/ci/runtime/run-traefik-smoke.sh" ;;
     lighttpd) exec sh "$FRAMEWORK_ROOT/ci/runtime/run-lighttpd-smoke.sh" ;;
+    *) echo "FAIL: unsupported legacy connector" >&2; exit 2 ;;
 esac

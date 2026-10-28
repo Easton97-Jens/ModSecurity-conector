@@ -386,6 +386,12 @@ void write_success_json(
 struct RuleErrorCleanup {
     const char *value = nullptr;
 
+    RuleErrorCleanup() = default;
+    RuleErrorCleanup(const RuleErrorCleanup &) = delete;
+    RuleErrorCleanup &operator=(const RuleErrorCleanup &) = delete;
+    RuleErrorCleanup(RuleErrorCleanup &&) = delete;
+    RuleErrorCleanup &operator=(RuleErrorCleanup &&) = delete;
+
     ~RuleErrorCleanup() {
         if (value != nullptr) {
             modsecurity::msc_rules_error_cleanup(value);
@@ -407,12 +413,12 @@ using TransactionHandle = std::unique_ptr<
 
 int main(int argc, char **argv) {
     const EvaluatorOptions options = parse_options(parse_args(argc, argv));
-    const std::string option_error = invalid_option_message(options);
-    if (!option_error.empty()) {
+    if (const std::string option_error = invalid_option_message(options);
+            !option_error.empty()) {
         return fail_json(option_error);
     }
 
-    const ModSecurityHandle modsec(modsecurity::msc_init(), modsecurity::msc_cleanup);
+    const ModSecurityHandle modsec(modsecurity::msc_init(), &modsecurity::msc_cleanup);
     if (modsec == nullptr) {
         return fail_json("msc_init failed");
     }
@@ -421,7 +427,7 @@ int main(int argc, char **argv) {
     const std::string whoami = who == nullptr ? "unknown" : who;
 
     const RulesSetHandle rules(
-        modsecurity::msc_create_rules_set(), modsecurity::msc_rules_cleanup);
+        modsecurity::msc_create_rules_set(), &modsecurity::msc_rules_cleanup);
     if (rules == nullptr) {
         return fail_json("msc_create_rules_set failed");
     }
@@ -439,7 +445,7 @@ int main(int argc, char **argv) {
 
     const TransactionHandle tx(
         modsecurity::msc_new_transaction(modsec.get(), rules.get(), nullptr),
-        modsecurity::msc_transaction_cleanup);
+        &modsecurity::msc_transaction_cleanup);
     if (tx == nullptr) {
         return fail_json("msc_new_transaction failed");
     }

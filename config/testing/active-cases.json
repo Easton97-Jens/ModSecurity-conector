@@ -39589,7 +39589,7 @@
     },
     {
       "path": "ci/provisioning/components/prepare-runtime-components.py",
-      "sha256": "b63354c88dc5671b04ffa15ac12853f48f70b5fa2713d1458c2d0c11008c7aad"
+      "sha256": "9e20fc42cc0c228c3c534356e4708d12e98c8f600a0c8d5f38d811d8d8ebe4eb"
     },
     {
       "path": "ci/requirements/update-submodules-validation-linux-x86_64.txt",
@@ -39993,7 +39993,7 @@
     },
     {
       "path": "ci/tools/sync-framework-component-versions.py",
-      "sha256": "454a0e67653a080ff0a072c7ce5719a94a4bebeef57a9246fcfb6b8e5d98bb9e"
+      "sha256": "9292dcda495589372c3d47571312738e0f67f6efe70d7d61685019a7628b34ca"
     },
     {
       "path": "ci/tools/sync-project-versions.py",
@@ -40005,7 +40005,7 @@
     },
     {
       "path": "ci/tools/validate-submodule-candidate-state.py",
-      "sha256": "2cb59d507f83ef41c4134107726d374bcb4e568c25c4c7e9b4b6fb5196379a95"
+      "sha256": "a8da8d27da4c07f88c5a6e4000185753c371aa968c8ee70f604c736c306e90bf"
     },
     {
       "path": "ci/tools/verify-framework-candidate-contract.py",
@@ -40301,7 +40301,7 @@
     },
     {
       "path": "common/scripts/modsecurity_targeted_eval.cc",
-      "sha256": "f0def448dba5107735c75262ae7568aec1fd2a6de18355902120c0d74b0afb18"
+      "sha256": "5ca6eac5298e533c8264451188e6ad1a872ff7905e39a4abb1b62378dc7a7336"
     },
     {
       "path": "common/src/adapter.c",
@@ -40549,15 +40549,15 @@
     },
     {
       "path": "connectors/apache/src/mod_security3.c",
-      "sha256": "f35278aa221d98e57316fb6b37369e32e79031624fabc7b1f818fb62abb4ab26"
+      "sha256": "76b7a71f38fa8dbea33ddf390f460e9d2442b55cc46973444210f38757fe34a9"
     },
     {
       "path": "connectors/apache/src/msc_config.c",
-      "sha256": "da03118d339e2065a7f4a8f39b010feb0739fcbbfa5a9fbb4968d988da480773"
+      "sha256": "4092a74b42a7a34c2eab090a586fa8b2b6e0cd68b966066c2ca0d143549be000"
     },
     {
       "path": "connectors/apache/src/msc_filters.c",
-      "sha256": "0a06095e676c5cb3e1077c13c5bd189748018358c077959c79ff27be799fc146"
+      "sha256": "2baf8337c00c767b40d3b7533529a5c45534d354e98814475c0a9618996a4266"
     },
     {
       "path": "connectors/envoy/Makefile",
@@ -40933,7 +40933,7 @@
     },
     {
       "path": "connectors/lighttpd/module/mod_msconnector.c",
-      "sha256": "b7b40fe87020c74e13a655381492ec57464053aad4b317ca91a3beb8f937891d"
+      "sha256": "4475833c63d660b169a31575500e45a3f8a973ccdeac260bf3fbac5f43a2deba"
     },
     {
       "path": "connectors/lighttpd/tests/test_stock_sidecar_contract.py",
@@ -41353,7 +41353,7 @@
     },
     {
       "path": "scripts/version_updater_common.py",
-      "sha256": "a5498046cfaaed82f46a9cc2f8f255e29fe98bfa81ec055fbe9b9951dcfd7ef9"
+      "sha256": "990e4ea8c95ee0063a7171e6aef0c05684f46bb9920bc7cdbe6bb69f6eead604"
     },
     {
       "path": "sonar-project.properties",
@@ -41429,7 +41429,7 @@
     },
     {
       "path": "tests/test_apache_native_lifecycle.py",
-      "sha256": "50f114de26fe121dc3ec50b7ca22ae7112e67c3d3dfadbe8fea4913a481c4ccc"
+      "sha256": "57b50fd8518f1258f0ee50029ccb44812605d26d6b40f44e1a3cc6b28b168ffe"
     },
     {
       "path": "tests/test_apr_util_static_contract.py",
@@ -41565,7 +41565,7 @@
     },
     {
       "path": "tests/test_native_sonar_null_guards.py",
-      "sha256": "61e47d51e45b200dd8993ab67a469bd7163c68ececf27a7c8032dacc27a2ff27"
+      "sha256": "1ea4843706fac13a5b4fd157e482e3bea84f47d2686e5e5d729473db5506b06a"
     },
     {
       "path": "tests/test_nginx_exact_head_diagnostics.py",
@@ -41593,7 +41593,7 @@
     },
     {
       "path": "tests/test_nginx_request_native_results.py",
-      "sha256": "bb53bbd3e5e031bd92def96d4f835389c4004959d15920b8cdde2100afe710e9"
+      "sha256": "53cbfb13ad1df864c133ff3c9fc518a628334e8cad560abed0d5b50374405c53"
     },
     {
       "path": "tests/test_nginx_root_broker.py",
@@ -41693,7 +41693,7 @@
     },
     {
       "path": "tests/test_update_framework_versions.py",
-      "sha256": "65629d0274d00f4bab1d389dc9fefbdadc68a6ab94be2e8a0713587b9f0efbc9"
+      "sha256": "02da8de5533acf339190a295b23fbc3d922fcd212817f0f204ab3101d42f5e8f"
     },
     {
       "path": "tests/test_update_go_components.py",

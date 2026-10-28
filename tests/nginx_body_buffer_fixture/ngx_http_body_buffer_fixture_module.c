@@ -51,7 +51,7 @@ static ngx_int_t ngx_http_body_buffer_fixture_plan_lengths(
     const ngx_str_t *mode, size_t *memory_length, off_t *file_length);
 static ngx_int_t ngx_http_body_buffer_fixture_prepare_files(
     ngx_http_request_t *r,
-    ngx_http_body_buffer_fixture_loc_conf_t *conf,
+    const ngx_http_body_buffer_fixture_loc_conf_t *conf,
     ngx_file_t **file);
 extern ngx_module_t ngx_http_body_buffer_fixture_module;
 
@@ -394,7 +394,7 @@ ngx_http_body_buffer_fixture_plan_lengths(const ngx_str_t *mode,
 
 static ngx_int_t
 ngx_http_body_buffer_fixture_prepare_files(ngx_http_request_t *r,
-    ngx_http_body_buffer_fixture_loc_conf_t *conf, ngx_file_t **file)
+    const ngx_http_body_buffer_fixture_loc_conf_t *conf, ngx_file_t **file)
 {
     ngx_file_t *short_file = NULL;
     ngx_http_body_buffer_fixture_request_ctx_t *fixture_ctx;
@@ -420,7 +420,7 @@ ngx_http_body_buffer_fixture_prepare_files(ngx_http_request_t *r,
             return NGX_ERROR;
         }
         fixture_ctx->short_file = short_file;
-        ngx_http_set_ctx(r, fixture_ctx, ngx_http_body_buffer_fixture_module);
+        ngx_http_set_ctx(r, fixture_ctx, ngx_http_body_buffer_fixture_module)
     }
 
     return NGX_OK;
@@ -528,21 +528,20 @@ ngx_http_body_buffer_fixture_set_mode(ngx_conf_t *cf, ngx_command_t *cmd,
 {
     ngx_http_body_buffer_fixture_loc_conf_t *fixture = conf;
     ngx_http_core_loc_conf_t *core;
-    ngx_str_t *value;
+    const ngx_str_t *value;
     const char *allowed[] = {
         "memory-within", "memory-over-limit", "file-within",
         "file-over-limit", "mixed-within", "mixed-over-limit",
         "invalid-metadata", "missing-source", "read-error", "short-read",
         "allocation-failure", NULL
     };
-    ngx_uint_t index;
 
     (void) cmd;
     if (fixture->mode.data != NULL) {
         return "is duplicate";
     }
     value = cf->args->elts;
-    for (index = 0U; allowed[index] != NULL; index++) {
+    for (ngx_uint_t index = 0U; allowed[index] != NULL; index++) {
         if (ngx_http_body_buffer_fixture_mode_is(&value[1], allowed[index])) {
             fixture->mode = value[1];
             core = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);

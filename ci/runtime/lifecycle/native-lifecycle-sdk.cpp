@@ -35,7 +35,12 @@ extern "C" int msconnector_lifecycle_sdk_transaction_id(
     /* The version rejection above precedes every Transaction dereference. */
     const auto *native = static_cast<const modsecurity::Transaction *>(transaction);
     const std::string &id = native->m_id;
-    if (id.empty() || id.size() >= capacity || id.find('\0') != std::string::npos)
+#if defined(__cpp_lib_string_contains) && __cpp_lib_string_contains >= 202011L
+    if (const bool embedded_nul = id.contains('\0');
+#else
+    if (const bool embedded_nul = id.find('\0') != std::string::npos;
+#endif
+        id.empty() || id.size() >= capacity || embedded_nul)
         return restore_errno(saved, -1);
     std::memcpy(output, id.data(), id.size());
     output[id.size()] = '\0';

@@ -15,15 +15,13 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, TextIO, TypeVar
+from typing import Callable, TextIO
 
 
 MAX_METADATA_BYTES = 2 * 1024 * 1024
 MAX_VERSION_FILE_BYTES = 64
 NETWORK_TIMEOUT_SECONDS = 15
 _UNSET = object()
-
-VersionT = TypeVar("VersionT")
 
 
 class UpdaterError(RuntimeError):
@@ -256,7 +254,7 @@ def version_target(root: Path, version_filename: str) -> Path:
     return target
 
 
-def read_current_version_with_stat(
+def read_current_version_with_stat[VersionT](
     root: Path,
     *,
     version_filename: str,
@@ -310,7 +308,7 @@ def read_current_version_with_stat(
     return parse_stable_version(text), opened_stat
 
 
-def read_current_version(
+def read_current_version[VersionT](
     root: Path,
     *,
     version_filename: str,
@@ -326,7 +324,7 @@ def read_current_version(
     return current
 
 
-def atomic_update_version(
+def atomic_update_version[VersionT](
     root: Path,
     current: VersionT,
     resolved: VersionT,
@@ -587,7 +585,7 @@ def maintenance_companion_updates(root: Path, proposed: dict[str, bytes]) -> lis
         raise TargetError("maintenance inventory companions cannot be derived safely") from error
 
 
-def execute_update(
+def execute_update[VersionT](
     mode: str,
     *,
     root: Path | None,
