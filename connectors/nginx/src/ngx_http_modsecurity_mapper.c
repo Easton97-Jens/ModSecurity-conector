@@ -152,18 +152,32 @@ static char *ngx_http_modsecurity_request_hostname(ngx_pool_t *pool, ngx_http_re
 
 int ngx_http_modsecurity_map_request(ngx_http_request_t *r,
     const msconnector_request_mapper_contract *contract, msconnector_request *out,
-    char *error, size_t error_len)
+    ngx_int_t *failure_status, char *error, size_t error_len)
 {
     msconnector_header *headers = NULL;
     size_t header_count = 0U;
     ngx_str_t local;
 
+    /* Invalid mapped state and pool/API failures are server errors. Only a
+     * separately measured client header-count limit selects Bad Request. */
+    if (failure_status != NULL) {
+        *failure_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     if (r == NULL || out == NULL || contract == NULL) {
         ngx_http_modsecurity_mapper_error(error, error_len, "request mapper arguments are required");
         return 0;
     }
 
     msconnector_request_init(out);
+    if (contract->max_header_count > 0U &&
+        ngx_http_modsecurity_count_list_headers(&r->headers_in.headers) >
+            contract->max_header_count) {
+        if (failure_status != NULL) {
+            *failure_status = NGX_HTTP_BAD_REQUEST;
+        }
+        ngx_http_modsecurity_mapper_error(error, error_len, "too many headers");
+        return 0;
+    }
     if (!ngx_http_modsecurity_copy_headers(r->pool, &r->headers_in.headers, 0U, &headers, &header_count)) {
         ngx_http_modsecurity_mapper_error(error, error_len, "request header allocation failed");
         return 0;
@@ -174,7 +188,8 @@ int ngx_http_modsecurity_map_request(ngx_http_request_t *r,
     out->http_version = ngx_http_modsecurity_http_version(r->pool, r);
     out->hostname = ngx_http_modsecurity_request_hostname(r->pool, r, headers, header_count);
     out->client.address = ngx_http_modsecurity_pool_strndup(r->pool, r->connection->addr_text.data, r->connection->addr_text.len);
-    if (out->method == NULL || out->uri == NULL || out->http_version == NULL || out->client.address == NULL) {
+    if (out->method == NULL || out->uri == NULL || out->http_version == NULL || out->client.address == NULL ||
+        (msconnector_headers_find_first(headers, header_count, "host") != NULL && out->hostname == NULL)) {
         ngx_http_modsecurity_mapper_error(error, error_len, "request string allocation failed");
         return 0;
     }

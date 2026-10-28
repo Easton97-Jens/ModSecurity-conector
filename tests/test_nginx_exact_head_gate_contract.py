@@ -3,6 +3,8 @@ import unittest
 
 import yaml
 
+from tests.test_ci_security_workflows import locked_action_reference_with_version
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -10,7 +12,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class NginxExactHeadGateContractTest(unittest.TestCase):
     def test_workflow_pins_nginx_and_runs_gate(self):
         workflow = (ROOT / ".github/workflows/test-nginx-exact-head.yml").read_text()
-        self.assertIn("runs-on: ubuntu-24.04", workflow)
+        self.assertIn("runs-on: ubuntu-26.04", workflow)
         parsed = yaml.safe_load(workflow)
         self.assertEqual(parsed["permissions"], {})
         self.assertEqual(
@@ -103,12 +105,13 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         ):
             self.assertIn(f"-u {override}", workflow)
             self.assertEqual(workflow.count(f"-u {override}"), 1)
-        self.assertIn("run_github_hosted_functional_a.py", workflow)
         self.assertIn("NGINX_HOSTED_FUNCTIONAL_A=1", workflow)
         self.assertIn("with-runtime-components.sh", workflow)
-        runtime_step = workflow.split(
-            "      - name: Run isolated modsecurity_use_error_log on/off cells", 1
-        )[1]
+        runtime_step = next(
+            step["run"]
+            for step in parsed["jobs"]["nginx-exact-head"]["steps"]
+            if step.get("name") == "Run isolated modsecurity_use_error_log on/off cells"
+        )
         self.assertIn(
             'NGINX_FUNCTIONAL_WORKER_USER="$NGINX_FUNCTIONAL_WORKER_USER"',
             runtime_step,
@@ -119,37 +122,64 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         )
         self.assertIn('RUN_ROOT="$RUN_ROOT"', runtime_step)
         self.assertIn('NATIVE_FIXTURE_ROOT="$NATIVE_FIXTURE_ROOT"', runtime_step)
-        for fixture_argument in (
-            "tests/run_nginx_body_buffer_fixture.py",
-            '--connector-root "$CONNECTOR_ROOT"',
-            '--expected-head "$EXPECTED_PARENT_SHA"',
-            '--nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.6.tar.gz"',
-            '--nginx-sha256 "$NGINX_SHA256"',
-            '--modsecurity-include "$MODSECURITY_INCLUDE_DIR"',
-            '--modsecurity-lib "$MODSECURITY_LIB_DIR"',
-            '--output-root "$NATIVE_FIXTURE_ROOT"',
-        ):
-            self.assertIn(fixture_argument, runtime_step)
+        inventory_command = "/usr/bin/python3 ci/tools/run-active-tests.py --group nginx-hosted"
+        self.assertEqual(runtime_step.count(inventory_command), 1)
+        self.assertTrue(runtime_step.endswith(inventory_command + "\nRUNTIME_FIXTURE\n"))
+        self.assertNotIn("run_github_hosted_functional_a.py", runtime_step)
+        self.assertNotIn("run_exact_head_use_error_log.sh", runtime_step)
+        self.assertNotIn("run_nginx_body_buffer_fixture.py", runtime_step)
+        self.assertNotIn("continue-on-error", workflow)
+        self.assertNotIn("|| true", runtime_step)
+        import json
+
+        inventory = json.loads((ROOT / "config/testing/active-cases.json").read_text())
+        hosted = [
+            execution
+            for section in ("executions", "offline_unit_exceptions")
+            for execution in inventory.get(section, [])
+            if "nginx-hosted" in execution["groups"]
+        ]
+        self.assertEqual(len(hosted), 1)
+        self.assertEqual(hosted[0]["id"], "runtime.nginx.phase4-callback")
+        self.assertEqual(hosted[0]["groups"], ["nginx-hosted"])
+        self.assertEqual(
+            hosted[0]["selector"],
+            {
+                "kind": "native",
+                "script": "connectors/nginx/harness/run-active-functional-a.sh",
+                "args": [],
+            },
+        )
+        self.assertEqual(
+            [case["id"] for case in hosted[0]["cases"]],
+            ["runtime.nginx.phase4-callback.on", "runtime.nginx.phase4-callback.off"],
+        )
+        self.assertEqual(
+            set(hosted[0]["sources"]),
+            {
+                "ci/runtime/lifecycle/write-nginx-functional-a-evidence.py",
+                "connectors/nginx/harness/run-active-functional-a.sh",
+                "connectors/nginx/harness/run_exact_head_use_error_log.sh",
+                "connectors/nginx/harness/run_github_hosted_functional_a.py",
+            },
+        )
+        self.assertEqual(
+            (ROOT / hosted[0]["selector"]["script"]).read_text(),
+            "#!/bin/sh\n"
+            "# Exactly two inventoried host cases: Phase-4 callback enabled and disabled.\n"
+            "set -eu\n"
+            'SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)\n'
+            "NGINX_FUNCTIONAL_SCOPE=selected-phase4\n"
+            "export NGINX_FUNCTIONAL_SCOPE\n"
+            'exec /usr/bin/python3 -I "$SCRIPT_DIR/run_github_hosted_functional_a.py"\n',
+        )
         self.assertNotIn('$RUN_ROOT/native-nginx-body-buffer-fixture', workflow)
-        fixture_upload = workflow.split(
-            "      - name: Upload native NGINX body-buffer fixture evidence", 1
-        )[1]
-        self.assertIn("if: success()", fixture_upload)
-        self.assertIn(
-            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
-            fixture_upload,
-        )
-        self.assertIn(
-            "${{ env.NATIVE_FIXTURE_ROOT }}/**/evidence/result.json",
-            fixture_upload,
-        )
-        self.assertIn("if-no-files-found: error", fixture_upload)
         functional_upload = workflow.split(
             "      - name: Upload bounded NGINX Functional-A evidence", 1
-        )[1].split("      - name: Upload native NGINX body-buffer fixture evidence", 1)[0]
+        )[1]
         self.assertIn("if: success()", functional_upload)
         self.assertIn(
-            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            locked_action_reference_with_version("actions/upload-artifact"),
             functional_upload,
         )
         self.assertIn(
@@ -289,6 +319,13 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn('MODSECURITY_RUNTIME_LIBRARY="$NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY"', harness)
         self.assertIn("hosted functional-A runtime library must not be a symlink", harness)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

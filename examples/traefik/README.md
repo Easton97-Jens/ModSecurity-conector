@@ -2,17 +2,6 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Start here
-
-Traefik has two logical solutions. `traefik-native-uds` is the direct native
-middleware route with a local private engine service. `traefik-forwardauth`
-uses forwardAuth for request phases and requires its private response observer
-for P3/P4.
-
-For a first configuration, start with the matching `safe` bundle. Keep UDS
-directories private, keep listeners local unless exposure is intentional, and
-do not treat forwardAuth by itself as response-phase coverage.
-
 ## Integration and boundary
 
 Integration mode: repository-owned native Traefik local plugin plus a persistent
@@ -72,7 +61,7 @@ adapted.
 | entryPoints.web.address | Listener address string | Required; explicit static value; Traefik static scope | :8080. A public bind changes exposure. |
 | providers.file.filename | Dynamic configuration file path relative to Traefik working directory | Required; explicit static value; File Provider scope | ./traefik-dynamic.yaml. Copy the Safe dynamic file to this resolved location. |
 | router rule and service URL | Request matcher and upstream URL | Required; dynamic configuration; router/service scope | PathPrefix for all paths and http://127.0.0.1:8081. Restrict routes and replace endpoint for deployment. |
-| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, maxRequestBodyBytes, requestBodyIdleTimeoutMillis, maxResponseChunkBytes | Positive plugin limits | Required; dynamic configuration; middleware scope | 128, 65536, 32768, 1048576, 1000, 32768. `maxRequestBodyBytes` caps aggregate body size and `requestBodyIdleTimeoutMillis` caps inactivity; keep both bounds. |
+| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, requestBodyIdleTimeoutMillis, maxResponseChunkBytes | Header, individual chunk and inactivity controls | Dynamic configuration; middleware scope | 128, 65536, 32768, 1000, 32768. Chunk buffers are reused; the native engine alone selects inspection limits and actions. |
 | transactionIDHeader | HTTP correlation header name | Required; dynamic configuration; middleware scope | X-Request-Id. It is metadata, not a secret. |
 | engineMode | Native engine mode: uds only | Required; dynamic configuration; middleware scope | uds. Any legacy passthrough value is rejected. |
 | engineSocketPath | Absolute private Unix socket path | Required; dynamic configuration; middleware scope | /run/traefik-msconnector/engine.sock. The parent directory must be access-controlled and owned by the trusted service. |

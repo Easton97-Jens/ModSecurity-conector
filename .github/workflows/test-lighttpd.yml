@@ -10,7 +10,7 @@ jobs:
   lighttpd-contract:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -27,6 +27,44 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install and locate the actual Stock-sidecar development prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config bison flex libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+      - name: Build the Framework-approved shared ModSecurity SDK
+        env:
+          PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP" <<'PY'
+          from pathlib import Path
+          import sys
+          from ci.lib.active_test_inventory import validate_output_root
+          validate_output_root(Path.cwd(), Path(sys.argv[1]))
+          PY
+          umask 077
+          sdk_root=$(mktemp -d "$RUNNER_TEMP/selected-modsecurity-sdk.XXXXXXXX")
+          env \
+            VERIFIED_RUN_ROOT="$sdk_root" \
+            BUILD_ROOT="$sdk_root/build" \
+            SOURCE_ROOT="$sdk_root/src" \
+            TMP_ROOT="$sdk_root/tmp" \
+            LOG_ROOT="$sdk_root/logs" \
+            CACHE_ROOT="$sdk_root/cache-v2" \
+            CONNECTOR_COMPONENT_CACHE="$sdk_root/cache-v2/shared" \
+            RUNTIME_REPORT_OUTPUT_ROOT="$sdk_root/build/runtime-component-reports" \
+            RUNTIME_COMPONENT_TARGET=shared \
+            ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 \
+            /bin/sh ci/provisioning/cache/with-runtime-components.sh \
+            /bin/sh -eu -s <<'SDK_EXPORT'
+              test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+              test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+              printf "%s\n" \
+                "MODSECURITY_INCLUDE_DIR=$MODSECURITY_INCLUDE_DIR" \
+                "MODSECURITY_LIB_DIR=$MODSECURITY_LIB_DIR" \
+                "MODSECURITY_LIB_FILE=$MODSECURITY_LIB_DIR/libmodsecurity.so" >> "$GITHUB_ENV"
+          SDK_EXPORT
       - name: Check lighttpd Common and host contracts
         run: |
           set -eu
@@ -35,7 +73,12 @@ jobs:
           make check-remaining-connectors-build-wiring
           make check-remaining-connectors-start-wiring
           make check-remaining-connectors-claim-policy
-          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_trusted_lighttpd_namespace_dispatch_workflow
+          python3 ci/tools/run-active-tests.py --group lighttpd --strict-skips
+      - name: Execute lighttpd technical-error callers and negative controls
+        env:
+          TMPDIR: ${{ runner.temp }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: make check-i10-lighttpd-callers
       - name: Run private fixture namespace contract tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"
@@ -44,4 +87,4 @@ jobs:
           namespace_temp_root="$(/usr/bin/mktemp -d "${RUNNER_TEMP}/lighttpd-namespace-contract.XXXXXX")"
           /usr/bin/chmod 700 -- "$namespace_temp_root"
           export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"
-          python3 -m unittest -v connectors.lighttpd.tests.test_no_crs_fixture_namespace
+          python3 ci/tools/run-active-tests.py --group lighttpd --strict-skips

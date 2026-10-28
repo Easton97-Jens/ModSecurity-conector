@@ -2,16 +2,6 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Start here
-
-HAProxy has two logical solutions. Use native `haproxy-htx` when you want the
-direct HTX filter route; use `haproxy-spoe-spop` only when you intentionally
-want the request-side SPOE/SPOP path together with its mandatory native HTX
-response companion.
-
-For a first configuration, choose the matching `safe` bundle. Do not treat the
-historical SPOE compatibility files as a complete P1–P4 solution.
-
 ## Integration and boundary
 
 Integration mode: native HTX filter. The native [off](off/haproxy-htx.cfg)
@@ -137,13 +127,12 @@ socket/log paths. All applicable bounded parameters remain visible:
 | Parameter | Checked-in value | Boundary |
 | --- | ---: | --- |
 | `tune.bufsize` / `max-frame-size` | 65536 / 65532 | HAProxy and SPOE request bounds |
-| `request-body-limit` / `response-body-limit` | 65532 / 65532 | request and MRC1 response bounds |
 | `response-body-timeout` / `spoe-timeout` | 2000 / 2000 ms | companion and agent timeout |
 | `max-transactions` / `worker-count` | 64 / 8 | bounded state, deterministic ownership, and peer isolation |
 | `response-companion-uid/gid` | 1000 / 1000 | must equal the agent process identity |
 
 The `response-companion=native-htx` setting, private UDS, matching UID/GID,
-non-zero response-body limit, EOS, and timeout controls are mandatory startup
+bounded protocol frames, EOS, and timeout controls are mandatory startup
 requirements. Missing correlation or companion failure is fail-closed and
 cleaned up; no native transaction pointer crosses the UDS. The private UDS
 path is an example and must be changed together with the service identity.
@@ -187,7 +176,7 @@ for a response-capable logical connector.
 | max-frame-size | Positive SPOE frame byte limit | Required; spoe-modsecurity.conf; agent scope | 65532. It bounds a frame; it does not create P4 body support. |
 | rules-file | Readable agent rules file | Required; modsecurity-agent.conf; SPOA scope | /etc/modsecurity/haproxy-rules.conf. A reviewed ruleset can block traffic. |
 | decision-log, audit-log, log-file | Writable process log paths | decision-log required; others optional; SPOA scope | /var/log/haproxy-modsecurity. Protect metadata and do not log secrets. |
-| response-body-limit and response-body-timeout | Compatibility response-body controls | Explicitly disabled; SPOA scope | 0 and 0. They must not be presented as P4 support. |
+| response-body-timeout | Compatibility response-body controls | Explicitly disabled; SPOA scope | 0. They must not be presented as P4 support. |
 
 The SPOP address 127.0.0.1:12345, HAProxy listener 127.0.0.1:8080, upstream
 127.0.0.1:8081, and /etc or /var/log paths are host examples, not

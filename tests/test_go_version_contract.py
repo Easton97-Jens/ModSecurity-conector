@@ -39,6 +39,7 @@ def go_job(
     setup_reference: str | None = None,
     selector: str = "file",
     extra_with_lines: tuple[str, ...] = (),
+    cache_with_lines: tuple[str, ...] = (),
 ) -> str:
     reference = checker.SETUP_GO_REFERENCE if setup_reference is None else setup_reference
     version_line = (
@@ -47,15 +48,16 @@ def go_job(
         else "          go-version: '1.27.0'"
     )
     extra_lines = "".join(f"          {line}\n" for line in extra_with_lines)
+    cache_lines = "".join(f"          {line}\n" for line in cache_with_lines)
     return f'''  {name}:
     needs: trusted-go-version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: {reference}
         with:
 {version_line}
 {extra_lines}          check-latest: false
-'''
+{cache_lines}'''
 
 
 class GoVersionContractTests(unittest.TestCase):
@@ -73,7 +75,7 @@ class GoVersionContractTests(unittest.TestCase):
 
     def valid_workflow(self) -> str:
         trusted = '''  trusted-go-version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -143,6 +145,62 @@ class GoVersionContractTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["violations"], [])
+
+    def cached_workflow(self, job_name: str) -> str:
+        cache_lines = {
+            "envoy-go": (
+                "cache-dependency-path: |",
+                "  connectors/envoy/ext_proc/go.mod",
+                "  connectors/envoy/ext_proc/go.sum",
+            ),
+            "traefik-go": (
+                "cache-dependency-path: connectors/traefik/native_middleware/go.mod",
+            ),
+        }
+        return self.valid_workflow().replace(
+            go_job(job_name), go_job(job_name, cache_with_lines=cache_lines[job_name])
+        )
+
+    def test_reviewed_job_specific_cache_paths_are_accepted(self) -> None:
+        for job_name in ("envoy-go", "traefik-go"):
+            with self.subTest(job=job_name), tempfile.TemporaryDirectory() as temporary:
+                status, result = self.check_json(
+                    self.root_with_workflow(Path(temporary), self.cached_workflow(job_name))
+                )
+                self.assertEqual(status, 0)
+                self.assertEqual(result["violations"], [])
+
+    def test_cached_setup_rejects_selector_and_cache_drift(self) -> None:
+        version = "go-version: ${{ needs.trusted-go-version.outputs.version }}"
+        variants = (
+            ("wrong_envoy_path", "envoy-go", "connectors/envoy/ext_proc/go.sum", "arbitrary/go.sum"),
+            ("wrong_traefik_path", "traefik-go", "connectors/traefik/native_middleware/go.mod", "connectors/envoy/ext_proc/go.mod"),
+            ("duplicate_envoy_version", "envoy-go", version, version + "\n          go-version: '1.27.0'"),
+            ("duplicate_traefik_version", "traefik-go", version, version + "\n          go-version: '1.27.0'"),
+            ("literal_version", "envoy-go", version, "go-version: '1.27.0'"),
+            ("version_file", "envoy-go", version, "go-version-file: .go-version"),
+            ("quoted_key", "envoy-go", version, version.replace("go-version:", "'go-version':")),
+            ("alternate_key", "envoy-go", version, version.replace("go-version:", "go-version :")),
+            ("fallback", "envoy-go", version, version.replace("outputs.version", "outputs.version || '1.27.0'")),
+            ("check_latest", "envoy-go", "          check-latest: false\n          cache-", "          check-latest: true\n          cache-"),
+            ("unknown_cache_field", "envoy-go", "          cache-dependency-path:", "          cache: true\n          cache-dependency-path:"),
+            ("duplicate_cache", "traefik-go", "          cache-dependency-path:", "          cache-dependency-path: arbitrary/go.mod\n          cache-dependency-path:"),
+        )
+        for label, job_name, before, after in variants:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                workflow = self.cached_workflow(job_name)
+                prefix, header, job = workflow.partition(f"  {job_name}:\n")
+                self.assertTrue(header)
+                self.assertIn(before, job)
+                workflow = prefix + header + job.replace(before, after, 1)
+                status, result = self.check_json(
+                    self.root_with_workflow(Path(temporary), workflow)
+                )
+                self.assertEqual(status, 2)
+                self.assertTrue(any(
+                    f"{job_name} must use only the trusted-base Go version output" == entry
+                    for entry in result["violations"]
+                ))
 
     def test_checked_in_resolver_accepts_only_coherent_freshness_reports(self) -> None:
         valid = json.dumps(
@@ -279,6 +337,13 @@ class GoVersionContractTests(unittest.TestCase):
             status, result = self.check_json(root)
         self.assertEqual((2, "error"), (status, result["status"]))
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

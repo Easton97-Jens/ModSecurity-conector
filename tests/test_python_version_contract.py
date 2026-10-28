@@ -32,6 +32,7 @@ def load_checker() -> object:
 
 
 CHECKER = load_checker()
+import workflow_action_pins as ACTION_PINS  # noqa: E402
 
 
 class PythonVersionContractTest(unittest.TestCase):
@@ -64,7 +65,7 @@ class PythonVersionContractTest(unittest.TestCase):
             for fixture_name in fixture_names:
                 shutil.copy2(FIXTURES / fixture_name, workflows / fixture_name)
             version_file = root / ".python-version"
-            version_file.write_text("3.14.6\n", encoding="utf-8")
+            version_file.write_text("3.15.6\n", encoding="utf-8")
             return CHECKER.evaluate_workflow_contract(
                 root,
                 version_file,
@@ -72,6 +73,7 @@ class PythonVersionContractTest(unittest.TestCase):
                 expected_candidate_job=expected_candidate_job,
                 expected_immutable_reusable_jobs=expected_immutable_reusable_jobs or {},
                 expected_local_reusable_callers=expected_local_reusable_callers or {},
+                expected_system_python_jobs=(),
             )
 
     def fixture_result(self, fixture_name: str) -> tuple[str, list[str], set[object]]:
@@ -87,11 +89,11 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def normal_job_block(self, job_name: str) -> str:
         return f'''  {job_name}:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: '.python-version'
           check-latest: false
@@ -105,11 +107,11 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def candidate_job_block(self) -> str:
         return '''  validate-python-patch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Set up candidate Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ needs.resolve-python-patch.outputs.latest_version }}
           check-latest: false
@@ -160,10 +162,12 @@ class PythonVersionContractTest(unittest.TestCase):
                 + "".join(jobs),
                 encoding="utf-8",
             )
-        (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
+        shutil.copy2(ROOT / ".github/workflows" / CHECKER.TRUSTED_SYSTEM_PYTHON_JOB.workflow,
+                     workflows / CHECKER.TRUSTED_SYSTEM_PYTHON_JOB.workflow)
+        (root / ".python-version").write_text("3.15.6\n", encoding="utf-8")
 
-    def test_expected_inventory_has_36_normal_jobs_and_one_special_job(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 36)
+    def test_expected_inventory_tracks_normal_and_candidate_jobs(self) -> None:
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 45)
         self.assertIn(
             CHECKER.JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
@@ -180,6 +184,7 @@ class PythonVersionContractTest(unittest.TestCase):
             CHECKER.JobIdentity("update-workflow-tools.yml", "resolver"),
             CHECKER.JobIdentity("update-workflow-tools.yml", "validator"),
             CHECKER.JobIdentity("verified-report-governance.yml", "report-governance"),
+            CHECKER.JobIdentity("sonarqube.yml", "analysis"),
         ):
             with self.subTest(identity=identity):
                 self.assertIn(identity, CHECKER.EXPECTED_NORMAL_PYTHON_JOBS)
@@ -248,7 +253,7 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def test_valid_yaml_control_is_accepted(self) -> None:
         version, violations, detected = self.fixture_result("valid-control.yaml")
-        self.assertEqual(version, "3.14.6")
+        self.assertEqual(version, "3.15.6")
         self.assertEqual(violations, [])
         self.assertEqual(
             detected, {CHECKER.JobIdentity("valid-control.yaml", "fixture-job")}
@@ -265,31 +270,31 @@ class PythonVersionContractTest(unittest.TestCase):
         self.assertIsNone(CHECKER.mapping_entry("not a mapping"))
 
     def test_structural_version_and_executable_recognition_remain_ascii_only(self) -> None:
-        for version in ("3.14.0", "3.14.1", "3.14.6"):
+        for version in ("3.15.0", "3.15.1", "3.15.6"):
             with self.subTest(version=version):
                 self.assertEqual(version, CHECKER.parse_exact_version(version, "test"))
 
-        dotted_patch = ".".join(("3", "14", "1", "0"))
-        for version in ("3.14.01", "3.14.\u0661", dotted_patch, "3.15.1"):
+        dotted_patch = ".".join(("3", "15", "1", "0"))
+        for version in ("3.15.01", "3.15.\u0661", dotted_patch, "3.16.1"):
             with self.subTest(version=version), self.assertRaises(
                 CHECKER.ContractInputError
             ):
                 CHECKER.parse_exact_version(version, "test")
 
-        for command in ("python", "python3.14.6", "pip", "pip3.14"):
+        for command in ("python", "python3.15.6", "pip", "pip3.15"):
             with self.subTest(command=command):
                 self.assertTrue(CHECKER.is_python_or_pip_command(command))
 
-        for command in ("python3.14.", "python3.14.\u0661", "pythonx", "pipy"):
+        for command in ("python3.15.", "python3.15.\u0661", "pythonx", "pipy"):
             with self.subTest(command=command):
                 self.assertFalse(CHECKER.is_python_or_pip_command(command))
 
     def test_linear_shell_parser_detects_commands_without_text_false_positives(self) -> None:
         self.assertEqual(
             CHECKER.direct_python_or_pip_command(
-                "/opt/toolchains/python3.14 -c 'print(\"direct\")'"
+                "/opt/toolchains/python3.15 -c 'print(\"direct\")'"
             ),
-            "python3.14",
+            "python3.15",
         )
         self.assertEqual(
             CHECKER.bare_pip_command("env TOOLCHAIN=checked pip3 --version"),
@@ -363,7 +368,7 @@ printf '%s\\n' 'make quick-check'
         self.assert_fixture_violation("verifier-absent.yml", "lacks exactly one")
         self.assert_fixture_violation("verifier-not-equivalent.yml", "EXPECTED_PYTHON")
 
-    def test_setup_python_reference_requires_full_sha_and_v700_comment(self) -> None:
+    def test_setup_python_reference_requires_full_sha_and_v710_comment(self) -> None:
         for fixture in (
             "setup-python-mutable-tag.yml",
             "setup-python-short-sha.yml",
@@ -374,7 +379,7 @@ printf '%s\\n' 'make quick-check'
                 self.assert_fixture_violation(
                     fixture,
                     "actions/setup-python must use exactly "
-                    "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+                    "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0",
                 )
 
     def test_bare_pip_and_pip3_are_rejected_after_verified_setup(self) -> None:
@@ -472,7 +477,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 2)
         self.assertEqual(payload["status"], "error")
-        self.assertIn("exact Python 3.14.N", payload["violations"][0])
+        self.assertIn("exact Python 3.15.N", payload["violations"][0])
 
     def test_json_cli_reports_contract_violations_with_exit_one(self) -> None:
         with self.temporary_root() as directory:
@@ -480,7 +485,7 @@ printf '%s\\n' 'make quick-check'
             workflows = root / ".github" / "workflows"
             workflows.mkdir(parents=True)
             shutil.copy2(FIXTURES / "missing-setup.yml", workflows / "missing-setup.yml")
-            (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
+            (root / ".python-version").write_text("3.15.6\n", encoding="utf-8")
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 1)
         self.assertEqual(payload["status"], "violations")
@@ -514,7 +519,7 @@ printf '%s\\n' 'make quick-check'
         with self.temporary_root() as directory:
             root = Path(directory)
             target = root / "version-source"
-            target.write_text("3.14.6\n", encoding="utf-8")
+            target.write_text("3.15.6\n", encoding="utf-8")
             (root / ".python-version").symlink_to(target)
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 2)
@@ -532,11 +537,11 @@ printf '%s\\n' 'make quick-check'
             root = Path(directory)
             (root / ".github" / "workflows").mkdir(parents=True)
             version_file = root / ".python-version"
-            version_file.write_text("3.14.5\n", encoding="utf-8")
+            version_file.write_text("3.15.5\n", encoding="utf-8")
             _, blocked, _ = CHECKER.evaluate_workflow_contract(
                 root,
                 version_file,
-                previous_version="3.14.6",
+                previous_version="3.15.6",
                 expected_normal_jobs=(),
                 expected_candidate_job=None,
                 expected_immutable_reusable_jobs={},
@@ -544,7 +549,7 @@ printf '%s\\n' 'make quick-check'
             _, authorized, _ = CHECKER.evaluate_workflow_contract(
                 root,
                 version_file,
-                previous_version="3.14.6",
+                previous_version="3.15.6",
                 allow_downgrade=True,
                 expected_normal_jobs=(),
                 expected_candidate_job=None,
@@ -570,6 +575,69 @@ printf '%s\\n' 'make quick-check'
             violations,
         )
 
+    def test_dynamic_python_output_alias_remains_fail_closed(self):
+        commands = (
+            '"$SETUP_PYTHON_PATH" -m pip --version',
+            "printf -v SETUP_PYTHON_PATH '%s' /foreign/python; \"$SETUP_PYTHON_PATH\" -c pass",
+            'read -r SETUP_PYTHON_PATH; "$SETUP_PYTHON_PATH" -c pass',
+            '"$UNKNOWN_PYTHON" -m pip --version',
+        )
+        for command in commands:
+            with self.subTest(command=command), self.temporary_root() as directory:
+                root = Path(directory)
+                workflows = root / ".github/workflows"
+                workflows.mkdir(parents=True)
+                source = self.normal_job_block("fixture-job")
+                source += ("      - name: Reject dynamic command heads\n        env:\n"
+                           f"          SETUP_PYTHON_PATH: {CHECKER.SETUP_PYTHON_OUTPUT}\n"
+                           f"        run: |\n          {command}\n")
+                (workflows / "fixture.yml").write_text("jobs:\n" + source)
+                version = root / ".python-version"
+                version.write_text("3.15.1\n")
+                _, violations, _ = CHECKER.evaluate_workflow_contract(
+                    root, version, expected_normal_jobs={CHECKER.JobIdentity("fixture.yml", "fixture-job")},
+                    expected_candidate_job=None, expected_immutable_reusable_jobs={},
+                    expected_local_reusable_callers={}, expected_system_python_jobs=())
+                self.assertTrue(any("dynamic shell command head is unsupported" in item for item in violations), violations)
+
+    def test_trusted_system_python_requires_the_complete_dedicated_contract(self):
+        identity = CHECKER.TRUSTED_SYSTEM_PYTHON_JOB
+        original = (ROOT / ".github/workflows" / identity.workflow).read_text()
+        with self.temporary_root() as directory:
+            root = Path(directory)
+            workflows = root / ".github/workflows"
+            workflows.mkdir(parents=True)
+            path = workflows / identity.workflow
+            for source, valid in ((original, True),
+                                  (original.replace("/usr/bin/python3 -m unittest", "/foreign/python -m unittest"), False),
+                                  (original.replace("      - id: resolve-target", "      - name: Unreviewed Python execution\n        run: /usr/bin/python3 -c pass\n      - id: resolve-target"), False)):
+                with self.subTest(valid=valid):
+                    path.write_text(source)
+                    jobs, errors = CHECKER.parse_jobs(path)
+                    self.assertEqual(errors, [])
+                    errors = CHECKER.system_python_job_violations(root, jobs, frozenset({identity}))
+                    self.assertEqual(not errors, valid, errors)
+            unknown = CHECKER.JobIdentity(identity.workflow, "unreviewed-system-python")
+            self.assertTrue(CHECKER.system_python_job_violations(root, jobs, frozenset({unknown})))
+
+    def test_local_reusable_reference_accepts_only_fixed_equivalent_paths(self):
+        identity = CHECKER.JobIdentity("local.yml", "call-local")
+        expected = {identity: "./.github/workflows/reusable-five-connectors-profile.yml"}
+        cases = (
+            ("./.github/workflows/reusable-five-connectors-profile.yml", True),
+            ("$/.github/workflows/reusable-five-connectors-profile.yml", True),
+            ("$/.github/workflows/foreign-workflow.yml", False),
+            ("${{ inputs.workflow }}", False),
+        )
+        for reference, valid in cases:
+            with self.subTest(reference=reference), self.temporary_root() as directory:
+                path = Path(directory) / identity.workflow
+                path.write_text("jobs:\n" + self.local_reusable_caller_block(identity.job, reference))
+                jobs, errors = CHECKER.parse_jobs(path)
+                self.assertEqual(errors, [])
+                errors = CHECKER.local_reusable_caller_violations(jobs, expected, {identity})
+                self.assertEqual(not errors, valid, errors)
+
     def test_json_cli_accepts_complete_contract(self) -> None:
         with self.temporary_root() as directory:
             root = Path(directory)
@@ -577,8 +645,79 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["status"], "valid")
-        self.assertEqual(len(payload["detected_python_jobs"]), 40)
+        self.assertEqual(len(payload["detected_python_jobs"]), 46)
 
+
+class WorkflowActionPinsTest(unittest.TestCase):
+    def lock(self, root: Path, version: str = "v7.1.0", sha: str = "a" * 40) -> Path:
+        path = root / ACTION_PINS.LOCK_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('schema_version: 1\nchecked_at: "2026-10-24"\npinned_actions:\n  actions/setup-python:\n'
+                        f"    version: {version}\n    commit_sha: {sha}\n"
+                        "    upstream: https://github.com/actions/setup-python\ntools:\ndispositions:\n")
+        return path
+
+    def test_reviewed_action_update_changes_the_exact_reference(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for version, sha in (("v7.1.0", "a" * 40), ("v7.2.0", "b" * 40), ("v10", "c" * 40)):
+                self.lock(root, version, sha)
+                self.assertEqual(ACTION_PINS.read_action_reference(root, "actions/setup-python"),
+                                 f"actions/setup-python@{sha} # {version}")
+
+    def test_ambiguous_or_nonimmutable_action_records_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = self.lock(root)
+            valid = path.read_text()
+            mutations = (
+                valid.replace("    version: v7.1.0", "    version: v7.1.0\n    version: v7.2.0"),
+                valid.replace("tools:\n", "  actions/setup-python:\ntools:\n", 1),
+                valid.replace("v7.1.0", "v7.1.0rc1"),
+                valid.replace("a" * 40, "a" * 16),
+                valid.replace("https://github.com/actions/setup-python", "https://mirror.invalid/actions/setup-python"),
+                valid.replace("    version:", "    alias:"),
+                valid + "pinned_actions:\n",
+                valid.replace("v7.1.0", "*untrusted"),
+                valid + "pinned_actions: {}\n",
+                valid + '"pinned_actions": {}\n',
+                valid + "pinned_actions: &shadow {}\n",
+                valid + "---\npinned_actions: {}\n",
+            )
+            for content in mutations:
+                with self.subTest(content=content):
+                    path.write_text(content)
+                    with self.assertRaises(ACTION_PINS.ActionPinsError):
+                        ACTION_PINS.read_action_reference(root, "actions/setup-python")
+
+    def test_unsafe_action_lock_inputs_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = self.lock(root)
+            for data in (b"\xff", b" " * (ACTION_PINS.MAX_LOCK_BYTES + 1), b"pinned_actions:\n"):
+                with self.subTest(data=data[:20]):
+                    path.write_bytes(data)
+                    with self.assertRaises(ACTION_PINS.ActionPinsError):
+                        ACTION_PINS.read_action_reference(root, "actions/setup-python")
+            path.unlink()
+            path.symlink_to(ROOT / ACTION_PINS.LOCK_PATH)
+            with self.assertRaises(ACTION_PINS.ActionPinsError):
+                ACTION_PINS.read_action_reference(root, "actions/setup-python")
+
+    def test_missing_action_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.lock(root)
+            with self.assertRaises(ACTION_PINS.ActionPinsError):
+                ACTION_PINS.read_action_reference(root, "actions/setup-go")
+
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

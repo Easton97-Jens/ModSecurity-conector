@@ -2,243 +2,169 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-This repository contains the repository-owned integration layers that connect
-[libmodsecurity](https://github.com/owasp-modsecurity/ModSecurity) to six HTTP
-host families: Apache, NGINX, HAProxy, Envoy, Traefik, and lighttpd. It also
-contains shared runtime contracts, host-specific adapters, build/runtime
-orchestration, configuration examples, validation code, and run-scoped
-evidence consumers. Reusable test cases, schemas, and framework runners live in
-the `modules/ModSecurity-test-Framework` submodule.
+Connect libModSecurity to Apache, NGINX, HAProxy, Envoy, Traefik, or lighttpd.
+This repository supplies the host integrations, shared runtime, configuration
+examples, build orchestration, and tools for checking their behavior. The
+ModSecurity engine evaluates the rules; each connector supplies the host data
+and translates an engine decision into an action the host can perform.
 
-The selected core documentation is centered on HTTP/1.1. Source presence,
-successful builds, configuration loading, capability declarations, or smoke
-tests do **not** by themselves establish production readiness or a verified
-runtime outcome. Runtime claims are bound to the selected profile, rules,
-run ID, artifacts, and validation result.
+**New to the project?** Read [Getting started](docs/getting-started.md), then
+choose a host in [Examples](examples/README.md). **Updating an existing setup?**
+Read [Migration and current behavior](docs/migration.md) before reusing an old
+configuration: connector-owned request/response body-size options have been
+removed, and the standard test selection has changed.
 
-## What is in this repository
+## Choose a host and profile
 
-| Path | Purpose |
-| --- | --- |
-| `common/` | Connector-neutral C-first contracts, shared runtime support, body/phase policy, and common mapping helpers. |
-| `connectors/` | Host-specific implementations, metadata, capability declarations, harnesses, provenance, and local design notes. |
-| `docs/` | Canonical architecture, configuration, build, connector, testing/evidence, operations, and security documentation. |
-| `examples/` | Source-backed configuration examples and profile-specific usage notes for all six host families. |
-| `ci/` and `tests/` | Static contracts, lifecycle orchestration, evidence checks, regression tests, and CI support. |
-| `reports/` | Current and historical audit/testing material plus generated or manually maintained evidence views. |
-| `modules/ModSecurity-test-Framework/` | Git submodule containing reusable cases, schemas, runners, normalizers, and test-framework logic. |
-| `Makefile` | Authoritative root entry point for repository build, validation, runtime, and evidence target names. |
+There are six host families and ten logical connector profiles. A profile is a
+particular integration topology, not a guarantee that every protocol or late
+intervention is supported.
 
-Use the current checkout as the source of truth. In particular, target names
-come from the root `Makefile`, toolchain versions come from the checked-in
-`.python-version` and `.go-version` files, and connector behavior comes from
-the current implementation plus its versioned contracts.
+| Host family | Logical profiles | Where to begin |
+| --- | --- | --- |
+| Apache | `apache` | [Guide](docs/connectors/apache.md) / [Examples](examples/apache/README.md) |
+| NGINX | `nginx` | [Guide](docs/connectors/nginx.md) / [Examples](examples/nginx/README.md) |
+| HAProxy | `haproxy-htx`, `haproxy-spoe-spop` | [Guide](docs/connectors/haproxy.md) / [Examples](examples/haproxy/README.md) |
+| Envoy | `envoy-ext-proc`, `envoy-ext-authz` | [Guide](docs/connectors/envoy.md) / [Examples](examples/envoy/README.md) |
+| Traefik | `traefik-native-uds`, `traefik-forwardauth` | [Guide](docs/connectors/traefik.md) / [Examples](examples/traefik/README.md) |
+| lighttpd | `lighttpd-patched`, `lighttpd-stock` | [Guide](docs/connectors/lighttpd.md) / [Examples](examples/lighttpd/README.md) |
 
-## Supported host families and logical profiles
+Direct/native routes and authorization routes are not interchangeable.
+SPOE/SPOP, ext_authz, and forwardAuth need their documented response companion
+or observer for response phases. That companion does not remove the request
+sampling/buffering limits of the authorization route. Patched-native lighttpd
+and its Stock sidecar are separate solutions, not fallback modes.
 
-The repository has six host families but ten logical connector profiles.
-Profiles within the same host family remain separate evidence scopes.
+The [connector index](docs/connectors/README.md) distinguishes logical profile
+IDs, root lifecycle profile names, and recorded integration modes. See the
+[body-inspection matrix](docs/body-inspection-review-matrix.md) for the actual
+boundaries of all ten profiles.
 
-| Host family | Selected host-family core route | Logical profiles | Current route boundary |
-| --- | --- | --- | --- |
-| Apache | `native-httpd-module` | `apache` | Direct native httpd module integration. |
-| NGINX | `native-nginx-http-module` | `nginx` | Direct native NGINX HTTP module integration. |
-| HAProxy | `native-htx-filter` | `haproxy-htx`, `haproxy-spoe-spop` | Native HTX is direct; SPOE/SPOP requires its response companion for response phases. |
-| Envoy | `ext_proc` | `envoy-ext-proc`, `envoy-ext-authz` | `ext_proc` is direct; `ext_authz` requires its response observer for response phases. |
-| Traefik | `native-traefik-middleware` | `traefik-native-uds`, `traefik-forwardauth` | Native UDS middleware is direct; `forwardAuth` requires its response observer for response phases. |
-| lighttpd | `patched-native-lighttpd` | `lighttpd-patched`, `lighttpd-stock` | Patched-native and Stock-sidecar routes are separate logical profiles, not fallbacks for one another. |
+## Quick start
 
-See the [connector documentation](docs/connectors/README.md) for the complete
-profile inventory, integration-mode terminology, host-specific variables, and
-known boundaries.
+Use Git, Make, and the prerequisites documented in the [build guide](docs/build/README.md).
+Toolchain and Framework revisions are selected by the checked-in
+[version-pin contract](docs/reference/version-pins.md), not by the newest
+version available on the machine.
 
-## ModSecurity phases and Phase-4 modes
+```sh
+git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
+cd ModSecurity-conector
+make check-framework
+make check-active-inventory
+make quick-check
+```
 
-The shared lifecycle uses the usual ModSecurity phase model:
+For an existing clone without its submodules, first run
+`git submodule update --init --recursive`. `FRAMEWORK_ROOT` normally points to
+`modules/ModSecurity-test-Framework`; only override it with a trusted matching
+checkout.
 
-| Phase | Repository meaning |
+`make check-active-inventory` validates the complete selected test inventory
+without starting tests. `make quick-check` runs static checks and admitted
+functional subsets. Neither command qualifies every host/profile for deployment.
+`make test` executes the active selection and needs its real compiler, SDK, and
+host prerequisites. Missing prerequisites must not be disguised as a pass.
+
+## Commands by task
+
+Run commands from the repository root. The root `Makefile` is the command
+reference; the linked guides describe prerequisites and outputs.
+
+| Task | Command or guide | What the result establishes |
+| --- | --- | --- |
+| Check the checkout | `make quick-check` | Static contracts and the selected functional subsets |
+| Check test selection without execution | `make check-active-inventory` | Admission of the complete active inventory |
+| Run the standard test selection | `make test` | Results for the cases actually selected and executed |
+| Build a selected integration | `make build-nginx` | Build success for that route, not traffic behavior |
+| Validate host configuration | `make check-config-apache` | Configuration loading, not P1–P4 runtime proof |
+| Check documentation pairing and links | `make check-bilingual-docs` / `make check-doc-links` | Documentation consistency |
+| Interpret a recorded run | [Testing and evidence](docs/testing-and-evidence.md) | The exact profile, rules, run ID, artifacts, and limitations |
+
+Normal local and CI tests use one authority:
+[config/testing/active-cases.json](config/testing/active-cases.json). The
+100-case core ceiling and the separately authorized guarded offline Python
+exception are distinct counts; the exception does not add connector E2E cases.
+Use the inventory and its admission output for the selected counts instead of
+assuming a command name means complete coverage.
+
+Full-lifecycle campaigns are specialist work, not the default next step. They
+require a separate current authorization and `ON_DEMAND_TESTS=1`. The flag is
+not a general bypass and does not reopen closed I12 work. Protected NGINX host
+checks retain their separately controlled exact-head execution boundary.
+
+## Body inspection and Phase 4
+
+| Phase | Data supplied to the engine |
 | --- | --- |
 | P1 | Request headers |
 | P2 | Request body |
 | P3 | Response headers |
 | P4 | Response body |
 
-Phase-4 mode controls **late-intervention behavior**. It does not create a
-second connector-owned WAF response-inspection byte policy.
+**Body inspection limits belong to libModSecurity.** Configure request policy
+with `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, and
+`SecRequestBodyLimitAction`; configure response policy with
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. Access and response
+MIME selection also remain engine settings. Omitted engine directives retain
+native engine semantics; the connector must not inject replacement defaults
+or truncate input to a connector-selected inspection prefix.
 
-| Mode | Late-intervention meaning | Response-inspection limits |
+| Phase-4 mode | Meaning | Does not mean |
 | --- | --- | --- |
-| `off` (default) | Preserve native intervention/error handling without the additional Safe/Strict late-action policy. | Owned by libModSecurity rules, for example `SecResponseBodyLimit` and `SecResponseBodyLimitAction`. |
-| `safe` | Preserve supported early enforcement; late outcomes that can no longer safely change a committed response remain non-disruptive where documented. | Same engine-owned WAF inspection policy as other modes. |
-| `strict` | Request the supported strict late action for profiles that provide one. | Same engine-owned WAF inspection policy as other modes. |
+| `off` | Native intervention/error handling without the additional Safe/Strict late-action policy | The engine or response inspection is disabled |
+| `safe` | The supported conservative handling of a decision after response output has started | Native Reject results or genuine processing errors may be ignored |
+| `strict` | The supported strict late action of the selected host/profile | Every profile can abort an already-started response |
 
-Legacy connector response-limit settings may remain parseable for compatibility,
-but no valid Phase-4 mode adds a separate cumulative WAF response-inspection
-budget. Independent host/transport capacity limits, bounded storage, allocation
-guards, timeouts, and message/frame limits still apply. See
-[Phase-4 mode and response-body limit ownership](docs/phase4-mode-budget.md).
+`all` is an example layout, not a fourth Phase-4 mode. A strict configuration
+can be rejected at startup when the profile lacks the required host action.
+Modes never choose a body-size limit or an engine limit action.
 
-## Architecture
+Old settings such as `request_body_limit`, `response_body_limit`,
+`body_limit_action`, and `modsecurity_phase4_body_limit` are removed, not
+silently accepted compatibility controls. Follow the [migration guide](docs/migration.md)
+and the authoritative [body-limit ownership contract](docs/phase4-mode-budget.md).
+Working buffers, individual frames/messages, metadata, timeouts, file checks,
+and the documented host authorization ceilings remain separate safety limits.
 
-```mermaid
-flowchart LR
-    Client[HTTP client] --> Host[Selected host integration]
-    Host --> Adapter[Connector adapter or bridge]
-    Adapter --> Common[Common runtime / libmodsecurity]
-    Common --> Host
-    Host --> Raw[Invocation-local artifacts]
-    Raw --> Finalize[Normalize and finalize]
-    Finalize --> Evidence[Run-scoped canonical evidence]
-    Evidence --> Validate[Evidence validators and reports]
-```
+## Repository map
 
-The host integration determines which request/response data is visible and
-where a decision can still affect client-visible behavior. Raw process output is
-not automatically canonical evidence; finalization and validation bind
-artifacts to the connector, profile, rules, configuration, and run ID.
-
-## Quick start
-
-Clone with the Framework submodule and run the repository-oriented validation:
-
-```sh
-git clone --recurse-submodules https://github.com/Easton97-Jens/ModSecurity-conector.git
-cd ModSecurity-conector
-make check-framework
-make quick-check
-```
-
-If the repository was cloned without submodules, initialize them with
-`git submodule update --init --recursive` before running `make check-framework`.
-
-`make quick-check` validates repository contracts, documentation, and selected
-structural checks. It does not build every host, send traffic through every
-connector, or create canonical lifecycle evidence.
-
-## Common workflows
-
-| Goal | Start with | Result boundary |
-| --- | --- | --- |
-| Validate the checkout | `make quick-check` | Repository/documentation/contracts only. |
-| Run the broader local lint contract | `make lint` | Static/source/documentation validation; not full runtime evidence. |
-| Build one host route | `make build-nginx` | Build output only. |
-| Validate one host configuration | `make check-config-nginx` | Configuration-load result only; no request/response proof. |
-| Run a focused runtime smoke | `make runtime-smoke-nginx` where provided | Narrow smoke result; not full-lifecycle promotion. |
-| Run one selected lifecycle | `NO_CRS_RUN_ID="core-example" make full-lifecycle-nginx` | Run-scoped candidate artifacts for that connector/profile. |
-| Run all six selected host-family core routes | `NO_CRS_RUN_ID="core-example" make full-lifecycle-all-connectors` | Aggregate candidate run; inspect and validate the generated evidence. |
-| Validate the selected six-connector core | `NO_CRS_RUN_ID="core-example" make check-six-connector-core-completion` | Read-only evidence gate for that run only. |
-| Check EN/DE documentation pairing | `make check-bilingual-docs` | Documentation parity/structure contract only. |
-
-For a fresh aggregate run, use a filesystem-safe, non-secret run ID:
-
-```sh
-run_id="core-$(date -u +%Y%m%dT%H%M%SZ)"
-NO_CRS_RUN_ID="$run_id" make full-lifecycle-all-connectors
-NO_CRS_RUN_ID="$run_id" make check-six-connector-core-completion
-```
-
-Exact target prerequisites, exit-status semantics, output locations, and
-per-connector build details are documented in the [build guide](docs/build/README.md)
-and [testing/evidence guide](docs/testing-and-evidence.md).
-
-## Configuration, paths, and examples
-
-Prefer root targets over invoking connector harnesses directly. The root
-targets set compatible invocation-local values and keep generated state outside
-the source tree.
-
-Key variables are documented centrally in
-[Variables and placeholders](docs/reference/variables.md):
-
-- `FRAMEWORK_ROOT` selects the trusted Framework checkout and defaults to
-  `modules/ModSecurity-test-Framework`.
-- `BUILD_ROOT` selects generated build/runtime work; an override should be an
-  absolute writable path outside the checkout.
-- `EVIDENCE_ROOT` selects the external evidence tree used by evidence-producing
-  and evidence-validating flows.
-- `NO_CRS_RUN_ID` identifies one evidence set and must be a filesystem-safe,
-  non-secret token.
-
-Complete source-backed host examples live under [examples/](examples/README.md).
-The central [configuration guide](docs/configuration.md) explains shared
-concepts and links to the per-connector syntax.
-
-Do not put credentials, cookies, private keys, request/response bodies, personal
-data, or other sensitive values in run IDs, command lines, checked-in
-configuration, logs, or evidence intended for review.
-
-## Evidence and result interpretation
-
-Repository status words such as `PASS`, `FAIL`, `BLOCKED`, `NOT EXECUTED`,
-`NOT APPLICABLE` , and `UNSUPPORTED` are scoped terms defined by the
-[testing/evidence contract](docs/testing-and-evidence.md). A capability may be
-implemented without a current canonical run proving it, and a successful run
-does not widen the scope beyond its selected profile, rules, protocol, and
-artifacts.
-
-Before making a current result claim, review the relevant run-scoped evidence
-and [reports](reports/README.md). This README does not claim:
-
-- production readiness or production hardening;
-- CRS verification or CRS completeness;
-- complete HTTP/2 or HTTP/3 verification;
-- a complete connector/protocol/test matrix; or
-- strict late-intervention verification for every connector profile.
-
-## Development and documentation rules
-
-English is the technical primary language for repository-owned documentation;
-German companion files carry equivalent technical facts. Keep commands, paths,
-identifiers, configuration keys, hashes, and other technical literals unchanged
-between language companions.
-
-For non-trivial changes, follow the repository's
-[change-traceability policy](docs/change-traceability.md) and the pull-request
-template. Generated documentation and reports must be changed through their
-source/generator contract instead of being hand-edited in isolation.
-
-The Parent repository owns connector product source, shared runtime integration,
-build/runtime orchestration, and Parent evidence consumers. Reusable case
-catalogs, schemas, runners, and normalizers belong to the
-`modules/ModSecurity-test-Framework` submodule.
-
-## Security
-
-Read [SECURITY.md](SECURITY.md) for vulnerability reporting and
-[Operations and security](docs/operations-and-security.md) for runtime,
-privacy, provenance, and deployment boundaries.
-
-Documentation, static checks, builds, and configuration loads are not security
-certifications. Keep secrets and sensitive traffic data out of versioned files
-and review artifacts, and treat host exposure, privileges, filesystem
-permissions, sockets, ports, and evidence retention as deployment-specific
-security decisions.
-
-## Documentation map
-
-| Need | Canonical document |
+| Path | What belongs here |
 | --- | --- |
-| First checkout | [Getting started](docs/getting-started.md) |
-| Repository architecture | [Architecture](docs/architecture.md) |
-| Connector/profile selection | [Connector index](docs/connectors/README.md) |
-| Configuration | [Configuration](docs/configuration.md) |
-| Variables and placeholders | [Variables](docs/reference/variables.md) |
-| Project/toolchain version pins | [Version pins](docs/reference/version-pins.md) |
-| Build and host preparation | [Build](docs/build/README.md) |
-| Tests, status, and evidence | [Testing and evidence](docs/testing-and-evidence.md) |
-| Operations and security | [Operations and security](docs/operations-and-security.md) |
-| Phase-4 late-action and response-limit ownership | [Phase-4 mode and response-limit ownership](docs/phase4-mode-budget.md) |
-| Change workflow | [Change traceability](docs/change-traceability.md) |
-| Current/historical reports | [Reports](reports/README.md) |
-| Framework-owned testing | [ModSecurity test Framework/](modules/ModSecurity-test-Framework/README.md) |
+| `common/` | Connector-neutral runtime contracts and shared support |
+| `connectors/` | Host-specific source, integration, metadata, and harnesses |
+| `docs/` | User guides, architecture, contracts, operations, and references |
+| `examples/` | Host/profile configurations to adapt and validate |
+| `ci/` and `tests/` | Parent checks, orchestration, and regression coverage |
+| `reports/` | Run-scoped reports, current summaries, and historical records |
+| `licenses/` | External origins, source bases, and retained upstream notices |
+| `modules/ModSecurity-test-Framework/` | Independent Framework submodule with reusable cases, schemas, runners, and normalizers |
 
-## License and provenance
+Keep generated build, cache, runtime, logs, and evidence outside the checkout.
+Use documented paths such as `BUILD_ROOT` and `EVIDENCE_ROOT` and non-secret,
+filesystem-safe run IDs. Never put credentials or sensitive traffic bodies in
+versioned examples or review artifacts.
 
-The [licenses/](licenses/README.md) directory documents the external origin
-and observed upstream license basis for selected imported, derived, or reference
-material. It is not a repository-wide license declaration.
+## Results, security, and provenance
 
-Local connector trees can differ from their upstream source through
-repository-local adaptations and additional source provenance. Use the matching
-connector `ORIGIN.md` / `SOURCE_MAP.json` for the file-level source basis.
-There is no top-level `LICENSE` file in this repository at this revision.
+A successful build, configuration load, capability declaration, smoke, or
+scanner proves only its own scope. This README does not claim production
+readiness, CRS completeness, full HTTP/2 or HTTP/3 coverage, a complete matrix,
+or strict behavior for all profiles. Consult [Reports](reports/README.md)
+for the recorded run and [Operations and security](docs/operations-and-security.md)
+for deployment decisions. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
+[licenses/](licenses/README.md) explains where selected external material came
+from, its recorded upstream basis, and how local adaptations differ. It is not
+a repository-wide license declaration. Preserved upstream notices still
+accompany the relevant material; a local modification does not erase its
+upstream origin. Per-file provenance is recorded in the relevant `ORIGIN.md`
+and `SOURCE_MAP.json`. There is no top-level `LICENSE` at this revision.
+
+## Documentation
+
+Start at the [documentation index](docs/README.md). It links the current
+configuration and body-inspection contracts, compiler guides, active testing,
+version pins, CI/Sonar analysis, evidence closeouts, and operational guidance.
+English and German companions are maintained together. Generated references
+must be changed through their source/generator, not edited in isolation.

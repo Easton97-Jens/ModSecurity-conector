@@ -17,7 +17,7 @@ defaults:
 
 jobs:
   resolver:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -37,7 +37,7 @@ jobs:
 
       - name: Set up reviewed Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: ".python-version"
           check-latest: false
@@ -50,19 +50,20 @@ jobs:
       - name: Install hash-locked CI dependency
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
           python3 -m pip check
 
       - name: Resolve official immutable release candidates
         id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 ci/tools/update-workflow-tools.py resolve --root . --github-output >> "$GITHUB_OUTPUT"
 
   validator:
     needs: resolver
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -77,7 +78,7 @@ jobs:
 
       - name: Set up reviewed Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: ".python-version"
           check-latest: false
@@ -90,8 +91,7 @@ jobs:
       - name: Install hash-locked CI dependency
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
           python3 -m pip check
 
       - name: Validate candidate and changed tool assets
@@ -137,7 +137,7 @@ jobs:
       github.event.repository.default_branch == 'master' &&
       github.ref == 'refs/heads/master' &&
       needs.resolver.outputs.has_updates == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     permissions:
       contents: read
@@ -152,7 +152,7 @@ jobs:
 
       - name: Set up reviewed Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: ".python-version"
           check-latest: false
@@ -165,8 +165,7 @@ jobs:
       - name: Install hash-locked CI dependency
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
+          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
           python3 -m pip check
 
       - name: Verify workflow publisher GitHub App configuration
@@ -186,7 +185,7 @@ jobs:
 
       - name: Mint repository-limited workflow publisher App token
         id: publisher_app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
           private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
@@ -331,6 +330,14 @@ jobs:
           python3 ci/tools/update-workflow-tools.py verify-scope --root . \
             --base "origin/$DEFAULT_BRANCH" --head HEAD
 
+      - name: Re-resolve official immutable release candidates
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-workflow-tools.py resolve --root . \
+            --output "$RUNNER_TEMP/modsecurity-conector-workflow-tool-candidate.json"
+
       - name: Re-resolve and narrowly apply current candidates
         env:
           CANDIDATE_B64: ${{ needs.resolver.outputs.candidate_b64 }}
@@ -343,7 +350,6 @@ jobs:
             --expected-candidate-sha256 "$CANDIDATE_SHA256" \
             --require-updates --verify-tool-assets \
             --output-dir "$RUNNER_TEMP/modsecurity-conector-workflow-tool-resolver-validation"
-          python3 ci/tools/update-workflow-tools.py resolve --root . --output "$CANDIDATE"
           python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \
             --expected-candidate-sha256 "$CANDIDATE_SHA256" \
             --require-updates --verify-tool-assets \
@@ -382,6 +388,7 @@ jobs:
             .github/workflows/protocol-contract.yml \
             .github/workflows/quick-framework-check.yml \
             .github/workflows/reusable-five-connectors-profile.yml \
+            .github/workflows/run-protected-nginx-exact-head.yml \
             .github/workflows/run-protected-nginx-root-broker.yml \
             .github/workflows/run-trusted-lighttpd-namespace-dispatch.yml \
             .github/workflows/test-apache.yml \
@@ -394,13 +401,18 @@ jobs:
             .github/workflows/test-nginx-exact-head.yml \
             .github/workflows/test-nginx.yml \
             .github/workflows/test-traefik.yml \
+            .github/workflows/sonarqube.yml \
+            .github/workflows/sonar-native-security.yml \
             .github/workflows/update-go-version.yml \
             .github/workflows/update-python-version.yml \
             .github/workflows/update-submodules.yml \
             .github/workflows/update-workflow-tools.yml \
+            .github/workflows/validate-go-candidate.yml \
             .github/workflows/verified-report-governance.yml \
             docs/security/ci-security-tooling.md \
-            docs/security/ci-security-tooling.de.md
+            docs/security/ci-security-tooling.de.md \
+            config/testing/active-cases.json \
+            reports/testing/test-selection-archive.generated.json
           python3 ci/tools/update-workflow-tools.py verify-scope --root . --staged
           git diff --cached --check
           git commit -m "chore(ci): update pinned workflow tools"
@@ -494,7 +506,7 @@ jobs:
       - validator
       - publisher
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
     env:

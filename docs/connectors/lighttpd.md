@@ -2,17 +2,6 @@
 
 **Language:** English | [Deutsch](lighttpd.de.md)
 
-## Start here
-
-lighttpd exposes two separate logical profiles: `lighttpd-patched` for the
-repository's patched native host route and `lighttpd-stock` for the
-traffic-owning Stock sidecar. They are separate solutions, not fallback modes.
-
-Start with the [lighttpd examples](../../examples/lighttpd/README.md), select
-the solution you actually intend to operate, and use its `safe` bundle first.
-For the patched route, host and module must match; for Stock, keep sidecar and
-backend listeners private and bounded.
-
 ## Overview
 
 The canonical Stock solution uses the selected traffic-owning
@@ -72,20 +61,20 @@ host therefore buffers request bytes until terminal EOS and the Phase-2 allow
 decision; only then may the proxy connect and forward the request. The
 validated delayed allow control was reframed as `Content-Length` upstream.
 
-The profile requires `mod_proxy` before `mod_msconnector`, a positive Common
-request-body limit, `body_limit_action=reject`, and the matching
+The profile requires `mod_proxy` before `mod_msconnector` and the matching
 patched host/module pair. It rejects preconfigured `server.stream-request-body`,
 `Incremental`, and explicitly enabled body-bearing `Upgrade` plus
 `gw.upgrade-with-request-body` requests with `501` before upstream connection.
-A streaming configuration with `body_limit_action=process_partial` is rejected
-at configuration load before a listener or upstream connection exists. This is
-not a claim for HTTP/2, HTTP/3, other stream handlers, response-body P4,
-unrestricted upstream streaming, or production readiness.
+Native `SecRequestBodyLimit` and `SecRequestBodyLimitAction` own inspection,
+including ProcessPartial and DetectionOnly behavior; no Common byte ceiling or
+reject-only connector action is required.
 
-The retained-body bound relies on the positive Common `request_body_limit`
-(default 1 MiB) and a rejecting read cycle. The module does not configure
-`server.max-request-size`; that remains an independent host defense-in-depth
-limit.
+The host retains its request queue until native P2 completion. File-backed host
+queue ranges are visited with bounded working memory. The module does not
+configure `server.max-request-size`; this remains an independent host size
+control. Fresh hosted evidence for these changed paths remains pending. This
+does not establish HTTP/2, HTTP/3, other stream handlers, P4, unrestricted
+upstream streaming or production readiness.
 
 ## P1--P4 lifecycle and entity-body boundary
 

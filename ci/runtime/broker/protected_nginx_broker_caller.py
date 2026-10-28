@@ -21,8 +21,8 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 
-PROTECTED_BROKER_SHA = "49c40779a7b6de9f699391bcd524ea069787df42"
-PROTECTED_FRAMEWORK_SHA = "03880bf66b3905940466ff10b3a431a27ecc6b26"
+PROTECTED_BROKER_SHA = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
+PROTECTED_FRAMEWORK_SHA = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
 PROJECT_GIT_COMMIT_API = (
     "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/git/commits/"
 )
@@ -84,8 +84,8 @@ MAX_JSON_BYTES = 64 * 1024
 MAX_LOG_BYTES = 8 * 1024 * 1024
 
 CRS_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
-CRS_RELEASE_TAG = "v4.29.0"
-CRS_COMMIT = "ab3ccd5fcd691424ba3f320d4040c61417270193"
+CRS_RELEASE_TAG = "v4.30.0"
+CRS_COMMIT = "e03a4f6dabc7a30ebd8c52c97d28a154f590a48f"
 NGINX_PINNED_VERSION = "1.31.4"
 CRS_RULE_ID = "949110"
 CRS_ALLOW_PATH = "/"

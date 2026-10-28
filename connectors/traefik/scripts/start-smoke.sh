@@ -247,19 +247,23 @@ sed \
     -e "s|__COMPANION_SOCKET__|$COMPANION_SOCKET|g" \
     "$TRAEFIK_TEMPLATE" > "$TRAEFIK_CONFIG"
 
+# Inspect the original request line while keeping client forwarding fields
+# untrusted. Traefik generates the authoritative URI for the auth exchange.
+if ! grep -Fqx '        preserveRequestMethod: true' "$TRAEFIK_CONFIG" ||
+    ! grep -Fqx '        trustForwardHeader: false' "$TRAEFIK_CONFIG"; then
+    echo "BLOCKED: forwardAuth requires preserveRequestMethod=true and trustForwardHeader=false" >&2
+    exit 77
+fi
+
 # A forwardAuth template without these settings silently drops the request
 # body before the authorization service. Refuse to start such a deployment;
-# P2 is buffered by the host and bounded at the same value as the service.
+# P2 is buffered by the host; this remains a 4096-byte host limitation.
 if ! grep -Fqx '        forwardBody: true' "$TRAEFIK_CONFIG" ||
     ! grep -Fqx '        maxBodySize: 4096' "$TRAEFIK_CONFIG"; then
     echo "BLOCKED: forwardAuth P2 requires forwardBody=true and maxBodySize=4096" >&2
     exit 77
 fi
-if ! grep -Fqx 'request_body_mode=buffered' "$CONFIG_PATH" ||
-    ! grep -Fqx 'request_body_limit=4096' "$CONFIG_PATH"; then
-    echo "BLOCKED: forwardAuth P2 requires buffered mode and request_body_limit=4096" >&2
-    exit 77
-fi
+
 
 (
     cd "$REPO_ROOT"

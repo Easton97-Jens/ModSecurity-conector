@@ -444,6 +444,7 @@ body_policy_source = (ROOT / "common" / "src" / "body_policy.c").read_text(encod
 config_header = (ROOT / "common" / "include" / "msconnector" / "config.h").read_text(encoding="utf-8")
 config_source = (ROOT / "common" / "src" / "config.c").read_text(encoding="utf-8")
 for lifecycle_api in (
+    "msconnector_runtime_transaction_begin_request_stream",
     "msconnector_runtime_transaction_append_request_body_chunk",
     "msconnector_runtime_transaction_finish_request_body",
     "msconnector_runtime_transaction_process_response_headers",
@@ -477,21 +478,25 @@ grouped_body_progress = (
     "limit_outcome" in runtime_header and
     "finished" in runtime_header
 )
-if ("apply_body_limit_plan" not in runtime_source or
-        not (legacy_body_progress or grouped_body_progress)):
-    fail("common runtime must track bounded chunk progress, limit outcomes and explicit EOS state")
-if ("MSCONNECTOR_BODY_LIMIT_ACTION_REJECT" not in body_policy_header or
-        "MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL" not in body_policy_header or
-        "msconnector_body_limit_plan_chunk" not in body_policy_header or
-        "msconnector_body_limit_plan_chunk" not in body_policy_source):
-    fail("common body policy must provide reject/process_partial limit planning")
-if ("body_limit_action" not in runtime_source or
-        "late_intervention_timeout" not in runtime_source or
+if not (legacy_body_progress or grouped_body_progress):
+    fail("common runtime must track chunk progress, native limit outcomes and explicit EOS state")
+for retired in ("apply_body_limit_plan", "msconnector_body_limit_plan_chunk",
+                "MSCONNECTOR_BODY_LIMIT_ACTION_REJECT",
+                "MSCONNECTOR_BODY_LIMIT_ACTION_PROCESS_PARTIAL"):
+    if retired in runtime_source + body_policy_header + body_policy_source:
+        fail(f"common must not select a connector body-limit policy: {retired}")
+for retired in ("request_body_limit;", "response_body_limit;", "body_limit_action;"):
+    if retired in config_header:
+        fail(f"common config retains removed connector policy {retired}")
+if ("pending_request_decision" not in runtime_source or
+        "request_decision_pending" not in runtime_source):
+    fail("common must retain native request append intervention through EOS")
+if ("late_intervention_timeout" not in runtime_source or
         "phase4_event_log" not in runtime_source or
         "late_intervention_timeout_ms" not in runtime_header or
         "late_intervention_timeout_ms" not in config_header or
         "merge_late_intervention_timeout" not in config_source):
-    fail("common runtime must carry neutral body-limit and late-intervention timeout configuration")
+    fail("common runtime must carry late-intervention timeout and event configuration")
 if '".."' not in harness_source or '../*' not in harness_source or '*/..' not in harness_source or '*\\\\..' not in harness_source:
     fail("common-harness must reject terminal parent-directory artifact segments")
 if "validate_phase_callbacks" not in adapter_contract_source or "MSCONNECTOR_CAPABILITY_REQUEST_HEADERS" not in adapter_contract_source or "process_response_body" not in adapter_contract_source:

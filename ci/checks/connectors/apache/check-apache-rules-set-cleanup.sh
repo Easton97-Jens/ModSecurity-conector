@@ -32,8 +32,9 @@ validate_private_output_parent() {
         if [ "$private_parent_owner" != "$CURRENT_UID" ] && [ "$private_parent_owner" != "0" ]; then
             fail "temporary output parent must be owned by the current user or root: $private_parent"
         fi
-        if [ "$((0$private_parent_mode & 022))" -ne 0 ] && \
-            [ "$((0$private_parent_mode & 01000))" -eq 0 ]; then
+        private_parent_octal=0$private_parent_mode
+        if [ "$((private_parent_octal & 022))" -ne 0 ] && \
+            [ "$((private_parent_octal & 01000))" -eq 0 ]; then
             fail "temporary output parent permits group or other writes without sticky protection: $private_parent"
         fi
         [ "$private_parent" = "/" ] && return 0
@@ -143,7 +144,8 @@ esac
 if [ "$OUT_OWNER" != "$CURRENT_UID" ]; then
     fail "private temporary output must be owned by the current user: $OUT"
 fi
-if [ "$((0$OUT_MODE & 077))" -ne 0 ]; then
+OUT_MODE_OCTAL=0$OUT_MODE
+if [ "$((OUT_MODE_OCTAL & 077))" -ne 0 ]; then
     fail "private temporary output must not grant group or other access: $OUT"
 fi
 
@@ -152,8 +154,11 @@ CONFIG="$REPO_ROOT/connectors/apache/src/msc_config.c"
 BIN="$OUT/apache-rules-set-cleanup"
 trap 'cleanup_private_output' EXIT
 
+# APXS may enable LTO. The wrapper is referenced only after linker rewriting,
+# so root it explicitly before LTO and section GC can discard its definition.
 "$CC_BIN" -std=c17 -Wall -Wextra -Werror -ffunction-sections -fdata-sections \
     $APXS_CFLAGS $APXS_CPPFLAGS -UNDEBUG $INCLUDES "$HARNESS" "$CONFIG" \
-    -Wl,--gc-sections -Wl,--wrap=ap_log_perror_ $APR_RPATH_FLAG $APR_LINK_FLAGS \
+    -Wl,--gc-sections -Wl,--wrap=ap_log_perror_ \
+    -Wl,--undefined=__wrap_ap_log_perror_ $APR_RPATH_FLAG $APR_LINK_FLAGS \
     -o "$BIN"
 "$BIN"

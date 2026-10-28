@@ -169,6 +169,10 @@ cgo_ldflags="$COMMON_ARCHIVE $MODSECURITY_LINK_INPUT -Wl,-rpath,$MODSECURITY_RUN
         GOWORK=off go build -mod=readonly -tags libmodsecurity -trimpath -buildvcs=false \
         -o "$OUT_BIN" ./cmd/msconnector-envoy-ext-proc
     if [ "${ENVOY_EXT_PROC_COMMON_TEST:-0}" = "1" ]; then
+        [ "${ON_DEMAND_TESTS:-0}" = 1 ] || {
+            echo "FAIL: tagged full-module tests require explicit ON_DEMAND_TESTS=1" >&2
+            exit 2
+        }
         CGO_ENABLED=1 CGO_CFLAGS="$cgo_cflags" CGO_LDFLAGS="$cgo_ldflags" \
             GOWORK=off go test -mod=readonly -tags libmodsecurity -count=1 ./...
     fi

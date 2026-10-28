@@ -8,6 +8,8 @@ phase: 4
 rules: |
   SecRuleEngine On
   SecResponseBodyAccess On
+  SecResponseBodyLimit 1048576
+  SecResponseBodyLimitAction Reject
   SecResponseBodyMimeType text/html
   SecAuditEngine On
   SecAuditLog "@@AUDIT_LOG@@"

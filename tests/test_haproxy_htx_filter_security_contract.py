@@ -85,13 +85,26 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             r"(?s)if \(!ctx->transaction \|\| !ctx->response\.headers_seen \|\|.*?return -1;",
         )
 
-    def test_htx_request_and_response_payloads_have_cumulative_finite_budgets(self) -> None:
+    def test_htx_full_chunks_preserve_overflow_without_body_policy(self) -> None:
         source = FILTER.read_text(encoding="utf-8")
-        self.assertIn("request.body_limit", source)
-        self.assertIn("response.body_limit", source)
-        self.assertIn("*body_bytes_seen > body_limit - value.len", source)
-        self.assertIn("*body_bytes_seen += value.len", source)
-        self.assertIn("body_limit == 0U", source)
+        self.assertNotIn("request.body_limit", source)
+        self.assertNotIn("response.body_limit", source)
+        append_data = _function_body("haproxy_modsecurity_htx_append_data")
+        self.assertIn("SIZE_MAX - value.len", append_data)
+        self.assertIn("value.len > UINT_MAX", append_data)
+        self.assertIn("*body_bytes_seen += value.len", append_data)
+        config_start = source.index("struct haproxy_modsecurity_htx_filter_config {")
+        config = source[config_start:source.index("};", config_start)]
+        payloads = [append_data, *(_function_body(name) for name in (
+            "haproxy_modsecurity_htx_append_payload",
+            "haproxy_modsecurity_htx_append_request_payload",
+            "haproxy_modsecurity_htx_append_response_payload"))]
+        # Canonical error-reason strings may name native limits. Connector
+        # budget members or limit policy in the actual append path may not.
+        for body in [config, *payloads]:
+            self.assertNotIn("request_body_limit", body)
+            self.assertNotIn("response_body_limit", body)
+        self.assertNotRegex(source, r"(?:\.|->)\s*(?:request_body_limit|response_body_limit)\b")
 
     def test_request_setup_failure_aborts_before_a_payload_callback_can_pass(self) -> None:
         body = _request_headers_body()
@@ -155,7 +168,7 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             source,
             r"(?s)static int haproxy_modsecurity_htx_filter_http_headers\(.*?"
             r"if \(ctx->lifecycle\.fail_closed\) \{\s*"
-            r"haproxy_modsecurity_htx_abort_context\(ctx\);\s*return -1;\s*\}\s*"
+            r"return -1;\s*\}\s*"
             r"if \(msg->chn->flags & CF_ISRESP\)",
         )
         self.assertRegex(
@@ -165,26 +178,18 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
         )
 
     def test_unmappable_request_intervention_fails_closed_instead_of_disabling(self) -> None:
-        source = FILTER.read_text(encoding="utf-8")
-        self.assertRegex(
-            source,
-            r"(?s)static int haproxy_modsecurity_htx_begin_request\(.*?"
-            r"if \(decision\.disruptive\) \{.*?"
-            r"if \(!haproxy_modsecurity_htx_apply_precommit_deny\(s, ctx, &decision\)\) \{.*?"
-            r"\(void\)haproxy_modsecurity_htx_fail_closed_precommit\(s, ctx,\s*"
-            r"\"request disruptive decision\"\);",
-        )
+        begin = _function_body("haproxy_modsecurity_htx_begin_request")
+        self.assertRegex(begin, r'(?s)if \(decision\.disruptive\) \{.*?if \(!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed\(s, ctx,\s*&decision, "request disruptive decision"\)\) \{ return -1;')
+        dispatch = _function_body("haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed")
+        self.assertIn("haproxy_modsecurity_htx_apply_precommit_decision(s, ctx, decision)", dispatch)
+        self.assertIn("haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx, stage);", dispatch)
+        self.assertIn("MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR", dispatch)
 
     def test_unmappable_response_intervention_fails_closed_instead_of_disabling(self) -> None:
-        source = FILTER.read_text(encoding="utf-8")
-        self.assertRegex(
-            source,
-            r"(?s)static int haproxy_modsecurity_htx_process_response_headers\(.*?"
-            r"if \(decision\.disruptive\) \{.*?"
-            r"if \(!haproxy_modsecurity_htx_apply_precommit_deny\(s, ctx, &decision\)\) \{.*?"
-            r"\(void\)haproxy_modsecurity_htx_fail_closed_precommit\(s, ctx,\s*"
-            r"\"response-header disruptive decision\"\);",
-        )
+        headers = _function_body("haproxy_modsecurity_htx_process_response_headers")
+        self.assertRegex(headers, r'(?s)if \(decision\.disruptive\) \{.*?if \(!haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed\(s, ctx,\s*&decision, "response-header disruptive decision"\)\) \{ return -1;')
+        dispatch = _function_body("haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed")
+        self.assertIn("haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx, stage);", dispatch)
 
     def test_request_body_finalization_error_latches_fail_closed(self) -> None:
         source = FILTER.read_text(encoding="utf-8")
@@ -193,22 +198,25 @@ class HAProxyHTXFilterSecurityContractTest(unittest.TestCase):
             r"(?s)static int haproxy_modsecurity_htx_finish_request\(.*?"
             r"haproxy_modsecurity_transaction_finish_request_body\(\s*"
             r"ctx->transaction, &decision\) != 0\) \{\s*"
+            r"ctx->lifecycle.error = decision;\s*"
             r"haproxy_modsecurity_htx_fail_closed_request_phase\(s, ctx,\s*"
             r"\"request body eos\"\);",
         )
 
     def test_unmappable_precommit_request_body_intervention_latches_fail_closed(self) -> None:
-        source = FILTER.read_text(encoding="utf-8")
-        self.assertRegex(
-            source,
-            r"(?s)static int haproxy_modsecurity_htx_finish_request\(.*?"
-            r"if \(!ctx->response\.headers_seen\) \{\s*"
-            r"if \(!haproxy_modsecurity_htx_apply_precommit_deny\(s, ctx,\s*"
-            r"&decision\)\) \{\s*"
-            r"\(void\)haproxy_modsecurity_htx_fail_closed_precommit\(s, ctx,\s*"
-            r"\"request-body disruptive decision\"\);",
-        )
+        finish = _function_body("haproxy_modsecurity_htx_finish_request")
+        self.assertRegex(finish, r'(?s)if \(!ctx->response\.headers_seen\) \{\s*\(void\)haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed\(s, ctx,\s*&decision, "request-body disruptive decision"\);')
+        self.assertIn("haproxy_modsecurity_htx_fail_closed_postcommit", finish)
+        dispatch = _function_body("haproxy_modsecurity_htx_apply_precommit_decision_or_fail_closed")
+        self.assertIn("haproxy_modsecurity_htx_fail_closed_request_phase(s, ctx, stage);", dispatch)
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

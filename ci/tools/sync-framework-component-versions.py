@@ -4,7 +4,8 @@
 ``common.sh`` is never sourced or executed. The protected update workflow
 proves the Framework Git object, extracts its ``ci/lib/common.sh`` as a data
 file, and this tool accepts only a bounded registry-defined data grammar. It
-can write only the explicit Parent target registry. A separately validated
+can write only the explicit Parent target registry and its two constrained
+inventory companions. A separately validated
 resolver SHA may additionally update the single ordinary project version
 lock; it is never read from ``common.sh``.
 
@@ -27,6 +28,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
 import tempfile
 from urllib.parse import urlsplit
@@ -37,6 +39,8 @@ sys.path.insert(0, str(SCRIPT_REPOSITORY_ROOT))
 from ci.lib.framework_revision_pins import (
     FrameworkRevisionPinsError, LOCK_RELATIVE_PATH, parse_framework_revision_pins,
 )
+from ci.lib import active_inventory_updates as inventory_updates
+from ci.lib.active_test_inventory import load_inventory
 
 
 MAX_COMMON_BYTES = 256 * 1024
@@ -329,8 +333,9 @@ class RenderedTarget:
     mode: int
 
 
-# This is the sole Parent write allowlist. Discovery never broadens it: a new
-# Framework value needs an explicit target and a dedicated target renderer.
+# This is the primary Parent write allowlist. Discovery never broadens it: a
+# new Framework value needs an explicit target and a dedicated target renderer.
+# The two fixed companions contain only derived existing SHA-slot changes.
 TARGET_REGISTRY = (
     TargetSpec(
         "connectors/envoy/config/envoy-ext-proc-versions.env",
@@ -1003,11 +1008,12 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
 
 
 def _render_framework_sha_projection_targets(
-    root: Path, framework_sha: str
+    root: Path, framework_sha: str, originals: dict[str, bytes] | None = None,
 ) -> list[RenderedTarget]:
     """Update only the approved Framework revision; retain MRTS and toolchain pins."""
     path = _target_path(root, LOCK_RELATIVE_PATH)
-    original, mode = _read_regular(path, "Framework revision lock", allowed_root=root)
+    original, mode = (_read_regular(path, "Framework revision lock", allowed_root=root)
+                      if originals is None else (originals[LOCK_RELATIVE_PATH], 0o644))
     try:
         payload = parse_framework_revision_pins(original)
     except FrameworkRevisionPinsError as exc:
@@ -1021,7 +1027,8 @@ def _render_framework_sha_projection_targets(
 
 
 def _render_targets(
-    root: Path, values: dict[str, str], framework_sha: str | None
+    root: Path, values: dict[str, str], framework_sha: str | None,
+    originals: dict[str, bytes] | None = None,
 ) -> list[RenderedTarget]:
     derived = {
         "ENVOY_IMAGE": f"envoyproxy/envoy:v{values['ENVOY_VERSION']}",
@@ -1041,11 +1048,11 @@ def _render_targets(
 
     for spec in TARGET_REGISTRY:
         path = _target_path(root, spec.relative_path)
-        original, mode = _read_regular(
+        original, mode = (_read_regular(
             path,
             f"registered target {spec.relative_path}",
             allowed_root=root,
-        )
+        ) if originals is None else (originals[spec.relative_path], 0o644))
         try:
             text = original.decode("utf-8")
         except UnicodeDecodeError as exc:
@@ -1053,8 +1060,125 @@ def _render_targets(
         replacement = _render_target(spec, text, values, path, source_value)
         rendered.append(RenderedTarget(path, original, replacement.encode("utf-8"), mode))
     if framework_sha is not None:
-        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha))
+        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha, originals))
     return rendered
+
+
+def _primary_paths(framework_sha: str | None) -> frozenset[str]:
+    paths = frozenset(spec.relative_path for spec in TARGET_REGISTRY)
+    return paths | {LOCK_RELATIVE_PATH} if framework_sha is not None else paths
+
+
+def _derive_inventory_companions(
+    inventory: bytes, archive: bytes, before: dict[str, bytes], after: dict[str, bytes],
+    approved: frozenset[str],
+) -> dict[str, bytes]:
+    """Derive only existing SHA slots from proven, fixed primary replacements."""
+    outputs = inventory_updates.derive_companions(inventory, archive, before, after, approved)
+    old_archive = json.loads(archive, object_pairs_hook=inventory_updates._object)
+    updated = json.loads(outputs[inventory_updates.ARCHIVE], object_pairs_hook=inventory_updates._object)
+    sources = updated.get("sources")
+    if not isinstance(sources, list):
+        raise SyncError("Framework maintenance archive must contain its source array")
+    seen: set[str] = set()
+    changed = False
+    for row in sources:
+        if not isinstance(row, dict) or not isinstance(row.get("source"), str):
+            raise SyncError("Framework maintenance archive source row is invalid")
+        name = row["source"]
+        if name in seen:
+            raise SyncError("Framework maintenance archive repeats a source")
+        seen.add(name)
+        if name not in before:
+            continue
+        if row.get("source_sha256") != inventory_updates.digest(before[name]):
+            raise SyncError("Framework maintenance archive has a stale primary source digest")
+        replacement = inventory_updates.digest(after[name])
+        if replacement != row["source_sha256"]:
+            row["source_sha256"] = replacement
+            changed = True
+    if changed:
+        # The native archive generator uses sorted keys. Existing definitions,
+        # membership and all non-SHA metadata are preserved exactly.
+        outputs[inventory_updates.ARCHIVE] = (json.dumps(updated, indent=2, sort_keys=True) + "\n").encode()
+    elif outputs[inventory_updates.ARCHIVE] != archive:
+        # Keep the generator's canonical ordering even for a lock-only update.
+        outputs[inventory_updates.ARCHIVE] = (json.dumps(updated, indent=2, sort_keys=True) + "\n").encode()
+    if old_archive == updated:
+        outputs[inventory_updates.ARCHIVE] = archive
+    return outputs
+
+
+def _render_inventory_companions(
+    root: Path, rendered: list[RenderedTarget], framework_sha: str | None,
+) -> tuple[list[RenderedTarget], bool]:
+    approved = _primary_paths(framework_sha)
+    snapshot = inventory_updates.capture_update(root, approved)
+    if snapshot is None:
+        return [], False
+    proposed = {str(item.path.relative_to(root)): item.replacement for item in rendered}
+    # Admit the entire baseline and reject concurrent or unapproved source drift.
+    inventory_updates.planned_companions(root, snapshot, proposed)
+    after = dict(snapshot["before"])
+    after.update(proposed)
+    outputs = _derive_inventory_companions(snapshot["inventory"], snapshot["archive"],
+                                           snapshot["before"], after, approved)
+    companions = []
+    for name in sorted(inventory_updates.COMPANIONS):
+        path = _target_path(root, name)
+        original, mode = _read_regular(path, "inventory companion", allowed_root=root)
+        if original != snapshot["inventory" if name == inventory_updates.INVENTORY else "archive"] or mode != 0o644:
+            raise SyncError("inventory companion changed concurrently or has an invalid mode")
+        companions.append(RenderedTarget(path, original, outputs[name], mode))
+    return companions, True
+
+
+def _publication_bytes(root: Path, name: str, approved: frozenset[str], staged: bool) -> bytes:
+    if name not in approved | inventory_updates.COMPANIONS:
+        raise SyncError("Framework publication path escapes its fixed registry")
+    if not staged:
+        data, mode = _read_regular(_target_path(root, name), "publication target", allowed_root=root,
+                                   maximum=inventory_updates.MAX_BYTES)
+        if mode != 0o644:
+            raise SyncError("Framework publication target must have mode 100644")
+        return data
+    command = ["git", "--no-replace-objects", "-C", str(root)]
+    rows = subprocess.check_output(command + ["ls-files", "--stage", "-z", "--", name], timeout=30).split(b"\0")
+    if (len(rows) != 2 or not rows[0].startswith(b"100644 ")
+            or b" 0\t" not in rows[0] or rows[0].split(b"\t", 1)[-1].decode() != name):
+        raise SyncError("Framework publication index requires one regular stage-zero blob")
+    data = subprocess.check_output(command + ["show", "--no-textconv", ":" + name], timeout=30)
+    if len(data) > inventory_updates.MAX_BYTES:
+        raise SyncError("Framework publication index blob exceeds its bounded size")
+    return data
+
+
+def verify_inventory_companions(
+    root: Path, framework_common: Path, framework_sha: str, base: str, *, staged: bool = False,
+) -> None:
+    """Rebuild fixed primary and companion bytes from immutable trusted Git data."""
+    repository_root = _require_directory(root, "repository root")
+    if not LOWER_HEX40.fullmatch(base) or not LOWER_HEX40.fullmatch(framework_sha):
+        raise SyncError("Framework publication requires exact lowercase SHA-40 identities")
+    values = parse_common(framework_common)
+    with _project_version_transaction(repository_root, False):
+        approved = _primary_paths(framework_sha)
+        before = {name: inventory_updates.trusted_blob(repository_root, base, name) for name in approved}
+        rendered = _render_targets(repository_root, values, framework_sha, before)
+        expected = {str(item.path.relative_to(repository_root)): item.replacement for item in rendered}
+        for name in approved:
+            if _publication_bytes(repository_root, name, approved, staged) != expected[name]:
+                raise SyncError("Framework publication primary differs from trusted-base reconstruction: " + name)
+        outputs = _derive_inventory_companions(
+            inventory_updates.trusted_blob(repository_root, base, inventory_updates.INVENTORY),
+            inventory_updates.trusted_blob(repository_root, base, inventory_updates.ARCHIVE),
+            before, expected, approved,
+        )
+        for name in inventory_updates.COMPANIONS:
+            if _publication_bytes(repository_root, name, approved, staged) != outputs[name]:
+                raise SyncError("Framework companions differ from trusted-base reconstruction: " + name)
+        if not staged:
+            load_inventory(repository_root)
 
 
 def _render_target(
@@ -1144,11 +1268,19 @@ def synchronize(
     if framework_sha is not None and not LOWER_HEX40.fullmatch(framework_sha):
         raise SyncError("Framework SHA must be exactly 40 lowercase hexadecimal characters")
     values = parse_common(framework_common)
-    with _project_version_transaction(repository_root, sync):
-        rendered = _render_targets(repository_root, values, framework_sha)
-        changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
-        if sync and changed:
-            _commit_rendered(rendered)
+    try:
+        with _project_version_transaction(repository_root, sync):
+            rendered = _render_targets(repository_root, values, framework_sha)
+            companions, admitted = _render_inventory_companions(repository_root, rendered, framework_sha)
+            rendered.extend(companions)
+            changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
+            if sync and changed:
+                verify = partial(load_inventory, repository_root) if admitted else None
+                _commit_rendered(rendered, verify)
+    except ValueError as exc:
+        if isinstance(exc, SyncError):
+            raise
+        raise SyncError(str(exc)) from exc
 
     return changed
 
@@ -1168,7 +1300,7 @@ def _require_target_unchanged(
                 raise SyncError(f"synchronization target metadata changed concurrently: {item.path}")
 
 
-def _commit_rendered(rendered: list[RenderedTarget]) -> None:
+def _commit_rendered(rendered: list[RenderedTarget], verify: Callable[[], object] | None = None) -> None:
     committed: list[RenderedTarget] = []
     written_metadata: dict[Path, os.stat_result] = {}
 
@@ -1186,7 +1318,9 @@ def _commit_rendered(rendered: list[RenderedTarget]) -> None:
             _require_target_unchanged(item, item.original)
             # Track the replace itself, before directory fsync can fail.
             _replace_file(item.path, item.replacement, item.mode, partial(record_replacement, item))
-    except (OSError, SyncError) as exc:
+        if verify is not None:
+            verify()
+    except (OSError, ValueError) as exc:
         rollback_errors = _rollback_rendered(committed, written_metadata)
         if rollback_errors:
             outcome = "rollback incomplete: " + "; ".join(rollback_errors)
@@ -1213,11 +1347,14 @@ def _rollback_rendered(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--validate", action="store_true", help="parse inputs and targets without requiring an already-synced tree")
     mode.add_argument("--check", action="store_true", help="fail when a fixed target would change")
     mode.add_argument("--sync", action="store_true", help="write the fixed target registry atomically")
+    mode.add_argument("--verify-companions", action="store_true", help="reconstruct fixed publication bytes from the trusted base")
+    parser.add_argument("--base", help="exact trusted Parent base SHA for publication verification")
+    parser.add_argument("--staged", action="store_true", help="verify stage-zero index blobs instead of working-tree files")
     parser.add_argument("--repo-root", type=Path, default=SCRIPT_REPOSITORY_ROOT)
     parser.add_argument("--framework-common", type=Path, required=True)
     parser.add_argument(
@@ -1228,13 +1365,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if _absolute(args.repo_root) != SCRIPT_REPOSITORY_ROOT:
             raise SyncError("CLI repository root must be the repository containing this script")
+        if args.verify_companions:
+            if not args.base or not args.framework_sha:
+                raise SyncError("companion verification requires both --base and --framework-sha")
+            verify_inventory_companions(SCRIPT_REPOSITORY_ROOT, _absolute(args.framework_common),
+                                        args.framework_sha, args.base, staged=args.staged)
+            print("FRAMEWORK_COMPANIONS_VERIFIED")
+            return 0
+        if args.base or args.staged:
+            raise SyncError("--base and --staged require --verify-companions")
         changed = synchronize(
             SCRIPT_REPOSITORY_ROOT,
             _absolute(args.framework_common),
             args.sync,
             args.framework_sha,
         )
-    except (OSError, SyncError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"sync-framework-component-versions: error: {exc}")
         return 2
     if args.sync:

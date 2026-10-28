@@ -1,5 +1,7 @@
 # Apache Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: adapter-owned source migration complete
@@ -43,7 +45,6 @@ The adapter-owned Apache connector currently registers:
 - `modsecurity_transaction_id_expr <apache-expression>`
 - `modsecurity_phase4_mode off|safe|strict`
 - `modsecurity_phase4_log <path>`
-- `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_transaction_id` accepts a static string and keeps the existing
 static semantics. `modsecurity_transaction_id_expr` accepts an Apache string
@@ -190,8 +191,9 @@ type; the engine's own `SecResponseBodyMimeType` configuration selects
 inspection. There is no second connector MIME list or MIME-based intervention
 downgrade.
 
-`modsecurity_phase4_body_limit` remains accepted as a legacy compatibility
-value, but no Phase-4 mode enforces it as a cumulative WAF inspection limit.
+`modsecurity_phase4_body_limit` is removed; existing configurations must remove
+the directive, including formerly valid values. No Phase-4 mode enforces a
+connector-configurable cumulative WAF inspection limit.
 libModSecurity owns inspection limits through `SecResponseBodyLimit` and
 `SecResponseBodyLimitAction`. Checked counters, lifecycle/error handling and
 the fixed Apache bucket-count safety ceiling remain active. There is no
@@ -232,6 +234,10 @@ either H1 or H2 as passed.
 
 ## Phase-4 mode and response-body limit ownership
 
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
+
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through
@@ -244,9 +250,8 @@ paths. A request-only route still requires its supported response
 observer/companion to inspect Phase 4; selecting a mode does not create a
 missing response path.
 
-Legacy connector/runtime budget settings may remain parseable for
-compatibility, but they must not reject or abort a response solely because a
-legacy inspection-byte count is exceeded. Independent allocation,
+There is no replacement connector inspection-byte setting. Common Runtime
+storage limits are not WAF inspection policy. Independent allocation,
 buffered-storage, chunk/message/frame, timeout, overflow and transport limits
 remain active in every mode. A buffered sidecar may therefore still reject a
 response that cannot fit its bounded host storage; that is host capacity, not

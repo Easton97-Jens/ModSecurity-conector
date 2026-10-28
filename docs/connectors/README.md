@@ -2,18 +2,6 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Quick orientation
-
-Choose a **logical profile**, not only a host name. Apache and NGINX each have
-one direct logical profile; HAProxy, Envoy, Traefik, and lighttpd each expose
-two distinct logical solutions with different transport or response-visibility
-boundaries.
-
-For a first pass, identify the host family, select the logical profile, open the
-matching [example](../../examples/README.md), and then read the host-specific
-guide below. Do not treat a compatibility/request-only component as proof for a
-response-capable profile.
-
 This section navigates six host integrations and ten logical connector
 profiles. The host-family rows below are navigation only: the shared contract
 assesses each logical profile separately, and a result for one profile is not
@@ -69,7 +57,7 @@ translation.
 | <code>native-htx-filter</code> | HAProxy native HTX filter | HTX request/response representation | Selected HAProxy core route | HTX/EOS semantics are not a claim of complete transport or protocol coverage |
 | <code>ext_proc</code> | Envoy external processing bridge | Streamed host/processor exchange | Selected Envoy core route | A processor/gRPC event is not automatically proof of a client-visible strict reset |
 | <code>native-traefik-middleware</code> | Traefik native middleware with local UDS service | Middleware request/response path through its local engine | Recorded selected Traefik mode | UDS locality and source wiring do not themselves prove strict transport behavior |
-| <code>patched-native-lighttpd</code> | Patched lighttpd native core plus module | HTTP/1 entity-body ranges before transfer framing; selected `mod_proxy` P2 gate buffers until EOS/allow with `body_limit_action=reject` | Recorded selected lighttpd mode | The gate is not a claim for HTTP/2/HTTP/3, other stream handlers, P4, or unrestricted upstream streaming |
+| <code>patched-native-lighttpd</code> | Patched lighttpd native core plus module | HTTP/1 entity-body ranges before transfer framing; selected `mod_proxy` P2 gate retains the host request queue until native EOS/allow | Recorded selected lighttpd mode | The gate is not a claim for HTTP/2/HTTP/3, other stream handlers, P4, or unrestricted upstream streaming |
 | <code>ext_authz</code> | Envoy external authorization service | Normally pre-upstream authorization view | Request component of the separate <code>envoy-ext-authz</code> logical profile | It does not observe the later upstream response without its mandatory observer |
 | <code>forwardAuth</code> | Traefik forward-auth integration | Authorization request/response decision | Request component of the separate <code>traefik-forwardauth</code> logical profile | Do not relabel the direct service as native-middleware evidence or omit its mandatory observer |
 | <code>spoe-spop-agent</code> | HAProxy agent/protocol vocabulary | Agent-mediated request/response path | Request component of the separate <code>haproxy-spoe-spop</code> logical profile | Do not interchange raw SPOP with the mandatory native-HTX response companion |

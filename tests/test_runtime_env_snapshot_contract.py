@@ -77,6 +77,7 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
 
     def test_native_summary_and_mismatch_helpers_keep_outputs_with_reduced_context_parameters(self) -> None:
         with tempfile.TemporaryDirectory(prefix="native-summary-signatures-") as temporary:
+            self.enterContext(mock.patch.object(runtime_mismatch, "INPUTS", runtime_mismatch.EvidenceInputs((ROOT, Path(temporary)))))
             root = Path(temporary)
             with (
                 mock.patch.object(native_comparison, "build_metadata", return_value={}),
@@ -1030,6 +1031,13 @@ class RuntimeEnvironmentSnapshotContractTest(unittest.TestCase):
             self.assertFalse((bundle / "README.txt").exists())
 
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

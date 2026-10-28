@@ -69,7 +69,12 @@ class PatchedP2GateContractTest(unittest.TestCase):
         self.assertIn("r->con->reqbody_read(r)", prepare)
         self.assertNotRegex(prepare, r"stream_request_body\s*\|=")
         self.assertIn("request_body_finished", prepare)
-        self.assertIn("request body exceeds the Common P2 bound", prepare)
+        # Native limits belong to the engine. The connector's gate buffers
+        # until native P2 admission instead of inventing its own BODY_LIMIT.
+        self.assertNotIn("request_body_limit", source)
+        self.assertNotIn("MSCONNECTOR_ERROR_BODY_TOO_LARGE", source)
+        self.assertIn('msconnector.request-body-gate = "pre-upstream"', CONFIG.read_text(encoding="utf-8"))
+        self.assertIn("return ctx->request_body_finished ? HANDLER_GO_ON : HANDLER_WAIT_FOR_EVENT;", prepare)
 
     def test_runtime_config_documents_the_explicit_pre_upstream_mode(self) -> None:
         config = CONFIG.read_text(encoding="utf-8")
@@ -123,6 +128,13 @@ class PatchedP2GateContractTest(unittest.TestCase):
         left.eos()
         self.assertEqual(left.upstream, b"release-once")
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

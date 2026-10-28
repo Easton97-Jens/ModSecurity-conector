@@ -2,12 +2,6 @@
 
 **Language:** English | [Deutsch](ci-security-tooling.de.md)
 
-## Quick orientation
-
-This page documents **how CI security checks are pinned and bounded**, not a claim that the project is universally secure. Read it when changing workflows, security scanners, action pins, permissions, project-version pins, or dependency-checking logic.
-
-Keep security tools immutable/reviewable, permissions minimal, and scan results bound to the exact commit/run that produced them. A green scanner is one security signal, not production certification.
-
 ## Scope
 
 This document describes repository CI controls. It does not establish runtime
@@ -34,6 +28,16 @@ the publisher obtains a short-lived, repository-limited GitHub App token only
 after candidate and proposed-tree validation. It creates Draft pull requests
 only after explicit path, symlink, staged-scope, and candidate-SHA-256 checks.
 
+Only the resolver step and the publisher's metadata re-resolution step receive
+a job-scoped read-only `github.token` for repository metadata requests at
+`https://api.github.com`. Git and PR publication retain their GitHub App token.
+Redirects are rejected before
+following them; binary asset downloads use a separate client without this
+header. Local metadata resolution accepts an optional `GITHUB_TOKEN` and uses
+anonymous requests when it is absent. Contract assertions bind workflow
+references to the exact SHA and tag in the central lock, so an older hardcoded
+release cannot reject a valid maintenance candidate.
+
 Workflow maintenance has one owner: Dependabot does not manage
 `github-actions` here. The updater resolves each lock record as a unit,
 updates every matching Action suffix (including all `github/codeql-action`
@@ -50,16 +54,17 @@ not need a parallel lock schema.
 
 | Action | Version | Immutable commit |
 | --- | --- | --- |
+| `SonarSource/sonarqube-scan-action` | `v8.3.0` | `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `actions/create-github-app-token` | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` |
-| `actions/download-artifact` | `v8.0.1` | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
+| `actions/create-github-app-token` | `v3.3.0` | `64ab729a6294000f5aa4a4bc0b73d1f32bc45510` |
+| `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
 | `actions/github-script` | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
-| `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
-| `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
-| `github/codeql-action` | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` |
-| `google/osv-scanner-action` | `v2.5.1` | `6e4298ebc4db23e847df9b2e2de2939d6f066c67` |
-| `ossf/scorecard-action` | `v2.4.4` | `2d1146689b8cda280b9bc96326124645441f03bc` |
+| `actions/setup-python` | `v7.1.0` | `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0` |
+| `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
+| `github/codeql-action` | `v4.39.1` | `9b3254085494b55a0f7c4c2b3d2d52cc712ce370` |
+| `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
+| `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
 For hosted execution, configure the repository variable
 `WORKFLOW_UPDATER_APP_CLIENT_ID` and the repository secret
@@ -72,6 +77,27 @@ covered by the explicit publisher allowlist and staging list. Adding a workflow
 requires updating both lists. Proposed-tree validation copies the complete
 registered contract inputs, including their offline test fixtures; those
 read-only inputs do not expand the publisher's permitted changes.
+
+Before publication, the private proposed tree runs the inventoried updater controls via
+`make check-ci-security-contract`, including release-selection and negative
+provenance controls; CodeQL fixtures use versions independent of the live lock,
+and the copied-tree integration test stays separate to prevent recursion.
+The validator downloads SHA-256-verified `actionlint` and `zizmor` from the
+proposed lock and checks the proposed workflows: safe fixtures must return `0`,
+both high-severity insecure
+fixtures `14`; checksum failures, tool errors, unexpected exits and timeouts
+reject the candidate before push or PR creation.
+
+
+## Derived maintenance metadata and remaining prerequisites
+
+Maintenance may derive exactly two companion files: `config/testing/active-cases.json` (existing SHA fields only) and `reports/testing/test-selection-archive.generated.json` (`inventory_sha256` only). Selectors, cases, profiles, source paths and subtest metadata cannot change through this mechanism. Trusted-base reconstruction must reproduce exact bytes and regular stage-0 mode `100644` before staging, publication or reuse. The primary Actions publisher allowlist is unchanged. Three focused regressions now pass: a future Go minor 1.28 is eligible, rollback preserves a foreign companion change, and rollback restores its own companion larger than 4 KiB.
+
+Four `go.mod` declarations and `requirements-ci.lock`, `requirements-ci-build.lock`, `requirements-dev.txt` are seven non-executable dependency declarations, not collector source bindings. Go module/sum files and the three requirements remain bound by actual build identity and pre/post source snapshots. This avoids dependency-metadata churn without removing controller or executable-code bindings.
+
+Sonar's job budget is now 120 minutes instead of 45 for the explicitly larger selection; individual 600-second limits and the one-second timing assertion remain unchanged. Observed profiles reduced 429 AST parses to 41 and 6841 source reads to a few hundred. The earlier 15.723 s measurement had nine concurrent workloads, whereas the later 1.788 s measurement was idle: these different conditions do not establish a controlled speedup.
+
+After the user marked configuration complete, observed Dependabot secret metadata lists exactly one name: `SONAR_TOKEN`. The earlier zero-name/pending-secret state is historical and resolved at the metadata layer. No token value was read, and neither live bot authentication nor a successful Dependabot PR is claimed. That execution proof still requires separately authorized default-branch maintenance checks; current PR authentication is a separate result. [GitHub's Dependabot-on-Actions rules](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions) describe that separate secret context. No secret or provider setting is changed by this documentation.
 
 ## Central ordinary revision and toolchain pins
 
@@ -152,7 +178,50 @@ trigger this recovery. The digest is verified before archive listing or
 extraction. Cache identity remains bound to the canonical source tuple; metadata
 records the actual download URL and explicit recovery reason.
 
-## Constrained Python 3.14 patch updater
+## Reviewed Python 3.15 CI dependency build
+
+Python `3.15.1` has no official PyYAML `6.0.3` CPython-3.15 wheel on PyPI.
+The explicitly reviewed exception in `ci/tools/install-ci-dependencies.py`
+uses only that release's official SHA-256-pinned source distribution and the
+exact official universal build-tool wheels in `requirements-ci-build.lock`.
+It creates a separate external builder, disables LibYAML, rejects native
+extensions and unexpected wheel metadata/dependencies, and installs the
+resulting pure-Python wheel through its computed hash. Other source builds,
+open-ended dependency resolution and build isolation downloads are not allowed.
+The backend receives a credential-stripped environment and offline dependency
+resolution; this does not establish operating-system network isolation.
+
+Workspace admission happens before downloads. Use `RUNNER_TEMP` or an explicit
+`--build-root`; `TMPDIR` is not an implicit fallback. The selected root must
+belong to the caller and exclude group/other writes. Its complete ancestry must
+contain real directories owned by root or the caller; only root-owned sticky
+ancestors may be publicly writable. Symlinks and parent traversal are rejected.
+The installer uses the admitted canonical path and creates a private work leaf.
+This prevents a different user from replacing paths between hash verification
+and backend execution; ordinary private allocation under a protected sticky
+directory was not itself evidence of exploitation.
+
+Local use requires a task-owned virtual environment. Hosted workflows pass
+`--ci-toolcache` only for the selected `actions/setup-python` interpreter;
+the Python candidate validator additionally passes its independently checked
+`--expected-version`. The default remains the canonical `.python-version`.
+Parent jobs consuming Framework's existing lock pass
+`--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
+this rejects dependency/version drift and preserves PyYAML `6.0.3` while the
+Parent owns the reviewed Python-3.15 artifact. Framework/MRTS repositories and
+gitlinks stay unchanged; this is not Framework runtime qualification.
+
+For read-only submodule validation, the ordinary runner invokes this trusted
+Parent installer in guarded `--ci-toolcache` mode after candidate data checks
+and before sandbox creation. The Framework lock is only parsed as data; no
+candidate code runs during preparation. The runtime containing the verified
+pure-Python dependency is then bound read-only. After dropping privileges, the
+candidate verifies the dependency with an isolated `-I` import before running
+`quick-check` using the original selected interpreter. No dependency install or
+builder output is added inside `/external`, whose permission and symlink guards
+remain unchanged.
+
+## Constrained Python 3.15 patch updater
 
 `.github/workflows/update-python-version.yml` has exactly four jobs:
 `resolve-python-patch`, `validate-python-patch`, `publish-python-update`, and
@@ -184,7 +253,7 @@ that keeps the output guard fail-closed and avoids workflow-template injection.
 
 Before it writes, the publisher requires either no maintenance branch and no
 matching PR, or exactly one same-repository Draft PR with the fixed title and
-marker `<!-- modsecurity-conector-python-314-updater -->`, `master` base, and
+marker `<!-- modsecurity-conector-python-315-updater -->`, `master` base, and
 automatic merge disabled. It verifies an existing branch's historical scope,
 then rebuilds from current trusted `origin/master`, applies only the
 `python_version` lock field and its `.python-version` view, stages only those
@@ -211,6 +280,31 @@ the runner's `ShellCheck` path when available. It also runs checksum-verified
 `zizmor` offline against all workflow files. A deliberately insecure fixture
 must fail and a safe fixture must pass; neither fixture is executable product
 configuration.
+
+GitHub's same-repository `$/` references select the running revision. Because
+pinned `actionlint` `v1.7.12` lacks support, `ci/tools/lint_workflows.py`
+translates only safe literal `uses` paths
+at YAML token positions to same-width `./` text in memory for actionlint stdin.
+Sources, scripts, comments and runtime references stay intact; `zizmor` audits
+the originals. See the
+[GitHub syntax announcement](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)
+and [actionlint compatibility issue](https://github.com/rhysd/actionlint/issues/711).
+
+Both adapters accept no tool or workflow-path CLI arguments and discover only
+repository YAML workflows and two fixed permission fixtures. Security CI uses
+`RUNNER_TEMP/security-tools/actionlint`; boolean `--candidate-tree` uses the
+private proposed tree's fixed downloaded tool. It rejects traversal, symlink
+ancestors, foreign/writable tool staging and nonregular files, uses
+`/usr/bin/shellcheck` when available, and retains checksum-fetcher integrity.
+Local `make lint` instead uses optional installed `actionlint` from `PATH` via
+`ci.tools.lint_installed_workflows`, with the same in-memory normalization,
+unchanged sources, ShellCheck's default lookup, no downloads, and preserved
+nonzero/timeout outcomes.
+
+Hosted NGINX reserves an invocation-local runtime snapshot before provisioning,
+passes its exact path through `env -i` with `SKIP_RUNTIME_COMPONENT_PREPARE=1`,
+and verifies its target and cache before the harness. CI handoff regressions
+cover rejected metadata and failed provisioning to prevent silent re-preparation.
 
 ## Secret and dependency scanning
 

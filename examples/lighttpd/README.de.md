@@ -2,17 +2,6 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-## Hier beginnen
-
-lighttpd besitzt zwei getrennte logische Lösungen. `lighttpd-patched`
-verwendet die gepatchte native Route des Repositorys; `lighttpd-stock`
-verwendet den traffic-owning Stock-Sidecar. Beide sind keine gegenseitigen
-Fallback-Modi.
-
-Wählen Sie die tatsächlich gewünschte Lösung und beginnen Sie mit ihrem
-`safe`-Bundle. Für die Patched-Route muss Host und Modul exakt zusammenpassen;
-Stock-Sidecar-/Backend-Listener bleiben privat und begrenzt.
-
 ## Integration und Grenze
 
 Es gibt zwei logische Lösungen. [Stock](stock/) ist der traffic-owning
@@ -62,8 +51,7 @@ den Konfigurationen sind Beispiele für Hostinstallation oder Hostruntime.
 | rules_file | Installierte geprüfte Regeldatei | Pflicht; Runtime-Konfiguration; Engine-Scope | /etc/modsecurity/no-crs-baseline.conf. Regeln können Traffic blockieren. |
 | transaction_id_header | HTTP-Korrelationsheadername | Pflicht; Runtime-Konfiguration; Transaction-Scope | x-modsec-transaction-id. Nur Metadaten, keine Secrets verwenden. |
 | request_body_mode und response_body_mode | none, buffered oder streaming gemäß Hostfähigkeit | Pflicht; Runtime-Konfiguration; Engine-Scope | streaming für den Stock-Sidecar und den passenden Patched-Host; nie auf einem ungepatchten nativen Stock-Modul aktivieren. |
-| request_body_limit, response_body_limit, body_limit_action | Common-Runtime-Controls für Request-/Body-Kapazität | Pflicht, wenn die gewählte Topologie den jeweiligen Body-Pfad aktiviert; Runtime-Konfiguration / Common Runtime | `request_body_limit` begrenzt Common-Request-Verarbeitung. `response_body_limit` beschreibt bei Bedarf begrenzte Host-/Runtime-Response-Kapazität und ist nicht das WAF-Inspection-Byte-Limit. |
-| SecResponseBodyLimit und SecResponseBodyLimitAction | WAF-Response-Inspection-Byte-Policy | ModSecurity-Regeln / Engine-Scope, wenn das ausgewählte Ruleset ein Response-Limit konfiguriert | Engine-eigene Inspection-Policy; unabhängig von `off`, `safe` und `strict`. |
+| SecRequestBodyLimit, SecRequestBodyLimitAction | Natives Request-Inspektionslimit und Aktion | Engine-Regelkonfiguration; keine Connector-Option und kein Default | Die Engine wählt Reject oder ProcessPartial; SecRequestBodyNoFilesLimit bleibt eine unabhängige native Grenze. |
 | phase4_mode | P4-Policy: off, safe oder strict | In diesen Runtime-Dateien Pflicht; Runtime-Konfiguration; Engine-Scope | safe für gepatchtes Safe; all wählt strict. Beweist weder Statuswechsel noch Abbruch. |
 | server.stream-response-body und proxy.server | Gepatchte Delivery-Einstellung und lokale Upstream-Route | In Patched-Bündeln Pflicht; Host-Konfiguration; Server-Scope | 1 und 127.0.0.1:8081. Nur Identity-HTTP/1.1; kein gzip/br- oder HTTP/2-Verhalten ableiten. |
 | event_path | Beschreibbares JSONL-Metadatenziel | In diesen Referenzen Pflicht; Runtime-Konfiguration; Engine-Scope | /var/log/lighttpd/msconnector-events.jsonl. Schützen und rotieren; keine Bodies oder Secrets schreiben. |
@@ -93,8 +81,7 @@ Lifecycle-Anspruch.
 
 Jedes Bündel enthält die Topologie-Artefakte, die Common-Runtime-`key=value`-
 Datei und für Stock die Sidecar-ARGV-Aufzeichnung. Jede Runtime-Datei nutzt
-dieselben begrenzten Request-/Header-/Event-Limits sowie die von ihrer Topologie
-benötigten Host-/Runtime-Response-Kapazitätswerte und zeigt quellenvalide
+dieselben begrenzten Header-/Body-/Event-Limits und zeigt quellenvalide
 inaktive Regelquellen- und Transaktions-ID-Alternativen als Kommentare. Nie
 mehr als eine Regelquelle aktivieren und die statische Transaktions-ID nicht
 produktiv verwenden.
@@ -216,3 +203,47 @@ ausführbaren Client-Abbruch beschreiben.
 
 - [lighttpd-Connector-Quellcode und gepatchte Hostgrenze](../../connectors/lighttpd/README.de.md)
 - [Repository-Beispielübersicht](../README.de.md)
+
+Die ausgelieferten argv-Dateien wählen separate private, diskgestützte
+Verzeichnisse unter `/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`.
+Ein Profil wird als Service-UID mit
+`python3 connectors/lighttpd/launch_stock_sidecar.py --profile safe` gestartet.
+Der Launcher akzeptiert ausschließlich `all`, `off`, `safe` und `strict`, liest
+deren feste repository-eigene argv-Dateien und startet die installierte native
+Komponente unter `/usr/libexec/msconnector/lighttpd-stock-sidecar`. Beliebige
+Programm- oder argv-Dateipfade und zusätzliche Optionen sind nicht unterstützt.
+Er prüft Eigentümer, Berechtigungen und nativen Artefakttyp und führt das Programm
+über einen festgehaltenen Deskriptor aus. Der Launcher erstellt
+fehlende Spoolverzeichnisse und verwirft unsichere bestehende Pfade ohne Änderung
+ihrer Berechtigungen. Konfigurationsverzeichnisse wie `/etc/lighttpd` dürfen 0755
+behalten; Spoolverzeichnisse müssen der effektiven UID gehören und 0700 haben.
+`--install-root` verlagert den festen Komponentenpfad sowie absolute
+Konfigurations- und Spoolpfade für gestufte Installationen. Externe Builds müssen
+an diesem festen Komponentenpfad bereitgestellt werden. Regel- und
+Ereignispfade im Konfigurationsinhalt sind weiterhin
+an die Installation anzupassen.
+
+`--spool-capacity-bytes` verwendet standardmäßig 268435456 (256 MiB) für die
+Summe offener, auf Dateisystemblöcke gerundeter Reservierungen pro Prozess.
+`--spool-free-reserve-bytes` verwendet standardmäßig 67108864 (64 MiB) für den
+unprivilegiert verfügbaren freien Speicher. Dies sind technische Kapazitäten der
+Disk-Zulassung, unabhängig von nativer WAF-Body-Policy. Nach P1-Allow prüft die
+Zulassung das festgehaltene Dateisystem, allokiert die vollständige deklarierte
+Request-Länge mit `posix_fallocate` und prüft den freien Speicher erneut, bevor
+ein Body-Chunk an die native Engine gelangt. Fehler liefern 503 und einen
+technischen Connector-Ressourcenfehler, niemals ein WAF-BODY_LIMIT-Ereignis.
+Es gibt keinen Sparse-Datei-Fallback. Reservierungen bleiben bis zum Schließen
+des Deskriptors auf jedem Ausgang bestehen, auch bei Replay, Abbruch und
+Receipt-Fehlern. Eine Verzeichnissperre für die Prozesslebensdauer verwirft einen
+zweiten Sidecar für dasselbe Verzeichnis. Deadline-Prüfungen vor und nach der
+Allokation machen synchrone Aufrufe für reguläre Dateien nicht abbrechbar.
+
+Ein Administrator muss root-eigene, nicht beschreibbare Vorfahren bereitstellen,
+bevor ein unprivilegierter Dienst `/var/lib` verwenden kann, beispielsweise mit
+`install -d -o root -g root -m 0755 /var/lib/msconnector /var/lib/msconnector/lighttpd-stock`
+und anschließend `install -d -o SERVICE_UID -g SERVICE_GID -m 0700 /var/lib/msconnector/lighttpd-stock/safe`
+(sowie den weiteren ausgewählten Profilen). Diese Befehle beschreiben die
+Erstbereitstellung; bestehende unsichere Pfade dürfen damit nicht implizit
+repariert werden. Der Launcher erstellt fehlende Kinder nur dort, wo seine
+effektive UID Schreibrechte besitzt; administratorseitig bereitgestellte Pfade
+prüft er ohne Rechteerhöhung.

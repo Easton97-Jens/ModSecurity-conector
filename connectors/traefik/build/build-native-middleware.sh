@@ -57,12 +57,18 @@ command -v "$GO_BIN" >/dev/null 2>&1 || {
 }
 
 mkdir -p "$OUT_DIR"
+if [ "$MODE" = test ]; then
+    if [ "${ON_DEMAND_TESTS:-0}" = 1 ]; then
+        (cd "$MODULE_DIR" && "$GO_BIN" test -mod=readonly ./...)
+    else
+        "${PYTHON:-python3}" "$REPO_ROOT/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware
+    fi
+fi
 (
     cd "$MODULE_DIR"
-    "$GO_BIN" test ./...
-    "$GO_BIN" vet ./...
+    "$GO_BIN" vet -mod=readonly ./...
     if [ "$MODE" = "build" ]; then
-        "$GO_BIN" build ./...
+        "$GO_BIN" build -mod=readonly ./...
     fi
 )
 

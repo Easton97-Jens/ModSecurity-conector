@@ -11,7 +11,7 @@ jobs:
   quick-check:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -20,7 +20,7 @@ jobs:
           persist-credentials: false
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -28,6 +28,13 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
+      - name: Install reviewed hash-bound CI dependencies
+        run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Initialize runner temp paths
         run: |
           set -eu
@@ -48,9 +55,9 @@ jobs:
           TMPDIR: ${{ runner.temp }}
         run: |
           python3 ci/tools/new-change-record.py check
-          python3 -m unittest -v tests.test_change_record tests.test_prepare_reviewed_framework_handoff
+          python3 ci/tools/run-active-tests.py --group supply-chain
           python3 ci/tools/check-reviewed-version-handoff.py --repo-root .
-          python3 -m unittest -v tests.test_reviewed_version_handoff
+          python3 ci/tools/run-active-tests.py --group supply-chain
       - name: Lightweight connector/framework checks
         run: |
           make setup-dev

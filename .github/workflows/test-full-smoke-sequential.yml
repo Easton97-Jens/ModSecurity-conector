@@ -3,6 +3,11 @@ name: manual-heavy-runtime-validation
 on:
   workflow_dispatch:
     inputs:
+      on_demand:
+        description: Run the archived specialist smoke catalog outside the automatic active inventory
+        required: true
+        default: false
+        type: boolean
       cleanup_artifacts:
         description: Delete prior full-smoke artifacts before the run
         required: false
@@ -13,11 +18,11 @@ permissions: {}
 
 jobs:
   cleanup-artifacts:
-    if: ${{ inputs.cleanup_artifacts }}
+    if: ${{ inputs.on_demand && inputs.cleanup_artifacts }}
     name: Cleanup old smoke artifacts (${{ matrix.variant }})
     permissions:
       actions: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -127,11 +132,11 @@ jobs:
             }
 
   manual-heavy-runtime-validation:
-    if: ${{ always() }}
+    if: ${{ always() && inputs.on_demand }}
     needs: cleanup-artifacts
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -166,7 +171,7 @@ jobs:
 
       - name: Set up toolchain
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
@@ -262,6 +267,11 @@ jobs:
             echo "source_root=$source_root"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Install selected Apache native lifecycle prerequisites
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
       - name: Lint and py-compile
         run: |
           make setup-dev
@@ -276,10 +286,10 @@ jobs:
           make fetch-deps
           case "${{ matrix.variant }}" in
             no-crs)
-              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-no-crs
+              ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-no-crs
               ;;
             with-crs)
-              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-with-crs
+              ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-with-crs
               ;;
             *)
               echo "unknown test variant: ${{ matrix.variant }}" >&2
@@ -290,7 +300,7 @@ jobs:
       - name: Upload smoke artifacts
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: full-smoke-sequential-${{ matrix.variant }}-artifacts
           retention-days: 1

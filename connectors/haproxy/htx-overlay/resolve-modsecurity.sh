@@ -81,7 +81,8 @@ blocked_sentinel() {
 }
 
 blocked() {
-    blocked_sentinel "$1"
+    diagnostic_code=$1
+    blocked_sentinel "$diagnostic_code"
     shift
     printf 'BLOCKED: HAProxy libModSecurity resolver: %s\n' "$*" >&2
     exit 77
@@ -107,13 +108,15 @@ validate_path_syntax "$OUTPUT_FILE" MODSECURITY_RESOLUTION_FILE
 [ ! -L "$OUTPUT_FILE" ] || blocked output_path_symlink "resolution output path must not be a symbolic link"
 
 valid_include() {
-    [ -f "$1/modsecurity/modsecurity.h" ] &&
-        [ -f "$1/modsecurity/rules_set.h" ] &&
-        [ -f "$1/modsecurity/transaction.h" ]
+    include_candidate=$1
+    [ -f "$include_candidate/modsecurity/modsecurity.h" ] &&
+        [ -f "$include_candidate/modsecurity/rules_set.h" ] &&
+        [ -f "$include_candidate/modsecurity/transaction.h" ]
 }
 
 find_library() {
-    for candidate in "$1"/libmodsecurity.so "$1"/libmodsecurity.so.* "$1"/libmodsecurity.a; do
+    library_directory=$1
+    for candidate in "$library_directory"/libmodsecurity.so "$library_directory"/libmodsecurity.so.* "$library_directory"/libmodsecurity.a; do
         library_name=${candidate##*/}
         case "$library_name" in
             libmodsecurity.so|libmodsecurity.a)
@@ -123,6 +126,7 @@ find_library() {
                 case "$version" in
                     *[!0-9.]*|.*|*.) continue ;;
                     *..*) continue ;;
+                    *) ;;
                 esac
                 ;;
             *)
@@ -138,8 +142,10 @@ find_library() {
 }
 
 reject_whitespace() {
-    case "$1" in
-        *[[:space:]]*) blocked path_contains_whitespace "paths containing whitespace are not supported: $2" ;;
+    whitespace_path=$1
+    whitespace_label=$2
+    case "$whitespace_path" in
+        *[[:space:]]*) blocked path_contains_whitespace "paths containing whitespace are not supported: $whitespace_label" ;;
         *) ;;
     esac
 }
@@ -252,11 +258,12 @@ reject_whitespace "$library_target" MODSECURITY_LIBRARY_TARGET
 command -v file >/dev/null 2>&1 || blocked file_missing "file is required for libModSecurity architecture validation"
 file_description=$(file -b "$library_target")
 case "$(uname -m):$file_description" in
-    x86_64:*'x86-64'*) ;;
-    amd64:*'x86-64'*) ;;
-    aarch64:*'ARM aarch64'*) ;;
-    arm64:*'ARM aarch64'*) ;;
-    *'statically linked'*|*'current ar archive'*) ;;
+    x86_64:*x86-64*) : ;;
+    amd64:*x86-64*) : ;;
+    aarch64:*ARM\ aarch64*) : ;;
+    arm64:*ARM\ aarch64*) : ;;
+    *statically\ linked*) : ;;
+    *current\ ar\ archive*) : ;;
     *) blocked architecture_mismatch "libModSecurity architecture does not match host: $(uname -m), $file_description" ;;
 esac
 

@@ -10,7 +10,7 @@ It defines **how** an authorized command is invoked. It does not grant repositor
 
 RTK is the mandatory local execution proxy for project commands issued through the shell.
 
-A request to use a repository-native command directly means using that native command **through RTK**. Examples:
+A request to use a repository-native command directly means using that native command **through RTK**. Use a supported filtered command for normal inspection/build output:
 
 ```text
 rtk git status
@@ -18,9 +18,51 @@ rtk make quick-check
 rtk make build-nginx
 ```
 
+For machine-readable output, complete diffs, or evidence that must retain the original output, use the current unfiltered execution command:
+
+```text
+rtk bypass git diff --check
+rtk bypass python3 .codex/bin/validate-v32-structure.py
+```
+
+`rtk bypass <command> [args...]` still executes through RTK and tracks usage; it disables output filtering. Since RTK v1.0.0, `bypass` is the canonical name for the deprecated `proxy` alias. Use `bypass` in new commands. Preserve historical command/evidence records as executed. `rtk llm-proxy` is a separate provider-API proxy and is not the shell-command wrapper. The removed `--ultra-compact` option must not be used.
+
+`rtk make <target>` remains supported by RTK's built-in Make filter; do not replace every filtered invocation with `bypass`. Commands without a matching filter can pass through unchanged, so an RTK prefix alone does not prove output compression.
+
 Do not silently drop the RTK layer merely because the underlying native command is known, appears harmless, or is read-only.
 
 Do not invent RTK subcommands, flags, environment semantics, or wrapper behavior. When the exact RTK invocation for a command class is not established by the current installation/configuration, inspect the available RTK help/configuration or existing known-good usage first.
+
+## Native Codex hook schema
+
+The verified upstream reference for this integration is [RTK v1.0.1](https://github.com/rtk-ai/rtk/releases/tag/v1.0.1). The versioned `.codex/hooks.json` uses the project-local schema produced by `rtk init --codex`:
+
+- event: `hooks.PreToolUse`;
+- matcher: `Bash`;
+- command handler: `type = "command"`, `command = "rtk hook codex"`.
+
+Codex presents shell commands, including its unified `exec_command` path, to this hook as `Bash`. The hook reads `tool_input.command` and a supported `permission_mode` from stdin JSON. A successful rewrite returns `hookSpecificOutput` with `hookEventName = "PreToolUse"`, `permissionDecision = "allow"`, and `updatedInput.command`. Other `tool_input` fields are preserved. `updatedInput` belongs in the hook response, not in `.codex/hooks.json`; do not substitute another agent's response schema.
+
+This repository keeps its execution instructions in this policy. Do not blindly run mutating `rtk init --codex` over the control plane: it also creates `RTK.md` and appends `@RTK.md` to `AGENTS.md`. Preview upstream setup with `rtk init --codex --dry-run`, preserve existing independent hooks, and keep one RTK registration per active configuration layer. Do not duplicate this JSON registration as inline hooks in the same layer's `config.toml`.
+
+### Host activation and verification
+
+1. Confirm the intended `rtk-ai/rtk` executable is available on the Codex process's `PATH` with `rtk --version` and `rtk hook codex --help`.
+2. Use a Codex version supporting native `PreToolUse` command rewriting. Current Codex enables hooks by default; an explicit local/admin disable remains authoritative. Do not overwrite local `config.toml`, managed settings, or sandbox permissions to activate RTK.
+3. In Codex, review the trusted project configuration and the exact RTK hook through `/hooks`. New or changed non-managed hooks are skipped until trusted. Hook trust is host-local and is not granted by committing this file.
+4. Confirm that the active hook rewrites a supported command such as `git status` to `rtk git status`. A valid JSON file alone does not prove activation in a running session.
+
+The native hook fails open for unsupported commands, unsupported/missing permission modes, malformed input, and shell constructs it cannot safely rewrite. It also leaves already RTK-prefixed commands alone. An empty hook response is not proof of RTK execution. Where interception is unavailable or a command is not rewritten, explicitly use the applicable `rtk <command>` or `rtk bypass <command>` invocation to retain the mandatory execution path. Do not prepend RTK repeatedly or turn a compound shell command into a differently interpreted argument string.
+
+Codex requires the hook's `permissionDecision = "allow"` to apply `updatedInput`; its normal command approvals and sandbox checks still apply to the rewritten command. The command safety classifier may classify the wrapped command differently because it does not unwrap RTK. This protocol field never substitutes for the action's required authority.
+
+Upstream contracts: [RTK Codex integration](https://github.com/rtk-ai/rtk/blob/v1.0.1/hooks/codex/README.md), [RTK v1 migration](https://github.com/rtk-ai/rtk/releases/tag/v1.0.0), and [Codex hook configuration, trust, and output schema](https://developers.openai.com/codex/hooks).
+
+## RTK configuration boundaries
+
+`.codex/hooks.json` registers the Codex hook; RTK's own `config.toml`, custom `filters.toml`, and optional `pipeline.toml` are separate formats. This repository uses the upstream command filters and does not require a custom pipeline or provider-API proxy for this integration.
+
+If a task explicitly introduces project-local `.rtk/filters.toml`, use the [v1 filter schema](https://github.com/rtk-ai/rtk/blob/v1.0.1/src/core/toml_filter.rs): root `schema_version = 1`, named `[filters.<name>]` tables, and anchored `match_command` patterns. Validate the actual filters with `rtk verify`; review their content before `rtk trust`, and re-review changed content. Filter trust is separate from Codex hook trust. Do not create or trust custom filters merely to enable the native hook.
 
 ## Scope
 

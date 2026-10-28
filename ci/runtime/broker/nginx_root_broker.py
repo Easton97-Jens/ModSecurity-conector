@@ -245,8 +245,8 @@ EXPECTED_CALLER_JOB_NAMES = frozenset(
 # building and the bundle builder cross-checks its literals again. They are
 # deliberately not caller inputs and never select a moving reference.
 CRS_APPROVED_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
-CRS_RELEASE_TAG = "v4.29.0"
-CRS_APPROVED_COMMIT = "ab3ccd5fcd691424ba3f320d4040c61417270193"
+CRS_RELEASE_TAG = "v4.30.0"
+CRS_APPROVED_COMMIT = "e03a4f6dabc7a30ebd8c52c97d28a154f590a48f"
 NGINX_PINNED_VERSION = "1.31.4"
 NGINX_PINNED_RELEASE_TAG = "release-1.31.4"
 CRS_EXPECTED_RULE_ID = "949110"
@@ -724,6 +724,7 @@ def validate_caller_unprivileged_job(
     expected_keys: frozenset[str],
     expected_gate: str,
     expected_timeout_minutes: str,
+    expected_runner: str,
     expected_needs: object | None = None,
 ) -> None:
     mapping = required_yaml_mapping(job, f"job {job_name}")
@@ -733,7 +734,7 @@ def validate_caller_unprivileged_job(
     permissions = required_yaml_mapping(mapping["permissions"], f"job {job_name} permissions")
     if permissions != {"contents": "read"}:
         fail(f"caller workflow job {job_name} must have exactly contents: read")
-    if mapping["runs-on"] != "ubuntu-latest":
+    if mapping["runs-on"] != expected_runner:
         fail(f"caller workflow job {job_name} has an unexpected runner")
     if mapping["timeout-minutes"] != expected_timeout_minutes:
         fail(f"caller workflow job {job_name} has an unexpected timeout")
@@ -792,12 +793,23 @@ def validate_caller_workflow_document(
         fail("caller workflow has too many jobs")
     if set(jobs) != EXPECTED_CALLER_JOB_NAMES:
         fail("caller workflow has an unexpected job inventory")
+    # A migration is valid only as a complete caller mode, never a mixed fleet.
+    caller_runners = [
+        required_yaml_mapping(jobs[name], f"job {name}").get("runs-on")
+        for name in ("prepare-manifests", "verify-evidence", "result")
+    ]
+    if any(runner not in ("ubuntu-latest", "ubuntu-26.04") for runner in caller_runners):
+        fail("caller workflow has an unexpected runner")
+    if any(runner != caller_runners[0] for runner in caller_runners):
+        fail("caller workflow must use one uniform runner mode")
+    expected_runner = caller_runners[0]
     validate_caller_unprivileged_job(
         "prepare-manifests",
         jobs["prepare-manifests"],
         expected_keys=frozenset({"if", "permissions", "runs-on", "timeout-minutes", "steps"}),
         expected_gate=EXPECTED_CALLER_MASTER_GATE,
         expected_timeout_minutes="10",
+        expected_runner=expected_runner,
     )
     validate_caller_unprivileged_job(
         "verify-evidence",
@@ -805,6 +817,7 @@ def validate_caller_workflow_document(
         expected_keys=frozenset({"needs", "if", "permissions", "runs-on", "timeout-minutes", "steps"}),
         expected_gate=EXPECTED_CALLER_EVIDENCE_GATE,
         expected_timeout_minutes="10",
+        expected_runner=expected_runner,
         expected_needs=["prepare-manifests", "run-no-crs-broker", "run-with-crs-broker"],
     )
     validate_caller_unprivileged_job(
@@ -813,6 +826,7 @@ def validate_caller_workflow_document(
         expected_keys=frozenset({"needs", "if", "permissions", "runs-on", "timeout-minutes", "steps"}),
         expected_gate=EXPECTED_CALLER_RESULT_GATE,
         expected_timeout_minutes="5",
+        expected_runner=expected_runner,
         expected_needs=[
             "prepare-manifests",
             "run-no-crs-broker",

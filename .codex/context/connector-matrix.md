@@ -13,6 +13,11 @@ This is a 24-cell assessment model. Each cell is a distinct claim; no connector/
 
 ## Scope selection
 
+Apply the test budget and scope rules in `testing-and-evidence.md`. Its
+user-directed I12 closeout for PRs #382 and #410 supersedes the historical
+full-matrix mission for that work. The normal assessment triggers below do not authorize
+resuming it; mandatory delivery gates retain their separate requirements.
+
 A full assessment is normally required for common/cross-connector runtime-contract changes, shared lifecycle/body/header/intervention/evidence changes, reusable Framework matrix/runner/normalizer changes, relevant release/readiness work, cross-connector security effects, or an explicit complete-matrix request.
 
 A connector-local change normally assesses the four profiles for that connector and any shared/indirectly affected routes.

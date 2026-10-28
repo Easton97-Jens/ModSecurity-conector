@@ -2,18 +2,6 @@
 
 **Sprache:** [English](nginx.md) | Deutsch
 
-## Hier beginnen
-
-NGINX verwendet ein direktes logisches Profil: `nginx`, umgesetzt als native
-NGINX-HTTP-Modulroute. Beginnen Sie mit den
-[NGINX-Beispielen](../../examples/nginx/README.de.md) und stellen Sie vor der
-Konfigurationsvalidierung sicher, dass NGINX-Binary und dynamisches Modul zur
-gleichen ABI gehören.
-
-Verwenden Sie `safe` als erste vollständige P1–P4-Konfigurationsreferenz.
-Strict-Konfiguration drückt die gewünschte Late-Policy aus; tatsächliches
-Post-Commit-Verhalten benötigt weiterhin passende Host-Runtime-Evidence.
-
 ## Überblick
 
 NGINX verwendet den ausgewählten Pfad <code>native-nginx-http-module</code>.
@@ -99,6 +87,21 @@ Validierungshinweise und Profilbeispiele stehen in der
 NGINX-Variablen werden nur verwendet, wo die registrierte Direktive sie
 dokumentiert. <code>modsecurity_transaction_id_expr</code> ist
 Apache-spezifisch und keine NGINX-Direktive.
+
+Der geprüfte native Quellstand definiert außerdem eine reine URI-Projektion
+(256-Byte-Puffer, höchstens 255 JSON-escapte Bytes, erhaltener Query-Marker
+`?<redacted>`) und `modsecurity_engine_call_budget_ms`. Der geerbte Standard
+`0` deaktiviert die Messung. Nur die vier synchronen Request-/Response-Header-/
+Body-Processing-Aufrufe werden einzeln mit `CLOCK_MONOTONIC` und strikt `>`
+nach Rückkehr geprüft; Verbindungs-/URI-Verarbeitung, Append, Logging,
+Header-Add, Intervention, Cleanup und Getter bleiben ungemessen. Es gibt keine
+harte Unterbrechung. Common beendet die Phase nur bei nativem Ergebnis exakt
+`1` und akzeptiertem Budget; langsame ungültige Ergebnisse bleiben ungültige
+Engine-Antworten. Common-Cleanup erfolgt vor nativem void-Cleanup; ein
+HTTP-Status beweist es nicht. Parser- und Grenzdetails stehen im
+[Quellguide](../../connectors/nginx/README.de.md). Diese Quellverträge belegen
+keinen neuen Laufzeit-Pass: 97 RequiredIDs und 45 offene Einträge bleiben
+bestehen; das neue Tupel ist `NOT_RUN`.
 
 ## P1--P4-Lifecycle und Protokollgrenze
 

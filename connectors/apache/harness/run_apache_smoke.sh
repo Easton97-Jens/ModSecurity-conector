@@ -64,7 +64,6 @@ APACHE_PROFILE_EVIDENCE_SCRIPT="$REPO_ROOT/ci/runtime/lifecycle/with-crs-no-mrts
 MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
 FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
 MSCONNECTOR_PHASE4_SYNC_EXPECTATION="${MSCONNECTOR_PHASE4_SYNC_EXPECTATION:-first_byte}"
-APACHE_PHASE4_BODY_LIMIT="${APACHE_PHASE4_BODY_LIMIT:-1048576}"
 SYNCHRONIZED_UPSTREAM="${SYNCHRONIZED_UPSTREAM:-$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py}"
 APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT="${APACHE_PHASE4_SYNCHRONIZED_UPSTREAM_CONTROL_ROOT:-0}"
 APACHE_PHASE4_ROGUE_TEST="${APACHE_PHASE4_ROGUE_TEST:-0}"
@@ -531,12 +530,6 @@ render_config() {
         off|safe|strict) ;;
         *) fail "unsupported resolved APACHE_PHASE4_MODE=${APACHE_PHASE4_MODE:-}" ;;
     esac
-    case "$APACHE_PHASE4_BODY_LIMIT" in
-        ""|*[!0-9]*) fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer" ;;
-        *) ;;
-    esac
-    [ "$APACHE_PHASE4_BODY_LIMIT" -gt 0 ] || \
-        fail "APACHE_PHASE4_BODY_LIMIT must be a positive integer"
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
         -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
@@ -548,7 +541,6 @@ render_config() {
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@APACHE_PHASE4_LOG@@|$(escape_sed "$APACHE_PHASE4_LOG_FILE")|g" \
         -e "s|@@APACHE_PHASE4_MODE@@|$(escape_sed "$APACHE_PHASE4_MODE")|g" \
-        -e "s|@@APACHE_PHASE4_BODY_LIMIT@@|$(escape_sed "$APACHE_PHASE4_BODY_LIMIT")|g" \
         -e "s|@@APACHE_PHASE4_EXTRA_CONFIG@@|$(escape_sed "$APACHE_PHASE4_EXTRA_CONFIG")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
@@ -1281,16 +1273,25 @@ start_server() {
                 fi
                 fail "Apache exited before request; see $LOG_DIR/httpd.log"
             fi
-            if phase4_terminal_test_uses_h2; then
-                ready_url="https://127.0.0.1:$PORT/__modsec_smoke_ready"
-                set -- "$CURL_BIN" -sS -k --http1.1 -o /dev/null "$ready_url"
+            if [ "${ON_DEMAND_TESTS:-0}" != 1 ]; then
+                # Automatic startup opens transport only. The inventoried
+                # request supplies HTTP/WAF behavior and its own assertions.
+                if port_accepts_tcp "$PORT" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+                    ready=1
+                    break
+                fi
             else
-                ready_url="http://127.0.0.1:$PORT/__modsec_smoke_ready"
-                set -- "$CURL_BIN" -sS -o /dev/null "$ready_url"
-            fi
-            if "$@" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
-                ready=1
-                break
+                if phase4_terminal_test_uses_h2; then
+                    ready_url="https://127.0.0.1:$PORT/__modsec_smoke_ready"
+                    set -- "$CURL_BIN" -sS -k --http1.1 -o /dev/null "$ready_url"
+                else
+                    ready_url="http://127.0.0.1:$PORT/__modsec_smoke_ready"
+                    set -- "$CURL_BIN" -sS -o /dev/null "$ready_url"
+                fi
+                if "$@" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+                    ready=1
+                    break
+                fi
             fi
             i=$((i + 1))
             sleep 1
@@ -1310,6 +1311,16 @@ send_case_request() {
     if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
         while IFS= read -r header_line || [ -n "$header_line" ]; do
             [ -n "$header_line" ] || continue
+            case "$header_line" in
+                *:*)
+                    header_value=${header_line#*:}
+                    case "$header_value" in
+                        ''|' ') header_line="${header_line%%:*};" ;;
+                        *) : ;;
+                    esac
+                    ;;
+                *) : ;;
+            esac
             set -- "$@" -H "$header_line"
         done < "$REQUEST_HEADERS_FILE"
     fi
@@ -2743,6 +2754,16 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --output-root "$APACHE_CASE_OUTPUT_ROOT" \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+fi
+if [ -n "${APACHE_NATIVE_ORACLE_OVERRIDE:-}" ]; then
+    [ -n "${APACHE_NATIVE_ORACLE_IDENTITY:-}" ] || \
+        blocked "APACHE_NATIVE_ORACLE_IDENTITY is required for an explicit oracle override"
+    "$PYTHON_BIN" "$SCRIPT_DIR/apache_oracle_overrides.py" \
+        --selection "$APACHE_NATIVE_ORACLE_OVERRIDE" \
+        --case "$TEST_CASE" --framework "$FRAMEWORK_ROOT" --rules "$RULES_FILE" \
+        --identity "$APACHE_NATIVE_ORACLE_IDENTITY" \
+        --receipt "$LOG_DIR/apache-native-oracle-override.json" || \
+        blocked "Apache-native oracle override failed its source and proof guards"
 fi
 configure_apache_profile_audit
 . "$CASE_ENV_FILE"

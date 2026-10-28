@@ -32,6 +32,15 @@ static int fail_error(msconnector_error *error, msconnector_error_code code, con
     return 0;
 }
 
+static int operation_succeeded(int result, msconnector_error *error)
+{
+    if (result != 0 && result != 1) {
+        return fail_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+            "engine callback returned an undocumented result");
+    }
+    return result == 1;
+}
+
 static int tx_ready(const msconnector_modsecurity_transaction *tx, msconnector_error *error)
 {
     if (tx == 0 || tx->engine == 0 || tx->native_transaction == 0) {
@@ -95,6 +104,13 @@ static void fail_contract_from_error(msconnector_modsecurity_transaction *tx,
     }
     if (error != 0) {
         switch (error->code) {
+        case MSCONNECTOR_ERROR_MODSECURITY_FAILURE:
+            /* Match direct native bindings: a failed engine API call is not
+             * a rule block, a body-limit rejection, or a host I/O failure.
+             * Append ProcessPartial has already been accepted at that API
+             * boundary and must never reach this failed-callback path. */
+            error_class = MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE;
+            break;
         case MSCONNECTOR_ERROR_TIMEOUT:
             error_class = MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT;
             break;
@@ -129,6 +145,11 @@ static int begin_contract_phase_for_route(
     int companion,
     msconnector_error *error)
 {
+    if (phase != MSCONNECTOR_PHASE_LOGGING &&
+        msconnector_transaction_contract_is_terminal(canonical_contract(tx))) {
+        return fail_error(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+            "transaction is terminal");
+    }
     if (is_business_phase(phase) && tx->contract != 0) {
         if ((companion ? msconnector_transaction_contract_begin_companion_phase(
                 canonical_contract(tx), phase, engine_contract_now_ms()) :
@@ -254,7 +275,7 @@ int msconnector_modsecurity_engine_start(msconnector_modsecurity_engine *engine,
     if (engine->ops.init == 0) {
         return fail_error(error, MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY, "engine init is unsupported");
     }
-    if (!engine->ops.init(engine->ops.userdata, error)) {
+    if (!operation_succeeded(engine->ops.init(engine->ops.userdata, error), error)) {
         return 0;
     }
     engine->initialized = 1;
@@ -369,6 +390,11 @@ static int call_request(
     enum msconnector_phase phase,
     int (*fn)(void *, void *, const msconnector_request *, msconnector_decision *, msconnector_error *))
 {
+    msconnector_error local_error;
+    if (error == NULL) {
+        msconnector_error_init(&local_error);
+        error = &local_error;
+    }
     if (!tx_ready(tx, error)) {
         return 0;
     }
@@ -381,7 +407,8 @@ static int call_request(
     if (!begin_contract_phase(tx, phase, error)) {
         return 0;
     }
-    if (!fn(tx->engine->ops.userdata, tx->native_transaction, request, decision, error)) {
+    if (!operation_succeeded(fn(tx->engine->ops.userdata, tx->native_transaction,
+            request, decision, error), error)) {
         fail_contract_from_error(tx, error);
         return 0;
     }
@@ -409,6 +436,11 @@ static int call_response(
     const msconnector_response *response = call->response;
     msconnector_decision *decision = call->decision;
     msconnector_error *error = call->error;
+    msconnector_error local_error;
+    if (error == NULL) {
+        msconnector_error_init(&local_error);
+        error = &local_error;
+    }
     const enum msconnector_phase phase = call->phase;
     const int companion = call->companion;
     int (*fn)(void *, void *, const msconnector_response *, msconnector_decision *,
@@ -437,7 +469,8 @@ static int call_response(
     } else if (!begin_contract_phase(tx, phase, error)) {
         return 0;
     }
-    if (!fn(tx->engine->ops.userdata, tx->native_transaction, response, decision, error)) {
+    if (!operation_succeeded(fn(tx->engine->ops.userdata, tx->native_transaction,
+            response, decision, error), error)) {
         fail_contract_from_error(tx, error);
         return 0;
     }
@@ -462,28 +495,34 @@ static int call_append(
     if (call == 0) {
         return 0;
     }
-    if (!tx_ready(tx, call->error)) {
+    msconnector_error local_error;
+    msconnector_error *error = call->error;
+    if (error == NULL) {
+        msconnector_error_init(&local_error);
+        error = &local_error;
+    }
+    if (!tx_ready(tx, error)) {
         return 0;
     }
     if (call->size > 0U && call->data == 0) {
-        return fail_error(call->error, MSCONNECTOR_ERROR_INTERNAL,
+        return fail_error(error, MSCONNECTOR_ERROR_INTERNAL,
             "body data is required when size is nonzero");
     }
     if (call->fn == 0) {
-        return fail_error(call->error, MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY,
+        return fail_error(error, MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY,
             call->unsupported_message);
     }
     if (!(call->companion ? begin_or_resume_companion_contract_phase(tx,
-                call->phase, call->error) :
-            begin_or_resume_contract_phase(tx, call->phase, call->error)) ||
+                call->phase, error) :
+            begin_or_resume_contract_phase(tx, call->phase, error)) ||
         !msconnector_transaction_contract_can_append_body(canonical_contract(tx),
             call->phase == MSCONNECTOR_PHASE_RESPONSE_BODY)) {
-        return fail_error(call->error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
+        return fail_error(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
             "body append is outside its active transaction phase");
     }
-    if (!call->fn(tx->engine->ops.userdata, tx->native_transaction,
-            call->data, call->size, call->error)) {
-        fail_contract_from_error(tx, call->error);
+    if (!operation_succeeded(call->fn(tx->engine->ops.userdata, tx->native_transaction,
+            call->data, call->size, error), error)) {
+        fail_contract_from_error(tx, error);
         return 0;
     }
     return 1;
@@ -498,6 +537,11 @@ static int call_finish(
     int (*fn)(void *, void *, msconnector_decision *, msconnector_error *),
     const char *unsupported_message)
 {
+    msconnector_error local_error;
+    if (error == NULL) {
+        msconnector_error_init(&local_error);
+        error = &local_error;
+    }
     if (!tx_ready(tx, error)) {
         return 0;
     }
@@ -511,7 +555,8 @@ static int call_finish(
             begin_or_resume_contract_phase(tx, phase, error))) {
         return 0;
     }
-    if (!fn(tx->engine->ops.userdata, tx->native_transaction, decision, error)) {
+    if (!operation_succeeded(fn(tx->engine->ops.userdata, tx->native_transaction,
+            decision, error), error)) {
         fail_contract_from_error(tx, error);
         return 0;
     }
@@ -709,8 +754,17 @@ int msconnector_modsecurity_finish_response_body_companion(
 
 int msconnector_modsecurity_process_logging(msconnector_modsecurity_transaction *tx, msconnector_error *error)
 {
+    msconnector_error local_error;
+    if (error == NULL) {
+        msconnector_error_init(&local_error);
+        error = &local_error;
+    }
     if (!tx_ready(tx, error)) {
         return 0;
+    }
+    if (tx->logging_attempted) {
+        return tx->logging_error == MSCONNECTOR_ERROR_NONE ? 1 :
+            fail_error(error, tx->logging_error, "native logging previously failed");
     }
     if (tx->engine->ops.process_logging == 0) {
         return fail_error(error, MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY, "logging is unsupported");
@@ -724,7 +778,16 @@ int msconnector_modsecurity_process_logging(msconnector_modsecurity_transaction 
         return fail_error(error, MSCONNECTOR_ERROR_PHASE_SEQUENCE,
             "transaction cannot log before completion or terminal decision");
     }
-    if (!tx->engine->ops.process_logging(tx->engine->ops.userdata, tx->native_transaction, error)) {
+    tx->logging_attempted = 1;
+    if (!operation_succeeded(tx->engine->ops.process_logging(tx->engine->ops.userdata,
+            tx->native_transaction, error), error)) {
+        int first_failure = canonical_contract(tx)->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE;
+        tx->logging_error = error == NULL || error->code == MSCONNECTOR_ERROR_NONE ?
+            MSCONNECTOR_ERROR_MODSECURITY_FAILURE : error->code;
+        fail_contract_from_error(tx, error);
+        if (first_failure) {
+            canonical_contract(tx)->error_phase = MSCONNECTOR_PHASE_LOGGING;
+        }
         return 0;
     }
     return complete_contract_phase(tx, MSCONNECTOR_PHASE_LOGGING, error);

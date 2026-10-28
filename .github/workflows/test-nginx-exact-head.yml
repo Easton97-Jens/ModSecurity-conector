@@ -10,7 +10,7 @@ jobs:
   nginx-exact-head:
     permissions:
       contents: read
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     env:
       EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -35,10 +35,15 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
           check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Verify exact PR head
         run: |
           set -eu
@@ -126,6 +131,14 @@ jobs:
             echo "exact-head gate: private run root has an unexpected identity or mode" >&2
             exit 1
           }
+          # The inventory runner admits an existing invocation-owned temp root.
+          # RUN_ROOT was just created privately; do not create through shared paths.
+          /bin/mkdir -m 700 "$RUN_ROOT/tmp"
+          [ ! -L "$RUN_ROOT/tmp" ]
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$RUN_ROOT/tmp")" = "$RUNNER_UID:$RUNNER_GID:700" ] || {
+            echo "exact-head gate: private temp root has an unexpected identity or mode" >&2
+            exit 1
+          }
           if [ -e "$FUNCTIONAL_PARENT_ROOT" ] || [ -L "$FUNCTIONAL_PARENT_ROOT" ]; then
             echo "exact-head gate: functional parent is unexpectedly occupied" >&2
             exit 1
@@ -165,6 +178,11 @@ jobs:
         run: |
           set -eu
           make setup-dev
+          # Keep the exact producer snapshot across the later env -i boundary.
+          # A fresh wrapper invocation otherwise prepares the runtime again.
+          RUNTIME_COMPONENT_ENV_SNAPSHOT=$(/bin/sh \
+            ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh "$RUNTIME_REPORT_OUTPUT_ROOT")
+          export RUNTIME_COMPONENT_ENV_SNAPSHOT
           env \
             -u MRTS_NATIVE_NGINX_BIN \
             -u MRTS_NATIVE_NGINX_MODULE_DIR \
@@ -176,6 +194,8 @@ jobs:
             -u NGINX_PREFIX \
             -u NGINX_BUILD_DIR \
             make fetch-deps
+          test -s "$RUNTIME_COMPONENT_ENV_SNAPSHOT"
+          echo "RUNTIME_COMPONENT_ENV_SNAPSHOT=$RUNTIME_COMPONENT_ENV_SNAPSHOT" >> "$GITHUB_ENV"
       - name: Print bounded NGINX provisioning failure diagnostics
         if: failure()
         run: |
@@ -198,6 +218,13 @@ jobs:
             echo "exact-head gate: Functional-A evidence root has an unexpected identity or mode" >&2
             exit 1
           }
+          test "$TMP_ROOT" = "$RUN_ROOT/tmp"
+          test ! -L "$TMP_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$TMP_ROOT")" = \
+            "$(/usr/bin/id -u):$(/usr/bin/id -g):700" ] || {
+            echo "exact-head gate: private temp root changed before inventory admission" >&2
+            exit 1
+          }
           /usr/bin/env -i \
             PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
             EXPECTED_PARENT_SHA="$EXPECTED_PARENT_SHA" \
@@ -211,6 +238,8 @@ jobs:
             BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
             CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
             RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+            RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
+            SKIP_RUNTIME_COMPONENT_PREPARE=1 \
             SOURCE_ROOT="$SOURCE_ROOT" MODSECURITY_SOURCE_DIR="$MODSECURITY_SOURCE_DIR" \
             MODSECURITY_V3_SOURCE_DIR="$MODSECURITY_V3_SOURCE_DIR" \
             ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
@@ -228,31 +257,14 @@ jobs:
             NGINX_HOSTED_FUNCTIONAL_A=1 \
             /bin/sh ci/provisioning/cache/with-runtime-components.sh \
             /bin/sh -eu -s <<'RUNTIME_FIXTURE'
-          /usr/bin/python3 -I connectors/nginx/harness/run_github_hosted_functional_a.py
-          /usr/bin/python3 -I tests/run_nginx_body_buffer_fixture.py \
-            --connector-root "$CONNECTOR_ROOT" \
-            --expected-head "$EXPECTED_PARENT_SHA" \
-            --nginx-archive "$NGINX_DOWNLOAD_DIR/nginx-1.31.6.tar.gz" \
-            --nginx-sha256 "$NGINX_SHA256" \
-            --modsecurity-include "$MODSECURITY_INCLUDE_DIR" \
-            --modsecurity-lib "$MODSECURITY_LIB_DIR" \
-            --output-root "$NATIVE_FIXTURE_ROOT"
+          /usr/bin/python3 ci/tools/run-active-tests.py --group nginx-hosted
           RUNTIME_FIXTURE
       - name: Upload bounded NGINX Functional-A evidence
         if: success()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nginx-functional-a-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.RUN_ROOT }}/nginx-functional-a-evidence/result.json
-          if-no-files-found: error
-          retention-days: 10
-          overwrite: false
-      - name: Upload native NGINX body-buffer fixture evidence
-        if: success()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: nginx-native-body-buffer-fixture-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.NATIVE_FIXTURE_ROOT }}/**/evidence/result.json
           if-no-files-found: error
           retention-days: 10
           overwrite: false

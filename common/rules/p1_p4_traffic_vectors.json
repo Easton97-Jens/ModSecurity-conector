@@ -99,7 +99,7 @@
       "phase": "P2",
       "rule_id": null,
       "marker": "msconnector-p2-body-limit",
-      "purpose": "Exercise the configured request-body limit with a body larger than 32 bytes.",
+      "purpose": "Exercise native SecRequestBodyLimitAction Reject during append with a body larger than 32 bytes.",
       "request": {
         "method": "POST",
         "path": "/vector/p2-body-limit",
@@ -112,8 +112,8 @@
       "upstream": null,
       "expected": {
         "requested_action": "body_limit_enforcement",
-        "actual_host_action": "connector_documented_body_limit_action",
-        "response_status": 413,
+        "actual_host_action": "native_engine_rejection",
+        "response_status": 403,
         "body_requirements": ["bounded bytes counted", "limit event recorded", "payload not retained"]
       }
     },

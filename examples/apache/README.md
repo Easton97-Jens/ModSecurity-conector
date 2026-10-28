@@ -2,12 +2,6 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Start here
-
-Use this page when Apache/httpd is your target. For a first configuration, start with [safe/httpd.conf](safe/httpd.conf), replace the installed module, rules, and log paths, then validate the host configuration before sending traffic.
-
-Apache uses the direct native module profile `apache`. The example files show configuration intent; they do not by themselves prove P1–P4 behavior or a client-visible Strict late abort. WAF response-inspection byte limits belong in the ModSecurity rules through `SecResponseBodyLimit`; the legacy `modsecurity_phase4_body_limit` value is compatibility-only.
-
 ## Integration and boundary
 
 Integration mode: native httpd module. The [off compatibility reference](off/httpd.conf),
@@ -61,7 +55,7 @@ the configuration, including /usr/lib/apache2/modules/mod_security3.so,
 | modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; module scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
 | modsecurity_phase4_mode | Late-P4 policy: off, safe, or strict | Off, Safe, Strict, and comprehensive files; host config; module scope | The comprehensive file deliberately uses `strict`; `all` is not a parser value. It selects the post-commit action without rewriting bytes already forwarded. |
 | modsecurity_phase4_log | Decision JSONL destination | Optional; host config; module scope | /var/log/modsecurity/apache-phase4.jsonl. Protect and rotate request metadata. A root-owned parent is supported only when it is not group/other writable and the existing final regular file is owned by the Apache worker; the opener normalizes its mode to 0600. Pre-create it and preserve that ownership during rotation. |
-| modsecurity_phase4_body_limit and SecResponseBodyLimit | Legacy connector value plus engine inspection limit | Connector value optional for compatibility; engine rule controls WAF inspection | modsecurity_phase4_body_limit is not enforced as a connector WAF budget; SecResponseBodyLimit/SecResponseBodyLimitAction remain authoritative. |
+| SecResponseBodyLimit / SecResponseBodyLimitAction | Engine WAF inspection policy | Engine rules | The removed modsecurity_phase4_body_limit directive is rejected; remove it from host configuration. Independent host resource limits remain active. |
 | modsecurity_transaction_id_expr and modsecurity_transaction_id | Optional host correlation overrides | Optional; host configuration; module scope | Both are deliberately commented in `all/httpd.conf`. Enable only a validated, unique host-generated value; URI-derived or static values cannot correlate transactions safely. |
 | SecRequestBodyAccess and SecResponseBodyAccess | Request/response body switches | Required in matching rules; rule-engine scope | On in Safe rules; response access is Off in request-only. |
 | SecResponseBodyMimeType and SecResponseBodyLimitAction | Engine P4 scope and over-limit policy | Required in Safe rules; rule-engine scope | Explicit text/JSON types select engine inspection. Do not infer binary behavior or a different host-forwarding order. |

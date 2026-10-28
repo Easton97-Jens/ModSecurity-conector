@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import io
 import json
+import os
+import subprocess
+import sys
 import tempfile
+import textwrap
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 from pathlib import Path
 
 from tests.version_updater_test_support import load_updater
@@ -16,9 +23,16 @@ updater = load_updater("update_go_components", SCRIPT)
 BASELINE_SYS = "v0.46.0"
 BASELINE_NET = "v0.56.0"
 BASELINE_TEXT = "v0.39.0"
-TARGET_SYS = "v0.47.0"
-TARGET_NET = "v0.58.0"
-TARGET_TEXT = "v0.41.0"
+TARGET_SYS = "v0.49.0"
+TARGET_NET = "v0.61.0"
+TARGET_TEXT = "v0.43.0"
+# Stable fixture versions above every approved floor; these are not latest pins.
+NEWER_BUNDLE = {
+    "grpc_version": "v1.84.0",
+    "sys_version": "v0.50.0",
+    "net_version": "v0.62.0",
+    "text_version": "v0.44.0",
+}
 
 
 def go_mod(
@@ -116,6 +130,69 @@ def target_go_mod(grpc_version: str = "v1.83.2") -> str:
 
 
 class UpdateGoComponentsTests(unittest.TestCase):
+    def test_cli_root_accepts_only_actual_canonical_repository(self):
+        trusted = updater.repository_root()
+        arguments = SimpleNamespace(repository_root=str(trusted))
+        self.assertEqual(updater._select_repository_root(arguments, None), trusted)
+
+    def test_copied_script_cli_default_selects_its_private_source_tree(self):
+        # Copy/import the real scripts without executing any component action.
+        # Private-copy frames keep their actual filenames; no coverage relabeling.
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            scripts = private / "scripts"
+            scripts.mkdir()
+            for name in ("update-go-components.py", "version_updater_common.py"):
+                original = (SCRIPT.parent / name).read_bytes()
+                copied = scripts / name
+                copied.write_bytes(original)
+                self.assertEqual(copied.read_bytes(), original)
+            copied = scripts / "update-go-components.py"
+            spec = importlib.util.spec_from_file_location("private_component_cli", copied)
+            module = importlib.util.module_from_spec(spec)
+            previous_path = list(sys.path)
+            try:
+                with mock.patch.dict(sys.modules):
+                    sys.modules.pop("version_updater_common", None)
+                    sys.modules[spec.name] = module
+                    spec.loader.exec_module(module)
+                    arguments = module.build_arg_parser().parse_args(["--check"])
+                    self.assertEqual(module._select_repository_root(arguments, None), private)
+                    self.assertEqual(module._select_repository_root.__code__.co_filename, str(copied))
+                    self.assertEqual(Path(sys.modules["version_updater_common"].__file__), scripts / "version_updater_common.py")
+            finally:
+                sys.path[:] = previous_path
+
+    def test_cli_root_rejects_sibling_before_component_actions(self):
+        trusted = updater.repository_root()
+        sibling = str(trusted.parent / (trusted.name + "-foreign"))
+        output = io.StringIO()
+        with mock.patch.object(updater, "apply_component_requirements") as apply:
+            status = updater.main(["--apply-requirements", "--repository-root", sibling, "--json"], output=output)
+        self.assertEqual(status, 1)
+        self.assertEqual(json.loads(output.getvalue())["status"], "error")
+        apply.assert_not_called()
+
+    def test_cli_root_rejects_traversal_alias(self):
+        trusted = updater.repository_root()
+        arguments = SimpleNamespace(repository_root=str(trusted) + "/../" + trusted.name)
+        with self.assertRaisesRegex(updater.ComponentError, "canonical source repository"):
+            updater._select_repository_root(arguments, None)
+
+    def test_cli_root_rejects_symlink_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            alias = Path(directory) / "repository-alias"
+            alias.symlink_to(updater.repository_root(), target_is_directory=True)
+            arguments = SimpleNamespace(repository_root=str(alias))
+            with self.assertRaisesRegex(updater.ComponentError, "canonical source repository"):
+                updater._select_repository_root(arguments, None)
+
+    def test_injected_library_root_remains_separate_from_cli_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            arguments = SimpleNamespace(repository_root="/foreign-untrusted-cli")
+            self.assertEqual(updater._select_repository_root(arguments, private), private)
+
     def root_with_module(
         self,
         root: Path,
@@ -153,6 +230,18 @@ class UpdateGoComponentsTests(unittest.TestCase):
             + baseline_go_sum().encode("utf-8")
         )
 
+    @staticmethod
+    def resolve_workflow(
+        component_report: dict[str, object], go_report: dict[str, object],
+    ) -> subprocess.CompletedProcess[str]:
+        workflow = (SCRIPT.parents[1] / ".github/workflows/update-go-version.yml").read_text()
+        prefix = 'GO_REPORT="$go_report" COMPONENT_REPORT="$component_report" python3 - <<\'PY\' >> "$GITHUB_OUTPUT"\n'
+        source = textwrap.dedent(workflow.split(prefix, 1)[1].split("          PY\n", 1)[0])
+        return subprocess.run(
+            [sys.executable, "-c", source], check=False, capture_output=True, text=True,
+            env={**os.environ, "GO_REPORT": json.dumps(go_report), "COMPONENT_REPORT": json.dumps(component_report)},
+        )
+
     def test_resolves_the_only_approved_component_floor(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = self.root_with_module(Path(temporary))
@@ -169,6 +258,15 @@ class UpdateGoComponentsTests(unittest.TestCase):
                     "current_version": "v1.83.1",
                     "target_version": "v1.83.2",
                     "update_available": True,
+                    "requirements": [
+                        {
+                            "dependency": update.dependency,
+                            "current_version": str(update.baseline_version),
+                            "target_version": str(update.target_version),
+                            "update_available": True,
+                        }
+                        for update in updater.GRPC_COMPONENT.updates
+                    ],
                 }
             ],
         )
@@ -182,7 +280,79 @@ class UpdateGoComponentsTests(unittest.TestCase):
             self.assertEqual(result["status"], "current")
             self.assertIs(result["update_available"], False)
 
-    def test_rejects_malformed_partial_or_missing_requirements(self) -> None:
+    def test_newer_dependency_bundle_is_current_without_rewriting_files(self) -> None:
+        source = go_mod(**NEWER_BUNDLE)
+        sums = checksum_entries(**NEWER_BUNDLE)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.root_with_module(Path(temporary), go_mod_source=source, go_sum_source=sums)
+            module = root / updater.GRPC_COMPONENT.directory
+            before = {name: (module / name).read_bytes() for name in ("go.mod", "go.sum")}
+            status, report = self.run_cli(root, ["--check", "--json"])
+            self.assertEqual((status, report["status"], report["update_available"]), (0, "current", False))
+            self.assertTrue(all(not row["update_available"] for row in report["components"][0]["requirements"]))
+            status, result = self.run_cli(root, ["--apply-requirements", "--json"])
+            self.assertEqual((status, result["status"]), (0, "current"))
+            self.assertEqual({name: (module / name).read_bytes() for name in before}, before)
+
+    def test_mixed_floor_bundle_preserves_newer_requirements_and_trusted_checksums(self) -> None:
+        versions = {**NEWER_BUNDLE, "sys_version": TARGET_SYS, "net_version": "v0.58.0"}
+        source = go_mod(**versions)
+        baseline_sums = checksum_entries(**versions)
+        expected = go_mod(**{**versions, "net_version": TARGET_NET})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.root_with_module(Path(temporary), go_mod_source=source, go_sum_source=baseline_sums)
+            status, report = self.run_cli(root, ["--check", "--json"])
+            self.assertEqual((status, report["status"]), (0, "update_available"))
+            pending = [row["dependency"] for row in report["components"][0]["requirements"] if row["update_available"]]
+            self.assertEqual(pending, [updater.NET_MODULE])
+            status, result = self.run_cli(root, ["--apply-requirements", "--json"])
+            self.assertEqual((status, result["status"]), (0, "updated"))
+            module = root / updater.GRPC_COMPONENT.directory
+            self.assertEqual((module / "go.mod").read_text(), expected)
+            self.assertEqual((module / "go.sum").read_text(), baseline_sums)
+        floor_sums = "".join(
+            f"{updater.NET_MODULE} {TARGET_NET}{suffix} {checksum_for(updater.NET_MODULE, TARGET_NET, suffix, 'net')}\n"
+            for suffix in ("", "/go.mod")
+        )
+        result = updater.validate_component_candidate(
+            source.encode(), expected.encode(), baseline_sums.encode(), (baseline_sums + floor_sums).encode(),
+        )
+        self.assertEqual(result["status"], "valid")
+        self.assertEqual(result["go_mod_sha256"], hashlib.sha256(expected.encode()).hexdigest())
+
+    def test_candidate_rejects_downgrading_a_newer_dependency_to_its_floor(self) -> None:
+        versions = {**NEWER_BUNDLE, "net_version": "v0.58.0"}
+        baseline = go_mod(**versions)
+        downgraded = go_mod(**{**versions, "grpc_version": "v1.83.2", "net_version": TARGET_NET})
+        candidate_inputs = (
+            baseline.encode(), downgraded.encode(),
+            checksum_entries(**versions).encode(), candidate_go_sum().encode(),
+        )
+        with self.assertRaisesRegex(updater.ComponentError, "outside the approved bundle"):
+            updater.validate_component_candidate(*candidate_inputs)
+
+    def test_workflow_resolver_accepts_newer_and_mixed_floor_bundles(self) -> None:
+        cases = (
+            ("newer", NEWER_BUNDLE, True, False),
+            ("mixed", {**NEWER_BUNDLE, "net_version": "v0.58.0"}, False, True),
+        )
+        for name, versions, toolchain_update, component_update in cases:
+            with self.subTest(bundle=name), tempfile.TemporaryDirectory() as temporary:
+                root = self.root_with_module(Path(temporary), go_mod_source=go_mod(**versions))
+                report = updater.resolution_payload(updater.resolve_component(root))
+                go_report = {
+                    "current_version": "1.27.2",
+                    "latest_version": "1.27.3" if toolchain_update else "1.27.2",
+                    "status": "update_available" if toolchain_update else "current",
+                    "update_available": toolchain_update,
+                }
+                result = self.resolve_workflow(report, go_report)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"toolchain_update_available={str(toolchain_update).lower()}\n", result.stdout)
+                self.assertIn(f"component_update_available={str(component_update).lower()}\n", result.stdout)
+                self.assertIn("update_available=true\n", result.stdout)
+
+    def test_rejects_malformed_unregistered_or_missing_requirements(self) -> None:
         cases = {
             "prerelease": go_mod("v1.83.2-rc.1"),
             "indirect": go_mod("v1.83.1").replace(
@@ -190,14 +360,90 @@ class UpdateGoComponentsTests(unittest.TestCase):
                 "\tgoogle.golang.org/grpc v1.83.1 // indirect\n",
             ),
             "missing": go_mod("v1.83.1").replace("\tgoogle.golang.org/grpc v1.83.1\n", ""),
-            "partial_baseline": go_mod("v1.83.1", sys_version=TARGET_SYS),
-            "partial_target": go_mod("v1.83.2"),
+            "unregistered_net": go_mod("v1.83.1", net_version="v0.57.0"),
+            "unregistered_sys": go_mod("v1.83.2", sys_version="v0.45.0"),
         }
         for name, source in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
                 root = self.root_with_module(Path(temporary), go_mod_source=source)
                 status, result = self.run_cli(root, ["--check", "--json"])
             self.assertEqual((status, result["status"]), (1, "error"))
+
+    def test_registered_security_updates_do_not_require_a_grpc_upgrade(self) -> None:
+        for grpc_version in ("v1.83.1", "v1.83.2", "v1.84.0"):
+            with self.subTest(grpc_version=grpc_version), tempfile.TemporaryDirectory() as temporary:
+                source = go_mod(grpc_version, sys_version=TARGET_SYS, text_version=TARGET_TEXT)
+                root = self.root_with_module(Path(temporary), go_mod_source=source)
+                status, result = self.run_cli(root, ["--check", "--json"])
+                self.assertEqual((status, result["status"]), (0, "update_available"))
+                status, result = self.run_cli(root, ["--apply-requirements", "--json"])
+                self.assertEqual((status, result["status"]), (0, "updated"))
+                expected = target_go_mod("v1.83.2" if grpc_version == "v1.83.1" else grpc_version)
+                self.assertEqual((root / updater.GRPC_COMPONENT.directory / "go.mod").read_text(), expected)
+                status, result = self.run_cli(root, ["--apply-requirements", "--json"])
+                self.assertEqual((status, result["status"]), (0, "current"))
+
+    def test_requirement_writer_rejects_unregistered_versions_and_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.root_with_module(Path(temporary), go_mod_source=go_mod("v1.83.1", net_version="v0.57.0"))
+            path = root / updater.GRPC_COMPONENT.directory / "go.mod"
+            before = path.read_bytes()
+            status, result = self.run_cli(root, ["--apply-requirements", "--json"])
+            self.assertEqual((status, result["status"]), (1, "error"))
+            self.assertEqual(path.read_bytes(), before)
+            path.unlink()
+            outside = root / "outside"
+            outside.write_text(go_mod("v1.83.1"))
+            path.symlink_to(outside)
+            status, result = self.run_cli(root, ["--apply-requirements", "--json"])
+            self.assertEqual((status, result["status"]), (1, "error"))
+            self.assertEqual(outside.read_text(), go_mod("v1.83.1"))
+
+    def test_previous_registered_bundle_updates_with_unchanged_safe_grpc(self) -> None:
+        baseline_mod = go_mod("v1.83.2", sys_version="v0.47.0", net_version="v0.58.0", text_version="v0.41.0")
+        baseline_sum = checksum_entries("v1.83.2", sys_version="v0.47.0", net_version="v0.58.0", text_version="v0.41.0")
+        target_sum = checksum_entries("v1.83.2", sys_version=TARGET_SYS, net_version=TARGET_NET, text_version=TARGET_TEXT)
+        result = updater.validate_component_candidate(
+            baseline_mod.encode(), target_go_mod().encode(), baseline_sum.encode(), target_sum.encode(),
+        )
+        self.assertEqual(result["status"], "valid")
+        self.assertEqual(result["baseline_version"], result["target_version"])
+        for update in updater.GRPC_COMPONENT.updates:
+            with self.subTest(dependency=update.dependency):
+                key = (update.dependency, str(update.target_version), "")
+                bad_sum = target_sum.replace(updater.TRUSTED_TARGET_GO_SUM_ENTRIES[key], "h1:tampered=")
+                candidate_inputs = (
+                    baseline_mod.encode(), target_go_mod().encode(), baseline_sum.encode(), bad_sum.encode(),
+                )
+                with self.assertRaises(updater.ComponentError):
+                    updater.validate_component_candidate(*candidate_inputs)
+
+    def test_workflow_resolver_accepts_component_only_updates_and_rejects_corrupt_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.root_with_module(Path(temporary), go_mod_source=go_mod("v1.83.2"))
+            report = updater.resolution_payload(updater.resolve_component(root))
+        go_report = {"current_version": "1.27.2", "latest_version": "1.27.2", "status": "current", "update_available": False}
+
+        result = self.resolve_workflow(report, go_report)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("toolchain_update_available=false\n", result.stdout)
+        self.assertIn("component_update_available=true\n", result.stdout)
+        self.assertIn("update_available=true\n", result.stdout)
+        for failure in ("false_floor", "unapproved_target", "duplicate", "non_string"):
+            with self.subTest(failure=failure):
+                bad = json.loads(json.dumps(report))
+                requirements = bad["components"][0]["requirements"]
+                if failure == "false_floor":
+                    requirements[-1]["update_available"] = False
+                elif failure == "unapproved_target":
+                    requirements[-1]["target_version"] = "v0.99.0"
+                elif failure == "duplicate":
+                    requirements[-1] = requirements[0]
+                else:
+                    requirements[-1]["current_version"] = 43
+                result = self.resolve_workflow(bad, go_report)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
 
     def test_component_requirements_rejects_nested_require_blocks(self) -> None:
         source = go_mod("v1.83.1").replace(
@@ -288,6 +534,18 @@ class UpdateGoComponentsTests(unittest.TestCase):
                 "files": ["go.mod", "go.sum"],
             },
         )
+
+    def test_preflight_rejects_hardlinked_component_inputs(self) -> None:
+        for filename in ("go.mod", "go.sum"):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
+                root = self.root_with_module(Path(temporary))
+                source = root / updater.GRPC_COMPONENT.directory / filename
+                alias = root / f"outside-{filename}"
+                os.link(source, alias)
+                before = alias.read_bytes()
+                status, result = self.run_cli(root, ["--apply-requirements", "--json"])
+                self.assertEqual((status, result["status"]), (1, "error"))
+                self.assertEqual(alias.read_bytes(), before)
 
     def test_candidate_cli_reads_only_static_component_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -482,6 +740,13 @@ class UpdateGoComponentsTests(unittest.TestCase):
                 missing_protobuf_target_sum,
             )
 
+
+
+# Parent default discovery uses the one admitted active-case inventory.
+if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
+    def load_tests(loader, standard_tests, pattern):
+        from ci.lib.active_test_inventory import module_load_tests
+        return module_load_tests(loader, standard_tests, pattern)
 
 if __name__ == "__main__":
     unittest.main()

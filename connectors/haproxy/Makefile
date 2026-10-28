@@ -105,6 +105,7 @@ build-spoa-starter: $(SPOA_STARTER_BIN)
 self-test: self-test-spoa
 
 self-test-spoa: $(SPOA_STARTER_BIN)
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	"$(SPOA_STARTER_BIN)" --self-test
 
 build-spoa-runtime: $(SPOA_RUNTIME_BIN)
@@ -112,6 +113,7 @@ build-spoa-runtime: $(SPOA_RUNTIME_BIN)
 	@echo "Scope: selected SPOP agent path with request phases, response headers, and audit/decision logging; response-body Phase 4 is disabled."
 
 self-test-spoa-runtime: $(SPOA_RUNTIME_BIN)
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	@set -eu; \
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
 	LD_LIBRARY_PATH="$$MODSECURITY_LIB_DIR:$${LD_LIBRARY_PATH:-}" "$(SPOA_RUNTIME_BIN)" --runtime-self-test --tmp-root "$(BUILD_ROOT)/tmp/haproxy" --log-root "$(BUILD_ROOT)/logs/haproxy"
@@ -124,7 +126,11 @@ check-htx-overlay:
 	python3 "$(REPO_ROOT)/ci/checks/connectors/haproxy/check-haproxy-htx-overlay.py"
 
 test-htx-overlay: check-htx-overlay
+ifeq ($(ON_DEMAND_TESTS),1)
 	python3 harness/test_haproxy_htx_smoke_helper.py
+else
+	python3 "$(abspath ../../ci/tools/run-active-tests.py)" --group haproxy
+endif
 
 build-htx-overlay: check-htx-overlay build-modsecurity-binding
 	@set -eu; \
@@ -148,6 +154,7 @@ build-htx-overlay: check-htx-overlay build-modsecurity-binding
 # It remains non-promoted until a Common-runtime bridge and canonical evidence
 # selection approve the path; P2/P4 are recorded only as host observations.
 runtime-smoke-haproxy-htx: test-htx-overlay build-htx-overlay
+	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error native HTX runtime qualification is archived; explicit ON_DEMAND_TESTS=1 authorization is required))
 	HAPROXY_BIN="$(HAPROXY_HTX_BIN)" \
 	RUNTIME_ROOT="$(HAPROXY_HTX_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(HAPROXY_HTX_EVENT_LOG_PATH)" \
@@ -157,6 +164,7 @@ runtime-smoke-haproxy-htx: test-htx-overlay build-htx-overlay
 	PYTHON="$(PYTHON)" sh harness/run_haproxy_htx_runtime.sh
 
 self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	@set -eu; \
 	mkdir -p "$(BUILD_ROOT)/logs/haproxy"; \
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
@@ -169,6 +177,7 @@ self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	exit "$$rc"
 
 self-test-modsecurity-binding-crs: $(MODSECURITY_BINDING_BIN)
+	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
 	@set -eu; \
 	mkdir -p "$(BUILD_ROOT)/logs/haproxy"; \
 	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \

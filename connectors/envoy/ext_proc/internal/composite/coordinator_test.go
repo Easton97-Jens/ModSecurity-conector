@@ -3,6 +3,7 @@ package composite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
@@ -634,7 +635,7 @@ func TestSingleClaimAndResponseOrdering(t *testing.T) {
 }
 
 func TestCapacityExpiryAndBoundedBodies(t *testing.T) {
-	c, _ := newTestCoordinator(t, Limits{Capacity: 1, TTL: time.Hour, IdleTTL: time.Hour, MaxRequestBody: 2, MaxBodyChunks: 2})
+	c, _ := newTestCoordinator(t, Limits{Capacity: 1, TTL: time.Hour, IdleTTL: time.Hour})
 	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
 	if err != nil {
 		t.Fatal(err)
@@ -642,7 +643,7 @@ func TestCapacityExpiryAndBoundedBodies(t *testing.T) {
 	if _, _, err = c.BeginRequest(context.Background(), metadata(), nil, true); !errors.Is(err, ErrLimit) {
 		t.Fatalf("capacity = %v", err)
 	}
-	if _, err = a.ProcessBody(context.Background(), []byte("123"), true); !errors.Is(err, ErrLimit) {
+	if _, err = a.ProcessBody(context.Background(), []byte("123"), true); err != nil {
 		t.Fatalf("body limit = %v", err)
 	}
 	a.Finish(context.Background(), "block")
@@ -662,36 +663,19 @@ func TestCapacityExpiryAndBoundedBodies(t *testing.T) {
 	}
 }
 
-func TestRequestBodyLimitEmitsBoundedP2DecisionBeforeHostAction(t *testing.T) {
-	log := &eventLog{}
-	c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{MaxRequestBody: 2}, &fakeEngine{}, log)
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestRequestChunksHaveNoConnectorAggregateGate(t *testing.T) {
+	c, _ := newTestCoordinator(t, Limits{})
 	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := a.ProcessBody(context.Background(), []byte("123"), true)
-	if !errors.Is(err, ErrLimit) || d.Action != processor.ActionDeny || d.Status != 413 {
-		t.Fatalf("limit decision=%#v err=%v", d, err)
-	}
-	if err := a.RecordRequestBodyLimitHostAction(); err != nil {
-		t.Fatal(err)
-	}
-	a.Finish(context.Background(), "request_body_limit")
-	c.Close()
-	log.mu.Lock()
-	defer log.mu.Unlock()
-	for _, event := range log.events {
-		if event.Phase == "P2" {
-			if event.RequestedAction != string(processor.ActionDeny) || event.VisibleStatus != 413 || event.Reason != "request_body_limit" {
-				t.Fatalf("unexpected P2 limit event: %#v", event)
-			}
-			return
+	for i := 0; i < 300; i++ {
+		d, err := a.ProcessBody(context.Background(), []byte("full-chunk"), i == 299)
+		if err != nil || d.Action != processor.ActionAllow {
+			t.Fatalf("chunk%d decision=%#v error=%v", i, d, err)
 		}
 	}
-	t.Fatal("missing bounded P2 limit event")
+	a.Finish(context.Background(), "success")
 }
 
 func TestCleanupExactlyOnceOnCancelAndRestart(t *testing.T) {
@@ -731,8 +715,8 @@ func TestEmptyRequestAndResponseBody(t *testing.T) {
 	r.Finish(context.Background(), "success")
 }
 
-func TestRequestAndResponseBodyChunkLimitsAreIndependent(t *testing.T) {
-	c, _ := newTestCoordinator(t, Limits{MaxBodyChunks: 1})
+func TestResponseChunksHaveNoCumulativeInspectionBudget(t *testing.T) {
+	c, _ := newTestCoordinator(t, Limits{})
 	a, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
 	if err != nil {
 		t.Fatal(err)
@@ -751,8 +735,10 @@ func TestRequestAndResponseBodyChunkLimitsAreIndependent(t *testing.T) {
 	if _, err = r.Headers(context.Background(), nil, false); err != nil {
 		t.Fatalf("response headers = %v", err)
 	}
-	if _, err = r.Body(context.Background(), []byte("response"), true); err != nil {
-		t.Fatalf("first response body must have its own budget: %v", err)
+	for i := 0; i < 300; i++ {
+		if _, err = r.Body(context.Background(), []byte("response"), i == 299); err != nil {
+			t.Fatalf("response chunk %d: %v", i, err)
+		}
 	}
 	r.Finish(context.Background(), "success")
 }
@@ -889,5 +875,152 @@ func TestNeutralOutcomeRequiresCommittedResponseEnd(t *testing.T) {
 	}
 	if err = r.RecordNeutralOutcome(context.Background(), 200, "response_completed"); err != nil {
 		t.Fatalf("completed neutral outcome = %v", err)
+	}
+}
+
+// This observer changes its error on each call so replay or replacement of the
+// first sink failure is visible independently of the physical writer's latch.
+type countedFailureObserver struct {
+	calls int
+	first error
+}
+
+func (o *countedFailureObserver) Observe(Event) error {
+	o.calls++
+	if o.calls == 1 {
+		return o.first
+	}
+	return errors.New("later observer failure")
+}
+func TestDispatcherDoesNotReplayFailedObserver(t *testing.T) {
+	first := errors.New("first sink failure")
+	observer := &countedFailureObserver{first: first}
+	c := &Coordinator{observer: observer, events: make(chan Event, 3), eventDone: make(chan struct{})}
+	for i := 0; i < 3; i++ {
+		c.events <- Event{}
+	}
+	close(c.events)
+	c.dispatchEvents()
+	if observer.calls != 1 {
+		t.Fatalf("dispatchEvents() observer calls = %d, want 1", observer.calls)
+	}
+	if got := c.Err(); !errors.Is(got, ErrObserver) || !errors.Is(got, first) {
+		t.Fatalf("Err() = %v, want observer class and first cause %v", got, first)
+	}
+}
+
+type cleanupReportingTx struct {
+	*fakeTx
+	err error
+}
+
+func (tx *cleanupReportingTx) CleanupFailure() error { return tx.err }
+
+type cleanupReportingEngine struct {
+	err          error
+	beforeReturn func()
+	latest       *cleanupReportingTx
+}
+
+func (e *cleanupReportingEngine) Open(context.Context, processor.StreamMetadata) (processor.Transaction, error) {
+	tx := &cleanupReportingTx{fakeTx: &fakeTx{}, err: e.err}
+	e.latest = tx
+	if e.beforeReturn != nil {
+		e.beforeReturn()
+	}
+	return tx, nil
+}
+func TestCoordinatorReportsCleanupFailureWithoutDuplicateTerminal(t *testing.T) {
+	for _, mode := range []string{"sink", "incomplete"} {
+		t.Run(mode, func(t *testing.T) {
+			testCoordinatorCleanupFailure(t, mode)
+		})
+	}
+}
+
+func testCoordinatorCleanupFailure(t *testing.T, mode string) {
+	t.Helper()
+	first := errors.New("physical sink failure")
+	if mode == "incomplete" {
+		first = fmt.Errorf("%w: request incomplete", processor.ErrTransactionFinishPhaseSequence)
+	}
+	engine := &cleanupReportingEngine{err: first}
+	log := &eventLog{}
+	c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{}, engine, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	admission, _, err := c.BeginRequest(context.Background(), metadata(), nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx := engine.latest
+	id := admission.e.id
+	admission.e.finish(context.Background(), "disconnect")
+	admission.e.finish(context.Background(), "disconnect")
+	assertCoordinatorCleanupAdmission(t, c, mode, first)
+	c.Close()
+	tx.mu.Lock()
+	closes := tx.closeCount
+	tx.mu.Unlock()
+	if closes != 1 {
+		t.Fatalf("finish(retry) cleanup calls = %d, want 1", closes)
+	}
+	assertSingleFailedCleanupTerminal(t, log, id)
+}
+
+func assertCoordinatorCleanupAdmission(t *testing.T, c *Coordinator, mode string, first error) {
+	t.Helper()
+	if mode == "sink" {
+		if got := c.Err(); !errors.Is(got, first) {
+			t.Fatalf("Err(after sink cleanup) = %v, want first cause %v", got, first)
+		}
+		if _, _, got := c.BeginRequest(context.Background(), metadata(), nil, true); !errors.Is(got, first) {
+			t.Fatalf("BeginRequest(after sink cleanup) = %v, want %v", got, first)
+		}
+	} else {
+		if got := c.Err(); got != nil {
+			t.Fatalf("Err(after local incomplete finish) = %v, want nil", got)
+		}
+		if _, _, got := c.BeginRequest(context.Background(), metadata(), nil, true); got != nil {
+			t.Fatalf("BeginRequest(after local incomplete finish) = %v, want admitted", got)
+		}
+	}
+}
+
+func assertSingleFailedCleanupTerminal(t *testing.T, log *eventLog, id string) {
+	t.Helper()
+	log.mu.Lock()
+	defer log.mu.Unlock()
+	terminal := 0
+	for _, event := range log.events {
+		if event.DecisionID == id && event.Phase == "terminal" {
+			terminal++
+			if event.Outcome != "failed" || event.CleanupOutcome != "failed" {
+				t.Fatalf("cleanup terminal = %#v, want failed outcome and cleanup", event)
+			}
+		}
+	}
+	if terminal != 1 {
+		t.Fatalf("finish(retry) terminal events = %d, want 1", terminal)
+	}
+}
+
+func TestCoordinatorReportsCleanupFailureAfterAdmissionClosesDuringOpen(t *testing.T) {
+	first := errors.New("sink cleanup failure after shutdown")
+	engine := &cleanupReportingEngine{err: first}
+	c, err := New("envoy", []byte("01234567890123456789012345678901"), Limits{}, engine, &eventLog{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	engine.beforeReturn = c.Close
+	_, _, err = c.BeginRequest(context.Background(), metadata(), nil, false)
+	if !errors.Is(err, first) || !errors.Is(c.Err(), first) {
+		t.Fatalf("BeginRequest(shutdown during open) = %v, fault=%v, want %v", err, c.Err(), first)
+	}
+	if engine.latest.closeCount != 1 {
+		t.Fatalf("shutdown close calls = %d, want 1", engine.latest.closeCount)
 	}
 }

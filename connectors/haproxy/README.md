@@ -1,5 +1,7 @@
 # HAProxy Connector
 
+Request- and response-body inspection limits and actions belong exclusively to libModSecurity: configure `SecRequestBodyLimit`, `SecRequestBodyNoFilesLimit`, `SecRequestBodyLimitAction`, `SecResponseBodyLimit`, and `SecResponseBodyLimitAction` in the engine rules. The connector has no body-size option, default, fallback, cumulative rejection, or inspection-prefix truncation. Checked counters, pointer/file validation, and bounded scratch or transport frames remain technical safety controls.
+
 **Language:** English | [Deutsch](README.de.md)
 
 Status: partial; historical SPOA runtime records do not promote canonical
@@ -18,12 +20,12 @@ optional response-header phases, emits
 decision JSONL, and returns typed SPOE ACK variables for HAProxy enforcement.
 The SPOP listener has no authenticated transport and is intentionally restricted
 to `127.0.0.1`; remote or wildcard binds are unsupported and fail closed.
-`make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
+`ON_DEMAND_TESTS=1 make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
 materializes each case, starts HAProxy plus the production SPOA agent plus a
 backend, sends the case request with curl, asserts the observed status, and
 writes the standard HAProxy summary artifacts.
 
-`make runtime-matrix-haproxy` consumes live summary evidence from the split
+`ON_DEMAND_TESTS=1 make runtime-matrix-haproxy` consumes live summary evidence from the split
 No-CRS and With-CRS HAProxy runs. PASS/FAIL rows must come from live HAProxy
 execution; structurally unmappable rows use `NOT_EXECUTABLE`, and real
 environment/build/runtime blockers use `BLOCKED`.
@@ -32,8 +34,7 @@ The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
 `REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 `REQUEST_COOKIES_NAMES`, `REQUEST_BODY`, `FILES`, and `XML`. URL-encoded,
 JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
-evidence, limited by HAProxy request buffering, SPOE frame size, and configured
-request-body limits. Response-header and audit-log paths use SPOE response
+evidence, limited by HAProxy request buffering, SPOE frame size, and the single request-body sample. Response-header and audit-log paths use SPOE response
 messages. A separate HTX observer overlay is selected by the full-lifecycle
 profile through `full-lifecycle-haproxy-htx` and has a dedicated real-host
 transport smoke for incremental request and response chunks. It remains
@@ -67,7 +68,7 @@ Shared connector-neutral data shapes used by the starter:
 - ModSecurity binding self-test: buildable and self-testable under
   `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/`; verifies
   phase-1 header blocking and request-body append/processing in process.
-- Harness: `make smoke-haproxy` verifies live HAProxy to SPOA/SPOP to
+- Harness: `ON_DEMAND_TESTS=1 make smoke-haproxy` verifies live HAProxy to SPOA/SPOP to
   libmodsecurity enforcement for shared framework YAML cases.
 - Decision evidence: per-case `decision.jsonl`, HAProxy logs, SPOA logs, audit
   logs, observed status, and normalized `result.json`.
@@ -104,13 +105,13 @@ Supported local build targets:
 make -C connectors/haproxy build-metadata
 make -C connectors/haproxy build-spoa-starter
 make -C connectors/haproxy build-starter
-make -C connectors/haproxy self-test-spoa
-make -C connectors/haproxy self-test
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-spoa
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test
 make -C connectors/haproxy build-spoa-runtime
-make -C connectors/haproxy self-test-spoa-runtime
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-spoa-runtime
 make -C connectors/haproxy build-modsecurity-binding
-make -C connectors/haproxy self-test-modsecurity-binding
-make -C connectors/haproxy self-test-modsecurity-binding-crs
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-modsecurity-binding
+ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-modsecurity-binding-crs
 ```
 
 `build-spoa-starter` compiles a local binary that can describe its limitations
@@ -119,7 +120,7 @@ does not compile a HAProxy module, does not parse SPOP frames, does not run as a
 verified SPOA server, and does not link libmodsecurity.
 
 `build-spoa-runtime` compiles `haproxy-modsecurity-spoa`. Its self-test is
-protocol compatibility evidence; `make smoke-haproxy` is the live gate that
+protocol compatibility evidence; `ON_DEMAND_TESTS=1 make smoke-haproxy` is the live gate that
 starts HAProxy against this production agent and executes framework YAML cases.
 
 `build-modsecurity-binding` first verifies the local libmodsecurity C API
@@ -129,7 +130,8 @@ request-body rule processing, plus request/response body-wrapper lifecycle
 guards for a nonzero-length null pointer, append after EOS, and duplicate
 finalization. Those wrapper controls are self-test-only: they do not prove
 live HAProxy enforcement or a positive `RESPONSE_BODY` intervention.
-`make smoke-haproxy` is required for live HAProxy runtime evidence.
+`ON_DEMAND_TESTS=1 make smoke-haproxy` retains the broader live SPOP-catalog
+evidence path; active inventory cases establish only their narrower scope.
 
 ## libModSecurity compatibility contract
 
@@ -171,27 +173,40 @@ MODSECURITY_LIB_CANDIDATES=/selected/lib \
 make -C connectors/haproxy build-modsecurity-binding build-spoa-runtime
 ```
 
-Run `make -C connectors/haproxy self-test-modsecurity-binding` for the
-in-process binding controls. `make smoke-haproxy` remains the separate live
-SPOP gate, while `make -C connectors/haproxy runtime-smoke-haproxy-htx` remains
+Run `ON_DEMAND_TESTS=1 make -C connectors/haproxy self-test-modsecurity-binding` for the
+in-process binding controls. `ON_DEMAND_TESTS=1 make smoke-haproxy` remains the separate live
+SPOP gate, while `ON_DEMAND_TESTS=1 make -C connectors/haproxy runtime-smoke-haproxy-htx` remains
 the separate native HTX build and host-smoke gate; neither path substitutes for
 the other.
 
 ## Tests
 
-No local `connectors/haproxy/tests` folder is used. Executable runtime tests are
-framework-owned.
+No local `connectors/haproxy/tests` folder is used. The Framework owns reusable
+catalog definitions; Parent owns integration/regression tests and automatic
+selection through [config/testing/active-cases.json](../../config/testing/active-cases.json).
 
-Framework-owned paths and targets to use for future evidence:
+Standard <code>make test-no-crs</code> and <code>make test-with-crs</code> aliases
+select only admitted runtime subsets, not complete Framework suites or full
+profiles. The HAProxy group contains its named component regressions. SPOE/SPOP
+results do not qualify a native HTX host run, or vice versa. Every selection
+shares the global ceiling of 100 expanded behavioral cases.
+
+The retained broader matrix, smoke and self-test commands below require explicit
+<code>ON_DEMAND_TESTS=1</code>, a current additional request and their actual
+host/SDK prerequisites. The flag is not an ordinary CI default and does not
+reopen closed I12 campaigns. See [Testing and evidence](../../docs/testing-and-evidence.md)
+for selection and lost automatic coverage.
+
+Reusable Framework paths and explicitly requested broader commands:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
-- `make runtime-matrix-haproxy`
-- `make test-haproxy-no-crs`
-- `make test-haproxy-with-crs`
-- `make test-no-crs`
-- `make test-with-crs`
-- `make smoke-common`
+- `ON_DEMAND_TESTS=1 make runtime-matrix-haproxy`
+- `ON_DEMAND_TESTS=1 make test-haproxy-no-crs`
+- `ON_DEMAND_TESTS=1 make test-haproxy-with-crs`
+- `ON_DEMAND_TESTS=1 make test-no-crs`
+- `ON_DEMAND_TESTS=1 make test-with-crs`
+- `ON_DEMAND_TESTS=1 make smoke-common`
 
 Unsupported or currently unmaterializable rows are documented as
 `NOT_EXECUTABLE`. Harness, dependency, build, and runtime failures are
@@ -236,8 +251,9 @@ cancel, timeout, and cleanup abort the transaction; an SPOP notification or
 `wait-for-body` sample is never an EOS signal.
 
 The production SPOP agent accepts `response-companion=native-htx` only with an
-explicit private companion socket, matching uid/gid, and a non-zero bounded
-response-body limit. The implemented combined profile registers the HTX request
+explicit private companion socket and matching uid/gid.
+The removed `response-body-limit` option is rejected; engine directives alone
+configure response inspection limits. The implemented combined profile registers the HTX request
 data filter after P1, binds the SPOP-published opaque handle to
 `stream->uniq_id`, and invokes the common response-header/DATA/EOS callbacks
 from HAProxy's `http_payload`/`http_end` hooks. A missing, malformed, expired,
@@ -269,7 +285,7 @@ HAPROXY_HTX_SOURCE_DIR=/path/to/framework-synchronized-haproxy-source \
 MODSECURITY_INCLUDE_DIR=/path/to/include \
 MODSECURITY_LIB_DIR=/path/to/lib \
 BUILD_ROOT=/srv/modsecurity-work/haproxy-htx-smoke \
-make -C connectors/haproxy runtime-smoke-haproxy-htx
+ON_DEMAND_TESTS=1 make -C connectors/haproxy runtime-smoke-haproxy-htx
 ```
 
 The dedicated smoke builds a patched disposable Framework-synchronized HAProxy worktree,
@@ -306,6 +322,10 @@ capabilities.
 
 ## Phase-4 mode and response-body limit ownership
 
+Response-body inspection limit and action are configured exclusively through
+`SecResponseBodyLimit` and `SecResponseBodyLimitAction`. The connector has no
+option, default, fallback, or second enforcement logic for this policy.
+
 The default mode is `off`; supported values are `off`, `safe`, and `strict`.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through
@@ -328,3 +348,49 @@ WAF inspection policy.
 
 See [the cross-connector response-limit ownership contract](../../docs/phase4-mode-budget.md)
 for the exact scope, compatibility boundary and validation limitations.
+
+The SPOE/SPOP profile transports one request-body sample in a frame of at most 65536 bytes, including metadata. It does not implement incremental request transport. If the advertised body length differs from the delivered sample, the agent rejects the incomplete representation as an unsupported transport admission; this is not a BODY_LIMIT result. Native HTX passes complete borrowed DATA slices incrementally. The smoke helper’s test upstream retains its 64 KiB request/response fixture capacity; those harness tests do not prove larger host bodies.
+
+## Physical Common decision sinks
+
+The native HTX filter accepts the optional `events-file /task/common-events.jsonl`
+argument. Use a private regular append file owned by the runtime uid with mode
+`0600`; every parent component must satisfy the existing trusted-parent policy.
+The shared opener rejects symlinks in every component. Configured SPOP decision
+logs use the same opener. An unsafe path fails initialization; there is no
+fallback to another event destination.
+
+The native filter writes bounded Common JSONL metadata for disruptive native
+decisions and technical causes. It excludes body bytes, headers, URI and native
+log text. Ordinary Allow produces no invented decision event. A mutex protects
+the configured stream; serialization, `fputs`, `ferror`, `fflush` and `fclose`
+are checked, the first sink error is sticky, and subsequent requests fail closed
+on that sink failure. A failed native decision write retains its observed phase
+and any earlier technical cause. Closing consumes the owned stream once.
+Successful flushing proves stream acceptance, not durable storage or client
+transport. Native filter deinitialization can alert on close failure but cannot
+set a process exit status through its void callback.
+
+For the response companion, the native owner emits a decision event only after
+validated OUTCOME and before RELEASE. Phase, decision kind, native status and
+rule identity are checked against the held native transaction; queued metadata
+is copied into owned bounded storage. Valid P4 Allow may record OUTCOME from
+the completed state without an invented P4 decision event. The owner cannot
+observe the HTX phase4-mode setting from the current wire contract, so its event
+omits optional `late_intervention_mode`. Prove host mode separately from the
+effective filter configuration and actual transport. Native direct events use
+their own known filter configuration.
+
+For Strict postcommit H1, the native filter erases queued response bytes and
+invokes the ready frontend transport hard-shutdown API before the H1 mux can send
+a clean TLS close_notify. H2 retains its per-stream shutdown.
+
+Native precommit P1/P2/P3 redirects use HAProxy's literal `Location` reply API
+with the original supported status. The connector owns the URL before native
+cleanup and rejects truncated or control-character values. The companion
+records the actual redirect OUTCOME before RELEASE.
+
+SDK, sink-fault, concurrency, sanitizer, API and mutation controls provide
+component evidence. I12 still requires fresh integrated host/client runs and
+independent qualification; see the
+[consolidated PR #410 Change Record](../../reports/audits/change-records/CR-20261024-pr410-sonar-remediation.md).
