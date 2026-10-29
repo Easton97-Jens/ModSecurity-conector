@@ -368,7 +368,8 @@ run_all_cases() {
         if [ -f "$case_log_dir/status.txt" ]; then
             reason=$(tail -n 1 "$case_log_dir/status.txt")
         fi
-        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" "$observed_transport" "$reason" || true
+        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" "$observed_transport" "$reason" || \
+            fail "Apache case result publication failed"
         if [ -f "$case_log_dir/result.json" ]; then
             cat "$case_log_dir/result.json" >> "$results_jsonl"
         fi
@@ -2913,7 +2914,8 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
             fail "selected Apache CRS case result publication failed"
         publish_profile_single_case_results
     else
-        write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
+        write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || \
+            fail "Apache case result publication failed"
     fi
     echo "apache_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
@@ -2923,6 +2925,7 @@ reason=$(cat "$LOG_DIR/case-assert.log" 2>/dev/null || true)
 if [ "$curl_rc" -ne 0 ]; then
     reason="curl attack request failed rc=$curl_rc; $reason"
 fi
-write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" "$reason" || true
+write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" "$reason" || \
+    fail "Apache case result publication failed"
 echo "apache_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

@@ -14,6 +14,10 @@ LOG_ROOT="${LOG_ROOT:-$VERIFIED_LOG_ROOT}"
 MRTS_ROOT="${MRTS_ROOT:-$FRAMEWORK_ROOT/tools/MRTS}"
 MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$BUILD_ROOT/mrts}"
 MRTS_NATIVE_ROOT="${MRTS_NATIVE_ROOT:-$BUILD_ROOT/mrts-native}"
+MRTS_NATIVE_REPORT_ROOT="${MRTS_NATIVE_REPORT_ROOT:-$MRTS_NATIVE_ROOT/reports}"
+MRTS_PACKAGE_ROOT="${MRTS_PACKAGE_ROOT:-}"
+MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO="${MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO:-0}"
+MRTS_NATIVE_PACKAGE_READY=0
 MRTS_NATIVE_TARGETS="${MRTS_NATIVE_TARGETS:-apache2_ubuntu nginx-pr24}"
 MRTS_NATIVE_APACHE_PORT="${MRTS_NATIVE_APACHE_PORT:-19080}"
 MRTS_NATIVE_NGINX_PORT="${MRTS_NATIVE_NGINX_PORT:-19081}"
@@ -37,7 +41,9 @@ validate_runtime_paths() {
     assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
     assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
     assert_safe_runtime_path "$MRTS_NATIVE_ROOT" MRTS_NATIVE_ROOT || exit 77
-    assert_not_system_path_for_write "$CONNECTOR_ROOT/reports/testing/generated" MRTS_NATIVE_REPORT_DIR || exit 77
+    assert_safe_runtime_path "$MRTS_NATIVE_REPORT_ROOT" MRTS_NATIVE_REPORT_ROOT || exit 77
+    assert_runtime_path_under_root "$MRTS_NATIVE_ROOT" "$BUILD_ROOT" MRTS_NATIVE_ROOT || exit 77
+    assert_runtime_path_under_root "$MRTS_NATIVE_REPORT_ROOT" "$BUILD_ROOT" MRTS_NATIVE_REPORT_ROOT || exit 77
     return 0
 }
 
@@ -63,92 +69,12 @@ write_job_json() {
     duration=$6
     run_log=$7
     summary_path=$8
-    "$PYTHON" - "$job_json" "$target" "$status" "$reason" "$exit_code" "$duration" "$run_log" "$summary_path" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-def read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
-
-def first_match(pattern: str, text: str) -> str:
-    match = re.search(pattern, text, flags=re.MULTILINE)
-    return match.group(1) if match else ""
-
-def parse_failed_cases(run_text: str) -> list[str]:
-    failed = []
-    payload = first_match(r"failed to run:\s+\[(.*?)\]", run_text)
-    if payload:
-        for item in payload.split(","):
-            case_id = item.strip().strip("\"'")
-            if case_id and case_id not in failed:
-                failed.append(case_id)
-    for case_id in re.findall(r"\b([0-9]+-[0-9]+)\s+failed\b", run_text):
-        if case_id not in failed:
-            failed.append(case_id)
-    return failed
-
-def classify_native_job(status: str, reason: str, run_text: str, failed_cases: list[str]) -> tuple[str, str]:
-    native_runtime_reached = "Received default request" in run_text
-    if status == "PASS":
-        return ("optional_native_evidence_pass", "Native MRTS optional evidence completed.")
-    if status == "BLOCKED" and "missing native dependencies" in reason:
-        return ("missing_optional_native_runtime", "Native MRTS optional evidence is blocked by missing native runtime dependencies.")
-    if status == "BLOCKED":
-        return ("optional_native_infrastructure_blocked", "Native MRTS optional evidence is blocked before a complete go-ftw comparison.")
-    if status == "FAIL" and failed_cases == ["100003-1"] and native_runtime_reached:
-        return (
-            "optional_native_modsecurity_semantics_difference",
-            "Apache and NGINX native MRTS reach the backend and fail only case 100003-1, the phase 4 ARGS comparison.",
-        )
-    if status == "FAIL" and native_runtime_reached:
-        return ("optional_native_go_ftw_case_failure", "Native runtime was reached, but go-ftw reported failing MRTS cases.")
-    if status == "FAIL":
-        return ("optional_native_infra_or_overlay_failure", "go-ftw failed before runtime request evidence was observed.")
-    return ("optional_native_evidence_unknown", "Native MRTS optional evidence status could not be classified.")
-
-path = Path(sys.argv[1])
-run_log = Path(sys.argv[7])
-status = sys.argv[3]
-reason = sys.argv[4]
-run_text = read_text(run_log)
-failed_cases = parse_failed_cases(run_text)
-attempted = int(first_match(r"run\s+([0-9]+)\s+total tests", run_text) or 0)
-skipped = int(first_match(r"skipped\s+([0-9]+)\s+tests", run_text) or 0)
-failed_count = len(failed_cases) or int(first_match(r"([0-9]+)\s+test\(s\)\s+failed", run_text) or 0)
-passed_count = run_text.count("passed in")
-if attempted and failed_count and passed_count + failed_count < attempted:
-    passed_count = attempted - failed_count
-classification, classification_notes = classify_native_job(status, reason, run_text, failed_cases)
-data = {
-    "target": sys.argv[2],
-    "status": status,
-    "reason": reason,
-    "exit_code": int(sys.argv[5]),
-    "duration_seconds": int(sys.argv[6]),
-    "run_log": sys.argv[7],
-    "summary_path": sys.argv[8],
-    "job_json": str(path),
-    "evidence_role": "optional_native_mrts",
-    "optional": True,
-    "critical_merge_blocker": False,
-    "classification": classification,
-    "classification_notes": classification_notes,
-    "native_runtime_reached": "Received default request" in run_text,
-    "go_ftw": {
-        "attempted": attempted,
-        "passed": passed_count,
-        "failed": failed_count,
-        "skipped": skipped,
-        "failed_cases": failed_cases,
-    },
-}
-path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY
+    "$PYTHON" "$FRAMEWORK_ROOT/ci/lib/mrts_results.py" \
+        --output "$job_json" --target "$target" --status "$status" \
+        --reason "$reason" --exit-code "$exit_code" --duration "$duration" \
+        --run-log "$run_log" --summary-path "$summary_path" \
+        --ftw-dir "$(dirname "$job_json")/selected-ftw" \
+        --stats-file "$(dirname "$job_json")/go-ftw.json"
     return $?
 }
 
@@ -318,12 +244,55 @@ PY
     return $?
 }
 
-prepare_mrts_outputs() {
-    "$MAKE" -C "$FRAMEWORK_ROOT" mrts-generate >/dev/null
-    MRTS_RULES_OUT="$MRTS_BUILD_ROOT/upstream-config-tests/rules" \
-    MRTS_LOAD_FILE="$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load" \
-        sh "$FRAMEWORK_ROOT/ci/provisioning/write-mrts-load.sh" >/dev/null
+mrts_package_command() {
+    action=$1
+    shift
+    if [ -n "${MRTS_UPSTREAM_DEFINITIONS:-}" ]; then
+        set -- "$@" --upstream-definitions "$MRTS_UPSTREAM_DEFINITIONS"
+    fi
+    if [ -n "${MRTS_FEATURE_DEMO_DEFINITIONS:-}" ]; then
+        set -- "$@" --feature-demo-definitions "$MRTS_FEATURE_DEMO_DEFINITIONS"
+    fi
+    "$PYTHON" "$FRAMEWORK_ROOT/ci/provisioning/mrts-package.py" "$action" \
+        --framework-root "$FRAMEWORK_ROOT" --mrts-root "$MRTS_ROOT" \
+        --connector-root "$CONNECTOR_ROOT" --build-root "$BUILD_ROOT" \
+        --package-root "$MRTS_PACKAGE_ROOT" \
+        --include-feature-demo "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" "$@"
     return $?
+}
+
+prepare_mrts_outputs() {
+    if [ "$MRTS_NATIVE_PACKAGE_READY" = 1 ] || [ "${MODSECURITY_MRTS_PREPARED:-0}" = 1 ]; then
+        [ -n "$MRTS_PACKAGE_ROOT" ] || return 77
+        mrts_package_command verify >/dev/null || return $?
+    else
+        if [ -z "$MRTS_PACKAGE_ROOT" ]; then
+            mkdir -p "$MRTS_BUILD_ROOT" || return $?
+            package_parent=$(mktemp -d "$MRTS_BUILD_ROOT/native-package.XXXXXX") || return $?
+            MRTS_PACKAGE_ROOT="$package_parent/package"
+        fi
+        mrts_package_command prepare >/dev/null || return $?
+    fi
+    MRTS_NATIVE_PACKAGE_READY=1
+    return 0
+}
+
+materialize_mrts_outputs() {
+    target_root=$1
+    port=$2
+    MRTS_TARGET_PACKAGE_ROOT="$target_root/package"
+    mrts_package_command materialize --output-root "$MRTS_TARGET_PACKAGE_ROOT" --port "$port" >/dev/null || return $?
+    mkdir -p "$target_root/selected-ftw" || return $?
+    : > "$target_root/mrts.load" || return $?
+    corpora=upstream-config-tests
+    if [ "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = 1 ]; then
+        corpora="$corpora feature-demo"
+    fi
+    for corpus in $corpora; do
+        cp -R "$MRTS_TARGET_PACKAGE_ROOT/$corpus/ftw" "$target_root/selected-ftw/$corpus" || return $?
+        printf 'Include "%s"\n' "$MRTS_TARGET_PACKAGE_ROOT/$corpus/mrts.load" >> "$target_root/mrts.load" || return $?
+    done
+    return 0
 }
 
 patch_common_ftw_config() {
@@ -334,37 +303,6 @@ patch_common_ftw_config() {
         sed -i "s#^logfile:.*#logfile: '$(printf '%s' "$logfile" | sed 's#[\\&#]#\\\\&#g')'#" "$config"
     fi
     return 0
-}
-
-patch_ftw_dest_ports() {
-    ftw_dir=$1
-    port=$2
-    "$PYTHON" - "$ftw_dir" "$port" <<'PY'
-import sys
-from pathlib import Path
-
-import yaml
-
-root = Path(sys.argv[1])
-port = int(sys.argv[2])
-
-def patch(value):
-    if isinstance(value, dict):
-        for key, item in list(value.items()):
-            if key == "port" and item == 80:
-                value[key] = port
-            else:
-                patch(item)
-    elif isinstance(value, list):
-        for item in value:
-            patch(item)
-
-for path in sorted(root.rglob("*.yaml")):
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    patch(data)
-    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-PY
-    return $?
 }
 
 stage_apache() {
@@ -378,7 +316,7 @@ stage_apache() {
     cp -a "$source_root/." "$stage/"
     mkdir -p "$stage/infra/log" "$stage/infra/run" "$stage/infra/htdocs" "$stage/infra/run/modsecurity-data"
     : > "$stage/infra/htdocs/index.html"
-    cp "$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load" "$stage/infra/mrts.load"
+    cp "$target_root/mrts.load" "$stage/infra/mrts.load" || return 77
     patch_modsecurity_v3_rules_config "$stage/infra/modsecurity/modsecurity.conf"
     sed -i "s#^Listen 80#Listen $MRTS_NATIVE_APACHE_PORT#" "$stage/infra/ports.conf"
     sed -i "s#<VirtualHost \\*:80>#<VirtualHost *:$MRTS_NATIVE_APACHE_PORT>#" "$stage/infra/sites-available/000-default.conf"
@@ -438,7 +376,7 @@ stage_nginx() {
     cp -a "$source_root/." "$stage/"
     mkdir -p "$stage/infra/log" "$stage/infra/run" "$stage/infra/html"
     : > "$stage/infra/html/index.html"
-    cp "$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load" "$stage/infra/mrts.load"
+    cp "$target_root/mrts.load" "$stage/infra/mrts.load" || return 77
     rm -f "$stage/infra/modules-enabled/"*
     ln -s ../modules-available/mod-http-modsecurity.conf "$stage/infra/modules-enabled/mod-http-modsecurity.conf"
     for module_file in "$stage/infra/modules-available/"*.conf; do
@@ -525,6 +463,7 @@ run_native_target() {
     esac
 
     target_root="$MRTS_NATIVE_ROOT/$target"
+    MRTS_TARGET_PACKAGE_ROOT="$target_root/package"
     run_log="$target_root/run.log"
     exit_code_file="$target_root/exit.code"
     job_json="$target_root/job.json"
@@ -539,9 +478,20 @@ run_native_target() {
         rc=77
         reason="MRTS generation or mrts.load preparation failed"
         printf '%s\n' "$rc" > "$exit_code_file"
-        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path" || return 2
         echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
         return "$rc"
+    fi
+
+    case "$target" in
+        apache2_ubuntu) native_port=$MRTS_NATIVE_APACHE_PORT ;;
+        nginx-pr24) native_port=$MRTS_NATIVE_NGINX_PORT ;;
+    esac
+    if ! materialize_mrts_outputs "$target_root" "$native_port" >> "$run_log" 2>&1; then
+        reason="private MRTS materialization failed"
+        printf '%s\n' 77 > "$exit_code_file"
+        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" 77 0 "$run_log" "$summary_path" || return 2
+        return 77
     fi
 
     case "$target" in
@@ -550,42 +500,26 @@ run_native_target() {
                 rc=77
                 reason="Apache native staging failed"
                 printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path" || return 2
                 echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
                 return "$rc"
             fi
-            patch_ftw_dest_ports "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" "$MRTS_NATIVE_APACHE_PORT" >> "$run_log" 2>&1 || {
-                rc=77
-                reason="Apache native FTW port patch failed"
-                printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
-                echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
-                return "$rc"
-            }
             ;;
         nginx-pr24)
             if ! stage=$(stage_nginx "$target_root" 2>>"$run_log"); then
                 rc=77
                 reason="NGINX PR24 native staging failed"
                 printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path" || return 2
                 echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
                 return "$rc"
             fi
-            patch_ftw_dest_ports "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" "$MRTS_NATIVE_NGINX_PORT" >> "$run_log" 2>&1 || {
-                rc=77
-                reason="NGINX native FTW port patch failed"
-                printf '%s\n' "$rc" > "$exit_code_file"
-                write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
-                echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
-                return "$rc"
-            }
             ;;
         *)
             rc=2
             reason="unsupported MRTS native target"
             printf '%s\n' "$rc" > "$exit_code_file"
-            write_job_json "$job_json" "$target" "FAIL" "$reason" "$rc" 0 "$run_log" "$summary_path"
+            write_job_json "$job_json" "$target" "FAIL" "$reason" "$rc" 0 "$run_log" "$summary_path" || return 2
             echo "mrts-native: target=$target FAIL: $reason"
             return "$rc"
             ;;
@@ -597,7 +531,7 @@ run_native_target() {
         reason="missing native dependencies: $deps"
         ended=$(date +%s)
         printf '%s\n' "$rc" > "$exit_code_file"
-        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path"
+        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path" || return 2
         echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
         return "$rc"
     fi
@@ -631,7 +565,7 @@ run_native_target() {
             rc=2
             reason="unsupported MRTS native target"
             printf '%s\n' "$rc" > "$exit_code_file"
-            write_job_json "$job_json" "$target" "FAIL" "$reason" "$rc" 0 "$run_log" "$summary_path"
+            write_job_json "$job_json" "$target" "FAIL" "$reason" "$rc" 0 "$run_log" "$summary_path" || return 2
             echo "mrts-native: target=$target FAIL: $reason"
             return "$rc"
             ;;
@@ -648,28 +582,27 @@ run_native_target() {
         reason="native infrastructure start failed"
         ended=$(date +%s)
         printf '%s\n' "$rc" > "$exit_code_file"
-        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path"
+        write_job_json "$job_json" "$target" "$MRTS_JOB_STATUS_BLOCKED" "$reason" "$rc" "$((ended - started))" "$run_log" "$summary_path" || return 2
         echo "mrts-native: target=$target $MRTS_JOB_STATUS_BLOCKED: $reason"
         return "$rc"
     fi
 
-    "$GO_FTW_BIN" run --config "$stage/ftw.mrts.config.yaml" --dir "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" --wait-for-expect-status-code 200 --fail-fast >> "$run_log" 2>&1
+    "$GO_FTW_BIN" run --config "$stage/ftw.mrts.config.yaml" --dir "$target_root/selected-ftw" --output json --file "$target_root/go-ftw.json" --wait-for-expect-status-code 200 --fail-fast >> "$run_log" 2>&1
     rc=$?
     cleanup
     trap - EXIT INT TERM
     ended=$(date +%s)
     printf '%s\n' "$rc" > "$exit_code_file"
     if [ "$rc" -eq 0 ]; then
-        write_job_json "$job_json" "$target" "PASS" "native MRTS run completed" "$rc" "$((ended - started))" "$run_log" "$summary_path"
+        write_job_json "$job_json" "$target" "PASS" "native MRTS run completed" "$rc" "$((ended - started))" "$run_log" "$summary_path" || return 2
         echo "mrts-native: target=$target PASS"
     else
-        write_job_json "$job_json" "$target" "FAIL" "native MRTS go-ftw run failed" "$rc" "$((ended - started))" "$run_log" "$summary_path"
+        write_job_json "$job_json" "$target" "FAIL" "native MRTS go-ftw run failed" "$rc" "$((ended - started))" "$run_log" "$summary_path" || return 2
         echo "mrts-native: target=$target FAIL"
     fi
     return "$rc"
 }
 
-MAKE="${MAKE:-make}"
 has_fail=0
 has_blocked=0
 for target in $MRTS_NATIVE_TARGETS; do
@@ -688,17 +621,17 @@ done
     --connector-root "$CONNECTOR_ROOT" \
     --framework-root "$FRAMEWORK_ROOT" \
     --native-root "$MRTS_NATIVE_ROOT" \
-    --output-root "$CONNECTOR_ROOT"
+    --output-root "$MRTS_NATIVE_REPORT_ROOT"
 report_rc=$?
 
 if [ -f "$CONNECTOR_ROOT/ci/evidence/reports/update-runtime-reports.py" ]; then
-    "$PYTHON" "$CONNECTOR_ROOT/ci/evidence/reports/update-runtime-reports.py" --connector-root "$CONNECTOR_ROOT" || report_rc=$?
+    "$PYTHON" "$CONNECTOR_ROOT/ci/evidence/reports/update-runtime-reports.py" --connector-root "$CONNECTOR_ROOT" --output-root "$MRTS_NATIVE_REPORT_ROOT" --build-root "$BUILD_ROOT" || report_rc=$?
 fi
 
-echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native/mrts-native-full.generated.md"
-echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native/mrts-native-apache.generated.md"
-echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native/mrts-native-nginx.generated.md"
-echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+echo "mrts-native: report=$MRTS_NATIVE_REPORT_ROOT/reports/testing/generated/mrts-native/mrts-native-full.generated.md"
+echo "mrts-native: report=$MRTS_NATIVE_REPORT_ROOT/reports/testing/generated/mrts-native/mrts-native-apache.generated.md"
+echo "mrts-native: report=$MRTS_NATIVE_REPORT_ROOT/reports/testing/generated/mrts-native/mrts-native-nginx.generated.md"
+echo "mrts-native: report=$MRTS_NATIVE_REPORT_ROOT/reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
 if [ "$report_rc" -ne 0 ] || [ "$has_fail" -ne 0 ]; then
     exit 2
 fi
