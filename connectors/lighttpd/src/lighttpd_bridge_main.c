@@ -27,20 +27,11 @@ static void print_status(void) {
 }
 
 int main(int argc, char **argv) {
-    enum msconnector_status self_test_status;
-
-    if (argc == 2 && strcmp(argv[1], "--self-test") == 0) {
-        self_test_status = msconnector_lighttpd_bridge_self_test();
-        print_status();
-        printf("self_test_status=%s\n", msconnector_status_name(self_test_status));
-        return self_test_status == MSCONNECTOR_STATUS_OK ? 0 : 1;
-    }
-
     if (argc == 1 || (argc == 2 && strcmp(argv[1], "--status") == 0)) {
         print_status();
         return 0;
     }
 
-    fprintf(stderr, "usage: %s [--status|--self-test]\n", argv[0]);
+    fprintf(stderr, "usage: %s [--status]\n", argv[0]);
     return 2;
 }

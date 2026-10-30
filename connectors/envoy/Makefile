@@ -10,13 +10,13 @@ EXT_PROC_RUNTIME_EVENT_LOG_PATH ?= $(EXT_PROC_RUNTIME_ROOT)/events.jsonl
 EXT_PROC_RUNTIME_CONFIG ?= $(EXT_PROC_RUNTIME_ROOT)/envoy-ext-proc-runtime.conf
 EXT_PROC_TLS_CERTIFICATE ?= $(EXT_PROC_RUNTIME_ROOT)/envoy-loopback.crt
 EXT_PROC_TLS_PRIVATE_KEY ?= $(EXT_PROC_RUNTIME_ROOT)/envoy-loopback.key
-EXT_PROC_RULES_FILE ?= $(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(if $(NO_CRS_RULES_FILE),$(NO_CRS_RULES_FILE),$(abspath $(CURDIR)/../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)))
+EXT_PROC_RULES_FILE ?= $(MSCONNECTOR_RULES_FILE)
 EXT_PROC_LISTEN_PORT ?= 18080
 EXT_PROC_UPSTREAM_PORT ?= 18081
 EXT_PROC_LISTEN_SERVICE_PORT ?= 18083
 EXT_PROC_ADMIN_PORT ?= 19001
 CONFIG_FILE ?= $(CURDIR)/config/envoy-ext-authz.conf
-RULES_FILE ?= $(abspath $(CURDIR)/../../common/rules/modsecurity_targeted_smoke.conf)
+RULES_FILE ?=
 EVENT_LOG_PATH ?= $(BUILD_ROOT)/envoy-connector/events.jsonl
 ENVOY_RUNTIME_ROOT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))/ModSecurity-conector-envoy-runtime-smoke
 RUNTIME_EVENT_LOG_PATH ?= $(ENVOY_RUNTIME_ROOT)/events.jsonl
@@ -24,6 +24,19 @@ LISTEN_ADDRESS ?= 127.0.0.1
 LISTEN_PORT ?= 18082
 REPO_ROOT ?= ../..
 FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework
+
+# Explicit environment for pinned Framework test entrypoints.
+PYTHON ?= python3
+CONNECTOR_ROOT := $(abspath $(CURDIR)/../..)
+CONNECTOR_REVISION := $(shell git -C "$(CONNECTOR_ROOT)" rev-parse HEAD)
+TEST_ROOT := $(FRAMEWORK_ROOT)
+CONNECTOR_TEST_PROFILE ?= h1
+CONNECTOR_TEST_OUTPUT_ROOT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(TMP_ROOT))
+export CONNECTOR_ROOT CONNECTOR_REVISION FRAMEWORK_ROOT TEST_ROOT CONNECTOR_TEST_PROFILE CONNECTOR_TEST_OUTPUT_ROOT
+export PYTHONPATH := $(TEST_ROOT):$(TEST_ROOT)/connector_suite
+export PYTHONSAFEPATH := 1
+export PYTHONNOUSERSITE := 1
+ACTIVE_TEST_RUNNER = $(PYTHON) -P -m modsecurity_test_framework.connector
 
 # Shared read-only host-runtime gate. These snapshots are exported to the
 # recursive root make; the recipe itself contains no caller-controlled shell
@@ -100,9 +113,8 @@ hostruntime-preflight-envoy-ext-proc:
 build-starter:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_metadata.sh
 
-self-test: build-starter
-	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
-	"$(BRIDGE_BIN)" --self-test
+self-test:
+	$(MAKE) -C ../.. framework-native-selftest NATIVE_TEST_TARGET=envoy-bridge
 
 self-test-envoy-bridge: self-test
 
@@ -140,13 +152,7 @@ build-envoy-composite:
 	sh build/build_composite.sh
 
 test-envoy-ext-proc:
-	BUILD_ROOT="$(BUILD_ROOT)" \
-	MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" \
-	MODSECURITY_LIB_DIR="$(MODSECURITY_LIB_DIR)" \
-	MODSECURITY_LIB_FILE="$(MODSECURITY_LIB_FILE)" \
-	MODSECURITY_PREFIX="$(MODSECURITY_PREFIX)" \
-	CC="$(CC)" CFLAGS="$(CFLAGS)" AR="$(AR)" \
-	sh build/test_ext_proc.sh
+	$(MAKE) -C ../.. framework-go-test GO_TEST_MODULE=connectors/envoy/ext_proc
 
 check-envoy-ext-proc-config: build-envoy-ext-proc prepare-envoy-ext-proc-runtime-config
 	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)" --runtime-config "$(EXT_PROC_RUNTIME_CONFIG)"
@@ -168,21 +174,22 @@ serve-envoy-ext-proc: build-envoy-ext-proc prepare-envoy-ext-proc-runtime-config
 	EXT_PROC_RUNTIME_CONFIG="$(EXT_PROC_RUNTIME_CONFIG)" \
 	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" \
 	LISTEN_PORT="$(EXT_PROC_LISTEN_SERVICE_PORT)" \
-	sh harness/serve_envoy_ext_proc.sh
+	sh scripts/serve_envoy_ext_proc.sh
 
 # This is deliberately separate from runtime-smoke-envoy: it exercises the
 # native Envoy ext_proc gRPC filter and the real Common/libmodsecurity bridge.
 # It still does not promote connector capabilities by itself.
+runtime-smoke-envoy-ext-proc: EXT_PROC_RULES_FILE = $(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(abspath $(FRAMEWORK_ROOT)/tests/rules/no-crs-baseline.conf))
 runtime-smoke-envoy-ext-proc: build-envoy-ext-proc
 	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then \
 		[ "$${MSCONNECTOR_CRS_RUNTIME:-0}" = 1 ] || { echo "FAIL: specialist native lifecycle requires explicit ON_DEMAND_TESTS=1" >&2; exit 2; }; \
-		python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.crs.envoy; \
+		$(ACTIVE_TEST_RUNNER) --check --execution runtime.crs.envoy; \
 	fi
 	EXT_PROC_BIN="$(EXT_PROC_BIN)" EXT_PROC_CONFIG="$(EXT_PROC_CONFIG)" \
 	BUILD_ROOT="$(BUILD_ROOT)" RUNTIME_ROOT="$(EXT_PROC_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(EXT_PROC_RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
 	EXT_PROC_RUNTIME_CONFIG="$(EXT_PROC_RUNTIME_CONFIG)" RULES_FILE="$(EXT_PROC_RULES_FILE)" \
-	PYTHON="$(PYTHON)" sh harness/run_envoy_ext_proc_runtime.sh
+	PYTHON="$(PYTHON)" sh "$(FRAMEWORK_ROOT)/connector_suite/adapters/envoy/harness/run_envoy_ext_proc_runtime.sh"
 
 # The cancellation probe is deliberately opt-in: it uses a real downstream
 # connection close after the first body byte and remains non-promoting even
@@ -194,28 +201,29 @@ transport-cancel-smoke-envoy-ext-proc:
 build-modsecurity-bridge: build-envoy-connector
 
 check-envoy-config: build-envoy-connector check-envoy-ext-proc-config prepare-envoy-ext-proc-config
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.config.envoy; fi
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then $(ACTIVE_TEST_RUNNER) --check --execution runtime.config.envoy; fi
 	SERVICE_BIN="$(SERVICE_BIN)" CONFIG_FILE="$(CONFIG_FILE)" RULES_FILE="$(RULES_FILE)" \
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
 	sh config/check_envoy_config.sh
 
+start-smoke-envoy: RULES_FILE = $(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(abspath $(FRAMEWORK_ROOT)/connector_suite/common/rules/modsecurity_targeted_smoke.conf))
 start-smoke-envoy: build-envoy-connector
 	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required))
 	SERVICE_BIN="$(SERVICE_BIN)" CONFIG_FILE="$(CONFIG_FILE)" RULES_FILE="$(RULES_FILE)" \
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
-	ENVOY_BIN="$(ENVOY_BIN)" PYTHON="$(PYTHON)" sh harness/start_envoy_connector.sh
+	ENVOY_BIN="$(ENVOY_BIN)" PYTHON="$(PYTHON)" sh "$(FRAMEWORK_ROOT)/connector_suite/adapters/envoy/harness/start_envoy_connector.sh"
 
 serve-envoy-connector: build-envoy-connector
 	SERVICE_BIN="$(SERVICE_BIN)" CONFIG_FILE="$(CONFIG_FILE)" RULES_FILE="$(RULES_FILE)" \
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
-	sh harness/serve_envoy_connector.sh
+	sh scripts/serve_envoy_connector.sh
 
 runtime-smoke-envoy: build-envoy-connector
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.no-crs.envoy; fi
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then $(ACTIVE_TEST_RUNNER) --check --execution runtime.no-crs.envoy; fi
 	SERVICE_BIN="$(SERVICE_BIN)" BUILD_ROOT="$(BUILD_ROOT)" CONFIG_FILE="$(CONFIG_FILE)" \
-	RULES_FILE="$(RULES_FILE)" RUNTIME_ROOT="$(ENVOY_RUNTIME_ROOT)" \
+	RULES_FILE="$(if $(RULES_FILE),$(RULES_FILE),$(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(abspath $(FRAMEWORK_ROOT)/connector_suite/common/rules/modsecurity_targeted_smoke.conf)))" RUNTIME_ROOT="$(ENVOY_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
-	PYTHON="$(PYTHON)" sh harness/run_envoy_connector_runtime.sh
+	PYTHON="$(PYTHON)" sh "$(FRAMEWORK_ROOT)/connector_suite/adapters/envoy/harness/run_envoy_connector_runtime.sh"
 
 no-crs-baseline-envoy: export MSCONNECTOR_NO_CRS_BASELINE := 1
 no-crs-baseline-envoy: runtime-smoke-envoy
@@ -224,7 +232,7 @@ no-crs-baseline-envoy: runtime-smoke-envoy
 # smoke target.  The runner enables its P3/P4 assertions only when the
 # matching response-phase rule fixture is selected explicitly.
 ifeq ($(ON_DEMAND_TESTS),1)
-response-phase-smoke-envoy: override RULES_FILE := $(abspath $(CURDIR)/../../common/rules/modsecurity_response_companion_smoke.conf)
+response-phase-smoke-envoy: override RULES_FILE := $(abspath $(FRAMEWORK_ROOT)/connector_suite/common/rules/modsecurity_response_companion_smoke.conf)
 response-phase-smoke-envoy: override export MSCONNECTOR_RESPONSE_PHASE_SMOKE := 1
 response-phase-smoke-envoy: runtime-smoke-envoy
 else

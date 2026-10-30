@@ -21,8 +21,35 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
+      - name: Read the trusted-base pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      # This compatibility branch reads only the checked-out trusted Parent base.
+      # Its exact gitlink selects both legacy and migrated Framework layouts.
+      - name: Bind migrated trusted-base Framework context when available
+        if: ${{ hashFiles('modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py') != '' }}
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - id: setup-python
         name: Set up canonical Python for the Go resolver
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -32,7 +59,19 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: |
+          set -eu
+          migrated=modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py
+          legacy=ci/checks/common/check-python-interpreter-contract.py
+          if [ -f "$migrated" ] && [ ! -L "$migrated" ]; then
+            python3 -P "$migrated" --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+          elif [ -f "$legacy" ] && [ ! -L "$legacy" ]; then
+            # Before migration, this fixed stdlib checker belongs to the trusted base.
+            python3 -I "$legacy" --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+          else
+            echo 'Trusted base has no supported Python interpreter contract' >&2
+            exit 1
+          fi
       - id: version
         name: Resolve latest stable Go version from the trusted base
         shell: bash
@@ -124,7 +163,31 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           persist-credentials: false
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
@@ -139,7 +202,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: go
@@ -148,7 +211,7 @@ jobs:
         working-directory: connectors/traefik/native_middleware
         run: go build ./...
       - name: Execute inventoried Traefik parser and cancellation security regressions
-        run: python3 ci/tools/run-active-tests.py --module connectors/traefik/native_middleware
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --module connectors/traefik/native_middleware
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
 
   bounded-c-cpp:
@@ -159,7 +222,31 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           persist-credentials: false
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - name: Set up canonical Python for active selection
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -169,10 +256,10 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       # Run ASan before CodeQL installs its process-tracing LD_PRELOAD.
       - name: Execute inventoried Common parser and memory security regressions
-        run: python3 ci/tools/run-active-tests.py --group common
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group common
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: c-cpp

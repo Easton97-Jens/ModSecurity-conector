@@ -12,7 +12,7 @@ Spezialschnittstellen; er belegt weder aktuelle Readiness noch Produktionsfreiga
 CRS-Vollständigkeit, vollständige Matrix, HTTP/2, HTTP/3 oder strikte Abnahme
 jedes Connectors.
 
-Das einzige [Aktivinventar](../config/testing/active-cases.json) wählt normales
+Das einzige [Aktivinventar](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json) wählt normales
 lokales, CI- und zeitgesteuertes Verhalten. Die geschlossene Fünf-Profil-Baseline
 <code>all-connectors-no-crs.yml</code> wählt Apache, HAProxy, Envoy, Traefik und
 lighttpd; NGINX besitzt einen getrennten geschützten Exact-Head-Pfad. Ausgewählte
@@ -22,11 +22,11 @@ Hostergebnis.
 
 ## Aktive Fälle, Zulassung und archivierte Spezialprüfungen
 
-Alle automatischen funktionalen Pfade teilen **100 expandierte Standardfälle / 80 Ausführungen** im Schema-3-[Inventar](../config/testing/active-cases.json). Dazu gehören Harness-/Validatorkontrollen und die vorhandenen acht Offline-I12-Fälle. Connector-E2E bleibt bei 26. Keine historische I12-Host-/Matrix-/Oraclekampagne oder neue Qualifikation wird eröffnet.
+Alle automatischen funktionalen Pfade teilen **100 expandierte Standardfälle / 80 Ausführungen** im Schema-4-[Inventar](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json). Dazu gehören Harness-/Validatorkontrollen und die vorhandenen acht Offline-I12-Fälle. Connector-E2E bleibt bei 26. Keine historische I12-Host-/Matrix-/Oraclekampagne oder neue Qualifikation wird eröffnet.
 
-Das Inventar bewahrt zusätzlich **1893 On-demand-Fälle / 839 Ausführungen**, ausgeschlossen vor Standard-Gruppen-/Modul-/Fall-/Ausführungsfilterung und Python-Discovery. Sie sind keine automatische Budgetausnahme. Diese Runner-Einträge verlangen ausdrücklich `--on-demand` sowie einen Gruppen-/Fall-/Ausführungsselektor. Modulweite Spezialschnittstellen behalten `ON_DEMAND_TESTS=1` für eine gesondert beauftragte Prüfung. Nützliche Quellen und ursprüngliche Evidence bleiben erhalten; fehlende Standardauswahl ist weder PASS noch Beleg erhaltener automatischer Abdeckung.
+Die erhaltene Basis umfasst **1893 On-demand-Fälle / 839 Ausführungen**; neue Migrationsregressionen bleiben gesondert auf Abruf. Alle On-demand-Einträge sind ausgeschlossen vor Standard-Gruppen-/Modul-/Fall-/Ausführungsfilterung und Python-Discovery. Sie sind keine automatische Budgetausnahme. Diese Runner-Einträge verlangen ausdrücklich `--on-demand` sowie einen Gruppen-/Fall-/Ausführungsselektor. Modulweite Spezialschnittstellen behalten `ON_DEMAND_TESTS=1` für eine gesondert beauftragte Prüfung. Nützliche Quellen und ursprüngliche Evidence bleiben erhalten; fehlende Standardauswahl ist weder PASS noch Beleg erhaltener automatischer Abdeckung.
 
-Vollständige Quellhash-, Schema-, Duplikat-/Referenz-, genaue Selektor- und expandierte Fallprüfung bleiben vor der Ausführung Pflicht. Gemeinsamer Quellpool, 2-MiB-Inventarlimit und Python-Prozess-/Netzwerkguard bleiben erhalten. Mehr als 100 Standardfälle werden abgewiesen statt gekürzt. Das generierte [Archiv](../reports/testing/test-selection-archive.generated.json) klassifiziert nur den Standardabschnitt als automatisch ausgewählt. Seine Definitionszahlen sind keine expandierten Fallzahlen.
+Vollständige Quellhash-, Schema-, Duplikat-/Referenz-, genaue Selektor- und expandierte Fallprüfung bleiben vor der Ausführung Pflicht. Gemeinsamer Quellpool, 2-MiB-Inventarlimit und Python-Prozess-/Netzwerkguard bleiben erhalten. Mehr als 100 Standardfälle werden abgewiesen statt gekürzt. Das generierte [Archiv](../modules/ModSecurity-test-Framework/connector_suite/reports/testing/test-selection-archive.generated.json) klassifiziert nur den Standardabschnitt als automatisch ausgewählt. Seine Definitionszahlen sind keine expandierten Fallzahlen.
 
 Sonar behält die verbindliche Quell-/Scanner-/Sicherheitspipeline und echtes Warten auf das Quality Gate. Die früheren getrennten automatischen Python-/Go-/Common-Coverage-Kataloge sind jetzt ausdrücklich On-demand und fehlen in automatischen Workflows. Damit ist die Umgehung des gemeinsamen Budgets geschlossen; Tests und Assertions bleiben im Quellbestand. Coverage wurde vom Nutzer später aus Sicherheits- und Merge-Abnahme entfernt. `sonar.coverage.exclusions=**` ändert nur Coverage-Anwendbarkeit; Sicherheits-, Zuverlässigkeits-, Wartbarkeits- und Duplikationsanalyse bleiben erhalten.
 
@@ -62,13 +62,17 @@ und kein Promotion-Mechanismus.
 
 ## Cases, Regeln und Protokollgrenzen
 
-Das Framework besitzt wiederverwendbare YAML-Falldefinitionen, Schemata und
-Normalisierung. Parent besitzt automatische Fallzulassung, Hostintegration und
-ausgewählte Regel-/Konfigurationsinputs; durch Parent erreichte Framework-
-Auswahlen müssen mit demselben Aktivinventar übereinstimmen. Repository-eigene No-CRS-Regeln und
-IDs sind vom OWASP CRS getrennt. Ein vorbereitetes CRS-Input oder ein
-quellbasierter Protokollpfad verifiziert weder CRS-Verhalten noch HTTP/2 oder
-HTTP/3.
+Das Framework besitzt sämtliche Tests und Testinfrastruktur: YAML-Fälle,
+Common-/Connector-Tests, native/Go-Tests, Host-Testadapter, Fixtures,
+Fallzulassung, Provisionierung, Orchestrierung, Evidence-Verarbeitung und
+Reportgeneratoren. Parent besitzt produktiven Code, produktive Konfiguration,
+Build und Delivery sowie kleine gepinnte Make-/CI-Einstiege. Testregeln liegen
+im Framework; produktive Regelinputs bleiben explizite Produktinputs.
+[Die Testschnittstelle](test-ownership-migration.de.md) trennt `TEST_ROOT`,
+`CONNECTOR_ROOT`, exakte Revision, Profil und externe Ausgabe. Schema 4 bindet
+Framework-Testquellen fest und erfasst ausgewählte Produktquellen getrennt.
+Repository-eigene No-CRS-Regeln und IDs sind vom OWASP CRS getrennt.
+Vorbereitung oder Quellcode belegen kein CRS-, HTTP/2- oder HTTP/3-Verhalten.
 
 | Thema | Erforderlicher Nachweis |
 | --- | --- |
@@ -105,7 +109,7 @@ ihre ursprüngliche Revision; die aktiven Callback-Fälle On/Off wiederholen
 oder qualifizieren diese Negativprüfungen nicht.
 
 Die geschlossenen Konfigurationsverträge `invalid_boolean` und `invalid_size`
-verwenden `ci/runtime/lifecycle/run-nginx-configtest.py`. Eine echte Invocation
+verwenden `connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-nginx-configtest.py`. Eine echte Invocation
 `nginx -e stderr -t` muss `modsecurity maybe;` mit Exit 1 und beiden Diagnosen
 `"modsecurity" directive` und `invalid boolean value` abweisen. Für
 `invalid_size` bleibt die Required-ID erhalten, wird aber ausdrücklich auf

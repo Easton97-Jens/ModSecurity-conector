@@ -28,8 +28,33 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
-          submodules: false
+          submodules: true
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
 
       - name: Set up canonical Python for the updater
         id: setup-python
@@ -41,7 +66,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Set up canonical Go
         id: setup-go
@@ -199,8 +224,33 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
-          submodules: false
+          submodules: true
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
 
       - name: Set up canonical Python for the updater
         id: setup-python
@@ -212,12 +262,12 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Install hash-locked CI test dependency
         run: |
           set -euo pipefail
-          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache
           python3 -m pip check
 
       - name: Set up candidate Go
@@ -322,7 +372,7 @@ jobs:
               --json
           )"
           printf '%s\n' "$candidate_report"
-          python3 ci/lib/active_inventory_updates.py finalize --kind go --base HEAD
+          python3 ci/lib/maintenance_changes.py verify --kind go --base HEAD
           COMPONENT_CANDIDATE_REPORT="$candidate_report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
@@ -354,7 +404,7 @@ jobs:
           set -euo pipefail
           make check-go-version-contract
           python3 -m compileall -q ci scripts tests
-          python3 ci/tools/run-active-tests.py --group supply-chain
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group supply-chain
           git diff --check
 
       - name: Validate Envoy Go module without toolchain fallback
@@ -366,8 +416,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc --race
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/envoy/ext_proc --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -380,8 +430,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware --race
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -394,8 +444,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware --race
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/traefik/composite_middleware --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -408,8 +458,8 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/response_observer
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module connectors/traefik/response_observer --race
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/traefik/response_observer
+          python3 "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module connectors/traefik/response_observer --race
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -444,9 +494,34 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
-          submodules: false
+          submodules: true
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
 
       - name: Set up canonical Python for the updater
         id: setup-python
@@ -458,7 +533,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Set up independently validated Go candidate
         id: setup-go
@@ -487,9 +562,7 @@ jobs:
                 -e .go-version \
                 -e ci/tooling/project-versions.lock.json \
                 -e connectors/envoy/ext_proc/go.mod \
-                -e connectors/envoy/ext_proc/go.sum \
-                -e config/testing/active-cases.json \
-                -e reports/testing/test-selection-archive.generated.json
+                -e connectors/envoy/ext_proc/go.sum
               then
                 echo "Updater changed an unregistered path: $changed_path" >&2
                 exit 1
@@ -503,9 +576,7 @@ jobs:
               ($6 == ".go-version" ||
                $6 == "ci/tooling/project-versions.lock.json" ||
                $6 == "connectors/envoy/ext_proc/go.mod" ||
-               $6 == "connectors/envoy/ext_proc/go.sum" ||
-               $6 == "config/testing/active-cases.json" ||
-               $6 == "reports/testing/test-selection-archive.generated.json") {
+               $6 == "connectors/envoy/ext_proc/go.sum") {
                 records += 1
                 next
               }
@@ -587,8 +658,7 @@ jobs:
             exit 1
           fi
 
-          python3 ci/lib/active_inventory_updates.py finalize --kind go --base HEAD
-          python3 ci/lib/active_inventory_updates.py verify --kind go --base HEAD
+          python3 ci/lib/maintenance_changes.py verify --kind go --base HEAD
           changed_paths="$(git diff --name-only)"
           require_only_allowed_update_paths "$changed_paths"
           require_regular_file_updates
@@ -615,9 +685,7 @@ jobs:
                 -e .go-version \
                 -e ci/tooling/project-versions.lock.json \
                 -e connectors/envoy/ext_proc/go.mod \
-                -e connectors/envoy/ext_proc/go.sum \
-                -e config/testing/active-cases.json \
-                -e reports/testing/test-selection-archive.generated.json
+                -e connectors/envoy/ext_proc/go.sum
               then
                 echo "Update branch changes an unregistered path: $changed_path" >&2
                 exit 1
@@ -632,9 +700,7 @@ jobs:
               ($6 == ".go-version" ||
                $6 == "ci/tooling/project-versions.lock.json" ||
                $6 == "connectors/envoy/ext_proc/go.mod" ||
-               $6 == "connectors/envoy/ext_proc/go.sum" ||
-               $6 == "config/testing/active-cases.json" ||
-               $6 == "reports/testing/test-selection-archive.generated.json") {
+               $6 == "connectors/envoy/ext_proc/go.sum") {
                 records += 1
                 next
               }
@@ -648,7 +714,7 @@ jobs:
           }
 
           python3 ci/tools/sync-project-versions.py --verify-update go
-          python3 ci/lib/active_inventory_updates.py verify --kind go --base HEAD
+          python3 ci/lib/maintenance_changes.py verify --kind go --base HEAD
           candidate_paths="$(git diff --name-only)"
           require_only_allowed_update_paths "$candidate_paths"
           require_regular_file_updates "$(git diff --raw --no-abbrev --no-renames)"
@@ -684,7 +750,7 @@ jobs:
               "- Toolchain update available: $TOOLCHAIN_UPDATE_AVAILABLE" \
               "- Bounded component: $COMPONENT_MODULE $COMPONENT_VERSION in $COMPONENT_DIRECTORY" \
               "- Component update available: $COMPONENT_UPDATE_AVAILABLE" \
-              "- Changed files: ci/tooling/project-versions.lock.json, .go-version and/or connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum; exactly derived inventory/archive hash companions when needed" \
+              "- Changed files: ci/tooling/project-versions.lock.json, .go-version and/or connectors/envoy/ext_proc/go.mod plus connectors/envoy/ext_proc/go.sum; test inventory and archive remain Framework-owned" \
               "- Release policy: highest stable numeric Go release from the canonical metadata endpoint" \
               "- Module directives: only the fixed google.golang.org/grpc security bundle may change (grpc v1.83.1→v1.83.2; golang.org/x/sys v0.46.0/v0.47.0→v0.49.0; golang.org/x/net v0.56.0/v0.58.0→v0.61.0; golang.org/x/text v0.39.0/v0.41.0→v0.43.0; already safe pins remain unchanged); validated go.mod/go.sum hashes must match" \
               "- Merge: no automatic merge" \
@@ -724,7 +790,7 @@ jobs:
             branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
             require_only_allowed_update_paths "$branch_paths"
             require_regular_file_updates "$(git diff --raw --no-abbrev --no-renames "$merge_base" "origin/$UPDATE_BRANCH")"
-            python3 ci/lib/active_inventory_updates.py verify --kind go --base "$merge_base" --head "origin/$UPDATE_BRANCH"
+            python3 ci/lib/maintenance_changes.py verify --kind go --base "$merge_base" --head "origin/$UPDATE_BRANCH"
             if [ "$branch_paths" != "$candidate_paths" ]; then
               echo "Existing update branch path set differs from the verified candidate." >&2
               exit 1
@@ -770,10 +836,8 @@ jobs:
             .go-version \
             ci/tooling/project-versions.lock.json \
             connectors/envoy/ext_proc/go.mod \
-            connectors/envoy/ext_proc/go.sum \
-            config/testing/active-cases.json \
-            reports/testing/test-selection-archive.generated.json
-          python3 ci/lib/active_inventory_updates.py verify --kind go --base HEAD --staged
+            connectors/envoy/ext_proc/go.sum
+          python3 ci/lib/maintenance_changes.py verify --kind go --base HEAD --staged
           staged_paths="$(git diff --cached --name-only)"
           if [ "$staged_paths" != "$candidate_paths" ]; then
             echo "Staged Go update paths differ from the verified candidate." >&2

@@ -21,7 +21,6 @@ enum msconnector_status haproxy_spoa_agent_starter_evaluate_request(
     const msconnector_request *request,
     msconnector_intervention *intervention);
 
-int haproxy_spoa_agent_starter_self_test(void);
 const char *haproxy_spoa_agent_starter_description(void);
 const char *haproxy_spoa_agent_starter_limitations(void);
 

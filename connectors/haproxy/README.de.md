@@ -193,7 +193,7 @@ Pfade ersetzt den anderen.
 Ein lokaler Ordner `connectors/haproxy/tests` wird nicht verwendet. Das Framework
 besitzt wiederverwendbare Katalogdefinitionen; Parent besitzt Integrations- und
 Regressionstests sowie die automatische Auswahl über
-[config/testing/active-cases.json](../../config/testing/active-cases.json).
+[config/testing/active-cases.json](../../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json).
 
 Normale <code>make test-no-crs</code>- und <code>make test-with-crs</code>-Aliase
 wählen nur zugelassene Runtime-Teilmengen, keine vollständigen Framework-Suiten

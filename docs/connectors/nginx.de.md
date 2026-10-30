@@ -187,7 +187,7 @@ zeichnete `shutdown=graceful`, `wait=exited`, `wrapper_exit_code=0` und
 keine `nginx.pid` und keine Testport-Bindung zurück.
 
 Die lokale source-controlled
-[`valgrind-nginx-core-1.31.2.supp`](../../connectors/nginx/harness/valgrind-nginx-core-1.31.2.supp)
+[`valgrind-nginx-core-1.31.2.supp`](../../modules/ModSecurity-test-Framework/connector_suite/adapters/nginx/harness/valgrind-nginx-core-1.31.2.supp)
 wird nicht aus Upstream kopiert. Sie matcht nur einen definiten `Memcheck:Leak`
 mit der exakten NGINX-Core-Chain `malloc -> ngx_alloc -> ngx_set_environment ->
 ngx_worker_process_init -> ngx_worker_process_cycle -> ngx_spawn_process ->

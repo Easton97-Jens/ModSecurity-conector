@@ -101,21 +101,32 @@ Deadline-Cleanup bei nicht lesenden Clients ab. Er ist Sidecar-Komponenten-
 Evidence und keine Behauptung, dass ein unveränderter Stock-lighttpd-Prozess
 native Body-Hooks besitzt.
 
-`runtime-begin-smoke` wird neben dem Sidecar installiert. Es prüft vor der
-Bereitstellung das exakte Common-Profil und die Streaming-P2/P4-Konfiguration
-gegen eine reale Runtime-Konfiguration.
+Das gepinnte Test-Framework baut `runtime-begin-smoke` in einem externen
+Testausgabeverzeichnis. Es prüft das exakte Common-Profil und die
+Streaming-P2/P4-Konfiguration gegen eine reale Runtime-Konfiguration.
+Es gehört nicht zum Produktbuild oder Deployment.
 
 ## Attestation für reale Stock-Host-Evidenz
 
 `build-lighttpd-stock-sidecar` schreibt
-`stock-sidecar-artifact.manifest` neben die beiden Sidecar-Binärdateien. Sie
-enthält Parent-Revision, C17-Modus, exakte Binär-Hashes und den begrenzten
+das geschlossene Schema-2-`stock-sidecar-artifact.manifest` neben das produktive
+Sidecar. Es enthält Parent-Revision, C17-Modus, exakte Produktbinär- und
+Bibliotheks-Hashes und den begrenzten
 Common-/Runtime-Build-Input-Hash. Dieser Hash enthält stabile
 repository-relative Namen und Inhalts-Digests aller direkten Sidecar-/Common-
 Compile-Inputs, einschließlich der privaten Runtime-, Registry- und
 Header-Validation-Header. Die Datei ist ausschließlich Build-Metadaten: Da
 sie zusammen mit dem ausgewählten Artefakt geschrieben wird, ist sie keine
 unabhängige Authentizitätsbehauptung.
+
+Das Framework erzeugt separat ein Schema-1-`stock-sidecar-test-artifact.manifest`.
+Es bindet Produktmanifest-Digest, Framework-Revision, Smoke-Quelle und
+Smoke-Binärdatei. Der kleine Real-Backend-Make-Einstieg baut dieses Testartefakt
+und übergibt dessen expliziten Pfad als `STOCK_SIDECAR_TEST_MANIFEST`; vor dem
+Lauf werden beide Manifeste geprüft. Direkte Framework-Aufrufer müssen diesen
+Pfad ebenfalls übergeben. Alte Schema-1-Produktmanifeste neu bauen, statt die
+beiden Zuständigkeiten zu vermischen. Keines der Manifeste ersetzt die folgende
+unabhängige Betreiber-Attestierung.
 
 Der Real-Backend-Target verlangt daher zusätzlich, dass
 `STOCK_SIDECAR_ARTIFACT_ATTESTATION` auf eine vom Operator bereitgestellte,

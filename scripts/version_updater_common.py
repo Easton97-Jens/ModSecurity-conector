@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import fcntl
-import importlib.util
 import json
+import runpy
 import os
 import re
 import stat
@@ -386,16 +386,12 @@ TOOLCHAIN_FIELDS = {".python-version": "python_version", ".go-version": "go_vers
 
 
 def _parse_project_lock(text: object) -> dict[str, int | str]:
-    # Import only the fixed checked-in parser; lock data is never executable.
-    library = Path(__file__).resolve().parents[1] / "ci" / "lib"
-    sys.path.insert(0, str(library))
+    # Read the fixed product parser with Python's public file loader. No test
+    # package, search-path alteration or candidate-selected module is involved.
+    parser = runpy.run_path(str(Path(__file__).resolve().parents[1] / "ci/lib/framework_revision_pins.py"))
     try:
-        from framework_revision_pins import FrameworkRevisionPinsError, parse_project_version_pins
-    finally:
-        sys.path.pop(0)
-    try:
-        return parse_project_version_pins(str(text).encode("utf-8"))
-    except FrameworkRevisionPinsError as error:
+        return parser["parse_project_version_pins"](str(text).encode("utf-8"))
+    except parser["FrameworkRevisionPinsError"] as error:
         raise VersionError(str(error)) from error
 
 
@@ -549,40 +545,13 @@ def update_project_toolchain(root: Path, current: object, resolved: object, *, f
         body = (json.dumps(candidate, indent=2) + "\n").encode("utf-8")
         _parse_project_lock(body.decode("utf-8"))
         view_body = f"{resolved}\n".encode()
-        companion_updates = maintenance_companion_updates(
-            root, {filename: view_body, PROJECT_VERSION_LOCK: body})
         replace_project_files(root, [
             (filename, view_body, view, view_stat, parser, 64),
-            *companion_updates,
             (PROJECT_VERSION_LOCK, body, pins, lock_stat, _parse_project_lock, 4096),
         ])
     finally:
         os.close(descriptor)
 
-
-def maintenance_companion_updates(root: Path, proposed: dict[str, bytes]) -> list[tuple]:
-    """Prepare hash-only companions inside the existing checked transaction.
-
-    The fixed sibling helper admits the entire pre-update selection. Isolated
-    updater algorithm fixtures without either companion remain plain fixtures;
-    real publishers separately require trusted-base companion verification.
-    """
-    path = Path(__file__).resolve().parents[1] / "ci/lib/active_inventory_updates.py"
-    spec = importlib.util.spec_from_file_location("language_inventory_updates", path)
-    module = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(module)
-        snapshot = module.capture_update(root, frozenset(proposed))
-        outputs = module.planned_companions(root, snapshot, proposed)
-        result = []
-        for name, value in outputs.items():
-            before = module.read_regular(root, name)
-            if value != before:
-                result.append((name, value, json.loads(before), (root / name).lstat(), json.loads,
-                               module.MAX_BYTES))
-        return result
-    except (OSError, ValueError) as error:
-        raise TargetError("maintenance inventory companions cannot be derived safely") from error
 
 
 def execute_update[VersionT](
@@ -764,3 +733,18 @@ class UpdaterRuntime:
             build_arg_parser=self.build_arg_parser,
             execute=self.execute,
         )
+
+
+def compatibility_exports() -> dict[str, object]:
+    """Return only the fixed adapter imports for safe-path direct CLI loading."""
+
+    return {
+        "MetadataError": MetadataError,
+        "ReleaseEndpoint": ReleaseEndpoint,
+        "ReleaseMetadataSource": ReleaseMetadataSource,
+        "UpdaterRuntime": UpdaterRuntime,
+        "VersionError": VersionError,
+        "_UNSET": _UNSET,
+        "_decode_metadata": _decode_metadata,
+        "_parse_content_length": _parse_content_length,
+    }

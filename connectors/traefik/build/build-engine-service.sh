@@ -46,7 +46,7 @@ case "$ENGINE_BIN" in
 esac
 
 case "$MODE" in
-    build|test) ;;
+    build) ;;
     clean)
         rm -rf "$OUT_DIR"
         printf 'traefik_engine_service_clean=pass\n'
@@ -54,7 +54,7 @@ case "$MODE" in
         exit 0
         ;;
     *)
-        echo "usage: $0 [build|test|clean]" >&2
+        echo "usage: $0 [build|clean]" >&2
         exit 2
         ;;
 esac
@@ -169,15 +169,3 @@ done
 printf 'traefik_engine_service_build=pass\n'
 printf 'artifact=%s\n' "$ENGINE_BIN"
 printf 'modsecurity_library=%s\n' "$modsecurity_library"
-
-if [ "$MODE" = test ]; then
-    [ "${ON_DEMAND_TESTS:-0}" = 1 ] || {
-        echo "FAIL: engine self-test corpus requires explicit ON_DEMAND_TESTS=1" >&2
-        exit 2
-    }
-    if [ -z "${TRAEFIK_ENGINE_SOCKET_TEST_PARENT:-}" ]; then
-        echo "BLOCKED: TRAEFIK_ENGINE_SOCKET_TEST_PARENT is required for the private UDS self-test" >&2
-        exit 77
-    fi
-    "$ENGINE_BIN" --self-test --socket-parent "$TRAEFIK_ENGINE_SOCKET_TEST_PARENT"
-fi

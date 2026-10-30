@@ -16,45 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           persist-credentials: false
-      - name: Setup python
-        id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Execute pinned Framework test orchestration
+        id: framework-ci
+        if: ${{ always() }}
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-apache/apache-autotools-bootstrap@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
         with:
-          python-version-file: .python-version
-          check-latest: false
-      - name: Verify Python interpreter contract
-        env:
-          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
-      - name: Install Apache Autotools test prerequisites
-        run: |
-          set -eu
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes \
-            apache2 \
-            apache2-dev \
-            autoconf \
-            automake \
-            build-essential \
-            curl \
-            libmodsecurity-dev \
-            libtool \
-            make
-      - name: Verify Apache intervention cleanup source contract
-        run:  python3 ci/tools/run-active-tests.py --group apache
-      - name: Verify Apache native and APR lifecycle failures
-        run:  python3 ci/tools/run-active-tests.py --group apache
-      - name: Verify native response limits before EOS and after commit
-        run: make check-apache-native-response-limit
-      - name: Verify Apache physical event sink and caller failures
-        run: make check-apache-event-sink
-      - name: Execute selected Apache contracts (specialist bootstrap is on demand)
-        env:
-          APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}
-          MODSECURITY_PREFIX: /usr
-        run: make check-apache-autotools-bootstrap
-
+          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
   apache-structure:
     permissions:
       contents: read
@@ -64,55 +33,9 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - name: Setup python
-        id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Execute pinned Framework test orchestration
+        id: framework-ci
+        if: ${{ always() }}
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-apache/apache-structure@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
         with:
-          python-version-file: .python-version
-          check-latest: false
-      - name: Verify Python interpreter contract
-        env:
-          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
-      - name: Install selected Apache native lifecycle prerequisites
-        run: |
-          set -eu
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
-      - name: Initialize runner temp paths
-        run: |
-          set -eu
-          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
-          {
-            echo "VERIFIED_RUN_ROOT=$verified_root"
-            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
-            echo "SOURCE_ROOT=$verified_root/src"
-            echo "BUILD_ROOT=$verified_root/build"
-            echo "TMP_ROOT=$verified_root/tmp"
-            echo "LOG_ROOT=$verified_root/logs"
-            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
-            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
-          } >> "$GITHUB_ENV"
-      - name: Check Apache scaffold
-        run: |
-          set -eu
-          test -d modules/ModSecurity-test-Framework
-          test -f connectors/apache/README.md
-          test -f connectors/apache/TODO.md
-          test -f docs/connectors/apache.md
-          test -f connectors/apache/harness/README.md
-          test -f connectors/apache/harness/apache_smoke.conf
-          test -f connectors/apache/harness/run_apache_smoke.sh
-          test ! -d connectors/apache/tests
-          test -f modules/ModSecurity-test-Framework/docs/connector-integration.md
-          test -f config/testing/import-status.json
-          test -f docs/testing-and-evidence.md
-          grep -q 'Status:' connectors/apache/TODO.md
-      - name: Verify Apache collector and existing adoption mutations
-        run:  python3 ci/tools/run-active-tests.py --group apache
-      - name: Syntax and dry-run checks
-        run: |
-          make setup-dev
-          sh -n connectors/apache/harness/run_apache_smoke.sh
-          make -n check-active-inventory
-          make quick-check
+          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49

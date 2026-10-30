@@ -19,7 +19,7 @@ libmodsecurity v3, HAProxy 3.2.25 source, the repository native HTX filter/overl
 - [Native HTX overlay](../../../connectors/haproxy/htx-overlay/)
 - [HTX overlay builder](../../../connectors/haproxy/htx-overlay/build-overlay.sh)
 - [Source mapping](../../../connectors/haproxy/SOURCE_MAP.json)
-- [Native HTX runtime configuration helper](../../../connectors/haproxy/harness/run_haproxy_htx_runtime.sh)
+- [Native HTX runtime configuration helper](../../../modules/ModSecurity-test-Framework/connector_suite/adapters/haproxy/harness/run_haproxy_htx_runtime.sh)
 
 This is the primary connector path for this guide: connectors/haproxy/. The official host documentation in the following section explains only how to provide or build the host; it does not replace the connector source.
 

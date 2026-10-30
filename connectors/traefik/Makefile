@@ -18,6 +18,19 @@ endif
 REPO_ROOT ?= ../..
 FRAMEWORK_ROOT ?= $(REPO_ROOT)/modules/ModSecurity-test-Framework
 
+# Explicit environment for pinned Framework test entrypoints.
+PYTHON ?= python3
+CONNECTOR_ROOT := $(abspath $(CURDIR)/../..)
+CONNECTOR_REVISION := $(shell git -C "$(CONNECTOR_ROOT)" rev-parse HEAD)
+TEST_ROOT := $(FRAMEWORK_ROOT)
+CONNECTOR_TEST_PROFILE ?= h1
+CONNECTOR_TEST_OUTPUT_ROOT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(TMP_ROOT))
+export CONNECTOR_ROOT CONNECTOR_REVISION FRAMEWORK_ROOT TEST_ROOT CONNECTOR_TEST_PROFILE CONNECTOR_TEST_OUTPUT_ROOT
+export PYTHONPATH := $(TEST_ROOT):$(TEST_ROOT)/connector_suite
+export PYTHONSAFEPATH := 1
+export PYTHONNOUSERSITE := 1
+ACTIVE_TEST_RUNNER = $(PYTHON) -P -m modsecurity_test_framework.connector
+
 # Shared read-only host-runtime gate. These snapshots are exported to the
 # recursive root make; the recipe itself contains no caller-controlled shell
 # interpolation.
@@ -90,20 +103,20 @@ build-traefik-connector: build-connector build-native-middleware
 build-forwardauth-service: build-connector
 
 check-config: build-connector
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.config.traefik; fi
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then $(ACTIVE_TEST_RUNNER) --check --execution runtime.config.traefik; fi
 	scripts/check-config.sh
 
 check-traefik-config: check-config
 
 start-smoke: build-connector
 	$(if $(filter 1,$(ON_DEMAND_TESTS)),,$(error standalone lifecycle diagnostic is archived; explicit ON_DEMAND_TESTS=1 is required))
-	scripts/start-smoke.sh
+	"$(FRAMEWORK_ROOT)/connector_suite/adapters/traefik/scripts/start-smoke.sh"
 
 start-smoke-traefik: start-smoke
 
 runtime-smoke: build-connector
-	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.no-crs.traefik; fi
-	scripts/runtime-smoke.sh
+	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then $(ACTIVE_TEST_RUNNER) --check --execution runtime.no-crs.traefik; fi
+	"$(FRAMEWORK_ROOT)/connector_suite/adapters/traefik/scripts/runtime-smoke.sh"
 
 runtime-smoke-traefik: runtime-smoke
 
@@ -120,9 +133,9 @@ export TRAEFIK_BIN TRAEFIK_NATIVE_RUNTIME_ROOT TRAEFIK_ENGINE_SOCKET_PARENT TRAE
 runtime-smoke-traefik-native:
 	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then \
 		[ "$${MSCONNECTOR_CRS_RUNTIME:-0}" = 1 ] || { echo "FAIL: specialist native lifecycle requires explicit ON_DEMAND_TESTS=1" >&2; exit 2; }; \
-		python3 "$(abspath ../../ci/tools/run-active-tests.py)" --check --execution runtime.crs.traefik; \
+		$(ACTIVE_TEST_RUNNER) --check --execution runtime.crs.traefik; \
 	fi
-	sh scripts/runtime-native-middleware.sh
+	sh "$(FRAMEWORK_ROOT)/connector_suite/adapters/traefik/scripts/runtime-native-middleware.sh"
 
 no-crs-baseline-traefik: export MSCONNECTOR_NO_CRS_BASELINE := 1
 no-crs-baseline-traefik: runtime-smoke-traefik
@@ -138,8 +151,7 @@ build-forwardauth-starter: build-connector
 self-test: self-test-decision-service
 
 self-test-decision-service:
-	@test "$(ON_DEMAND_TESTS)" = 1 || { echo "FAIL: specialist self-test is archived; explicit ON_DEMAND_TESTS=1 is required" >&2; exit 2; }
-	build/build-starter.sh self-test-decision-service
+	$(MAKE) -C ../.. framework-native-selftest NATIVE_TEST_TARGET=traefik-decision-service
 
 self-test-forwardauth: self-test-decision-service
 
@@ -152,11 +164,7 @@ build-native-middleware:
 build-traefik-native-middleware: build-native-middleware
 
 test-native-middleware:
-ifeq ($(ON_DEMAND_TESTS),1)
-	build/build-native-middleware.sh test
-else
-	python3 "$(abspath ../../ci/tools/run-active-tests.py)" --group traefik
-endif
+	$(MAKE) -C ../.. framework-go-test GO_TEST_MODULE=connectors/traefik/native_middleware
 
 test-traefik-native-middleware: test-native-middleware
 
@@ -165,12 +173,12 @@ check-native-middleware: test-native-middleware
 build-engine-service:
 	build/build-engine-service.sh build
 
-test-engine-service:
+test-engine-service: build-engine-service
 ifeq ($(ON_DEMAND_TESTS),1)
-	build/build-engine-service.sh test
-	build/test-engine-service-runtime.sh
+	$(MAKE) -C ../.. framework-native-selftest NATIVE_TEST_TARGET=traefik-engine
+	sh "$(FRAMEWORK_ROOT)/connector_suite/adapters/traefik/build/test-engine-service-runtime.sh"
 else
-	python3 "$(abspath ../../ci/tools/run-active-tests.py)" --group traefik-python
+	$(ACTIVE_TEST_RUNNER) --group traefik-python
 endif
 
 clean:

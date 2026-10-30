@@ -82,7 +82,7 @@ reference; the linked guides describe prerequisites and outputs.
 | Interpret a recorded run | [Testing and evidence](docs/testing-and-evidence.md) | The exact profile, rules, run ID, artifacts, and limitations |
 
 Normal local and CI tests use one authority:
-[config/testing/active-cases.json](config/testing/active-cases.json). The
+[config/testing/active-cases.json](modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json). The
 100-case core ceiling and the separately authorized guarded offline Python
 exception are distinct counts; the exception does not add connector E2E cases.
 Use the inventory and its admission output for the selected counts instead of

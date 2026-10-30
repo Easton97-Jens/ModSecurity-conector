@@ -9,11 +9,26 @@ import os
 from pathlib import Path
 import sys
 import subprocess
+import runpy
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts"))
-from version_updater_common import (PROJECT_VERSION_LOCK, TOOLCHAIN_FIELDS, UpdaterError,
-    project_lock_snapshot, read_current_version_with_stat, replace_project_files, version_target)
+if __package__ and __package__.startswith("modsecurity_test_framework.product_sources."):
+    from ...scripts.version_updater_common import (
+        PROJECT_VERSION_LOCK, TOOLCHAIN_FIELDS, UpdaterError, TargetError,
+        project_lock_snapshot, read_current_version_with_stat,
+        replace_project_files, version_target, _parse_project_lock,
+    )
+else:
+    _common = runpy.run_path(str(ROOT / "scripts/version_updater_common.py"))
+    PROJECT_VERSION_LOCK = _common["PROJECT_VERSION_LOCK"]
+    TOOLCHAIN_FIELDS = _common["TOOLCHAIN_FIELDS"]
+    UpdaterError = _common["UpdaterError"]
+    TargetError = _common["TargetError"]
+    project_lock_snapshot = _common["project_lock_snapshot"]
+    read_current_version_with_stat = _common["read_current_version_with_stat"]
+    replace_project_files = _common["replace_project_files"]
+    version_target = _common["version_target"]
+    _parse_project_lock = _common["_parse_project_lock"]
 
 
 def synchronize(root: Path, *, sync: bool = False) -> list[str]:
@@ -31,7 +46,6 @@ def synchronize(root: Path, *, sync: bool = False) -> list[str]:
         if sync and updates:
             # The unchanged lock is included as the final checked commit point;
             # this rejects concurrent lock replacement before view changes.
-            from version_updater_common import _parse_project_lock
             updates.append((PROJECT_VERSION_LOCK, (json.dumps(pins, indent=2) + "\n").encode(),
                             pins, lock_stat, _parse_project_lock, 4096))
             replace_project_files(root, updates)
@@ -41,7 +55,6 @@ def synchronize(root: Path, *, sync: bool = False) -> list[str]:
 
 
 def verify_toolchain_update(root: Path, language: str, previous: bytes) -> None:
-    from version_updater_common import _parse_project_lock, TargetError
     before = _parse_project_lock(previous.decode("utf-8"))
     after, _ = project_lock_snapshot(root)
     field = f"{language}_version"

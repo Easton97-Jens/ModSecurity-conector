@@ -14,7 +14,6 @@ typedef msconnector_decision msconnector_traefik_decision_result;
 
 msconnector_traefik_decision_result msconnector_traefik_decide_request(
     const msconnector_request *request);
-int msconnector_traefik_decision_service_self_test(void);
 
 #ifdef __cplusplus
 }

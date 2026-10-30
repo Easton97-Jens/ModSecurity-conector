@@ -8,11 +8,7 @@ MODE=${1:-test}
 case "$MODE" in test|build) ;; *) echo "usage: $0 [test|build]" >&2; exit 2 ;; esac
 command -v "$GO_BIN" >/dev/null 2>&1 || { echo "BLOCKED: missing Go toolchain: $GO_BIN" >&2; exit 77; }
 if [ "$MODE" = test ]; then
-    if [ "${ON_DEMAND_TESTS:-0}" = 1 ]; then
-        (cd "$MODULE_DIR" && "$GO_BIN" test -mod=readonly ./...)
-    else
-        "${PYTHON:-python3}" "$REPO_ROOT/ci/tools/run-active-tests.py" --module connectors/traefik/response_observer
-    fi
+    exec make -C "$REPO_ROOT" framework-go-test GO_TEST_MODULE=connectors/traefik/response_observer
 fi
 (
     cd "$MODULE_DIR"

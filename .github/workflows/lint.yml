@@ -20,6 +20,10 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - name: Validate the pinned Framework and explicit connector context
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
+        with:
+          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
       - name: Setup python
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -29,10 +33,10 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Install hash-locked CI test dependency
         run: |
-          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Install selected Apache native lifecycle prerequisites
         run: |
           set -eu
@@ -69,18 +73,18 @@ jobs:
           test -f docs/testing-and-evidence.md
           test -f reports/testing/test-coverage-overview.md
       - name: Check bilingual documentation
-        run: python ci/checks/documentation/check-bilingual-docs.py
+        run: python -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/documentation/check-bilingual-docs.py
       - name: Validate the global expanded inventory before any selected test
-        run: python3 ci/tools/run-active-tests.py --check
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --check
       - name: Execute selected inventory, coverage, supply-chain and Common controls
         if: ${{ !cancelled() }}
-        run: python3 ci/tools/run-active-tests.py --group inventory --group supply-chain --group common --group protocol
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group inventory --group supply-chain --group common --group protocol
       - name: Verify generated configuration references
         if: ${{ !cancelled() }}
-        run: python ci/tools/generate-connector-config-reference.py --check
+        run: python -P ci/tools/generate-connector-config-reference.py --check
       - name: Verify configuration reference semantics
         if: ${{ !cancelled() }}
-        run: python ci/checks/documentation/check-connector-config-reference.py
+        run: python -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/documentation/check-connector-config-reference.py
       - name: Run lightweight lint
         run: |
           make setup-dev

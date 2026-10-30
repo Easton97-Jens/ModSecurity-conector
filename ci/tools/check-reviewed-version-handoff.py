@@ -42,7 +42,8 @@ def require(condition: bool, message: str) -> None:
 
 
 def read_text(root: Path, relative: str) -> str:
-    path = root / relative
+    from modsecurity_test_framework.connector_context import source_path
+    path = source_path(relative, root=root)
     require(path.is_absolute(), "repository root must be absolute")
     require(path.resolve(strict=True) == path, f"symlink in checked path: {relative}")
     details = path.lstat()
@@ -127,7 +128,12 @@ def inspect_handoff(root: Path) -> dict[str, str]:
     version = nginx_tag.removeprefix("release-")
     writer_version = python_constant(read_text(root, WRITER), "EXPECTED_NGINX_VERSION")
     require(writer_version == version, "NGINX evidence writer version differs from reviewed Framework")
-    workflow_tags = re.findall(r"(?m)^ +NGINX_RELEASE_TAG: ([^\r\n ]+) *$", read_text(root, WORKFLOW))
+    from modsecurity_test_framework.workflow_sources import WorkflowSourceError, read_connector_workflow
+    try:
+        workflow_text = read_connector_workflow(root / WORKFLOW)
+    except WorkflowSourceError as error:
+        raise HandoffError(f"cannot verify pinned workflow source: {error}") from error
+    workflow_tags = re.findall(r"(?m)^ +NGINX_RELEASE_TAG: ([^\r\n ]+) *$", workflow_text)
     require(workflow_tags == [nginx_tag], "NGINX workflow release differs from reviewed Framework")
     repository, release, commit = (literal_pin(common, name) for name in MODSECURITY_KEYS)
     require(repository == OFFICIAL_REPOSITORY, "unexpected ModSecurity repository")

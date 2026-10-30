@@ -97,7 +97,7 @@ Framing-Einschränkungen und nicht nachgewiesenem Verhalten lesen.
 ## Testauswahl ist zentralisiert
 
 Normale lokale, CI- und geplante funktionale Prüfungen verwenden
-[config/testing/active-cases.json](../config/testing/active-cases.json).
+[config/testing/active-cases.json](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json).
 Der 100-Fälle-Kern und die getrennt autorisierte geschützte
 Offline-Python-Ausnahme werden getrennt gezählt. Zusätzliche Offline-Fälle
 bedeuten keine zusätzliche Connector-E2E-Auswahl.
@@ -118,7 +118,7 @@ Archivierte Prüfsuiten sind keine automatischen Standards. Spezialausführung
 benötigt einen gesonderten aktuellen Auftrag und die dokumentierte explizite
 Auswahl `ON_DEMAND_TESTS=1`. Weder dieser Guide noch das Flag autorisiert neue
 I12-Aufzeichnungen. [Tests und Nachweise](testing-and-evidence.de.md),
-[Test-Einstiegspunkte](../tests/README.de.md) und die dokumentierten Abschlüsse
+[Test-Einstiegspunkte](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_tests/README.de.md) und die dokumentierten Abschlüsse
 unterscheiden aktuelle Auswahl und historische Abdeckung.
 
 ## Toolchains, generierte Dateien und externe Herkunft
