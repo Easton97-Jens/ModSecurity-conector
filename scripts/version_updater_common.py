@@ -733,3 +733,18 @@ class UpdaterRuntime:
             build_arg_parser=self.build_arg_parser,
             execute=self.execute,
         )
+
+
+def compatibility_exports() -> dict[str, object]:
+    """Return only the fixed adapter imports for safe-path direct CLI loading."""
+
+    return {
+        "MetadataError": MetadataError,
+        "ReleaseEndpoint": ReleaseEndpoint,
+        "ReleaseMetadataSource": ReleaseMetadataSource,
+        "UpdaterRuntime": UpdaterRuntime,
+        "VersionError": VersionError,
+        "_UNSET": _UNSET,
+        "_decode_metadata": _decode_metadata,
+        "_parse_content_length": _parse_content_length,
+    }

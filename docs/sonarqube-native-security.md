@@ -68,7 +68,7 @@ Builds, caches, compilation databases and scanner work remain outside the
 checkout. Existing shared-write ancestry is rejected before output creation or
 permission changes.
 
-The helpers in [`sonar-native-security/`](../ci/checks/analysis/sonar-native-security/)
+The helpers in [`sonar-native-security/`](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/sonar-native-security/)
 capture successful real compiler invocations, dependencies, compiler identity,
 object/archive inputs and the declared link graph. Export requires the exact
 Parent TU closure and its actual included Parent headers. External upstream or

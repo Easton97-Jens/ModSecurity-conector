@@ -73,7 +73,7 @@ Scanner-Arbeitsdateien bleiben außerhalb des Checkouts. Vor Output-Erstellung
 oder Rechteänderung wird bestehende, für andere schreibbare Verzeichnisabstammung
 abgelehnt.
 
-Die Werkzeuge in [`sonar-native-security/`](../ci/checks/analysis/sonar-native-security/)
+Die Werkzeuge in [`sonar-native-security/`](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/sonar-native-security/)
 erfassen erfolgreiche echte Compileraufrufe, Abhängigkeiten, Compileridentität,
 Objekt-/Archiveingaben und den deklarierten Linkgraphen. Der Export verlangt den
 exakten Parent-TU-Abschluss und seine tatsächlich eingebundenen Parent-Header.

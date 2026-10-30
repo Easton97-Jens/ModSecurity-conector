@@ -6,26 +6,37 @@ from pathlib import Path
 import stat
 import sys
 
-BRIDGE_SHA256 = "60a3cddae2218ca3031240bfe6d3400ce9de39a94c609b53bf238f05e5bc4978"
+BRIDGE_SHA256 = "1ef4d6fb021605f52c63fef3bf522a325736ceb40457d48c94c091b1e3efc5eb"
 TOOL = "exact-collector"
 
 
-def value(option):
-    positions = [i for i, item in enumerate(sys.argv) if item == option]
-    if len(positions) != 1 or positions[0] + 1 >= len(sys.argv):
-        raise ValueError("protected Framework bridge requires exactly one " + option)
-    return sys.argv[positions[0] + 1]
+def collector_arguments():
+    """Consume each source-binding option once, preserving the collector payload."""
+    arguments = sys.argv[1:]
+    bindings = {}
+    consumed = set()
+    for option in ("--base-repo-root", "--trusted-dispatcher-base-sha"):
+        positions = [i for i, item in enumerate(arguments) if item == option]
+        if len(positions) != 1 or positions[0] + 1 >= len(arguments):
+            raise ValueError("protected Framework bridge requires exactly one " + option)
+        index = positions[0]
+        bindings[option] = arguments[index + 1]
+        consumed.update((index, index + 1))
+    return (Path(bindings["--base-repo-root"]), bindings["--trusted-dispatcher-base-sha"],
+            [value for index, value in enumerate(arguments) if index not in consumed])
 
 
 def main():
-    root = Path(value("--base-repo-root"))
-    revision = value("--trusted-dispatcher-base-sha")
+    root, revision, forwarded = collector_arguments()
     if not root.is_absolute() or ".." in root.parts:
         raise ValueError("protected base path must be absolute without traversal")
     fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
         for component in (*root.parts[1:], "ci"):
-            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            name = os.path.basename(component)
+            if name in {"", ".", ".."} or name != component:
+                raise ValueError("protected base components must be exact directory names")
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
             os.close(fd)
             fd = child
         source = os.open("run-trusted-framework.py", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
@@ -38,11 +49,6 @@ def main():
             raise ValueError("protected bridge does not match the trusted Parent source digest")
     finally:
         os.close(fd)
-    forwarded = sys.argv[1:]
-    if TOOL == "exact-collector":
-        for option in ("--base-repo-root", "--trusted-dispatcher-base-sha"):
-            index = forwarded.index(option)
-            del forwarded[index:index + 2]
     namespace = {"__name__": "_authenticated_framework_bridge"}
     exec(compile(data, str(root / "ci/run-trusted-framework.py"), "exec"), namespace)
     return namespace["main"](["--tool", TOOL, "--connector-root", str(root),

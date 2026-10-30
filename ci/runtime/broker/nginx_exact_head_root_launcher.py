@@ -6,7 +6,7 @@ from pathlib import Path
 import stat
 import sys
 
-BRIDGE_SHA256 = "60a3cddae2218ca3031240bfe6d3400ce9de39a94c609b53bf238f05e5bc4978"
+BRIDGE_SHA256 = "1ef4d6fb021605f52c63fef3bf522a325736ceb40457d48c94c091b1e3efc5eb"
 TOOL = "exact-launcher"
 
 
@@ -25,7 +25,10 @@ def main():
     fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
         for component in (*root.parts[1:], "ci"):
-            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            name = os.path.basename(component)
+            if name in {"", ".", ".."} or name != component:
+                raise ValueError("protected base components must be exact directory names")
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
             os.close(fd)
             fd = child
         source = os.open("run-trusted-framework.py", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
@@ -39,10 +42,6 @@ def main():
     finally:
         os.close(fd)
     forwarded = sys.argv[1:]
-    if TOOL == "exact-collector":
-        for option in ("--base-repo-root", "--trusted-dispatcher-base-sha"):
-            index = forwarded.index(option)
-            del forwarded[index:index + 2]
     namespace = {"__name__": "_authenticated_framework_bridge"}
     exec(compile(data, str(root / "ci/run-trusted-framework.py"), "exec"), namespace)
     return namespace["main"](["--tool", TOOL, "--connector-root", str(root),

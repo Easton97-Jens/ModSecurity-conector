@@ -23,14 +23,7 @@ else:
     import runpy
     from pathlib import Path
     _common = runpy.run_path(str(Path(__file__).with_name("version_updater_common.py")))
-    MetadataError = _common["MetadataError"]
-    ReleaseEndpoint = _common["ReleaseEndpoint"]
-    ReleaseMetadataSource = _common["ReleaseMetadataSource"]
-    UpdaterRuntime = _common["UpdaterRuntime"]
-    VersionError = _common["VersionError"]
-    _UNSET = _common["_UNSET"]
-    _decode_metadata = _common["_decode_metadata"]
-    _parse_content_length = _common["_parse_content_length"]
+    globals().update(_common["compatibility_exports"]())
 
 
 

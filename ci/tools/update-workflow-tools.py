@@ -84,6 +84,7 @@ REMOTE_WORKFLOW_USE = re.compile(
 )
 PARENT_REPOSITORY = "Easton97-Jens/ModSecurity-conector"
 FRAMEWORK_REPOSITORY = "Easton97-Jens/ModSecurity-test-Framework"
+FRAMEWORK_RELATIVE_PATH = "modules/ModSecurity-test-Framework"
 PARENT_REUSABLE_WORKFLOW_PREFIX = "/.github/workflows/"
 
 # The on-disk Connector schema is the only source of truth. The updater
@@ -1615,17 +1616,17 @@ def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
     """CI-only entrypoint into the explicitly pinned Framework test adapter."""
     root = resolve_root(root)
     framework = Path(os.environ.get("TEST_ROOT") or os.environ.get("FRAMEWORK_ROOT") or
-                     root / "modules/ModSecurity-test-Framework").resolve(strict=True)
+                     root / FRAMEWORK_RELATIVE_PATH).resolve(strict=True)
     adapter = framework / "connector_suite/modsecurity_connector_ci/workflow_update_validation.py"
     if not adapter.is_file():
         raise UpdateError("pinned Framework candidate-validation adapter is missing")
     revision = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
     link = subprocess.check_output(
         ["git", "--no-replace-objects", "-C", str(root), "ls-tree", revision, "--",
-         "modules/ModSecurity-test-Framework"], text=True).strip()
+         FRAMEWORK_RELATIVE_PATH], text=True).strip()
     fields = link.split()
     if (len(fields) != 4 or fields[0:2] != ["160000", "commit"]
-            or SHA40.fullmatch(fields[2]) is None or fields[3] != "modules/ModSecurity-test-Framework"):
+            or SHA40.fullmatch(fields[2]) is None or fields[3] != FRAMEWORK_RELATIVE_PATH):
         raise UpdateError("Connector revision lacks the exact Framework gitlink")
     framework_revision = subprocess.check_output(
         ["git", "--no-replace-objects", "-C", str(framework), "rev-parse", "HEAD"], text=True).strip()
