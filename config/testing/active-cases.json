@@ -38069,21 +38069,21 @@
       "cases": [
         {
           "id": "offline.ubuntu26.updater-rejects-unallowlisted-action-yaml.case-1",
-          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969\u20131003); no independent baseline assertion. Ordered scenario 1.",
+          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969–1003); no independent baseline assertion. Ordered scenario 1.",
           "profiles": [
             "parent-infrastructure"
           ]
         },
         {
           "id": "offline.ubuntu26.updater-rejects-unallowlisted-action-yaml.case-2",
-          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969\u20131003); no independent baseline assertion. Ordered scenario 2.",
+          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969–1003); no independent baseline assertion. Ordered scenario 2.",
           "profiles": [
             "parent-infrastructure"
           ]
         },
         {
           "id": "offline.ubuntu26.updater-rejects-unallowlisted-action-yaml.case-3",
-          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969\u20131003); no independent baseline assertion. Ordered scenario 3.",
+          "requirement": "Three rejected_workflows tuple entries and one subTest per entry (lines969–1003); no independent baseline assertion. Ordered scenario 3.",
           "profiles": [
             "parent-infrastructure"
           ]
@@ -39949,7 +39949,7 @@
     },
     {
       "path": "ci/tooling/project-versions.lock.json",
-      "sha256": "880b1d19b6d78e52a1588033ce794a35d09e58040b8af763d90fcdb9f99c0d34"
+      "sha256": "6d50248ac59167e3219f66a5e62c939f4c7b44bc818807783fcf49e822a4dc4f"
     },
     {
       "path": "ci/tooling/security-tools.lock.yml",

@@ -2,7 +2,30 @@
 
 **Sprache:** [English](protocol-parity.md) | Deutsch
 
-## Aktualisierung am 2026-10-30: Integrität der Integration
+## Aktualisierung am 2026-10-30: anschließender Master-Pin-Abgleich
+
+Der geprüfte Parent-Head `096170f7ab0ba19537546ce861f818fbab6e1772`
+bestand 59 Hosted-Prüfungen bei fünf vorgesehenen Skips. Master rückte danach
+durch Submodul-Update #433 auf
+`ee1345f17c5390fd2341751e88fc510c7e7b580c` vor. Dieser Nachtrag integriert
+die Revision normal und erzeugt den einzigen Archivkonflikt neu. Framework-Pin
+und Projekt-Lock stimmen jetzt auf
+`d3b47aec9410f7adc3bb40df1ea413c00c438e89` überein; diese Revision enthält
+die zuvor fehlenden Paket-/Ergebnis-APIs. MRTS bleibt unverändert gepinnt.
+API-Verfügbarkeit belegt keine neue Host- oder Protokoll-Runtime-Qualifikation.
+
+Keine neuen Tests oder Selektoren werden geschrieben. Die aktive Fallauswahl
+bleibt 100; das Inventar übernimmt nur die Formatierung von Requirement-Strings
+und den aktualisierten Lock-Digest. Vorhandene Upstream-Framework-Tests werden
+mit dessen Pin übernommen, nicht hier neu angelegt. Connector-Produktcode und
+Issue-#401-Integration bleiben unverändert. Separater Framework-Draft
+[PR #143](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/143)
+verschärft die Integrität der Transferabschlüsse in Protokollartefakten; sein
+Commit `78b103f8` ist nicht im Parent-Pin enthalten. CI/Sonar des aktuellen Heads
+wird nach Veröffentlichung separat geprüft. Der vollständige H1-/H2-/H3-
+Workstream bleibt offen.
+
+## Frühere Aktualisierung am 2026-10-30: Integrität der Integration
 
 Der gesicherte Kandidat `1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01`
 hat alle 59 ausgeführten Hosted-Prüfungen einschließlich Sonar bestanden;

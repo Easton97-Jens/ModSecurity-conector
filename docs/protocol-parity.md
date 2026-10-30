@@ -7,7 +7,28 @@ evidence for HTTP/2 and HTTP/3 lifecycle parity across the six selected
 connectors. It is not a completion claim. HTTP/1.1 remains the regression
 baseline.
 
-## Update on 2026-10-30: integration integrity
+## Update on 2026-10-30: subsequent master pin refresh
+
+Verified Parent head `096170f7ab0ba19537546ce861f818fbab6e1772`
+passed 59 hosted checks, with five intended skips. Master then advanced to
+`ee1345f17c5390fd2341751e88fc510c7e7b580c` through submodule update #433.
+This follow-up integrates that revision normally and regenerates the sole
+archive conflict. The Framework pin and project lock now agree on
+`d3b47aec9410f7adc3bb40df1ea413c00c438e89`, which contains the previously
+missing package/result APIs. MRTS remains pinned unchanged. API availability
+does not establish new host or protocol runtime qualification.
+
+No new tests or selectors are authored. Active case selection remains 100;
+the inventory only inherits requirement-string formatting and the updated
+lock digest. Existing upstream Framework tests are inherited with its pin,
+not newly authored here. Connector product code and issue #401 integration
+remain unchanged. Separate Framework Draft
+[PR #143](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/143)
+tightens protocol-artifact terminal-outcome integrity; its commit `78b103f8`
+is not included in the Parent pin. Current-head CI/Sonar is verified separately
+after publication. The complete H1/H2/H3 workstream remains unfinished.
+
+## Earlier update on 2026-10-30: integration integrity
 
 The saved candidate `1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01`
 completed all 59 executed hosted checks successfully, including Sonar; five

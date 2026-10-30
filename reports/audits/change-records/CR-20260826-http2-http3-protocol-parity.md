@@ -288,6 +288,21 @@ fully verified.
 
 ## Final diff and review status
 
+**Subsequent update on 2026-10-30:** Parent master advanced again to
+`ee1345f17c5390fd2341751e88fc510c7e7b580c` (#433). It is integrated into
+the task branch without rewriting published head `096170f7` (59 successful
+checks, five skips). The sole generated archive conflict is regenerated;
+active selection remains 100 and connector product source is unchanged.
+Master's Framework pin `d3b47aec9410f7adc3bb40df1ea413c00c438e89` matches
+its lock and contains the package/result API, superseding the missing-API
+limitation below. MRTS pin is unchanged. Paired current guides and a dated
+note in the historical package record preserve this distinction. Independent
+Framework Draft #143 at `78b103f8` repairs protocol terminal-fact admission;
+it is not part of the Parent pin. Existing focused integrity/docs checks and
+fresh hosted validation are required for the new Parent head. No tests,
+selectors, host qualification, MRTS changes or PR-to-master merge are authored
+by this increment; existing Framework tests arrive with the upstream pin.
+
 **Update on 2026-10-30:** the user resumes with integration integrity as the
 scope and no new tests while the test system is being rebuilt. Saved head
 `1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01` completed 59 hosted checks

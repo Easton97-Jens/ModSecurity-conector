@@ -305,6 +305,22 @@ Kein Security-Finding ist vollständig verifiziert.
 
 ## Finaler Diff- und Review-Status
 
+**Anschließende Aktualisierung am 2026-10-30:** Parent-Master rückte erneut
+auf `ee1345f17c5390fd2341751e88fc510c7e7b580c` vor (#433). Er wird ohne
+History-Rewrite des veröffentlichten Heads `096170f7` (59 erfolgreiche Checks,
+fünf Skips) in den Task-Branch integriert. Der einzige generierte Archivkonflikt
+wird neu erzeugt; aktive Auswahl bleibt 100 und Connector-Produktcode unverändert.
+Masters Framework-Pin `d3b47aec9410f7adc3bb40df1ea413c00c438e89` stimmt
+mit dem Lock überein und enthält die Paket-/Ergebnis-API; die unten genannte
+fehlende API ist damit überholt. MRTS-Pin unverändert. Gepaarte aktuelle Guides
+und ein datierter Hinweis im historischen Paket-Record erhalten diese Trennung.
+Separater Framework-Draft #143 bei `78b103f8` korrigiert die Annahme von
+Protokoll-Abschlussdaten und ist nicht Teil des Parent-Pins. Bestehende gezielte
+Integritäts-/Dokumentationschecks und frische Hosted-Prüfungen sind für den neuen
+Parent-Head erforderlich. Dieses Increment schreibt keine Tests, Selektoren,
+Hostqualifikation, MRTS-Änderung oder PR-nach-Master-Merge; bestehende Framework-
+Tests kommen mit dessen Upstream-Pin hinzu.
+
 **Aktualisierung vom 2026-10-30:** Der Benutzer setzt mit Integrität der
 Integration als Scope und ohne neue Tests während des Testumbaus fort. Der
 gesicherte Head `1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01` hat 59
