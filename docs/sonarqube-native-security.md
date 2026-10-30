@@ -53,7 +53,7 @@ byte. The evaluator is not executed. No C++23 override is applied to this build.
 
 ## Build and source identity
 
-[`prepare-sonar-native-ci.py`](../ci/checks/analysis/prepare-sonar-native-ci.py)
+[`prepare-sonar-native-ci.py`](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/prepare-sonar-native-ci.py)
 checks the exact clean checkout revision. It initializes only the directly
 pinned Framework, builds the canonical shared ModSecurity `3.0.17` SDK, and
 transfers its prefix and Expat dependency in a same-run archive. Revision,

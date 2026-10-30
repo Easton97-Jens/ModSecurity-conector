@@ -183,7 +183,7 @@ the other.
 
 No local `connectors/haproxy/tests` folder is used. The Framework owns reusable
 catalog definitions; Parent owns integration/regression tests and automatic
-selection through [config/testing/active-cases.json](../../config/testing/active-cases.json).
+selection through [config/testing/active-cases.json](../../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json).
 
 Standard <code>make test-no-crs</code> and <code>make test-with-crs</code> aliases
 select only admitted runtime subsets, not complete Framework suites or full

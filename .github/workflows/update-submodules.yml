@@ -65,9 +65,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) && github.sha || github.event.repository.default_branch }}
-          submodules: false
+          submodules: true
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context
+        with:
+          framework-revision: ${{ steps.framework-gitlink.outputs.revision }}
 
       - name: Resolve exactly one official submodule commit
         id: resolve
@@ -152,9 +166,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.validate_only == 'true' && github.repository == 'Easton97-Jens/ModSecurity-conector' && github.event.repository.fork == false && (github.ref == 'refs/heads/fix/ci-enforce-readonly-submodule-validation' || (github.ref == 'refs/heads/master' && github.event.repository.default_branch == 'master' && github.ref_protected == true)) && github.sha || github.event.repository.default_branch }}
-          submodules: false
+          submodules: true
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context
+        with:
+          framework-revision: ${{ steps.framework-gitlink.outputs.revision }}
 
       - name: Set up toolchain
         id: setup-python
@@ -166,7 +194,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Install selected Apache native lifecycle prerequisites
         run: |
@@ -296,7 +324,7 @@ jobs:
       - name: Prepare reviewed Python dependency before runtime protection
         run: |
           set -euo pipefail
-          python3 ci/tools/install-ci-dependencies.py --ci-toolcache \
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache \
             --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
           python3 -m pip check
 
@@ -469,9 +497,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
-          submodules: false
+          submodules: true
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context
+        with:
+          framework-revision: ${{ steps.framework-gitlink.outputs.revision }}
 
       - name: Setup Python
         id: setup-python
@@ -483,7 +525,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify submodule publisher GitHub App configuration
         env:
@@ -533,21 +575,33 @@ jobs:
               if ! printf '%s\n' "$changed_path" | grep -Fqx \
                 -e "$SUBMODULE_PATH" \
                 -e connectors/envoy/config/envoy-ext-proc-versions.env \
-                -e ci/provisioning/components/prepare-runtime-components.py \
-                -e tests/test_prepare_runtime_components.py \
-                -e ci/runtime/broker/nginx_root_broker.py \
-                -e ci/runtime/broker/protected_nginx_broker_caller.py \
                 -e connectors/lighttpd/lighttpd-version.contract \
                 -e connectors/lighttpd/SOURCE_MAP.json \
                 -e connectors/haproxy/htx-overlay/version-contract.json \
                 -e scripts/generate_compiler_guides.py \
-                -e tests/test_compiler_guides.py \
                 -e ci/tooling/project-versions.lock.json \
-                -e config/testing/active-cases.json \
-                -e reports/testing/test-selection-archive.generated.json \
-                -e ci/checks/evidence/check-runtime-producer-readiness.py \
-                -e .github/workflows/test-full-smoke-sequential.yml \
+                -e .github/workflows/ci-findings-regressions.yml \
+                -e .github/workflows/lint.yml \
                 -e .github/workflows/nginx-root-broker.yml \
+                -e .github/workflows/open-connectors-smoke.yml \
+                -e .github/workflows/protocol-contract.yml \
+                -e .github/workflows/quick-framework-check.yml \
+                -e .github/workflows/reusable-five-connectors-profile.yml \
+                -e .github/workflows/run-protected-nginx-exact-head.yml \
+                -e .github/workflows/run-protected-nginx-root-broker.yml \
+                -e .github/workflows/run-trusted-lighttpd-namespace-dispatch.yml \
+                -e .github/workflows/sonar-native-security.yml \
+                -e .github/workflows/sonarqube.yml \
+                -e .github/workflows/test-apache.yml \
+                -e .github/workflows/test-common.yml \
+                -e .github/workflows/test-connectors-with-crs-no-mrts.yml \
+                -e .github/workflows/test-envoy.yml \
+                -e .github/workflows/test-full-smoke-sequential.yml \
+                -e .github/workflows/test-haproxy.yml \
+                -e .github/workflows/test-lighttpd.yml \
+                -e .github/workflows/test-nginx-exact-head.yml \
+                -e .github/workflows/test-nginx.yml \
+                -e .github/workflows/test-traefik.yml \
                 -e docs/build/compilers/README.md \
                 -e docs/build/compilers/README.de.md \
                 -e docs/build/compilers/overview.md \
@@ -590,29 +644,35 @@ jobs:
                   next
                 }
 
-                $6 == "config/testing/active-cases.json" ||
-                $6 == "reports/testing/test-selection-archive.generated.json" {
-                  records += 1
-                  if ($1 != ":100644" || $2 != "100644" || $5 != "M") {
-                    invalid = 1
-                  }
-                  next
-                }
 
                 $6 == "connectors/envoy/config/envoy-ext-proc-versions.env" ||
-                $6 == "ci/provisioning/components/prepare-runtime-components.py" ||
-                $6 == "tests/test_prepare_runtime_components.py" ||
-                $6 == "ci/runtime/broker/nginx_root_broker.py" ||
-                $6 == "ci/runtime/broker/protected_nginx_broker_caller.py" ||
                 $6 == "connectors/lighttpd/lighttpd-version.contract" ||
                 $6 == "connectors/lighttpd/SOURCE_MAP.json" ||
                 $6 == "connectors/haproxy/htx-overlay/version-contract.json" ||
                 $6 == "scripts/generate_compiler_guides.py" ||
-                $6 == "tests/test_compiler_guides.py" ||
                 $6 == "ci/tooling/project-versions.lock.json" ||
-                $6 == "ci/checks/evidence/check-runtime-producer-readiness.py" ||
-                $6 == ".github/workflows/test-full-smoke-sequential.yml" ||
+                $6 == ".github/workflows/ci-findings-regressions.yml" ||
+                $6 == ".github/workflows/lint.yml" ||
                 $6 == ".github/workflows/nginx-root-broker.yml" ||
+                $6 == ".github/workflows/open-connectors-smoke.yml" ||
+                $6 == ".github/workflows/protocol-contract.yml" ||
+                $6 == ".github/workflows/quick-framework-check.yml" ||
+                $6 == ".github/workflows/reusable-five-connectors-profile.yml" ||
+                $6 == ".github/workflows/run-protected-nginx-exact-head.yml" ||
+                $6 == ".github/workflows/run-protected-nginx-root-broker.yml" ||
+                $6 == ".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml" ||
+                $6 == ".github/workflows/sonar-native-security.yml" ||
+                $6 == ".github/workflows/sonarqube.yml" ||
+                $6 == ".github/workflows/test-apache.yml" ||
+                $6 == ".github/workflows/test-common.yml" ||
+                $6 == ".github/workflows/test-connectors-with-crs-no-mrts.yml" ||
+                $6 == ".github/workflows/test-envoy.yml" ||
+                $6 == ".github/workflows/test-full-smoke-sequential.yml" ||
+                $6 == ".github/workflows/test-haproxy.yml" ||
+                $6 == ".github/workflows/test-lighttpd.yml" ||
+                $6 == ".github/workflows/test-nginx-exact-head.yml" ||
+                $6 == ".github/workflows/test-nginx.yml" ||
+                $6 == ".github/workflows/test-traefik.yml" ||
                 $6 == "docs/build/compilers/README.md" ||
                 $6 == "docs/build/compilers/README.de.md" ||
                 $6 == "docs/build/compilers/overview.md" ||
@@ -991,30 +1051,42 @@ jobs:
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CANDIDATE_SHA"
           python3 scripts/generate_compiler_guides.py
-          # Reconstruct exact primary and companion bytes from trusted master.
+          # Reconstruct exact product-primary bytes from trusted master.
           python3 ci/tools/sync-framework-component-versions.py \
-            --verify-companions \
+            --verify-primary \
             --base "$MASTER_HEAD" \
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
             --framework-sha "$CANDIDATE_SHA"
           git -c core.hooksPath=/dev/null add -- \
             connectors/envoy/config/envoy-ext-proc-versions.env \
-            ci/provisioning/components/prepare-runtime-components.py \
-            tests/test_prepare_runtime_components.py \
-            ci/runtime/broker/nginx_root_broker.py \
-            ci/runtime/broker/protected_nginx_broker_caller.py \
             connectors/lighttpd/lighttpd-version.contract \
             connectors/lighttpd/SOURCE_MAP.json \
             connectors/haproxy/htx-overlay/version-contract.json \
             scripts/generate_compiler_guides.py \
-            tests/test_compiler_guides.py \
             ci/tooling/project-versions.lock.json \
-            config/testing/active-cases.json \
-            reports/testing/test-selection-archive.generated.json \
-            ci/checks/evidence/check-runtime-producer-readiness.py \
-            .github/workflows/test-full-smoke-sequential.yml \
+            .github/workflows/ci-findings-regressions.yml \
+            .github/workflows/lint.yml \
             .github/workflows/nginx-root-broker.yml \
+            .github/workflows/open-connectors-smoke.yml \
+            .github/workflows/protocol-contract.yml \
+            .github/workflows/quick-framework-check.yml \
+            .github/workflows/reusable-five-connectors-profile.yml \
+            .github/workflows/run-protected-nginx-exact-head.yml \
+            .github/workflows/run-protected-nginx-root-broker.yml \
+            .github/workflows/run-trusted-lighttpd-namespace-dispatch.yml \
+            .github/workflows/sonar-native-security.yml \
+            .github/workflows/sonarqube.yml \
+            .github/workflows/test-apache.yml \
+            .github/workflows/test-common.yml \
+            .github/workflows/test-connectors-with-crs-no-mrts.yml \
+            .github/workflows/test-envoy.yml \
+            .github/workflows/test-full-smoke-sequential.yml \
+            .github/workflows/test-haproxy.yml \
+            .github/workflows/test-lighttpd.yml \
+            .github/workflows/test-nginx-exact-head.yml \
+            .github/workflows/test-nginx.yml \
+            .github/workflows/test-traefik.yml \
             docs/build/compilers/README.md \
             docs/build/compilers/README.de.md \
             docs/build/compilers/overview.md \
@@ -1035,7 +1107,7 @@ jobs:
             docs/build/compilers/lighttpd.de.md
 
           python3 ci/tools/sync-framework-component-versions.py \
-            --verify-companions \
+            --verify-primary \
             --base "$MASTER_HEAD" \
             --staged \
             --repo-root "$GITHUB_WORKSPACE" \
@@ -1140,7 +1212,7 @@ jobs:
           - Proposed Framework gitlink: $CANDIDATE_SHA
           - Validation: the isolated read-only quick check passed.
           - Component pins: synchronized from the candidate's statically parsed ci/lib/common.sh and rechecked before staging.
-          - Changed paths: Framework gitlink, registered Parent component-pin contracts, and exactly two independently verified inventory companions.
+          - Changed paths: Framework gitlink and registered Parent product component-pin contracts; test/provisioning/broker sources remain Framework-owned.
           - Merge: no automatic merge.
           EOF
 

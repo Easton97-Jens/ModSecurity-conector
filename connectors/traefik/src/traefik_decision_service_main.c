@@ -33,17 +33,11 @@ static int print_decision(const char *uri) {
 }
 
 int main(int argc, char **argv) {
-    if (argc > 1 && strcmp(argv[1], "--self-test") == 0) {
-        int rc = msconnector_traefik_decision_service_self_test();
-        printf("traefik_decision_service_self_test=%s\n", rc == 0 ? "pass" : "fail");
-        return rc;
-    }
-
     if (argc > 2 && strcmp(argv[1], "--decide-uri") == 0) {
         return print_decision(argv[2]);
     }
 
-    printf("usage: %s --self-test | --decide-uri <uri>\n", argv[0]);
+    printf("usage: %s --decide-uri <uri>\n", argv[0]);
     printf("note: local decision-service starter only; no Traefik runtime or libmodsecurity execution.\n");
     return 2;
 }

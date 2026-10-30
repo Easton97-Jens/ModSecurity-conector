@@ -40,8 +40,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          submodules: false
+          submodules: true
           persist-credentials: false
+      - name: Validate the pinned Framework and explicit connector context
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+        with:
+          framework-revision: e52d7d44c81e997a296b7ffdfb33f12bf85455b9
       - name: Set up canonical Python
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -51,7 +55,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Install canonical SDK build prerequisites
         run: |
           set -euo pipefail
@@ -62,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          python3 ci/checks/analysis/prepare-sonar-native-ci.py sdk \
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/prepare-sonar-native-ci.py sdk \
             --root "$NATIVE_CI_ROOT" --revision "$ANALYZED_SHA" \
             --transfer "$RUNNER_TEMP/native-sdk-transfer"
           printf 'producer_root=%s\n' "$NATIVE_CI_ROOT" >> "$GITHUB_OUTPUT"
@@ -125,8 +129,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          submodules: false
+          submodules: true
           persist-credentials: false
+      - name: Validate the pinned Framework and explicit connector context
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+        with:
+          framework-revision: e52d7d44c81e997a296b7ffdfb33f12bf85455b9
       - name: Set up canonical Python
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -136,7 +144,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Set up canonical Go for native CGo producers
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -158,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          python3 ci/checks/analysis/prepare-sonar-native-ci.py analyze \
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/prepare-sonar-native-ci.py analyze \
             --root "$NATIVE_CI_ROOT" --revision "$ANALYZED_SHA" \
             --transfer "$RUNNER_TEMP/native-sdk-transfer" --target "$NATIVE_TARGET"
       - name: Analyze the actual target and wait for its terminal Quality Gate
@@ -177,5 +185,5 @@ jobs:
       - name: Report only the observed server task identity
         if: always()
         run: |
-          python3 ci/checks/analysis/prepare-sonar-native-ci.py report \
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/prepare-sonar-native-ci.py report \
             --root "$NATIVE_CI_ROOT" --revision "$ANALYZED_SHA" --target "$NATIVE_TARGET"

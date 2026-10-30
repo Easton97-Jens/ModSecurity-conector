@@ -37,13 +37,25 @@ jobs:
       CGO_ENABLED: '0'
       ACTIVE_GO_MODULE: ${{ matrix.module }}
     steps:
-      - name: Check out the selected candidate without credentials or submodules
+      - name: Check out the selected candidate with pinned Framework and without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: false
+          submodules: true
           persist-credentials: false
 
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Bind explicit pinned Framework test context
+        uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context
+        with:
+          framework-revision: ${{ steps.framework-gitlink.outputs.revision }}
       - name: Set up canonical Python for active selection
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -53,7 +65,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Set up the candidate's centrally selected Go toolchain
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -68,7 +80,7 @@ jobs:
           set -euo pipefail
           go mod tidy -diff
           go mod verify
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module "$ACTIVE_GO_MODULE"
+          python3 -P "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module "$ACTIVE_GO_MODULE"
           go vet -mod=readonly ./...
           go build -mod=readonly ./...
 
@@ -78,4 +90,4 @@ jobs:
           CGO_ENABLED: '1'
         run: |
           set -euo pipefail
-          python3 "$GITHUB_WORKSPACE/ci/tools/run-active-tests.py" --module "$ACTIVE_GO_MODULE" --race
+          python3 -P "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --module "$ACTIVE_GO_MODULE" --race

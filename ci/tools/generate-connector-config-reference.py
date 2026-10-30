@@ -8,10 +8,7 @@ import sys
 from pathlib import Path
 
 
-ROOT = next(parent for parent in Path(__file__).resolve().parents if (parent / "Makefile").is_file())
-sys.path.insert(0, str(ROOT / "ci" / "checks" / "documentation"))
-
-from connector_config_reference import generated_file_paths, rendered_files, write_rendered_files  # noqa: E402
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,7 +18,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = args.repo_root.resolve()
     try:
-        outputs = rendered_files(root)
+        from modsecurity_test_framework.connector_context import load_tool
+        renderer = load_tool("ci/checks/documentation/connector_config_reference.py")
+        outputs = renderer.rendered_files(root)
     except (OSError, ValueError) as error:
         print(f"connector configuration generation: FAIL: {error}", file=sys.stderr)
         return 2
@@ -31,9 +30,9 @@ def main(argv: list[str] | None = None) -> int:
             print("connector configuration generation: FAIL (stale generated files)", file=sys.stderr)
             print("\n".join(sorted(stale)), file=sys.stderr)
             return 1
-        print(f"connector configuration generation: PASS ({len(generated_file_paths(root))} generated files current)")
+        print(f"connector configuration generation: PASS ({len(renderer.generated_file_paths(root))} generated files current)")
         return 0
-    changed = write_rendered_files(root)
+    changed = renderer.write_rendered_files(root)
     for path in changed:
         print(path.relative_to(root).as_posix())
     print(f"connector configuration generation: wrote {len(changed)} changed files")

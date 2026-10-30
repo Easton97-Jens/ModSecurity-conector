@@ -17,78 +17,9 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - name: Setup python
-        id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Execute pinned Framework test orchestration
+        id: framework-ci
+        if: ${{ always() }}
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-nginx/nginx-structure@e52d7d44c81e997a296b7ffdfb33f12bf85455b9
         with:
-          python-version-file: .python-version
-          check-latest: false
-      - name: Verify Python interpreter contract
-        env:
-          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
-      - name: Install selected Apache native lifecycle prerequisites
-        run: |
-          set -eu
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
-      - name: Initialize runner temp paths
-        run: |
-          set -eu
-          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
-          {
-            echo "VERIFIED_RUN_ROOT=$verified_root"
-            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
-            echo "SOURCE_ROOT=$verified_root/src"
-            echo "BUILD_ROOT=$verified_root/build"
-            echo "TMP_ROOT=$verified_root/tmp"
-            echo "LOG_ROOT=$verified_root/logs"
-            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
-            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
-          } >> "$GITHUB_ENV"
-      - name: Check NGINX scaffold
-        run: |
-          set -eu
-          test -d modules/ModSecurity-test-Framework
-          test -f connectors/nginx/README.md
-          test -f connectors/nginx/TODO.md
-          test -f connectors/nginx/harness/nginx_smoke.conf
-          test -x connectors/nginx/harness/run_nginx_smoke.sh
-          test -f connectors/nginx/harness/README.md
-          test -f docs/connectors/nginx.md
-          test ! -d connectors/nginx/tests
-          test -f modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml
-          test -f modules/ModSecurity-test-Framework/docs/connector-integration.md
-          test -f config/testing/import-status.json
-          test -f docs/testing-and-evidence.md
-          grep -q 'Status:' connectors/nginx/TODO.md
-      - name: Collect host runtime preflight evidence
-        if: always()
-        env:
-          CONNECTOR: nginx
-          RUNTIME_LOCK: modules/ModSecurity-test-Framework/ci/provisioning/runtime-component-lock.json
-        run: |
-          set -u
-          python3 ci/runtime/common/collect_hostruntime_preflight_evidence.py \
-            --connector "$CONNECTOR" \
-            --runtime-lock "$RUNTIME_LOCK" \
-            --runner-temp "$RUNNER_TEMP" \
-            --binary-name nginx \
-            --profile nginx-h1 \
-            --config connectors/nginx/harness/nginx_smoke.conf \
-            --fixture modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml \
-            --markdown-code
-      - name: Upload sanitized host runtime evidence
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: nginx-hostruntime-evidence
-          path: ${{ runner.temp }}/hostruntime-evidence/nginx
-          if-no-files-found: error
-      - name: Syntax and dry-run checks
-        run: |
-          make setup-dev
-          python3 ci/tools/run-active-tests.py --group nginx
-          sh -n connectors/nginx/harness/run_nginx_smoke.sh
-          make -n check-active-inventory
-          make quick-check
+          framework-revision: e52d7d44c81e997a296b7ffdfb33f12bf85455b9

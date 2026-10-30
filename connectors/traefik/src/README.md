@@ -1,28 +1,34 @@
-# Traefik Source
+# Traefik source
 
 **Language:** English | [Deutsch](README.de.md)
 
-Status: minimal_runtime_smoke (forwardAuth request path only)
-Runtime status: broader connector behavior not verified
+- `traefik_build_starter.c` provides compile-time metadata.
+- `traefik_decision_service.h` / `.c` implement the local decision-service
+  starter; `traefik_decision_service_main.c` provides `--decide-uri`.
+- `traefik_modsecurity_mapper.c` adapts the Common request/response contracts.
+- `traefik_forwardauth_service_main.c` selects the compatibility `forwardAuth`
+  profile and the shared HTTP authorization runtime.
+- `traefik_engine_service.c` implements the separate private-UDS native engine
+  service with `--check-config --config PATH` and
+  `--serve --config PATH --socket PATH` commands.
 
-This directory contains:
+Product binaries no longer accept `--self-test`. Decision, engine protocol and
+listener-ownership regression definitions now live in the pinned Framework
+under `connector_native_tests/connectors/traefik/src/`. Fault-injection hook
+state is Framework-owned; production compilation uses neutral operation seams.
 
-- `traefik_build_starter.c`: compile-time metadata smoke source.
-- `traefik_decision_service.h`: local decision-service starter declarations.
-- `traefik_decision_service.c`: local in-memory allow/block decision logic.
-- `traefik_decision_service_main.c`: CLI/self-test entry point.
-- `traefik_modsecurity_mapper.c`: thin C17 functions delegating to the Common
-  generic request/response mapper contracts.
-- `traefik_forwardauth_service_main.c`: connector host profile and entry point
-  for the shared HTTP authorization service runtime.
+From the Connector root run
+`make -C connectors/traefik self-test-decision-service ON_DEMAND_TESTS=1` or
+`make -C connectors/traefik test-engine-service ON_DEMAND_TESTS=1`.
+The engine test additionally requires an explicit short external
+`TRAEFIK_ENGINE_SOCKET_TEST_PARENT`; the Framework allocates a private child.
+Native middleware tests run through `framework-go-test` with a read-only Go
+overlay, preserving package-private assertions without adding tests to product
+packages. Default Go selection remains inventory-limited; the full specialist
+module is selected only with explicit `ON_DEMAND_TESTS=1`.
 
-The selected compatibility adapter path is an external `forwardAuth` service.
-The separate `../native_middleware/` Go module is selected only by the
-non-promoted full-lifecycle local-plugin host probe. It has a pass-through
-engine seam, not a cgo bridge or rule-evaluation claim. Upstream response
-inspection is explicitly unsupported by the selected request-phase protocol,
-even though the response mapper is linked for Common contract checking.
-
-Production source may be added only with repository-backed origin, license,
-source-map, metadata, build, and validation evidence. Do not infer Traefik
-adapter behavior from other connectors.
+Harnesses, fixtures and runtime smoke scripts belong to Framework
+`connector_suite/adapters/traefik/`. Product services and builds remain in the
+Connector and do not load Framework code. Native middleware and compatibility
+`forwardAuth` remain separate evidence profiles. A build or local test does not
+promote hosted request/response support.

@@ -5,7 +5,7 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
-RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-$REPO_ROOT/modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf}}
+RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-}}
 OUTPUT_CONFIG=${OUTPUT_CONFIG:-$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc-runtime.conf}
 EVENT_PATH=${EVENT_PATH:-}
 
@@ -26,6 +26,8 @@ absolute_path() {
         *) printf '%s/%s\n' "$(pwd)" "$input_path" ;;
     esac
 }
+
+: "${RULES_FILE:?explicit product RULES_FILE or MSCONNECTOR_RULES_FILE is required}"
 
 RULES_FILE=$(absolute_existing_file "$RULES_FILE") || {
     echo "envoy_ext_proc_runtime_config: rules file is not available: $RULES_FILE" >&2

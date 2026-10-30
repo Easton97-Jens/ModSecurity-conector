@@ -222,17 +222,10 @@ int haproxy_modsecurity_phase1_header_eval(
     const char *host,
     const char *test_header_value,
     haproxy_modsecurity_decision *decision);
-int haproxy_modsecurity_phase1_header_self_test(
-    haproxy_modsecurity_decision *decision);
-int haproxy_modsecurity_request_body_self_test(
-    haproxy_modsecurity_decision *decision);
 int haproxy_modsecurity_crs_sqli_eval(
     const char *method,
     const char *uri,
     const char *host,
-    const char *crs_preamble_file,
-    haproxy_modsecurity_decision *decision);
-int haproxy_modsecurity_crs_sqli_self_test(
     const char *crs_preamble_file,
     haproxy_modsecurity_decision *decision);
 

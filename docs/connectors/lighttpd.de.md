@@ -133,7 +133,7 @@ Response-Trunkierung, vollständiges CRS-Verhalten oder Produktionshärtung.
 ## No-CRS-Fixture-Isolation
 
 Die No-CRS-Baseline des gepatchten Lifecycles verwendet den vertrauenswürdigen
-privaten Namespace-Runner aus dem [Harness-Guide](../../connectors/lighttpd/harness/README.de.md).
+privaten Namespace-Runner aus dem [Harness-Guide](../../modules/ModSecurity-test-Framework/connector_suite/adapters/lighttpd/harness/README.de.md).
 Root-eigene `/usr/bin/unshare`, das feste `/usr/bin/dash` und
 `/usr/bin/mount` und danach `/usr/bin/bwrap` errichten die User-, Mount- und
 PID-Grenze. Das Shell-Setup macht die Propagation privat und mountet ein

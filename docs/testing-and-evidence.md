@@ -11,7 +11,7 @@ selected HTTP/1.1 contracts and retained specialist interfaces; it does not
 establish current readiness, production approval, CRS completeness, a complete
 matrix, HTTP/2, HTTP/3 or strict acceptance of every connector.
 
-The single [active inventory](../config/testing/active-cases.json) selects
+The single [active inventory](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json) selects
 normal local, CI and scheduled behavior. The closed five-profile
 <code>all-connectors-no-crs.yml</code> baseline selects Apache, HAProxy, Envoy,
 Traefik and lighttpd; NGINX has its separate protected exact-head path. Selected
@@ -20,11 +20,11 @@ aggregate nor a successful sibling profile supplies an unobserved host result.
 
 ## Active cases, admission and archived specialists
 
-All automatic functional paths share **100 expanded standard cases / 80 executions** in the schema-3 [inventory](../config/testing/active-cases.json). This includes harness/validator controls and the existing eight offline I12 cases. Connector E2E remains 26. No historical I12 host/matrix/oracle campaign or new qualification is opened.
+All automatic functional paths share **100 expanded standard cases / 80 executions** in the schema-4 [inventory](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json). This includes harness/validator controls and the existing eight offline I12 cases. Connector E2E remains 26. No historical I12 host/matrix/oracle campaign or new qualification is opened.
 
-The inventory also retains **1893 on-demand cases / 839 executions**, excluded before default group/module/case/execution filtering and Python discovery. They are not an automatic budget exception. Explicit `--on-demand` plus a group/case/execution selector is required for these runner entries. Module-wide specialist interfaces retain `ON_DEMAND_TESTS=1` for a separately requested assessment. Useful sources and original evidence remain preserved; omission from standards is not a PASS or proof of retained automatic coverage.
+The preserved baseline contains **1893 on-demand cases / 839 executions**; new migration regressions remain separately on demand. All on-demand entries are excluded before default group/module/case/execution filtering and Python discovery. They are not an automatic budget exception. Explicit `--on-demand` plus a group/case/execution selector is required for these runner entries. Module-wide specialist interfaces retain `ON_DEMAND_TESTS=1` for a separately requested assessment. Useful sources and original evidence remain preserved; omission from standards is not a PASS or proof of retained automatic coverage.
 
-Full source-digest, schema, duplicate/reference, exact-selector and expanded-case validation remains before execution. The shared source pool, 2 MiB inventory limit and Python process/network guard remain. A standard inventory above 100 is rejected rather than truncated. The generated [archive](../reports/testing/test-selection-archive.generated.json) now classifies only the standard section as automatically selected. Its definition counts are not expanded case counts.
+Full source-digest, schema, duplicate/reference, exact-selector and expanded-case validation remains before execution. The shared source pool, 2 MiB inventory limit and Python process/network guard remain. A standard inventory above 100 is rejected rather than truncated. The generated [archive](../modules/ModSecurity-test-Framework/connector_suite/reports/testing/test-selection-archive.generated.json) now classifies only the standard section as automatically selected. Its definition counts are not expanded case counts.
 
 Sonar retains the authoritative source/scanner/security pipeline and real Quality Gate wait. The earlier separate automatic Python/Go/Common coverage catalogs are now explicitly on demand and absent from automatic workflows. This closes the shared-budget bypass; tests and their assertions remain in source. Coverage was later removed from security and merge acceptance by the user. `sonar.coverage.exclusions=**` changes coverage applicability only; security, reliability, maintainability and duplication analysis remain.
 
@@ -59,12 +59,17 @@ mechanism.
 
 ## Cases, rules, and protocol boundaries
 
-The Framework owns reusable YAML case definitions, schemas and normalization.
-Parent owns automatic case admission, host integration and selected
-rule/configuration inputs; Framework selections reached by Parent must match
-the same active inventory. Repository-owned No-CRS rules and IDs are separate
-from OWASP CRS. A prepared CRS input or a source-only protocol path does not
-verify CRS behavior, HTTP/2, or HTTP/3.
+The Framework owns all tests and test infrastructure: YAML cases,
+Common/connector tests, native/Go tests, host test adapters, fixtures,
+admission, provisioning, orchestration, evidence processing and report
+generators. Parent owns productive code/configuration, build and delivery,
+and small pinned Make/CI entrypoints. Test rules belong to Framework;
+productive rule inputs remain explicit product inputs.
+[The test interface](test-ownership-migration.md) separates `TEST_ROOT`,
+`CONNECTOR_ROOT`, exact revision, profile and external output. Schema 4 pins
+Framework test sources and snapshots selected product sources separately.
+Repository-owned No-CRS rules and IDs remain separate from OWASP CRS.
+Preparation or source code does not establish CRS, HTTP/2 or HTTP/3 behavior.
 
 | Topic | Required evidence |
 | --- | --- |
@@ -99,7 +104,7 @@ normal active selection. Their historical receipts keep their original revision;
 the active callback On/Off cases do not rerun or qualify these negatives.
 
 The closed `invalid_boolean` and `invalid_size` configuration contracts use
-`ci/runtime/lifecycle/run-nginx-configtest.py`. An actual `nginx -e stderr -t`
+`connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-nginx-configtest.py`. An actual `nginx -e stderr -t`
 must reject `modsecurity maybe;` with exit 1 and both `"modsecurity" directive`
 and `invalid boolean value` diagnostics. The Required ID `invalid_size` is
 retained but explicitly migrated to removed-API rejection: the formerly valid

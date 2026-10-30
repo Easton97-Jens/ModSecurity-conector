@@ -51,8 +51,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          submodules: false
+          submodules: true
           persist-credentials: false
+      - name: Validate the pinned Framework and explicit connector context
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+        with:
+          framework-revision: e52d7d44c81e997a296b7ffdfb33f12bf85455b9
       - name: Keep analysis output outside the checkout
         shell: bash
         run: |
@@ -71,15 +75,15 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate Parent analysis scope
         run: |
           set -eu
-          python3 -m venv "$RUNNER_TEMP/sonar-python"
+          python3 -P -m venv "$RUNNER_TEMP/sonar-python"
           export PATH="$RUNNER_TEMP/sonar-python/bin:$PATH"
           export PIP_REQUIRE_VIRTUALENV=true
-          python3 ci/tools/install-ci-dependencies.py --build-root "$RUNNER_TEMP"
-          "$RUNNER_TEMP/sonar-python/bin/python" ci/checks/analysis/check-sonar-scope.py
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --build-root "$RUNNER_TEMP"
+          "$RUNNER_TEMP/sonar-python/bin/python" modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/check-sonar-scope.py
       - name: Set up canonical Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -104,7 +108,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          includes=$("$RUNNER_TEMP/sonar-python/bin/python" ci/checks/analysis/prepare-sonar-native-context.py \
+          includes=$("$RUNNER_TEMP/sonar-python/bin/python" modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/prepare-sonar-native-context.py \
             --output-root "$RUNNER_TEMP/sonar-native-context")
           printf 'includes=%s\n' "$includes" >> "$GITHUB_OUTPUT"
       - name: Analyze exact revision and await Quality Gate

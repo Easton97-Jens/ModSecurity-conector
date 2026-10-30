@@ -56,7 +56,7 @@ C++23-Override.
 
 ## Build- und Quellidentität
 
-[`prepare-sonar-native-ci.py`](../ci/checks/analysis/prepare-sonar-native-ci.py)
+[`prepare-sonar-native-ci.py`](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/analysis/prepare-sonar-native-ci.py)
 prüft die exakte saubere Checkout-Revision. Es initialisiert ausschließlich das
 direkt gepinnte Framework, baut das kanonische gemeinsame ModSecurity-SDK
 `3.0.17` und überträgt dessen Prefix samt Expat-Abhängigkeit in einem Archiv

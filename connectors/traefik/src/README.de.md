@@ -1,28 +1,38 @@
-# Traefik-Quelle
+# Traefik-Quellcode
 
 **Sprache:** [English](README.md) | Deutsch
 
-Status: minimal_runtime_smoke (nur ForwardAuth-Anfragepfad)
-Laufzeitstatus: Verhalten des breiteren Connectors nicht überprüft
+- `traefik_build_starter.c` bietet Metadaten zur Kompilierungszeit.
+- `traefik_decision_service.h` / `.c` implementieren den lokalen
+  Decision-Service-Starter; `traefik_decision_service_main.c` bietet
+  `--decide-uri` an.
+- `traefik_modsecurity_mapper.c` adaptiert die Request-/Response-Verträge von
+  Common.
+- `traefik_forwardauth_service_main.c` wählt das Kompatibilitätsprofil
+  `forwardAuth` und die gemeinsame HTTP-Autorisierungslaufzeit aus.
+- `traefik_engine_service.c` implementiert den separaten nativen Engine-Dienst
+  über eine private UDS mit den Befehlen `--check-config --config PATH` und
+  `--serve --config PATH --socket PATH`.
 
-Dieses Verzeichnis enthält:
+Produktprogramme akzeptieren `--self-test` nicht mehr. Regressionen für
+Entscheidungen, Engine-Protokoll und Listener-Eigentum liegen nun im gepinnten
+Framework unter `connector_native_tests/connectors/traefik/src/`. Der Zustand der
+Fehlerinjektions-Hooks gehört zum Framework; Produktkompilierung verwendet
+neutrale Operationsschnittstellen.
 
-- `traefik_build_starter.c`: Metadaten-Smoke-Quelle zur Kompilierungszeit.
-- `traefik_decision_service.h`: Starter-Deklarationen für lokale Entscheidungsdienste.
-- `traefik_decision_service.c`: Lokale speicherinterne Entscheidungslogik zum Zulassen/Blockieren.
-- `traefik_decision_service_main.c`: CLI/Selbsttest-Einstiegspunkt.
-- `traefik_modsecurity_mapper.c`: Thin C17-Funktionen, die an den Common delegieren
-  generische Request/Response-Mapper-Verträge.
-- `traefik_forwardauth_service_main.c`: Connector-Hostprofil und Einstiegspunkt
-  für die Laufzeit des gemeinsam genutzten HTTP-Autorisierungsdiensts.
+Aus dem Connector-Wurzelverzeichnis erfolgen die Aufrufe mit
+`make -C connectors/traefik self-test-decision-service ON_DEMAND_TESTS=1` oder
+`make -C connectors/traefik test-engine-service ON_DEMAND_TESTS=1`.
+Der Engine-Test verlangt zusätzlich ein explizites kurzes externes
+`TRAEFIK_ENGINE_SOCKET_TEST_PARENT`; das Framework erzeugt darin ein privates
+Unterverzeichnis. Native Middleware-Tests laufen über `framework-go-test` mit
+einem schreibgeschützten Go-Overlay. Assertions mit Zugriff auf private
+Paketsymbole bleiben erhalten, ohne Tests in Produktpakete einzufügen. Die
+Standardauswahl bleibt inventarbegrenzt; das vollständige Spezialmodul wird nur
+mit explizitem `ON_DEMAND_TESTS=1` ausgewählt.
 
-Der ausgewählte Kompatibilitätsadapterpfad ist ein externer `forwardAuth`-Dienst.
-Das separate `../native_middleware/` Go-Modul wird nur von ausgewählt
-nicht beworbenes lokales Plugin-Host-Probe mit vollem Lebenszyklus. Es verfügt über eine Durchreiche
-Motornaht, keine CGO-Brücke oder Regelbewertungsanspruch. Upstream-Antwort
-Die Inspektion wird vom ausgewählten Anforderungsphasenprotokoll ausdrücklich nicht unterstützt.
-obwohl der Antwort-Mapper für die allgemeine Vertragsprüfung verknüpft ist.
-
-Die Produktionsquelle darf nur mit Repository-gestütztem Ursprung, Lizenz usw. hinzugefügt werden.
-Quellzuordnung, Metadaten, Build- und Validierungsnachweise. Schließen Sie nicht auf Traefik
-Adapterverhalten von anderen Anschlüssen.
+Harnesses, Fixtures und Runtime-Smoke-Skripte gehören zum Framework unter
+`connector_suite/adapters/traefik/`. Produktdienste und Builds bleiben im
+Connector und laden keinen Framework-Code. Native Middleware und das
+Kompatibilitätsprofil `forwardAuth` bleiben getrennte Nachweisprofile. Ein Build
+oder lokaler Test promotet keine Request-/Response-Unterstützung im Host.

@@ -86,7 +86,7 @@ Befehlsreferenz; die verlinkten Guides beschreiben Voraussetzungen und Ausgaben.
 | Einen aufgezeichneten Lauf einordnen | [Tests und Nachweise](docs/testing-and-evidence.de.md) | Exaktes Profil, Regeln, Run-ID, Artefakte und Einschränkungen |
 
 Normale lokale und CI-Tests verwenden eine gemeinsame maßgebliche Auswahl:
-[config/testing/active-cases.json](config/testing/active-cases.json). Die
+[config/testing/active-cases.json](modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json). Die
 Kerngrenze von 100 Fällen und die getrennt autorisierte geschützte
 Offline-Python-Ausnahme werden getrennt gezählt; die Ausnahme ergänzt keine
 Connector-E2E-Fälle. Für Fallzahlen das Inventar und dessen Prüfausgabe

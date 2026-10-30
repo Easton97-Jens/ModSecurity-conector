@@ -6,16 +6,30 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from version_updater_common import (
-    MetadataError,
-    ReleaseEndpoint,
-    ReleaseMetadataSource,
-    UpdaterRuntime,
-    VersionError,
-    _UNSET,
-    _decode_metadata as _decode_metadata,
-    _parse_content_length as _parse_content_length,
-)
+if __package__:
+    from .version_updater_common import (
+        MetadataError,
+        ReleaseEndpoint,
+        ReleaseMetadataSource,
+        UpdaterRuntime,
+        VersionError,
+        _UNSET,
+        _decode_metadata as _decode_metadata,
+        _parse_content_length as _parse_content_length,
+    )
+else:
+    import runpy
+    from pathlib import Path
+    _common = runpy.run_path(str(Path(__file__).with_name("version_updater_common.py")))
+    MetadataError = _common["MetadataError"]
+    ReleaseEndpoint = _common["ReleaseEndpoint"]
+    ReleaseMetadataSource = _common["ReleaseMetadataSource"]
+    UpdaterRuntime = _common["UpdaterRuntime"]
+    VersionError = _common["VersionError"]
+    _UNSET = _common["_UNSET"]
+    _decode_metadata = _common["_decode_metadata"]
+    _parse_content_length = _common["_parse_content_length"]
+
 
 
 CANONICAL_RELEASE_API_URL = "https://go.dev/dl/?mode=json"

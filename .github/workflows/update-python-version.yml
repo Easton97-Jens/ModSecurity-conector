@@ -34,8 +34,22 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
-          submodules: false
+          submodules: true
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context
+        with:
+          framework-revision: ${{ steps.framework-gitlink.outputs.revision }}
 
       - name: Set up canonical Python
         id: setup-python
@@ -47,7 +61,7 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Resolve latest stable Python 3.15 patch
         id: resolve
@@ -109,8 +123,22 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
-          submodules: false
+          submodules: true
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context
+        with:
+          framework-revision: ${{ steps.framework-gitlink.outputs.revision }}
 
       - name: Set up candidate Python
         id: setup-python
@@ -123,12 +151,12 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
           EXPECTED_VERSION: ${{ needs.resolve-python-patch.outputs.latest_version }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --expected-version "$EXPECTED_VERSION" --expected-python "$EXPECTED_PYTHON"
 
       - name: Install hash-locked CI test dependency
         run: |
           set -euo pipefail
-          python3 ci/tools/install-ci-dependencies.py --ci-toolcache --expected-version "$CANDIDATE_VERSION"
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache --expected-version "$CANDIDATE_VERSION"
           python3 -m pip check
 
       - name: Re-resolve and validate candidate metadata
@@ -140,8 +168,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m compileall -q ci scripts tests
-          python3 ci/checks/common/check-python-version-contract.py --json
-          python3 ci/tools/run-active-tests.py --group supply-chain
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-version-contract.py --json
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group supply-chain
           make check-ci-security-contract
           git diff --check
 
@@ -176,9 +204,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
-          submodules: false
+          submodules: true
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Bind explicit pinned Framework test context
+        uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context
+        with:
+          framework-revision: ${{ steps.framework-gitlink.outputs.revision }}
 
       - name: Set up canonical Python
         id: setup-python
@@ -190,12 +232,12 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Install hash-locked CI test dependency
         run: |
           set -euo pipefail
-          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache
           python3 -m pip check
 
       - name: Verify publisher GitHub App configuration
@@ -347,12 +389,11 @@ jobs:
                 exit 1
               fi
               branch_paths="$(git diff --name-only "$merge_base" "origin/$UPDATE_BRANCH")"
-              if [ "$branch_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ] && \
-                 [ "$branch_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json)" ]; then
-                echo "::error::existing maintenance branch escapes the Python lock/view and verified hash-only companions" >&2
+              if [ "$branch_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ]; then
+                echo "::error::existing maintenance branch escapes the Python lock/view product-primary allowlist" >&2
                 exit 1
               fi
-              python3 ci/lib/active_inventory_updates.py verify --kind python --base "$merge_base" --head "origin/$UPDATE_BRANCH"
+              python3 ci/lib/maintenance_changes.py verify --kind python --base "$merge_base" --head "origin/$UPDATE_BRANCH"
               git diff --check "$merge_base" "origin/$UPDATE_BRANCH"
               git switch -C "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
               git reset --hard "origin/$DEFAULT_BRANCH"
@@ -386,15 +427,14 @@ jobs:
           set -euo pipefail
           python3 scripts/update-python-version.py --check --expected-version "$CANDIDATE_VERSION" --json
           python3 scripts/update-python-version.py --update --expected-version "$CANDIDATE_VERSION" --json
-          python3 ci/lib/active_inventory_updates.py verify --kind python --base HEAD
+          python3 ci/lib/maintenance_changes.py verify --kind python --base HEAD
           if git diff --quiet -- .python-version; then
             echo "::error::candidate update produced no .python-version change" >&2
             exit 1
           fi
           changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH" --)"
-          if [ "$changed_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ] && \
-             [ "$changed_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json)" ]; then
-            echo "::error::updater escapes the Python lock/view and verified hash-only companions" >&2
+          if [ "$changed_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ]; then
+            echo "::error::updater escapes the Python lock/view product-primary allowlist" >&2
             exit 1
           fi
           git diff --check "origin/$DEFAULT_BRANCH" --
@@ -414,26 +454,24 @@ jobs:
             exit 1
           fi
           python3 ci/tools/sync-project-versions.py --verify-update python
-          python3 ci/lib/active_inventory_updates.py verify --kind python --base HEAD
-          git add -- .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json
-          python3 ci/lib/active_inventory_updates.py verify --kind python --base HEAD --staged
+          python3 ci/lib/maintenance_changes.py verify --kind python --base HEAD
+          git add -- .python-version ci/tooling/project-versions.lock.json
+          python3 ci/lib/maintenance_changes.py verify --kind python --base HEAD --staged
           staged_paths="$(git diff --cached --name-only)"
-          if [ "$staged_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ] && \
-             [ "$staged_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json config/testing/active-cases.json reports/testing/test-selection-archive.generated.json)" ]; then
-            echo "::error::staging escapes the Python lock/view and verified hash-only companions" >&2
+          if [ "$staged_paths" != "$(printf '%s\n' .python-version ci/tooling/project-versions.lock.json)" ]; then
+            echo "::error::staging escapes the Python lock/view product-primary allowlist" >&2
             exit 1
           fi
           if ! git diff --cached --raw --no-abbrev --no-renames | awk '
             $1 == ":100644" && $2 == "100644" && $5 == "M" &&
-            ($6 == ".python-version" || $6 == "ci/tooling/project-versions.lock.json" ||
-             $6 == "config/testing/active-cases.json" || $6 == "reports/testing/test-selection-archive.generated.json") {
+            ($6 == ".python-version" || $6 == "ci/tooling/project-versions.lock.json") {
               records += 1
               next
             }
             NF { invalid = 1 }
-            END { exit !((records == 2 || records == 4) && !invalid) }
+            END { exit !(records == 2 && !invalid) }
           '; then
-            echo "::error::Python candidate requires two regular pin files, optionally with both verified regular companions" >&2
+            echo "::error::Python candidate requires exactly two regular product pin files" >&2
             exit 1
           fi
           git diff --cached --check
@@ -520,7 +558,7 @@ jobs:
               `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
-              "- Changed files: .python-version and ci/tooling/project-versions.lock.json, plus exactly derived inventory/archive hash companions when needed; Python minor remains 3.15.",
+              "- Changed files: .python-version and ci/tooling/project-versions.lock.json; test inventory and archive remain Framework-owned; Python minor remains 3.15.",
               "- Manual review and manual merge are required. Automatic merge remains disabled.",
               "",
               "## Deutsch",
@@ -592,7 +630,7 @@ jobs:
               `- Validation workflow and run: validate-python-patch (${process.env.WORKFLOW_RUN_URL})`,
               `- Framework architecture reference: Easton97-Jens/ModSecurity-test-Framework@${process.env.FRAMEWORK_REFERENCE_SHA} (.github/workflows/check-python-version.yml)`,
               `- Maintenance branch: ${process.env.UPDATE_BRANCH}; base: ${process.env.DEFAULT_BRANCH}; same-repository Draft PR only`,
-              "- Changed files: .python-version and ci/tooling/project-versions.lock.json, plus exactly derived inventory/archive hash companions when needed; Python minor remains 3.15.",
+              "- Changed files: .python-version and ci/tooling/project-versions.lock.json; test inventory and archive remain Framework-owned; Python minor remains 3.15.",
               "- Manual review and manual merge are required. Automatic merge remains disabled.",
               "",
               "## Deutsch",

@@ -103,7 +103,7 @@ mode; it does not replace the setup interpreter or change `GITHUB_PATH`.
 
 ### Current Parent workflow/job inventory
 
-The closed inventory in [the Python workflow checker](../../ci/checks/common/check-python-version-contract.py)
+The closed inventory in [the Python workflow checker](../../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-version-contract.py)
 contains 41 normal jobs, one candidate job, two immutable protected calls, one
 local reusable caller and one reviewed system-Python namespace job. Normal jobs
 select `.python-version` and verify the exact setup interpreter before Python

@@ -9,7 +9,7 @@ das Projekt läuft**. Drei Grenzen sind dabei wichtig:
 
 - der Host besitzt seine nativen Hooks, Filter, Transportdetails und Objekt-Lebensdauer;
 - `common/` besitzt connector-neutrale Verträge und wiederverwendbares Runtime-Verhalten;
-- das Framework besitzt wiederverwendbare Testfälle, Schemas, Runner und Normalizer.
+- das Framework besitzt sämtliche Tests, Fixtures, Testadapter, Auswahl, Orchestrierung, Nachweiswerkzeuge und Reports.
 
 P1/P2 sind Request-Header/-Body und P3/P4 Response-Header/-Body. Eine Route
 kann nur Phasen beanspruchen, die ihr ausgewählter Host bzw. ihr Profil
@@ -31,8 +31,8 @@ vollständige Matrix und kein Strict-Verhalten für alle Connectoren.
 | Ebene | Besitzt | Besitzt nicht |
 | --- | --- | --- |
 | <code>common/</code> | Connector-neutrale C-first-Typen, Parser, Limits, Eventformen und Hilfsimplementierungen | Host-SDK-Objekte, Hooks, Filter, Host-Konfigurationsregistrierung oder Transaktionslebensdauer |
-| <code>connectors/&lt;name&gt;/</code> | Hostintegration, Quellattribution, Build-Kleber, Hostkonfiguration, Request-/Response-Mapping und hostspezifische Tests | Einen zweiten generischen Common-Runtime-Vertrag |
-| Framework-Submodul | Wiederverwendbare Cases, Schemata, Katalogauswahl, Normalisierung und Framework-eigene Runner | Connector-Quellcode, Hostintegration oder einen Connector-PASS ohne Laufzeitnachweis |
+| <code>connectors/&lt;name&gt;/</code> | Hostintegration, Quellattribution, Build-Kleber, Hostkonfiguration, Request-/Response-Mapping, Produkt-Build und Auslieferung | Einen zweiten generischen Common-Runtime-Vertrag |
+| Framework-Submodul | Sämtliche Common-/Connector-Tests, Fixtures, Testadapter, Inventar, Provisionierung, Orchestrierung, Normalisierung, Validierung und Reports | Connector-Quellcode, Hostintegration oder einen Connector-PASS ohne Laufzeitnachweis |
 | Laufzeitnachweis | Ergebnisse, Events, effektive Konfiguration und Provenienz eines ausgewählten Laufs | Eine allgemeine Zusicherung außerhalb dieses Profils, Regelwerks und der Run-ID |
 
 Eingecheckte Quellen und Buildskripte definieren Implementierungsdetails. Dieses

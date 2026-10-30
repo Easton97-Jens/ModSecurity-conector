@@ -9,7 +9,7 @@ the project**. Keep three boundaries in mind:
 
 - the host owns its native hooks, filters, transport details, and object lifetime;
 - `common/` owns connector-neutral contracts and reusable runtime behavior;
-- the Framework owns reusable test cases, schemas, runners, and normalizers.
+- the Framework owns all tests, fixtures, test adapters, selection, orchestration, evidence tooling and reports.
 
 P1/P2 are request headers/body and P3/P4 are response headers/body. A route can
 only claim phases that its selected host/profile actually exposes. Build output,
@@ -26,13 +26,15 @@ It does not claim production readiness, production hardening, CRS verification,
 complete HTTP/2 or HTTP/3 coverage, a complete matrix, or strict behavior for
 every connector.
 
+See [test ownership and the Framework interface](test-ownership-migration.md) for the explicit source and invocation contracts.
+
 ## Repository ownership
 
 | Layer | Owns | Does not own |
 | --- | --- | --- |
 | <code>common/</code> | Connector-neutral C-first types, parsers, limits, event shapes, and helper implementations | Host SDK objects, hooks, filters, host configuration registration, or transaction lifetime |
-| <code>connectors/&lt;name&gt;/</code> | Host integration, source attribution, build glue, host configuration, request/response mapping, and host-specific tests | A second generic Common runtime contract |
-| Framework submodule | Reusable cases, schemas, catalog selection, normalization, and Framework-owned runners | Connector source, host integration, or a connector PASS claim without run evidence |
+| <code>connectors/&lt;name&gt;/</code> | Host integration, source attribution, build glue, host configuration, request/response mapping, product build and delivery | A second generic Common runtime contract |
+| Framework submodule | All Common/connector tests, fixtures, test adapters, inventory, provisioning, orchestration, normalization, validation and reports | Connector source, host integration, or a connector PASS claim without run evidence |
 | Runtime evidence | One selected run's results, events, effective configuration, and provenance | A general assurance beyond that profile, ruleset, and run ID |
 
 The checked-in source and build scripts define implementation details. This

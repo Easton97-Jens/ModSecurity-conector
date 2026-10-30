@@ -1,27 +1,30 @@
-# Envoy-Quelle
+# Envoy-Quellcode
 
 **Sprache:** [English](README.md) | Deutsch
 
-Status: ext_authz-Connector-Quelle; `minimal_runtime_smoke` / `connector-gap`
-Laufzeitstatus: Nur gezielter Anforderungsheader 200/403-Pfad
+Der C-Dienst `ext_authz` und der separate Go-Dienst `ext_proc` sind verschiedene
+Connector-Profile. Quellcode und Kompilierung beweisen keinen Lauf im Host.
 
-Dieses Verzeichnis enthält die Repository-lokale Quelle für den Envoy HTTP `ext_authz`
-Service und der ältere Bridge-Selbsttest:
+- `envoy_ext_authz_service_main.c` wählt das Connector-eigene Hostprofil und den
+  gemeinsamen HTTP-Autorisierungsdienst in `common/runtime/` aus.
+- `envoy_modsecurity_mapper.h` / `.c` adaptieren Request-, Response- und
+  Konfigurationsmetadaten an die Mapper-Verträge von Common.
+- `envoy_bridge.h` / `.c` behalten das historische lokale Entscheidungsmodell.
+- `envoy_bridge_main.c` bietet den Starter-Metadatenbefehl `--describe` an.
 
-- `envoy_ext_authz_service_main.c`: Hostprofil im Besitz des Connectors und gemeinsam genutzt
-  Einstiegspunkt für den HTTP-Autorisierungsdienst.
-- `envoy_modsecurity_mapper.h` / `.c`: Thin C17-Anfrage, Antwort und Konfiguration
-  Mapper-Funktionen über den Common-Generic-Mapper.
-- `envoy_bridge.h`: Bridge-Entscheidungs-API über konnektorneutrale Anforderungsdaten.
-- `envoy_bridge.c`: deterministisches Zulassungs-/Blockierungsentscheidungsmodell für lokal
-  Selbsttests.
-- `envoy_bridge_main.c`: CLI-Einstiegspunkt für `--self-test`.
+Der Bridge-Starter ruft weder Envoy noch libmodsecurity auf. Seine
+Regressionsassertions gehören nun zum gepinnten Framework unter
+`connector_native_tests/connectors/envoy/src/envoy_bridge.inc`. Aus dem
+Connector-Wurzelverzeichnis werden sie mit
+`make -C connectors/envoy self-test ON_DEMAND_TESTS=1` gestartet.
+Das Starterprogramm akzeptiert `--self-test` nicht mehr. Dies erweitert weder die
+Standardauswahl noch belegt es Enforcement im Host.
 
-Der Dienst wählt das externe HTTP-Autorisierungsmodell von Envoy ohne Import aus
-Envoy SDK-Typen. Es delegiert Konfiguration, libmodsecurity-Lebenszyklus, begrenzt
-HTTP-Analyse, Transaktionsverarbeitung, Entscheidungen und Ereignisausgabe an
-`common/runtime/`. Der Response Mapper ist zur Vertragsvollständigkeit verlinkt, aber
-`ext_authz` bleibt nur in der Anforderungsphase.
-
-Der ältere Bridge-Starter ruft keine Envoy- oder libmodsecurity-APIs auf und bleibt bestehen
-Nur Selbsttest. Weder das Vorhandensein der Quelle noch ihr Selbsttest sind ein Laufzeitbeweis.
+Produktive Launcher bleiben unter `../scripts/` im Connector:
+`serve_envoy_connector.sh` und `serve_envoy_ext_proc.sh`. Konfigurations- und
+Serve-Befehle verlangen ein explizites produktives `RULES_FILE` oder
+`MSCONNECTOR_RULES_FILE`; `serve-envoy-ext-proc` akzeptiert auch
+`EXT_PROC_RULES_FILE`. Die Produktkonfiguration verwendet keine implizite
+Framework-Fixture. Benannte Smoke-Targets wählen ihre Framework-Regeln explizit;
+ihre Harnesses liegen im Framework unter `connector_suite/adapters/envoy/`.
+Testausgaben müssen außerhalb der Quellverzeichnisse liegen.
