@@ -40545,7 +40545,7 @@
     },
     {
       "path": "connectors/apache/harness/run_apache_smoke.sh",
-      "sha256": "efd3e6d4cea9090e899dace4f2c40bb64b6eeca55e41b219ad9baef71a02ee78"
+      "sha256": "988bac14bb66b9afac3161914c37df6f8db622d903b47e396c1384be863ea576"
     },
     {
       "path": "connectors/apache/src/mod_security3.c",

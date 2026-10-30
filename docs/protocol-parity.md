@@ -7,7 +7,27 @@ evidence for HTTP/2 and HTTP/3 lifecycle parity across the six selected
 connectors. It is not a completion claim. HTTP/1.1 remains the regression
 baseline.
 
-## Update on 2026-10-28: current master and CI remediation
+## Update on 2026-10-30: integration integrity
+
+The saved candidate `1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01`
+completed all 59 executed hosted checks successfully, including Sonar; five
+checks were skipped. This increment integrates current master
+`ec18f9e92286379a2410e917f76e6a5502675804` through a normal merge.
+Its only conflict is the generated specialist archive, regenerated from both
+branches' sources. The current master's selection and Apache harness digest
+are retained alongside the PR's nine source-digest updates. All source digests
+match; no active selection or selector is changed. The archive contains 6228
+on-demand definitions, distinct from the unchanged 100 active cases.
+
+No new tests are authored in this increment. Master's existing private-package
+handoff tests are inherited unchanged. Connector product source and issue #401
+mapping are preserved, as are master's package/result integrity checks. The
+documented dependency on a later Framework package API remains a limitation;
+this merge does not change Framework/MRTS source or either Gitlink. New-head
+CI/Sonar verification remains pending at preparation time. The earlier checks
+do not prove the new merge or complete H1/H2/H3 runtime qualification.
+
+## Historical update on 2026-10-28: current master and CI remediation
 
 This increment incorporates `master` revision
 `c5993ed9a7b59fc0bd58f105595ec79f596c88d6` through a normal merge,

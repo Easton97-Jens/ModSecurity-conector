@@ -2,7 +2,29 @@
 
 **Sprache:** [English](protocol-parity.md) | Deutsch
 
-## Aktualisierung am 2026-10-28: aktueller Master und CI-Reparatur
+## Aktualisierung am 2026-10-30: Integrität der Integration
+
+Der gesicherte Kandidat `1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01`
+hat alle 59 ausgeführten Hosted-Prüfungen einschließlich Sonar bestanden;
+fünf Prüfungen wurden übersprungen. Dieses Increment integriert aktuellen
+Master `ec18f9e92286379a2410e917f76e6a5502675804` durch einen normalen
+Merge. Sein einziger Konflikt liegt im generierten Spezialistenarchiv, das aus
+den Quellen beider Branches neu erzeugt wird. Die aktuelle Master-Auswahl und
+der Apache-Harness-Digest bleiben neben den neun Source-Digest-Aktualisierungen
+des PR erhalten. Alle Source-Digests stimmen; aktive Auswahl und Selektoren
+ändern sich nicht. Das Archiv enthält 6228 On-demand-Definitionen, getrennt
+von den unveränderten 100 aktiven Fällen.
+
+In diesem Increment werden keine neuen Tests angelegt. Masters vorhandene
+Tests zur privaten Paketübergabe werden unverändert übernommen. Connector-
+Produktquellcode und Issue-#401-Mapping bleiben ebenso erhalten wie Masters
+Paket-/Ergebnis-Integritätsprüfungen. Die dokumentierte Abhängigkeit von einer
+späteren Framework-Paket-API bleibt eine Einschränkung; dieser Merge ändert
+weder Framework-/MRTS-Quellcode noch einen ihrer Gitlinks. CI-/Sonar-Verifikation
+für den neuen Head steht bei Vorbereitung noch aus. Die früheren Prüfungen
+beweisen weder den neuen Merge noch vollständige H1-/H2-/H3-Laufzeitqualifikation.
+
+## Historische Aktualisierung am 2026-10-28: aktueller Master und CI-Reparatur
 
 Dieses Increment übernimmt `master`-Revision
 `c5993ed9a7b59fc0bd58f105595ec79f596c88d6` durch einen normalen Merge

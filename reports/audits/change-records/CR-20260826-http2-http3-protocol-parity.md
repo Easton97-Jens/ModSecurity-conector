@@ -288,6 +288,23 @@ fully verified.
 
 ## Final diff and review status
 
+**Update on 2026-10-30:** the user resumes with integration integrity as the
+scope and no new tests while the test system is being rebuilt. Saved head
+`1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01` completed 59 hosted checks
+successfully, including Sonar, with five skipped. Current master
+`ec18f9e92286379a2410e917f76e6a5502675804` is integrated through a normal
+merge. The sole conflict, the specialist archive, is resolved through its
+generator. Master's unchanged selection and updated Apache harness digest are
+combined with all nine PR source bindings; all digests match. The regenerated
+archive has 6228 on-demand definitions; the active selection remains 100.
+Master's four existing package-handoff definitions are inherited unchanged;
+no test or selector is authored in this increment. Product-source protocol
+changes and master package/result integrity guards are preserved. Neither
+Framework nor MRTS Gitlink changes; the documented later-Framework-API
+dependency remains unqualified. Validation uses existing consistency checks
+and fresh hosted CI/Sonar; new-head server results are pending at preparation
+time. Full protocol runtime qualification remains incomplete.
+
 **Update on 2026-10-28:** the current CI-repair request supersedes the earlier
 test deferral. The branch incorporates master
 `c5993ed9a7b59fc0bd58f105595ec79f596c88d6` while preserving the published

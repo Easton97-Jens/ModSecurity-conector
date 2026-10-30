@@ -2,8 +2,8 @@
   "counting": "Definitions are not expanded behavioral cases. Unselected parameters of partially selected definitions remain on demand.",
   "disposition": "Retained source outside every automatic default selection; explicit on-demand execution only, no new PASS. Original historical evidence retains its original revision.",
   "generator": "ci/tools/update-test-archive.py",
-  "inventory_sha256": "07db60bee4762d1f7d5e796157440dc0808a8c29bf42ab130f3df21e09f9ab67",
-  "on_demand_definition_count": 6224,
+  "inventory_sha256": "afb7664d30e5e2ffd23da47ab1c4b2a76f3d26a5f5dc399efd34d29a7a2de208",
+  "on_demand_definition_count": 6228,
   "purpose": "Non-executable Parent default-suite archive; config/testing/active-cases.json selects all automatic Parent cases. Specialist coverage is explicitly on demand.",
   "schema_version": 1,
   "sources": [
@@ -5549,6 +5549,17 @@
       ],
       "source": "tests/test_modsecurity_request_body_limit_status_contract.py",
       "source_sha256": "7f055c302d0294b2030710e8502d565492a35f22aa4a7edf0c611c09311837cc"
+    },
+    {
+      "contains_selected_definitions": [],
+      "on_demand_definitions": [
+        "tests.test_mrts_native_package_handoff.MRTSNativePackageHandoffTests.test_failed_preparation_and_failed_writer_return_error",
+        "tests.test_mrts_native_package_handoff.MRTSNativePackageHandoffTests.test_failed_generator_does_not_fall_through_to_materialization",
+        "tests.test_mrts_native_package_handoff.MRTSNativePackageHandoffTests.test_enabled_demo_is_included_in_private_native_selection_and_load",
+        "tests.test_mrts_native_package_handoff.MRTSNativePackageHandoffTests.test_apache_single_case_writer_failure_cannot_print_pass"
+      ],
+      "source": "tests/test_mrts_native_package_handoff.py",
+      "source_sha256": "30a0cae829b4ca210e74a46e3c7a38b4d4030a30e1ed8570e7e5f50ea664f885"
     },
     {
       "contains_selected_definitions": [],
