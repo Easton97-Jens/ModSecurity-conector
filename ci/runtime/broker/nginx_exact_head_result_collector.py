@@ -6,7 +6,7 @@ from pathlib import Path
 import stat
 import sys
 
-BRIDGE_SHA256 = "e965d522e997c3bedf0fe0c140cec12f357fdf1d01e5c78dc74b0ed4cbbae83e"
+BRIDGE_SHA256 = "60a3cddae2218ca3031240bfe6d3400ce9de39a94c609b53bf238f05e5bc4978"
 TOOL = "exact-collector"
 
 

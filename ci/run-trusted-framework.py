@@ -25,6 +25,7 @@ MAX_SOURCE_BYTES = 2 * 1024 * 1024
 PREFIX = "connector_suite/modsecurity_connector_ci/"
 CELLS_SOURCE = PREFIX + "runtime/broker/run_nginx_exact_head_cells.sh"
 TOOLS = {
+    "connector-context": PREFIX + "tools/connector-context.py",
     "exact-dispatcher": PREFIX + "runtime/broker/protected_nginx_exact_head_dispatcher.py",
     "exact-preflight": PREFIX + "runtime/broker/protected_nginx_exact_head_runner_preflight.py",
     "exact-builder": PREFIX + "runtime/broker/protected_nginx_exact_head_builder.py",

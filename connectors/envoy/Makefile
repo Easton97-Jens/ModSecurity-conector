@@ -218,11 +218,10 @@ serve-envoy-connector: build-envoy-connector
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
 	sh scripts/serve_envoy_connector.sh
 
-runtime-smoke-envoy: RULES_FILE = $(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(abspath $(FRAMEWORK_ROOT)/connector_suite/common/rules/modsecurity_targeted_smoke.conf))
 runtime-smoke-envoy: build-envoy-connector
 	@if [ "$(ON_DEMAND_TESTS)" != 1 ]; then $(ACTIVE_TEST_RUNNER) --check --execution runtime.no-crs.envoy; fi
 	SERVICE_BIN="$(SERVICE_BIN)" BUILD_ROOT="$(BUILD_ROOT)" CONFIG_FILE="$(CONFIG_FILE)" \
-	RULES_FILE="$(RULES_FILE)" RUNTIME_ROOT="$(ENVOY_RUNTIME_ROOT)" \
+	RULES_FILE="$(if $(RULES_FILE),$(RULES_FILE),$(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(abspath $(FRAMEWORK_ROOT)/connector_suite/common/rules/modsecurity_targeted_smoke.conf)))" RUNTIME_ROOT="$(ENVOY_RUNTIME_ROOT)" \
 	EVENT_LOG_PATH="$(RUNTIME_EVENT_LOG_PATH)" ENVOY_BIN="$(ENVOY_BIN)" \
 	PYTHON="$(PYTHON)" sh "$(FRAMEWORK_ROOT)/connector_suite/adapters/envoy/harness/run_envoy_connector_runtime.sh"
 

@@ -43,9 +43,9 @@ jobs:
           submodules: true
           persist-credentials: false
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@5a827f3db670588febebd29fa6115142da198c6f
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@c8302ca15366e298d2b03e475a0200f55493b152
         with:
-          framework-revision: 5a827f3db670588febebd29fa6115142da198c6f
+          framework-revision: c8302ca15366e298d2b03e475a0200f55493b152
       - name: Set up canonical Python
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -132,9 +132,9 @@ jobs:
           submodules: true
           persist-credentials: false
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@5a827f3db670588febebd29fa6115142da198c6f
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@c8302ca15366e298d2b03e475a0200f55493b152
         with:
-          framework-revision: 5a827f3db670588febebd29fa6115142da198c6f
+          framework-revision: c8302ca15366e298d2b03e475a0200f55493b152
       - name: Set up canonical Python
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0

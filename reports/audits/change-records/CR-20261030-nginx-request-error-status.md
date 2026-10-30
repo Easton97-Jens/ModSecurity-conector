@@ -61,24 +61,27 @@ promote absent transport evidence to a visible response or successful action.
 Malformed client input remains protocol error/HTTP 400; internal pointer faults
 remain connector error/HTTP 500. No validation, isolation or warning changes.
 
-## Documentation and runtime evidence
+## Runtime evidence
 
 Synthetic receipts are retained in the external task evidence directory under
 `nginx-canonical-event-regression`; no customer traffic is included. The prior
 runtime failures remain recorded. Compile/unit evidence is distinct from the
 required new native module and H1 runtime verification.
 
-## Checks not run
-
-Fresh rebuilt H1 runtime and current-head hosted checks/SonarCloud are pending
-at this source-record point. No complete historical or on-demand campaign ran.
-
-## Limitations and residual risk
+## Known limitations
 
 A known selected status is not proof of delivery. HTTP control codes outside
 400..599 remain 0. The existing timeout-specific 504 behavior is retained.
+
+## Remaining risks
+
 Reverting the two assignments restores the omission without changing wire
 behavior; there is no configuration or storage migration.
+
+## Checks not run and rationale
+
+Fresh rebuilt H1 runtime and current-head hosted checks/SonarCloud are pending
+at this source-record point. No complete historical or on-demand campaign ran.
 
 ## Final diff and review status
 
