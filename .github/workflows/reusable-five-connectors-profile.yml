@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@5a827f3db670588febebd29fa6115142da198c6f
         with:
-          framework-revision: e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+          framework-revision: 5a827f3db670588febebd29fa6115142da198c6f
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@5a827f3db670588febebd29fa6115142da198c6f
         with:
-          framework-revision: e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+          framework-revision: 5a827f3db670588febebd29fa6115142da198c6f
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@5a827f3db670588febebd29fa6115142da198c6f
         with:
-          framework-revision: e52d7d44c81e997a296b7ffdfb33f12bf85455b9
+          framework-revision: 5a827f3db670588febebd29fa6115142da198c6f
