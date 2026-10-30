@@ -307,6 +307,36 @@ Kein Security-Finding ist vollständig verifiziert.
 
 ## Finaler Diff- und Review-Status
 
+**NGINX-Const-Integritäts-Follow-up vom 2026-10-30:** Die native NGINX-PR-
+Analyse an `1c0116b09a97f28d13a64565da555ca6163e6b48` meldet trotz bestandenem
+Gate weiterhin `AaGEBVJegbtoLIpIcyJK` / `c:S995`. Der Authority-Selektor
+akzeptiert jetzt `const ngx_http_request_t *`; der gemeinsame Iterator und
+seine drei Aufrufer verwenden schreibgeschützte Listenabschnitts-Cursor. In
+`ngx_http_modsecurity_common.h`, `ngx_http_modsecurity_access.c` und
+`ngx_http_modsecurity_header_filter.c` unter `connectors/nginx/src/` ändern
+sich nur Qualifier. Der vorhandene Checker
+`ci/checks/connectors/nginx/check-nginx-common-adoption.py` verlangt die
+entsprechenden `const`-Deklarationen. Host-Vorrang, rohe Authority samt Port,
+Traversierung, Ownership und exportierte ABI bleiben unverändert. Keine
+Tests, Fixtures oder Selektoren werden angelegt; aktive/archivierte Anzahl
+bleibt 100/6228 ohne Digest- oder Generated-Output-Änderung.
+
+`rtk make check-nginx-common-adoption check-active-inventory` besteht. Das
+vorhandene `check-nginx-c17` besteht mit den verfügbaren NGINX-1.31.6-Headern
+ohne V3. Eine isolierte Quellkopie konfiguriert erfolgreich HTTP/2, HTTP/3,
+TLS und System-OpenSSL 3.5.5; ihr natives `rtk bypass make -j 8 modules`
+besteht mit C17 und `-Wall -Wextra -Werror`, kompiliert den geschützten
+H3-Pfad und linkt das dynamische Modul. Das generische C17-Target gegen diese
+V3-Konfiguration scheitert zunächst, weil sein Include-Helper
+`src/event/quic` auslässt; es wird weder als bestanden behauptet noch
+abgeschwächt. Configure-/Build-Logs bleiben im externen Run
+`pr348-nginx-const-20261030.LwnYnQ` erhalten. Dies ist ausschließlich Compile-/
+Link-Evidence, keine Host-Ausführung, kein echter H3-Verkehr und keine
+Qualifikation des gepinnten TLS-Laufzeitprofils. Unabhängiges Quellreview fand
+keinen Blocker. Frisches Successor-CI und native Sonar-Issue-Schließung bleiben
+erforderlich; Prüfungen des vorherigen Heads verifizieren den Successor nicht.
+Framework-/MRTS-Pins, Regeln und Gates bleiben unverändert.
+
 **Weitere Integritätskorrektur am 2026-10-30:** Eine begrenzte HAProxy-/lighttpd-
 Quellprüfung fand keine hochgestufte headerabgeleitete Protokoll- oder Wire-
 Stream-Identität, aber das lighttpd-README-Paar beschrieb fälschlich einen

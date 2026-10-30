@@ -497,7 +497,7 @@ ngx_http_modsecurity_add_request_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
     ngx_str_t authority;
-    ngx_list_part_t *part;
+    const ngx_list_part_t *part;
     ngx_table_elt_t *data;
     const ngx_table_elt_t *header;
     ngx_uint_t index;

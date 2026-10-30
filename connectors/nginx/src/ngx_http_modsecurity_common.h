@@ -92,7 +92,7 @@ typedef struct {
  * paths from drifting while leaving their phase-specific inspection actions
  * in their respective callers. */
 static ngx_inline ngx_table_elt_t *
-ngx_http_modsecurity_next_header(ngx_list_part_t **part,
+ngx_http_modsecurity_next_header(const ngx_list_part_t **part,
     ngx_table_elt_t **data, ngx_uint_t *index)
 {
     for (;;) {
@@ -116,12 +116,12 @@ ngx_http_modsecurity_next_header(ngx_list_part_t **part,
  * or substituting a configured routing name. Preserve the original port just
  * as NGINX's HTTP/2 Host shim does. An explicit Host always takes precedence. */
 static ngx_inline ngx_str_t
-ngx_http_modsecurity_http3_authority(ngx_http_request_t *r)
+ngx_http_modsecurity_http3_authority(const ngx_http_request_t *r)
 {
     ngx_str_t authority = ngx_null_string;
 #if (NGX_HTTP_V3) && defined(NGX_HTTP_VERSION_30)
     u_char host_name[] = "Host";
-    ngx_list_part_t *part;
+    const ngx_list_part_t *part;
     ngx_table_elt_t *data;
     ngx_table_elt_t *header;
     ngx_uint_t index;

@@ -290,6 +290,33 @@ fully verified.
 
 ## Final diff and review status
 
+**NGINX const-integrity follow-up on 2026-10-30:** native NGINX PR analysis
+at `1c0116b09a97f28d13a64565da555ca6163e6b48` still reports
+`AaGEBVJegbtoLIpIcyJK` / `c:S995` despite its passing gate. The authority
+selector now accepts `const ngx_http_request_t *`; the shared iterator and
+its three callers use read-only list-part cursors. Only qualifiers change in
+`ngx_http_modsecurity_common.h`, `ngx_http_modsecurity_access.c` and
+`ngx_http_modsecurity_header_filter.c` under `connectors/nginx/src/`.
+The existing `ci/checks/connectors/nginx/check-nginx-common-adoption.py`
+requires the corresponding `const` declarations. Host precedence, raw authority
+including port, traversal, ownership and exported ABI remain unchanged. No
+tests, fixtures or selectors are authored; active/archive counts remain
+100/6228 with no digest or generated-output changes.
+
+`rtk make check-nginx-common-adoption check-active-inventory` passes. Existing
+`check-nginx-c17` passes with the available V3-disabled NGINX 1.31.6 headers.
+An isolated source copy configures successfully with HTTP/2, HTTP/3, TLS and
+system OpenSSL 3.5.5; its native `rtk bypass make -j 8 modules` passes with
+C17, `-Wall -Wextra -Werror`, compiling the guarded H3 path and linking the
+dynamic module. The generic C17 target against that V3 configuration first
+fails because its include helper omits `src/event/quic`; it is not claimed as
+passed or weakened. Configure/build logs are retained in external run
+`pr348-nginx-const-20261030.LwnYnQ`. This is compile/link evidence only,
+not host execution, actual H3 traffic or pinned TLS runtime-profile
+qualification. Independent source review found no blocker. Fresh successor
+CI and native Sonar issue closure remain required; prior-head checks do not
+verify the successor. Framework/MRTS pins, rules and gates remain unchanged.
+
 **Further integrity correction on 2026-10-30:** a bounded HAProxy/lighttpd
 source trace found no promoted header-derived protocol or wire-stream identity,
 but the lighttpd README pair falsely described the committed-Strict callback as

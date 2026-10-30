@@ -221,7 +221,7 @@ HEADER_RESPONSE_HEADER_COLLECTION_PREFIX_CONTRACT_PATTERN = re.compile(
     r'ngx_http_modsecurity_add_response_headers\s*\(\s*'
     r'ngx_http_request_t\s*\*\s*r\s*,\s*'
     r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*\)\s*\{\s*'
-    r'ngx_list_part_t\s*\*\s*part\s*=\s*&\s*r\s*->\s*headers_out\s*'
+    r'const\s+ngx_list_part_t\s*\*\s*part\s*=\s*&\s*r\s*->\s*headers_out\s*'
     r'\.\s*headers\s*\.\s*part\s*;\s*'
     r'ngx_table_elt_t\s*\*\s*data\s*=\s*part\s*->\s*elts\s*;\s*'
     r'const\s+ngx_table_elt_t\s*\*\s*header\s*;\s*'
@@ -302,7 +302,7 @@ HEADER_DATE_RESOLVER_CONTRACT_PATTERN = re.compile(
 COMMON_NEXT_HEADER_CONTRACT_PATTERN = re.compile(
     r'static\s+ngx_inline\s+ngx_table_elt_t\s*\*\s*'
     r'ngx_http_modsecurity_next_header\s*\(\s*'
-    r'ngx_list_part_t\s*\*\*\s*part\s*,\s*'
+    r'const\s+ngx_list_part_t\s*\*\*\s*part\s*,\s*'
     r'ngx_table_elt_t\s*\*\*\s*data\s*,\s*'
     r'ngx_uint_t\s*\*\s*index\s*\)\s*\{\s*'
     r'for\s*\(\s*;\s*;\s*\)\s*\{\s*'

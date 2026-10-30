@@ -507,7 +507,7 @@ static ngx_int_t
 ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
-    ngx_list_part_t *part = &r->headers_out.headers.part;
+    const ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
     const ngx_table_elt_t *header;
     ngx_uint_t i;
