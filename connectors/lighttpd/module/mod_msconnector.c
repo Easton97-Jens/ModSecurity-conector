@@ -808,8 +808,9 @@ static plugin_body_hook_result mod_msconnector_finish_response_body(
     const enum msconnector_phase4_mode phase4_mode =
         msconnector_runtime_phase4_mode(p->runtime);
 
-    if (ctx == NULL) return PLUGIN_BODY_HOOK_ERROR;
-    if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return PLUGIN_BODY_HOOK_ERROR;
+    if (ctx == NULL || ctx->technical_failed || ctx->api_failed) {
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
     if (ctx->response_body_finished) {
         return PLUGIN_BODY_HOOK_CONTINUE;
     }

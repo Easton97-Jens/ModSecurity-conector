@@ -387,6 +387,22 @@ ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_
     (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
 
+#if (NGX_HTTP_V2)
+    /* Transfer-Encoding is a hop-by-hop HTTP/1.x header and is not valid on
+     * an HTTP/2 stream.  Return before consulting r->chunked so that the
+     * synthetic header cannot be exposed to ModSecurity on H2. */
+    if (r->stream) {
+        return 1;
+    }
+#endif
+#if defined(nginx_version) && nginx_version >= 1025000
+    /* HTTP/3 also forbids Transfer-Encoding.  Keep this under the same
+     * compatible native-H3 guard used by the other header resolvers. */
+    if (r->http_version == NGX_HTTP_VERSION_30) {
+        return 1;
+    }
+#endif
+
     if (r->chunked) {
         ngx_str_t value = ngx_string("chunked");
 
@@ -491,7 +507,7 @@ static ngx_int_t
 ngx_http_modsecurity_add_response_headers(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx)
 {
-    ngx_list_part_t *part = &r->headers_out.headers.part;
+    const ngx_list_part_t *part = &r->headers_out.headers.part;
     ngx_table_elt_t *data = part->elts;
     const ngx_table_elt_t *header;
     ngx_uint_t i;

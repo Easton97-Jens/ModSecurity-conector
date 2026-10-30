@@ -434,6 +434,38 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
                     "Apache Phase3 checks both response-header tables",
                 )
 
+    def test_phase3_negotiated_protocol_guards_cannot_be_bypassed(self) -> None:
+        mutations = (
+            (
+                "response_protocol = apache_response_protocol(r);",
+                'response_protocol = "HTTP 1.1";',
+            ),
+            (
+                "if (response_protocol == NULL)",
+                "if (response_protocol != NULL)",
+            ),
+            (
+                "msc_process_response_headers(msr->t, original_status,\n"
+                "                response_protocol)",
+                'msc_process_response_headers(msr->t, original_status, "HTTP 1.1")',
+            ),
+            (
+                "if (!msconnector_native_phase_succeeded(\n"
+                "            msc_process_response_headers",
+                "if (msconnector_native_phase_succeeded(\n"
+                "            msc_process_response_headers",
+            ),
+        )
+        for original, replacement in mutations:
+            with self.subTest(original=original):
+                def mutate(filters: Path) -> None:
+                    replace_once(filters, original, replacement)
+
+                self._assert_rejected(
+                    mutate,
+                    "Apache Phase3 checks both response-header tables",
+                )
+
 
 
 # Parent default discovery uses the one admitted active-case inventory.

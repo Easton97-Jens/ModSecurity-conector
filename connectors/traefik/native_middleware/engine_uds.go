@@ -217,7 +217,7 @@ func (transaction *unixSocketTransaction) Close(ctx context.Context, summary Sum
 
 // CloseChecked preserves FINISH/DESTROY failures for the productive middleware.
 // The legacy void callback remains available to existing seam implementations.
-func (transaction *unixSocketTransaction) CloseChecked(ctx context.Context, _ Summary) error {
+func (transaction *unixSocketTransaction) CloseChecked(ctx context.Context, summary Summary) error {
 	transaction.mu.Lock()
 	defer transaction.mu.Unlock()
 	if transaction.closed {
@@ -229,7 +229,7 @@ func (transaction *unixSocketTransaction) CloseChecked(ctx context.Context, _ Su
 	}
 	connection := transaction.connection
 	var closeErr error
-	if transaction.begun {
+	if transaction.begun && !summary.ResponseIncomplete {
 		_, closeErr = transaction.exchangeLocked(ctx, udsOpcodeFinish, nil)
 		if closeErr == nil {
 			_, closeErr = transaction.exchangeLocked(ctx, udsOpcodeDestroy, nil)

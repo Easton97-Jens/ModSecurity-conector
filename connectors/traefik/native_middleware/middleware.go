@@ -279,6 +279,7 @@ type Summary struct {
 	ResponseBodyBytes   int64
 	RequestEOS          bool
 	ResponseEOS         bool
+	ResponseIncomplete  bool
 	ResponseCommitted   bool
 	LateAction          string
 }
@@ -469,6 +470,7 @@ type streamState struct {
 	requestBody         *inspectingRequestBody
 	requestEOS          bool
 	responseEOS         bool
+	responseIncomplete  bool
 	responseCommitted   bool
 	responseStatus      int
 	lateAction          string
@@ -576,6 +578,7 @@ func (state *streamState) processResponseBody(contextValue context.Context, chun
 	if decision.disruptive() && !beforeCommit {
 		if reporter, ok := state.engine.(outcomeAcknowledger); ok {
 			if err := reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus); err != nil {
+				state.markResponseIncompleteLocked()
 				state.terminalError = err
 				return allowDecision(), err
 			}
@@ -683,7 +686,7 @@ func (state *streamState) recordRequestError(err error) {
 	state.mu.Unlock()
 }
 
-func (state *streamState) markResponseCommit(contextValue context.Context, status int, headersSent bool, bodyStarted bool) {
+func (state *streamState) markResponseCommit(contextValue context.Context, status int, headersSent bool, bodyStarted bool) error {
 	state.mu.Lock()
 	if headersSent || bodyStarted {
 		state.responseCommitted = true
@@ -691,21 +694,44 @@ func (state *streamState) markResponseCommit(contextValue context.Context, statu
 	if status >= 100 && status <= 999 {
 		state.responseStatus = status
 	}
-	failed := state.terminalError != nil
+	failed := state.terminalError
 	state.mu.Unlock()
-	if failed {
-		return
+	if failed != nil {
+		return failed
 	}
 	state.reportResponseCommit(contextValue, headersSent, bodyStarted)
+	return nil
 }
 
 func (state *streamState) reportResponseCommit(contextValue context.Context, headersSent bool, bodyStarted bool) {
 	if committer, ok := state.engine.(responseCommitter); ok {
 		if err := committer.SetResponseCommit(contextValue, headersSent, bodyStarted); err != nil {
 			state.recordRequestError(err)
+			state.markResponseIncomplete()
 			panic(http.ErrAbortHandler)
 		}
 	}
+}
+
+// markResponseIncomplete makes local close accounting conservative after a
+// host, source, or engine-control failure. A previously attempted EOS cannot
+// be represented as a completed response once the host commit is no longer
+// acknowledged.
+func (state *streamState) markResponseIncomplete() {
+	state.mu.Lock()
+	state.markResponseIncompleteLocked()
+	state.mu.Unlock()
+}
+
+func (state *streamState) markResponseIncompleteLocked() {
+	state.responseIncomplete = true
+	state.responseEOS = false
+}
+
+func (state *streamState) responseIsIncomplete() bool {
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.responseIncomplete
 }
 
 func (state *streamState) acknowledgeApplied(contextValue context.Context, decision Decision) {
@@ -715,6 +741,7 @@ func (state *streamState) acknowledgeApplied(contextValue context.Context, decis
 	if reporter, ok := transaction.(outcomeAcknowledger); ok {
 		if err := reporter.AcknowledgeApplied(contextValue, decision); err != nil {
 			state.recordRequestError(err)
+			state.markResponseIncomplete()
 			panic(http.ErrAbortHandler)
 		}
 	}
@@ -742,6 +769,7 @@ func (state *streamState) writeDecision(contextValue context.Context, target htt
 		// Preserve the host write failure even if reporting the accepted
 		// headers/body also fails. Neither failure proves an applied outcome.
 		state.recordRequestError(writeErr)
+		state.markResponseIncomplete()
 		state.reportResponseCommit(contextValue, true, count > 0)
 		panic(http.ErrAbortHandler)
 	}
@@ -770,6 +798,7 @@ func (state *streamState) close(contextValue context.Context) {
 		ResponseBodyBytes:   state.responseBodyBytes,
 		RequestEOS:          state.requestEOS,
 		ResponseEOS:         state.responseEOS,
+		ResponseIncomplete:  state.responseIncomplete,
 		ResponseCommitted:   state.responseCommitted,
 		LateAction:          state.lateAction,
 	}
@@ -852,13 +881,18 @@ type responseWriter struct {
 	finished                 bool
 	rejected                 bool
 	hijacked                 bool
-	// responseIncomplete is set only when the wrapped host writer or a source
-	// stream reports that it could not complete the response.  In particular,
-	// it keeps a downstream disconnect, short write, or upstream ReadFrom error
-	// from being converted into a synthetic response EOS.  The transaction is
-	// still closed exactly once by ServeHTTP's defer, but the engine never gets
-	// a false end-of-stream callback for an incomplete host response.
+	// responseIncomplete is set when the wrapped host writer, a source stream,
+	// or the body-processing engine reports that it could not complete the
+	// response. In particular, it keeps a downstream disconnect, short write,
+	// upstream ReadFrom error, or post-commit engine error from being converted
+	// into a synthetic response EOS. The transaction is still closed exactly
+	// once by ServeHTTP's defer, but the engine never gets a false
+	// end-of-stream callback for an incomplete response.
 	responseIncomplete bool
+	// responseCommitErr records an engine failure after a host response commit.
+	// WriteHeader cannot return it, but subsequent writes can stop forwarding
+	// data rather than claiming a response the engine could not commit.
+	responseCommitErr error
 }
 
 func newResponseWriter(request *http.Request, target http.ResponseWriter, state *streamState) *responseWriter {
@@ -900,6 +934,9 @@ func (writer *responseWriter) Write(payload []byte) (int, error) {
 		// its upstream handler does not replace the selected denial with a 5xx.
 		return len(payload), nil
 	}
+	if writer.responseCommitErr != nil {
+		return 0, writer.responseCommitErr
+	}
 	if len(payload) == 0 {
 		return writer.writeEmptyResponse()
 	}
@@ -918,7 +955,19 @@ func (writer *responseWriter) writeEmptyResponse() (int, error) {
 	if writer.rejected {
 		return 0, ErrResponseRejected
 	}
-	return writer.target.Write(nil)
+	if writer.responseCommitErr != nil {
+		return 0, writer.responseCommitErr
+	}
+	count, writeErr := writer.target.Write(nil)
+	if writeErr != nil {
+		writer.markResponseIncomplete()
+		return count, writeErr
+	}
+	if count != 0 {
+		writer.markResponseIncomplete()
+		return count, io.ErrShortWrite
+	}
+	return count, nil
 }
 
 func (writer *responseWriter) writeResponseChunks(payload []byte) (int, bool, error) {
@@ -944,7 +993,9 @@ func (writer *responseWriter) writeResponseChunks(payload []byte) (int, bool, er
 func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error) {
 	decision, err := writer.state.processResponseBody(writer.requestContext(), chunk, false, !writer.committed)
 	if err != nil {
-		if !writer.committed {
+		if writer.committed {
+			writer.markResponseIncomplete()
+		} else {
 			writer.writeFailure()
 			return 0, false, err
 		}
@@ -957,16 +1008,20 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 	}
 	if !writer.committed {
 		writer.commit(http.StatusOK)
+		if writer.responseCommitErr != nil {
+			return 0, false, writer.responseCommitErr
+		}
 	}
 	if err := writer.state.responseFailure(); err != nil {
 		writer.responseIncomplete = true
 		return 0, false, err
 	}
 	count, writeErr := writer.target.Write(chunk)
+	var commitErr error
 	if count > 0 {
-		writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
+		commitErr = writer.markResponseCommit(0, true, true)
 		if err := writer.state.responseFailure(); err != nil {
-			writer.responseIncomplete = true
+			writer.markResponseIncomplete()
 			return count, false, err
 		}
 		// Traefik's native forwarding path may otherwise retain a small response
@@ -977,12 +1032,15 @@ func (writer *responseWriter) writeResponseChunk(chunk []byte) (int, bool, error
 		}
 	}
 	if writeErr != nil {
-		writer.responseIncomplete = true
+		writer.markResponseIncomplete()
 		return count, false, writeErr
 	}
 	if count != len(chunk) {
-		writer.responseIncomplete = true
+		writer.markResponseIncomplete()
 		return count, false, io.ErrShortWrite
+	}
+	if commitErr != nil {
+		return count, false, commitErr
 	}
 	return count, false, nil
 }
@@ -1030,7 +1088,23 @@ func (writer *responseWriter) commit(status int) {
 	}
 	writer.target.WriteHeader(status)
 	writer.committed = true
-	writer.state.markResponseCommit(writer.requestContext(), status, true, false)
+	writer.markResponseCommit(status, true, false)
+}
+
+func (writer *responseWriter) markResponseCommit(status int, headersSent bool, bodyStarted bool) error {
+	err := writer.state.markResponseCommit(writer.requestContext(), status, headersSent, bodyStarted)
+	if err != nil {
+		writer.markResponseIncomplete()
+		if writer.responseCommitErr == nil {
+			writer.responseCommitErr = err
+		}
+	}
+	return err
+}
+
+func (writer *responseWriter) markResponseIncomplete() {
+	writer.responseIncomplete = true
+	writer.state.markResponseIncomplete()
 }
 
 func (writer *responseWriter) writeFailure() {
@@ -1042,8 +1116,12 @@ func (writer *responseWriter) writeFailure() {
 	writer.target.WriteHeader(http.StatusInternalServerError)
 	writer.committed = true
 	writer.rejected = true
-	count, _ := writer.target.Write([]byte("modsecurity middleware evaluation failed\n"))
-	writer.state.markResponseCommit(writer.requestContext(), http.StatusInternalServerError, true, count > 0)
+	const failureBody = "modsecurity middleware evaluation failed\n"
+	count, writeErr := writer.target.Write([]byte(failureBody))
+	commitErr := writer.state.markResponseCommit(writer.requestContext(), http.StatusInternalServerError, true, count > 0)
+	if writeErr != nil || count != len(failureBody) || commitErr != nil {
+		writer.markResponseIncomplete()
+	}
 }
 
 func (writer *responseWriter) writeDecision(decision Decision) {
@@ -1144,27 +1222,36 @@ func (writer *responseWriter) Push(target string, options *http.PushOptions) err
 // the wrapped writer's ReaderFrom for the remaining stream when available.
 // That avoids full-response buffering and retains the underlying fast path for
 // all but the bounded first chunk.
-func (writer *responseWriter) consumeInitialReadFromChunk(source io.Reader) (int64, bool, error) {
+func (writer *responseWriter) consumeInitialReadFromChunk(source io.Reader) (int64, bool, bool, error) {
 	if writer.committed {
-		return 0, false, nil
+		return 0, false, true, nil
 	}
 	first := make([]byte, writer.state.config.MaxResponseChunkBytes)
 	count, readErr := source.Read(first)
 	total, writeErr := writer.writeInitialReadFromBytes(first[:count], count)
 	if writeErr != nil {
-		return total, true, writeErr
+		return total, true, false, writeErr
 	}
 	if errors.Is(readErr, io.EOF) {
-		return total, true, nil
+		return total, true, false, nil
 	}
 	if readErr != nil {
-		return total, true, readErr
+		// A source error, including one paired with accepted bytes, is not a
+		// normal end of the response stream. Avoid a later synthetic EOS.
+		writer.markResponseIncomplete()
+		return total, true, false, readErr
 	}
 	if writer.rejected {
 		count, err := io.Copy(io.Discard, source)
-		return total + count, true, err
+		return total + count, true, false, err
 	}
-	return total, false, nil
+	if count == 0 {
+		// A legal zero-progress read does not establish a host commitment or
+		// evaluate response headers. Keep the wrapped write path so a
+		// pre-commit decision cannot be bypassed by ReaderFrom delegation.
+		return total, false, false, nil
+	}
+	return total, false, true, nil
 }
 
 func (writer *responseWriter) writeInitialReadFromBytes(first []byte, count int) (int64, error) {
@@ -1191,31 +1278,34 @@ func (writer *responseWriter) ReadFrom(source io.Reader) (int64, error) {
 	if writer.rejected {
 		return io.Copy(io.Discard, source)
 	}
-	total, complete, err := writer.consumeInitialReadFromChunk(source)
+	total, complete, canDelegate, err := writer.consumeInitialReadFromChunk(source)
 	if complete {
 		return total, err
 	}
 
-	if readerFrom, ok := writer.target.(io.ReaderFrom); ok {
-		inspected := &responseInspectionReader{source: source, writer: writer}
-		count, err := readerFrom.ReadFrom(inspected)
-		if count > 0 {
-			writer.state.markResponseCommit(writer.requestContext(), 0, true, true)
-			if err == nil {
-				err = writer.state.responseFailure()
+	if canDelegate {
+		if readerFrom, ok := writer.target.(io.ReaderFrom); ok {
+			inspected := &responseInspectionReader{source: source, writer: writer}
+			count, err := readerFrom.ReadFrom(inspected)
+			var commitErr error
+			if count > 0 {
+				commitErr = writer.markResponseCommit(0, true, true)
 			}
+			if err != nil {
+				// ReaderFrom may surface either an upstream read failure or a
+				// downstream write failure.  Neither is evidence that the response
+				// reached EOS, so do not send a later synthetic EOS callback.
+				writer.markResponseIncomplete()
+			}
+			if err != nil {
+				return total + count, err
+			}
+			return total + count, commitErr
 		}
-		if err != nil {
-			// ReaderFrom may surface either an upstream read failure or a
-			// downstream write failure.  Neither is evidence that the response
-			// reached EOS, so do not send a later synthetic EOS callback.
-			writer.responseIncomplete = true
-		}
-		return total + count, err
 	}
 	count, err := copyIntoWriter(writer, source)
 	if err != nil {
-		writer.responseIncomplete = true
+		writer.markResponseIncomplete()
 	}
 	return total + count, err
 }
@@ -1237,6 +1327,9 @@ func (reader *responseInspectionReader) Read(buffer []byte) (int, error) {
 		}
 	}
 	if errors.Is(readErr, io.EOF) && count == 0 {
+		if reader.writer.state.responseIsIncomplete() {
+			return count, readErr
+		}
 		_, err := reader.writer.state.processResponseBody(reader.writer.requestContext(), nil, true, false)
 		if err != nil {
 			return 0, err
@@ -1277,9 +1370,10 @@ func (writer *responseWriter) finish() {
 	if writer.rejected {
 		return
 	}
-	if writer.responseIncomplete || writer.state.responseFailure() != nil {
+	if writer.responseIncomplete || writer.state.responseIsIncomplete() || writer.state.responseFailure() != nil {
 		// An incomplete host stream must escape normal handler completion even
 		// when the downstream handler ignored its Write/ReadFrom error.
+		writer.markResponseIncomplete()
 		panic(http.ErrAbortHandler)
 	}
 	if !writer.committed {
@@ -1288,6 +1382,7 @@ func (writer *responseWriter) finish() {
 		}
 		decision, err := writer.state.processResponseBody(writer.requestContext(), nil, true, true)
 		if err != nil {
+			writer.markResponseIncomplete()
 			writer.writeFailure()
 			return
 		}
@@ -1303,6 +1398,7 @@ func (writer *responseWriter) finish() {
 	if err != nil {
 		// Stop the host handler without inventing a replacement status or an
 		// observed transport outcome. net/http owns the abort/reset behavior.
+		writer.markResponseIncomplete()
 		panic(http.ErrAbortHandler)
 	}
 }

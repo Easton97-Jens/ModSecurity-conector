@@ -1228,62 +1228,118 @@ func responseStatusFromHeaders(headers []Header) int {
 // remain absent for a transport-only engine. It never silently substitutes the
 // gRPC peer endpoint for the request authority.
 func requestMetadataFromEnvoy(headers []Header, attributes map[string]*structpb.Struct) (RequestMetadata, error) {
-	metadata, err := requestMetadataHeaders(headers)
-	if err != nil {
-		return RequestMetadata{}, err
-	}
-	if err := applyEnvoyMetadataAttributes(&metadata, attributes); err != nil {
-		return RequestMetadata{}, err
-	}
-	return metadata, nil
-}
-
-func requestMetadataHeaders(headers []Header) (RequestMetadata, error) {
-	metadata := RequestMetadata{}
-	authority := ""
-	host := ""
-	authoritySeen := false
-	hostSeen := false
+	state := requestMetadataState{}
 	for _, header := range headers {
-		name := strings.ToLower(header.Name)
-		value, err := boundedMetadataText(header.Value, name)
-		if err != nil {
+		if err := state.addHeader(header); err != nil {
 			return RequestMetadata{}, err
 		}
-		switch name {
-		case ":method":
-			metadata.Method = value
-		case ":path":
-			metadata.URI = value
-		case ":authority":
-			if authoritySeen {
-				return RequestMetadata{}, fmt.Errorf("Envoy request contains multiple :authority headers")
-			}
-			authority = value
-			authoritySeen = true
-		case "host":
-			if hostSeen {
-				return RequestMetadata{}, fmt.Errorf("Envoy request contains multiple Host headers")
-			}
-			host = value
-			hostSeen = true
-		}
 	}
-	if authoritySeen && hostSeen && !strings.EqualFold(authority, host) {
-		return RequestMetadata{}, fmt.Errorf("Envoy :authority and Host headers disagree")
+	if err := state.finalizeHostname(); err != nil {
+		return RequestMetadata{}, err
 	}
-	if authoritySeen {
-		metadata.Hostname = authority
-	} else if hostSeen {
-		metadata.Hostname = host
+	if err := assignRequestMetadataAttributes(&state.metadata, attributes); err != nil {
+		return RequestMetadata{}, err
 	}
-	if strings.TrimSpace(metadata.Hostname) == "" {
-		return RequestMetadata{}, fmt.Errorf("Envoy request is missing :authority or Host")
+	if isModernRequestProtocol(state.metadata.Protocol) && state.invalidModernProtocolHeaderSeen {
+		return RequestMetadata{}, errors.New("Envoy HTTP/2 or HTTP/3 request contains an invalid connection-specific or TE header")
 	}
-	return metadata, nil
+	return state.metadata, nil
 }
 
-func applyEnvoyMetadataAttributes(metadata *RequestMetadata, attributes map[string]*structpb.Struct) error {
+type requestMetadataState struct {
+	metadata RequestMetadata
+
+	authority string
+	host      string
+
+	methodSeen    bool
+	pathSeen      bool
+	schemeSeen    bool
+	authoritySeen bool
+	hostSeen      bool
+
+	invalidModernProtocolHeaderSeen bool
+}
+
+func (state *requestMetadataState) addHeader(header Header) error {
+	name, err := normalizedRequestHeaderName(header.Name)
+	if err != nil {
+		return err
+	}
+	value, err := boundedMetadataText(header.Value, name)
+	if err != nil {
+		return err
+	}
+	if strings.HasPrefix(name, ":") {
+		return state.addPseudoHeader(name, value)
+	}
+	return state.addOrdinaryHeader(name, value)
+}
+
+func (state *requestMetadataState) addPseudoHeader(name, value string) error {
+	switch name {
+	case ":method":
+		return assignRequestMetadataText(&state.methodSeen, &state.metadata.Method, name, value)
+	case ":path":
+		return assignRequestMetadataText(&state.pathSeen, &state.metadata.URI, name, value)
+	case ":scheme":
+		return markRequestMetadataHeader(&state.schemeSeen, name)
+	case ":authority":
+		return assignRequestMetadataText(&state.authoritySeen, &state.authority, name, value)
+	default:
+		return errors.New("Envoy request contains an unsupported pseudo header")
+	}
+}
+
+func (state *requestMetadataState) addOrdinaryHeader(name, value string) error {
+	if name == "host" {
+		if err := assignRequestMetadataText(&state.hostSeen, &state.host, "Host", value); err != nil {
+			return err
+		}
+	}
+	if isInvalidModernProtocolHeader(name, value) {
+		state.invalidModernProtocolHeaderSeen = true
+	}
+	return nil
+}
+
+func assignRequestMetadataText(seen *bool, target *string, name, value string) error {
+	if *seen {
+		return fmt.Errorf("Envoy request contains multiple %s headers", name)
+	}
+	*target = value
+	*seen = true
+	return nil
+}
+
+func markRequestMetadataHeader(seen *bool, name string) error {
+	if *seen {
+		return fmt.Errorf("Envoy request contains multiple %s headers", name)
+	}
+	*seen = true
+	return nil
+}
+
+func (state *requestMetadataState) finalizeHostname() error {
+	if state.authoritySeen && state.hostSeen && !strings.EqualFold(state.authority, state.host) {
+		return errors.New("Envoy :authority and Host headers disagree")
+	}
+	if state.authoritySeen {
+		state.metadata.Hostname = state.authority
+	} else if state.hostSeen {
+		state.metadata.Hostname = state.host
+	}
+	if strings.TrimSpace(state.metadata.Hostname) == "" {
+		return errors.New("Envoy request is missing :authority or Host")
+	}
+	return nil
+}
+
+func isInvalidModernProtocolHeader(name, value string) bool {
+	return isHTTP1ConnectionSpecificHeader(name) || (name == "te" && !strings.EqualFold(strings.TrimSpace(value), "trailers"))
+}
+
+func assignRequestMetadataAttributes(metadata *RequestMetadata, attributes map[string]*structpb.Struct) error {
 	textAssignments := []struct {
 		attribute string
 		assign    func(string)
@@ -1311,6 +1367,60 @@ func applyEnvoyMetadataAttributes(metadata *RequestMetadata, attributes map[stri
 		}
 	}
 	return nil
+}
+
+func normalizedRequestHeaderName(name string) (string, error) {
+	if name == "" {
+		return "", errors.New("Envoy request header name is empty")
+	}
+	pseudoHeader := name[0] == ':'
+	token := name
+	if pseudoHeader {
+		token = name[1:]
+	}
+	if !isHTTPHeaderToken(token) {
+		return "", errors.New("Envoy request header name is invalid")
+	}
+	normalized := strings.ToLower(name)
+	if pseudoHeader && name != normalized {
+		return "", errors.New("Envoy request pseudo header must be lowercase")
+	}
+	return normalized, nil
+}
+
+func isHTTPHeaderToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	for index := 0; index < len(token); index++ {
+		switch character := token[index]; {
+		case character >= 'a' && character <= 'z':
+		case character >= 'A' && character <= 'Z':
+		case character >= '0' && character <= '9':
+		case strings.ContainsRune("!#$%&'*+-.^_`|~", rune(character)):
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func isHTTP1ConnectionSpecificHeader(name string) bool {
+	switch name {
+	case "connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade":
+		return true
+	default:
+		return false
+	}
+}
+
+func isModernRequestProtocol(protocol string) bool {
+	switch strings.ToLower(strings.TrimSpace(protocol)) {
+	case "h2", "http2", "http/2", "http/2.0", "h3", "http3", "http/3", "http/3.0":
+		return true
+	default:
+		return false
+	}
 }
 
 func assignEnvoyTextAttribute(
@@ -1360,8 +1470,8 @@ func boundedMetadataText(value []byte, field string) (string, error) {
 		return "", fmt.Errorf("%s exceeds metadata limit", field)
 	}
 	text := string(value)
-	if strings.IndexByte(text, 0) >= 0 {
-		return "", fmt.Errorf("%s contains a NUL byte", field)
+	if strings.ContainsAny(text, "\x00\r\n") {
+		return "", fmt.Errorf("%s contains a forbidden control character", field)
 	}
 	return text, nil
 }
@@ -1378,7 +1488,7 @@ func envoyAttributeText(attributes map[string]*structpb.Struct, name string) (st
 	if !ok {
 		return "", true, fmt.Errorf("Envoy attribute %s is not a string", name)
 	}
-	if len(kind.StringValue) > 4096 || strings.IndexByte(kind.StringValue, 0) >= 0 {
+	if len(kind.StringValue) > 4096 || strings.ContainsAny(kind.StringValue, "\x00\r\n") {
 		return "", true, fmt.Errorf("Envoy attribute %s is invalid", name)
 	}
 	return kind.StringValue, true, nil
