@@ -63,6 +63,8 @@ not verified.
 
 ## Changed files
 
+- `connectors/lighttpd/README.md`
+- `connectors/lighttpd/README.de.md`
 - `docs/protocol-parity.md`
 - `docs/protocol-parity.de.md`
 - `ci/checks/common/check-common-helpers.sh`
@@ -287,6 +289,23 @@ fixes have not been promoted to runtime verification. No security finding is
 fully verified.
 
 ## Final diff and review status
+
+**Further integrity correction on 2026-10-30:** a bounded HAProxy/lighttpd
+source trace found no promoted header-derived protocol or wire-stream identity,
+but the lighttpd README pair falsely described the committed-Strict callback as
+returning `PLUGIN_BODY_HOOK_ABORT`. The current module instead logs
+`NOT EXECUTED` and returns `PLUGIN_BODY_HOOK_CONTINUE`; Common profile admission
+rejects Strict because `lighttpd-patched` has no Strict post-commit action,
+and module activation propagates that rejection. The paired README correction
+states those facts and separates recognized config values from profile
+admission. No product, capability, test, fixture, selector or pin changes.
+This repairs a source/documentation contradiction, not missing Strict/H2/H3
+behavior or runtime proof. RTK-wrapped `make check-bilingual-docs` with Parent
+Python and `make check-doc-links` with Framework Python passed (exit 0), as did
+`ci/tools/new-change-record.py check` and `git diff --check`. Independent
+source-versus-text review found no blocker. No new runtime or native execution
+was performed for this documentation-only correction; successor hosted checks
+must be observed afresh after publication.
 
 **Subsequent update on 2026-10-30:** Parent master advanced again to
 `ee1345f17c5390fd2341751e88fc510c7e7b580c` (#433). It is integrated into

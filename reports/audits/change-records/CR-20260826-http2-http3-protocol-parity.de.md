@@ -65,6 +65,8 @@ verified.
 
 ## Geänderte Dateien
 
+- `connectors/lighttpd/README.md`
+- `connectors/lighttpd/README.de.md`
 - `docs/protocol-parity.md`
 - `docs/protocol-parity.de.md`
 - `ci/checks/common/check-common-helpers.sh`
@@ -304,6 +306,25 @@ verwendet. Source-Level-Fixes wurden nicht zu Runtime-Verifikation erhoben.
 Kein Security-Finding ist vollständig verifiziert.
 
 ## Finaler Diff- und Review-Status
+
+**Weitere Integritätskorrektur am 2026-10-30:** Eine begrenzte HAProxy-/lighttpd-
+Quellprüfung fand keine hochgestufte headerabgeleitete Protokoll- oder Wire-
+Stream-Identität, aber das lighttpd-README-Paar beschrieb fälschlich einen
+committeten Strict-Callback mit Rückgabe `PLUGIN_BODY_HOOK_ABORT`. Das aktuelle
+Modul protokolliert stattdessen `NOT EXECUTED` und gibt
+`PLUGIN_BODY_HOOK_CONTINUE` zurück. Common weist Strict bei der Profilzulassung
+ab, weil `lighttpd-patched` keine Strict-Aktion nach dem Commit besitzt; die
+Modulaktivierung gibt diese Ablehnung weiter. Die gepaarte README-Korrektur
+nennt diese Fakten und trennt bekannte Konfigurationswerte von der
+Profilzulassung. Keine Produkt-, Capability-, Test-, Fixture-, Selektor- oder
+Pin-Änderung. Dies korrigiert einen Quell-/Dokumentationswiderspruch, nicht die
+fehlende Strict-/H2-/H3-Funktion oder Runtime-Evidence. RTK-gekapseltes
+`make check-bilingual-docs` mit Parent-Python und `make check-doc-links` mit
+Framework-Python bestanden (Exit 0), ebenso `ci/tools/new-change-record.py check`
+und `git diff --check`. Unabhängiger Quell-/Textreview fand keinen Blocker.
+Für diese reine Dokumentationskorrektur wurde keine neue Runtime- oder native
+Ausführung vorgenommen; Hosted-Checks des Nachfolgers müssen nach
+Veröffentlichung frisch beobachtet werden.
 
 **Anschließende Aktualisierung am 2026-10-30:** Parent-Master rückte erneut
 auf `ee1345f17c5390fd2341751e88fc510c7e7b580c` vor (#433). Er wird ohne
