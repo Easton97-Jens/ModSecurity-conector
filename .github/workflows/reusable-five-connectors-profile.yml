@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@78461314f5b1df294de02e1cb7c8a3fa00910bbb
         with:
-          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
+          framework-revision: 78461314f5b1df294de02e1cb7c8a3fa00910bbb
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@78461314f5b1df294de02e1cb7c8a3fa00910bbb
         with:
-          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
+          framework-revision: 78461314f5b1df294de02e1cb7c8a3fa00910bbb
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@78461314f5b1df294de02e1cb7c8a3fa00910bbb
         with:
-          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
+          framework-revision: 78461314f5b1df294de02e1cb7c8a3fa00910bbb
