@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@a209e5e44be60b578a87a30fc85badcf7bdcab08
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@4391a424f34ea9c7b7ed09fd1df72a38a23cb909
         with:
-          framework-revision: a209e5e44be60b578a87a30fc85badcf7bdcab08
+          framework-revision: 4391a424f34ea9c7b7ed09fd1df72a38a23cb909
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@a209e5e44be60b578a87a30fc85badcf7bdcab08
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@4391a424f34ea9c7b7ed09fd1df72a38a23cb909
         with:
-          framework-revision: a209e5e44be60b578a87a30fc85badcf7bdcab08
+          framework-revision: 4391a424f34ea9c7b7ed09fd1df72a38a23cb909
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@a209e5e44be60b578a87a30fc85badcf7bdcab08
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@4391a424f34ea9c7b7ed09fd1df72a38a23cb909
         with:
-          framework-revision: a209e5e44be60b578a87a30fc85badcf7bdcab08
+          framework-revision: 4391a424f34ea9c7b7ed09fd1df72a38a23cb909
