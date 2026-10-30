@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@8ce35c1108d753986b11cb011d24fc99f262f112
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
         with:
-          framework-revision: 8ce35c1108d753986b11cb011d24fc99f262f112
+          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@8ce35c1108d753986b11cb011d24fc99f262f112
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
         with:
-          framework-revision: 8ce35c1108d753986b11cb011d24fc99f262f112
+          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@8ce35c1108d753986b11cb011d24fc99f262f112
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
         with:
-          framework-revision: 8ce35c1108d753986b11cb011d24fc99f262f112
+          framework-revision: cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49
