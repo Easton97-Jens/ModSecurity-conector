@@ -19,6 +19,38 @@ The one-way dependency remains Connector → Framework. The Framework has no
 Connector submodule. The MRTS tool remains pinned and read-only; Framework
 package/import corrections have separate followup ownership.
 
+## N31 Framework integration and measured duplication
+
+The user-authorized integration of Framework PR #142 produced master
+`7b33a0b73084e1864c268892f0bc15ba712fa9a5`, with a tree identical to reviewed
+PR head `deb3cf7a4fd72b24b02c02d85275ae9ef23fc1be`. Its exact-head premerge
+evidence passed 14 workflows and 18 checks; 3 event-inapplicable advisory checks
+were skipped. Sonar reported gate OK, 0 unresolved issues and 0 review hotspots.
+This follow-up selects that actual master through all 55 workflow/lock references
+in 23 files and the gitlink; 37 other literal references remain preserved.
+
+The published N30 Connector `b7155efb16a00fd9ce2b1192ddf9f817944d1288` /
+Framework `deb3cf7a4fd72b24b02c02d85275ae9ef23fc1be` recorded pair passed
+in 143.785 seconds; separate DEV with Framework
+`ed02c5bbe06c67493fe3c9671197a7b8a1484b72` passed in 142.305 seconds.
+All 90 updater methods / 216 subtests passed with 0 skips. Source heads, status
+and watched hashes remained stable. These receipts identify that earlier pair;
+acceptance of the new master pin and its hosted checks must be reread on PR #434.
+
+Exact `b7155efb16a00fd9ce2b1192ddf9f817944d1288` Sonar readback measured
+32 duplicated new lines / 1927 new lines, or 1.6606% (UI 1.7%), down from
+38 / 1933, or 1.9659% (UI 2.0%). 6 redundant implementation lines were removed.
+The 2 protected entrypoints retain their descriptor, nofollow, digest and
+exit-77 controls. The 2 S8707 reports and their 4 C++20/C++23 advisory copies
+were independently proven false positives for these exact flows; individual
+source/rule evidence and status/comment readback are retained. Unrelated
+advisory baseline findings have separate scope.
+
+This is the N31 integration checkpoint. All following N30/N29 sections are
+historical. Final Connector eligibility requires its exact new head, clean
+applicable gates, no new open findings and all required CI/reviews/rules.
+Actual UID1001 bootstrap remains NOT_EXECUTED locally.
+
 ## N30 canonical-inventory owner capability checkpoint
 
 This records implementation and local verification at the N30 checkpoint; all following N29 sections are historical.

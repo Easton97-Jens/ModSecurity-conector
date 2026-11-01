@@ -20,6 +20,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-envoy/envoy-contract@deb3cf7a4fd72b24b02c02d85275ae9ef23fc1be
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-envoy/envoy-contract@7b33a0b73084e1864c268892f0bc15ba712fa9a5
         with:
-          framework-revision: deb3cf7a4fd72b24b02c02d85275ae9ef23fc1be
+          framework-revision: 7b33a0b73084e1864c268892f0bc15ba712fa9a5

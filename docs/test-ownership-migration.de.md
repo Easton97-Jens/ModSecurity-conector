@@ -19,6 +19,42 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## N31-Framework-Integration und gemessene Duplikation
+
+Die vom Nutzer freigegebene Integration von Framework-PR #142 ergab Master
+`7b33a0b73084e1864c268892f0bc15ba712fa9a5`, mit identischem Tree zum geprüften
+PR-Head `deb3cf7a4fd72b24b02c02d85275ae9ef23fc1be`. Seine headgenauen
+Premerge-Belege bestanden 14 Workflows und 18 Checks; 3 für das Ereignis
+unzutreffende Advisory-Checks wurden übersprungen. Sonar meldete Gate OK,
+0 offene Findings und 0 zu prüfende Hotspots. Dieser Folgestand wählt den
+tatsächlichen Master über alle 55 Workflow-/Lock-Referenzen in 23 Dateien und
+den Gitlink; 37 andere literale Referenzen bleiben erhalten.
+
+Das veröffentlichte aufgezeichnete N30-Paar Connector
+`b7155efb16a00fd9ce2b1192ddf9f817944d1288` / Framework
+`deb3cf7a4fd72b24b02c02d85275ae9ef23fc1be` bestand in 143.785 Sekunden;
+die getrennte DEV-Kombination mit Framework
+`ed02c5bbe06c67493fe3c9671197a7b8a1484b72` bestand in 142.305 Sekunden.
+Alle 90 Updatermethoden / 216 Subtests bestanden mit 0 Skips. Quell-Heads,
+Git-Zustand und überwachte Hashes blieben stabil. Diese Belege benennen das
+frühere Paar; Abnahme des neuen Master-Pins und gehostete Prüfungen müssen
+in PR #434 erneut gelesen werden.
+
+Die Sonar-Rücklesung für exakt `b7155efb16a00fd9ce2b1192ddf9f817944d1288`
+maß 32 neue duplizierte Zeilen / 1927 neue Zeilen, also 1.6606% (UI 1.7%),
+gegenüber 38 / 1933, also 1.9659% (UI 2.0%). 6 redundante Implementierungszeilen
+wurden entfernt. Die 2 geschützten Einstiegspunkte erhalten Deskriptor-,
+Nofollow-, Digest- und Exit-77-Kontrollen. Die 2 S8707-Meldungen und ihre
+4 C++20/C++23-Advisory-Kopien wurden für diese exakten Flüsse unabhängig als
+Fehlalarme belegt; individuelle Quell-/Regelbelege und Status-/Kommentarrücklesung
+sind gesichert. Fremde Advisory-Baseline-Findings haben einen getrennten Umfang.
+
+Dies ist der N31-Integrationsstand. Alle folgenden N30-/N29-Abschnitte sind
+historisch. Die abschließende Connector-Freigabe erfordert dessen exakten
+neuen Head, saubere anwendbare Gates, keine neuen offenen Findings sowie alle
+erforderlichen CI-Prüfungen, Reviews und Regeln. Tatsächlicher UID1001-Bootstrap
+bleibt lokal NOT_EXECUTED.
+
 ## N30-Sicherungsstand zur Owner-Berechtigung kanonischer Inventare
 
 Dies dokumentiert Implementierung und lokale Prüfung zum N30-Sicherungsstand; alle folgenden N29-Abschnitte sind historisch.
