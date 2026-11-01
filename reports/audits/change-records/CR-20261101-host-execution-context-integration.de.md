@@ -14,6 +14,8 @@
 
 Die vorbereitete Parent-Routing-Anpassung für den Host-Ausführungskontext und das integrierte Framework-Preflight werden über einen eigenen Connector-Draft-PR geliefert. Fehlende Protokoll-APIs im aktuellen Parent-Quellcode verhindern die Freigabequalifikation. Diese Abhängigkeit bleibt sichtbar; Produktänderungen aus [PR #348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348) werden nicht übernommen.
 
+Die `.codex`-Kontext- und Routingänderungen sind unabhängig von #348 und anderen PRs. Die #348-Abhängigkeit betrifft ausschließlich die Produkt-/Testverträglichkeit des ausgewählten Framework-Pins und die finale Paarqualifikation; sie ist keine Voraussetzung für die Kontextanleitung selbst.
+
 ## Akzeptanzkriterien
 
 Die Draft-Lieferung erfordert einen auftragsbezogenen Diff, einen konsistenten Framework-Gitlink samt registrierten Projektionen, aktuelle Pin-/Provenienz- und Dokumentationsprüfungen, Secret-Scanning und die ausdrückliche Benennung der Abhängigkeit. Freigabereife erfordert zusätzlich den Apache-Vertrag, das eingecheckte Parent-/Framework-Paar, Artefaktzulassung, frischen NGINX-Hostlauf mit Launcher-/Cleanup-Nachweisen sowie aktuelle CI-/Sonar-Ergebnisse am exakten Head. Dieser Auftrag autorisiert keinen Merge.

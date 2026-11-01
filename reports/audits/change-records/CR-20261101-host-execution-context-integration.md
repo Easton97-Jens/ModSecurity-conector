@@ -14,6 +14,8 @@
 
 Deliver the prepared Parent host-execution-context routing and the integrated Framework preflight through a separate Connector Draft PR. Missing protocol APIs in the current Parent source prevent release qualification. Preserve that dependency rather than importing product changes from [PR #348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348).
 
+The `.codex` context and routing changes are independent of #348 and other PRs. The #348 dependency applies only to product/test compatibility of the selected Framework pin and final pair qualification; it is not a prerequisite for the context instructions themselves.
+
 ## Acceptance criteria
 
 Draft delivery requires a scoped diff, consistent Framework gitlink and registered projections, current pin/provenance and documentation checks, secret scanning, and explicit dependency disclosure. Release readiness additionally requires the Apache contract, the committed Parent/Framework pair, artifact readmission, fresh NGINX host execution and launcher/cleanup evidence, and current exact-head CI/Sonar results. This task authorizes no merge.
