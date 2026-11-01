@@ -73,11 +73,7 @@ Envoy-External-Processor, Traefik-Middleware oder lighttpd-Modul bereit. Die
 Connector- und `common/`-Schichten mappen begrenzte Hostdaten auf die Engine und
 mappen eine Engine-Interventionsanforderung zurück auf eine Hostaktion.
 
-Das Framework-Submodul ist ein unabhängiges Repository für wiederverwendbare
-Tests. Es besitzt wiederverwendbare Cases, Runner, Normalizer, Katalogauswahl,
-Schemas und Report-Generierung. Der Parent besitzt das eigentliche
-Connector-Produkt, seinen hostspezifischen Ausführungsseam und die kanonischen
-Host-Artefakte, die ein Framework-Workflow normalisieren und validieren kann.
+Das Framework-Submodul besitzt die gesamte Testimplementierung einschließlich connector-spezifischer Tests, Fixtures, nativer Programme, Testadapter, Provisionierung, Auswahl, Orchestrierung, Nachweiswerkzeuge und Reports. Der Parent besitzt produktiven Code, Konfiguration, Build und Auslieferung sowie kleine Einstiege zum gepinnten Framework. Produktive Ereignisproduzenten bleiben Produktcode; Testerfassung und Normalisierung gehören ins Framework. Siehe [die explizite Testschnittstelle](test-ownership-migration.de.md).
 
 Dieses Repository ist keine zweite allgemeine Testplattform, kein Ersatz für
 libmodsecurity, keine universelle Host-ABI, kein Ablageort für generierte
@@ -99,8 +95,8 @@ How is the product checked for correct, secure, and consistent behavior?
 
 | Grenze | Owner und Inhalte | Besitzt nicht | Änderungsziel |
 | --- | --- | --- | --- |
-| Parent-Repository | Produktiver Connector-Source, `common/`, Buildsysteme, Connector-Konfiguration, Packaging-/Installationsmaterial, Connector-Dokumentation, Produkt-Contracts, hostspezifische Harness-Seams und Artefaktproduzenten. | Einen zweiten wiederverwendbaren Case-Katalog, generischen Normalizer oder allgemeine Testplattform. | Dieses Repository. |
-| `modules/ModSecurity-test-Framework` | Wiederverwendbare Testfälle, Regelkataloge, Runner und wiederverwendbare Harness-Logik, Schemas, Normalizer, connectorübergreifender Vergleich, wiederverwendbare Smoke-/Integration-Logik und kanonische Testreport-Generierung. | Connector-Implementierung, Host-Hook-Code, Host-Build-Konfiguration oder eine Connector-Promotion-Entscheidung. | Das Framework-Repository und sein eigener Change Record. |
+| Parent-Repository | Produktiver Connector-Code, `common/`, Produkt-Build/-Konfiguration/-Abhängigkeiten, Installation, Packaging, Deployment und kleine Make-/CI-Einstiege zum gepinnten Framework. | Tests, Fixtures, Test-Harnesses, Inventar, Nachweisverarbeitung oder Testreport-Generatoren. | Dieses Repository. |
+| `modules/ModSecurity-test-Framework` | Sämtliche Tests und Testinfrastruktur einschließlich connector-spezifischer Fälle/Adapter, Native-/Go-/Compile-Tests, Fixtures, Provisionierung, Auswahl, Ausführung, Validierung und Reports. | Produktimplementierung, produktive Hostkonfiguration oder Promotion ohne beobachtete Nachweise. | Eigenständiges Framework-Repository und Change Record. |
 | Externe Host- und ModSecurity-Quellen | Gepinnte oder ausgewählte Upstream-Host-/Engine-Inputs, Lizenzen, Provenance und externe Runtime-Abhängigkeiten. | Parent-Produkt-Source-Ownership, sofern nicht mit expliziter Attribution importiert. | Der relevante externe Source-Prozess und Parent-Provenance-Records. |
 | Externe Build-, Cache-, Runtime-, Log- und Evidence-Roots | Invocation-lokale Ausgaben, ausgewählt durch dokumentierte Variablen wie `BUILD_ROOT`, `EVIDENCE_ROOT` und `VERIFIED_RUN_ROOT`. | Versionierter Source, Secrets oder dauerhafte Produktdokumentation. | Außerhalb beider Checkouts. |
 | Generierte Reports und Inventare | Generator-eigene Ausgabe unter Pfaden wie `reports/testing/generated/`. | Manuelle Korrekturen oder neue Runtime-Ergebnisse. | Ihr Generator-/Source-Contract, niemals eine Handeingabe. |
@@ -111,9 +107,7 @@ ohne Host-SDK kompiliert und funktioniert. Eine Host-API-Aktion,
 Hostobjektlebensdauer, Host-Config-Parser, Build-/Packaging-Verhalten oder ein
 hostspezifischer Runtime-Seam gehört nach `connectors/<name>/`.
 Wiederverwendbare Cases, Normalizer, Runner oder Schemas gehören in das
-Framework. Ein kleiner Parent-Test bleibt im Parent, wenn er Parent-Build-,
-Konfigurations-, Artefakt-, Path-, Security- oder Adapter-Seam-Verhalten
-schützt; ein Framework-Katalog-Case darf nicht in den Parent kopiert werden.
+Framework. Sämtliche Tests von Produkt-Build, Konfiguration, Artefakten, Pfaden, Security und Adapterverhalten gehören ins Framework; der Parent behält produktive Verträge und kleine gepinnte Einstiege.
 
 ## Komponenten- und Abhängigkeitsmodell
 
@@ -136,10 +130,10 @@ nicht sechs unabhängige Produkte mit demselben Namen.
                                          |
                               selected host API / service
 
- Parent build, configuration, and host-specific artifact producers
+ Parent product build, configuration, and productive event producers
                                          |
                                          v
- Framework cases, normalization, validation, and generated reports
+ Framework all tests/adapters, capture, normalization, validation, and reports
 ```
 
 | Komponente | Verantwortung | Zulässige Abhängigkeiten | Verbotene Kopplung |
@@ -151,11 +145,11 @@ nicht sechs unabhängige Produkte mit demselben Namen.
 | `connectors/envoy/` | Envoy-`ext_proc`-Service, Protocol-Mapping, generiertes Host-Konfigurationsmaterial, Build-/Harness-Seam und `ext_authz`-Compatibility-Material. | `common/`, libmodsecurity, Envoy-/gRPC-/Go-Interfaces, Parent-Build/-Konfiguration. | `ext_authz` als Response-Phasen-Evidence für `ext_proc` behandeln. |
 | `connectors/traefik/` | Native Middleware, lokale UDS-Engine-Service-Client-/Server-Grenze, Traefik-Konfigurations-/Build-Seam und `forwardAuth`-Compatibility-Material. | `common/`, libmodsecurity, Go- und Traefik-Plugin-Interfaces, Parent-Build/-Konfiguration. | `forwardAuth` als Response-Phasen-Evidence für native Middleware behandeln. |
 | `connectors/lighttpd/` | Kanonisches traffic-owning Stock-Sidecar, separate gepatchte native lighttpd-Modul-/Mapper-Grenze, Konfigurations-/Build-Seam und behaltenes natives Stock-/Legacy-Kompatibilitätsmaterial. | `common/`, libmodsecurity, ausgewählte lighttpd-APIs, Parent-Build/-Konfiguration. | Stock-Sidecar- und patched-native-Evidence als austauschbar behandeln oder die native Stock-Übersetzung als Fallback behandeln. |
-| `ci/` | Parent-Orchestrierung, sichere Path-Checks, Source-/Contract-Checks, Lifecycle-Stage-Invocation, Artefaktproduzenten und Report-Consumer. | Parent-Code, Root-Makefile und ausdrücklich delegierte Framework-Tools. | Wiederverwendbare Katalog-/Normalizer-Rolle des Frameworks ersetzen oder Host-Produktlogik einbetten, die in einen Connector gehört. |
-| `config/` | Versionierte deklarative Test-/Konfigurationsinputs und Import-Status. | Parent-Dokumentation und Checker. | Runtime-Secrets, generierte Evidence oder Host-Implementierung. |
-| `tests/` | Fokussierte Parent-Produkt-Contract-, Path-/Security-, Artefakt- und Adapter-Seam-Tests. | Parent-`ci/`, Root-Makefile und deklarierte Framework-Fixtures, wenn nötig. | Einen zweiten wiederverwendbaren Case-Korpus oder kanonisches Host-Runtime-Ergebnis. |
+| `ci/` | Produktwartung, Build-/Auslieferungsunterstützung und kleine authentifizierte Framework-Einstiege. | Testorchestrierung, Fixtures, Collectors oder Testvalidatoren. | Produktcode und exakte gepinnte Framework-Schnittstellen. |
+| `config/` | Produktkonfiguration und Analyseeingaben. | Testauswahl/-Regeln/-Fixtures (Framework), Runtime-Secrets oder generierte Nachweise. | Produktkonfigurationswerkzeuge. |
+| Framework `connector_suite/` | Bisherige Parent-Tests, Testinfrastruktur, Inventar und connector-spezifische Adapter. | Produktive Runtime-Abhängigkeiten. | Explizite `TEST_ROOT`, `CONNECTOR_ROOT`, Revision, Profil und externe Ausgabeorte. |
 | `reports/` | Aktuelle manuell gepflegte Reports, Change Records, generierte Report-Orte und quellenbasierte Inventare. | Source-Contracts und Framework-Generatoren. | Manuelle Änderung generierter Ausgaben oder Speicherung roher Payloads/Secrets. |
-| Framework-Submodul | Wiederverwendbare Tests, Kataloge, Normalizer, Schemas, Runner und Report-Generierung. | Deklarierte Connector-Inputs und Artefakt-Contracts. | Parent-Connector-Source oder hostspezifische Produkt-Build-Ownership. |
+| Framework-Submodul | Gesamter Testumfang und Infrastruktur einschließlich hostspezifischer Testmechanik. | Produktiver Parent-Code/-Build/-Auslieferung. | Explizite Produkteingaben und unabhängig validierte Nachweise. |
 
 ## Connector-Vertrag und fertiges Produkt
 
@@ -296,7 +290,7 @@ implizit.
 | --- | --- | --- | --- |
 | `connectors/<name>/`, `examples/<name>/` und versionierte Profildateien | Parent-Connector | Hostsyntax, hostspezifische Service-/Middleware-/Filter-Konfiguration, Installations-/Build-Inputs und ausgewählte Profile. | Als versionierte Konfiguration `verified`; ein Load beweist keinen Traffic. |
 | `common/runtime/msconnector_runtime.c` und `examples/common/` | Parent-`common/` | Neutrale `key=value`-Runtime-Konfiguration, Limits, Event-Pfad und Engine-Rule-Source. | `verified` Parser-/Source-Contract; ein Key ist keine Host-Directive. |
-| `common/rules/` und Connector-Rule-/Konfigurationsinputs | Parent-Connector-Produkt | Targeted Rules und produkt-eigene ausgewählte Inputs. | Bis zur Nutzung durch passende abgegrenzte Evidence `documented_not_runtime_verified`. |
+| Framework `connector_suite/common/rules/` und produktive Regel-/Konfigurationseingaben | Framework-Testfixtures / produktive Parent-Konfiguration | Targeted Fixture-Regeln gehören dem Framework; produktive Regeln sind explizite Produkteingaben. | Bis zur Nutzung durch passende abgegrenzte Evidence `documented_not_runtime_verified`. |
 | `modules/ModSecurity-test-Framework/tests/` und Framework-Variablen | Framework | Wiederverwendbare Cases, Rules, Schemas, Katalogauswahl, Runner-Defaults und Normalisierung. | Framework-eigene Testinputs; der Parent zeichnet die hostspezifische effektive Konfiguration auf. |
 | `BUILD_ROOT`, `EVIDENCE_ROOT`, `VERIFIED_RUN_ROOT`, Ports, Binary-Pfade und UDS-Pfade | Invocation-/CI-Operator | Externer Build-/Cache-/Runtime-/Log-/Evidence-Ort und Host-Launch-Werte. | Lokale/Runtim-Werte; niemals versionierte Secrets oder Capability-Nachweis. |
 | Secrets, Credentials, Cookies, Tokens und private Schlüssel | Externer Secret-Mechanismus | Runtime-Authentisierung oder privater Deployment-Input, wenn nötig. | Für versionierte Beispiele, Reports und dieses Konzept `out_of_scope`. |
@@ -339,21 +333,14 @@ Apache-Native-Host-P4-Ergebnisses verwendet werden.
 | Generierter Report | Die Darstellung seiner deklarierten Inputs durch einen Generator. | Aktuelle Wahrheit, wenn seine Inputs stale oder fehlend sind. |
 | Production-Release-Entscheidung | Eine getrennte reviewte Betriebsentscheidung. | Automatische Folge einer vorigen Ebene. |
 
-Das getrackte Parent-Testinventar bei Basisrevision wird unten klassifiziert.
-Die Klassifikation ist ein Placement-Review, keine Move-Anforderung; durch
-diese Konzeptänderung werden keine Tests verschoben.
+Alle früheren Parent-Testklassen gehören jetzt zum Framework, einschließlich
+Repository-Governance, Produktverträgen, connectorspezifischen Seams und
+Provisionierungsprüfungen. Die frühere Platzierungsbewertung und Empfehlungen
+zum Verbleib im Parent sind durch [die Testschnittstelle](test-ownership-migration.de.md)
+ersetzt. Historische Tests und Berichte behalten ihren ursprünglichen
+Evidenzumfang; ihre Verschiebung erzeugt keinen neuen Runtime-Nachweis.
 
-| Klassifikation | Getrackte Parent-Tests | Begründung und Folgeaufgabe |
-| --- | --- | --- |
-| `repository_governance` | `test_bilingual_docs.py`, `test_compiler_guides.py`, `test_make_runtime_defaults.py`, `test_runtime_path_policy.py`, `test_update_github_actions_versions.py` | Schützen Parent-Dokumentation, Tooling, Paths und Workflow-Contracts; im Parent behalten. |
-| `parent_product_contract` | `test_c_cpp_diagnostics.py`, `test_connector_capabilities.py`, `test_full_lifecycle_profiles.py`, `test_no_crs_selected_runner_wiring.py`, `test_six_connector_core_completion.py` | Schützen Root-Lifecycle-Auswahl, Capability-, Compiler- und Parent-Orchestrierungs-Contracts; im Parent behalten. |
-| `connector_local_seam` | `test_envoy_transport_hardening_contract.py`, `test_nginx_phase4_runner_wiring.py`, `test_nginx_protocol_harness_contract.py`, `test_response_header_backend.py`, `test_traefik_native_local_plugin.py`, `test_traefik_transport_hardening_contract.py` | Prüfen einen Host-/Produkt-Integrationsseam; beim Parent-Adapter halten, bis ein bewusster Framework-Interface existiert. |
-| `framework_candidate` | `test_collect_no_crs_source.py`, `test_engine_lifecycle_artifacts.py`, `test_full_lifecycle_evidence.py`, `test_resolve_runtime_paths.py`, `test_runtime_env_snapshot_contract.py`, `test_transport_lifecycle_artifacts.py` | Schützen generische Normalisierung, Artefakte oder Runner-Isolation, kodieren aber auch Parent-Profile. Wiederverwendbare Interface-Logik nur durch eine bewusste Framework-Änderung abspalten. |
-| `unclear` | `test_prepare_runtime_components.py`, `test_runtime_component_cache_contract.py`, `test_runtime_component_cache_identity.py` | Component-Preparation-/Cache-Policy umspannt Parent-Produkt und Framework-Provisioning. Dauerhaften Owner vor einem Move reviewen. |
-
-Alle diese Root-Tests sind für Runtime-Zwecke `documented_not_runtime_verified`:
-Sie sind Unit-/Contract-Tests und wurden für diese Dokumentationsänderung nicht
-ausgeführt. Aktuelle generierte Reports müssen nach Freshness interpretiert
+Aktuelle generierte Reports müssen nach Freshness interpretiert
 werden. Die generierte `report-freshness.generated.md` benennt den älteren Run
 `2026-06-16T19-12-00Z-614c8049` und markiert viele Reports als `stale`,
 `skipped` oder `skipped_stale_input`. Daher sind diese Snapshots für aktuelle
@@ -391,7 +378,7 @@ ist diese Reihenfolge einzuhalten:
 4. Hostspezifische Mapper, Hooks/Filter/Services/Middleware und Actions in `connectors/<name>/` implementieren.
 5. Ownership, geliehene Daten, Intervention-/Redirect-Lebensdauer und Cleanup auf Success- und Error-Pfaden dokumentieren.
 6. Reproduzierbaren Build, Packaging/Installation und versionierte Konfiguration bereitstellen.
-7. Parent-Produkt-Contract-Tests und einen hostspezifischen Seam nur für echtes Hostverhalten ergänzen.
+7. Produktvertragstests und hostspezifische Testadapter im Framework ergänzen; produktives Hostverhalten bleibt im Parent.
 8. Framework-Adapter erstellen oder anpassen; Framework-Cases, Schemas, Runner und Normalizer wiederverwenden.
 9. Trust Boundaries, Limits, Redaction, Downloads, UDS-/Transport-Berechtigungen und Failure-Policy analysieren.
 10. Vollständige englische und deutsche Produkt-, Connector-, Konfigurations-, Lifecycle- und Limitation-Dokumentation ergänzen.
@@ -409,8 +396,8 @@ ist diese Reihenfolge einzuhalten:
 | Runtime-Report-Provenance | Ein aktueller profilpassender kanonischer Artefaktsatz stützt jedes Runtime-Label. | Aktuelle Reports zitieren `PASS` für `six-connectors-core-final-20260712T164725Z-e16e7f1`, rohe Artefakte wurden in dieser Aufgabe aber nicht unabhängig revalidiert. | Ihr Ergebnis ist hier `documented_not_runtime_verified`. | Rohe kanonische Artefakte auffinden/revalidieren, bevor ein aktueller Runtime-Status promotet wird. | High | Parent + Framework |
 | Generated-Report-Freshness | Aktuelle Reports leiten sich aus frischen Inputs für geprüfte Revisionen ab. | Viele generierte Reports zitieren den älteren Input `2026-06-16T19-12-00Z-614c8049` und sind `stale` oder skipped. | Sie sind für aktuelle Promotion `unknown`. | Mit gültigen Inputs über den Generator reproduzieren/refreshen; nicht hand editieren. | High | Parent + Framework |
 | Common-Design-Notiz | Aktuelle Designnotizen beschreiben ausgewählte Produktpfade. | `common/docs/design.md` und `common/docs/design.de.md` beschreiben jetzt die aktuelle Common-Grenze und unterscheiden Kompatibilitätsmaterial von ausgewählten Routen. | Durch `CR-20260714-common-design-note` und den Common-Designnotiz-Contract in `check-bilingual-docs` adressiert. | Die Notiz bei Änderungen ausgewählter Routen mit verbindlichem Konzept, Architektur und Connector-Guides synchron halten. | Medium | Parent |
-| Testgrenze | Generische Testlogik liegt im Framework; Parent behält Produkt-Contracts und Host-Seams. | Root-Test-README beschreibt die Regel, aber generische Normalisierungs-/Evidence-Logik und Framework-nahe Tests bleiben im Parent, während das Framework auch hostspezifisches Provisioning/Runner enthält. | `framework_candidate`- und `unclear`-Placement-Split; kein automatischer Move ist begründet. | Stabilen Framework-Interface etablieren, dann wiederverwendbare Logik abspalten und Connector-Profile/Host-Seams im Parent halten. | Medium | Parent + Framework |
-| Generator-/Output-Ownership | Framework-eigene Reports besitzen einen deklarierten Generator und Output-Owner. | Framework-Generierung schreibt Coverage-/Runtime-Output unter Parent-`reports/testing/generated/`; ein Parent-Language-Switch-Postprocessor beteiligt sich ebenfalls. | Generator-/Output-Ownership ist geteilt und benötigt explizite Governance. | Finalen Ownership-Contract in einem ADR festhalten und manuelle Generated-File-Änderungen vermeiden. | Medium | Parent + Framework |
+| Testgrenze | Sämtliche Tests und Testinfrastruktur gehören ins Framework; Parent behält Produkt und gepinnte Einstiege. | Im Migrationsworktree implementiert; finale Integration und Hostvalidierung bleiben erforderlich. | Siehe `docs/test-ownership-migration.de.md`. | Revisionsgebundene Validierung und getrennte PR-Delivery abschließen. | High | Parent + Framework |
+| Generator-/Output-Ownership | Framework besitzt Testreport-Generatoren; Ausgaben sind deklarierte externe Laufartefakte oder generatorverwaltete versionierte Snapshots. | Vorhandene historische Parent-Berichte bleiben historisch. | Runtime-Freshness bleibt bis zur Input-Revalidierung ungeprüft. | Über den deklarierten Framework-Generator regenerieren; generierte Evidence nie handeditieren. | Medium | Parent + Framework |
 | Connector-Selbstständigkeit | Jeder Connector kann mit `common/` ein dokumentiert baubares/installierbares Produkt bilden. | Root-Targets und Connector-Material existieren, aber Packaging-/Installationsvollständigkeit ist nicht einheitlich durch einen aktuellen Evidence-Record belegt. | `documented_not_runtime_verified`. | Build-/Packaging-/Installationsvertrag jedes Connectors auditieren und abgegrenzte Ergebnisse aufzeichnen. | Medium | Parent |
 | Einheitliche beobachtbare Contracts | Geteilte Phasen-, Limit-, Intervention-, Logging-, Cleanup-, Konfigurations- und Evidence-Bedeutung über Hosts hinweg. | Hostimplementierungen unterscheiden sich zwangsläufig; Selected Core ist abgegrenzt und Strict-/Protocol-Coverage unvollständig. | Unterschiede sind nur explizit zulässig; breitere Gleichwertigkeit ist `out_of_scope`. | Targeted Evidence-/ADR-Arbeit für Strict-Verhalten und Protocol-Scopes ergänzen. | Medium | Parent + Framework |
 

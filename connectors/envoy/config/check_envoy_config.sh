@@ -6,7 +6,7 @@ CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 SERVICE_BIN=${SERVICE_BIN:-$BUILD_ROOT/envoy-connector/msconnector_envoy_ext_authz}
 CONFIG_FILE=${CONFIG_FILE:-$SCRIPT_DIR/envoy-ext-authz.conf}
-RULES_FILE=${RULES_FILE:-$CONNECTOR_DIR/../../common/rules/modsecurity_targeted_smoke.conf}
+RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-}}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$BUILD_ROOT/envoy-connector/events.jsonl}
 
 while [ "$#" -gt 0 ]; do
@@ -21,6 +21,8 @@ while [ "$#" -gt 0 ]; do
         *) echo "envoy_config: unsupported argument: $1" >&2; exit 2 ;;
     esac
 done
+
+: "${RULES_FILE:?explicit product RULES_FILE or MSCONNECTOR_RULES_FILE is required}"
 
 [ -x "$SERVICE_BIN" ] || {
     echo "envoy_config: connector service is not executable: $SERVICE_BIN" >&2

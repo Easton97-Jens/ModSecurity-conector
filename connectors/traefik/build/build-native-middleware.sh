@@ -34,7 +34,10 @@ case "$OUT_DIR" in
 esac
 
 case "$MODE" in
-    build|test) ;;
+    build) ;;
+    test)
+        exec make -C "$REPO_ROOT" framework-go-test GO_TEST_MODULE=connectors/traefik/native_middleware
+        ;;
     clean)
         rm -rf "$OUT_DIR"
         printf 'traefik_native_middleware_clean=pass\n'
@@ -57,13 +60,6 @@ command -v "$GO_BIN" >/dev/null 2>&1 || {
 }
 
 mkdir -p "$OUT_DIR"
-if [ "$MODE" = test ]; then
-    if [ "${ON_DEMAND_TESTS:-0}" = 1 ]; then
-        (cd "$MODULE_DIR" && "$GO_BIN" test -mod=readonly ./...)
-    else
-        "${PYTHON:-python3}" "$REPO_ROOT/ci/tools/run-active-tests.py" --module connectors/traefik/native_middleware
-    fi
-fi
 (
     cd "$MODULE_DIR"
     "$GO_BIN" vet -mod=readonly ./...

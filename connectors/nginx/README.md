@@ -237,7 +237,7 @@ values are retained for provenance only and are not final proof after the
 current root/worker and evidence-trust hardening.
 
 The source-controlled local file
-[`harness/valgrind-nginx-core-1.31.2.supp`](harness/valgrind-nginx-core-1.31.2.supp)
+[`harness/valgrind-nginx-core-1.31.2.supp`](../../modules/ModSecurity-test-Framework/connector_suite/adapters/nginx/harness/valgrind-nginx-core-1.31.2.supp)
 is not copied from upstream. It matches only a definite `Memcheck:Leak` on
 `malloc -> ngx_alloc -> ngx_set_environment -> ngx_worker_process_init ->
 ngx_worker_process_cycle -> ngx_spawn_process -> ngx_start_worker_processes ->

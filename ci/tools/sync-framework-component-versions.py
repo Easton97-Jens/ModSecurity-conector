@@ -4,8 +4,7 @@
 ``common.sh`` is never sourced or executed. The protected update workflow
 proves the Framework Git object, extracts its ``ci/lib/common.sh`` as a data
 file, and this tool accepts only a bounded registry-defined data grammar. It
-can write only the explicit Parent target registry and its two constrained
-inventory companions. A separately validated
+can write only the explicit Parent product target registry. A separately validated
 resolver SHA may additionally update the single ordinary project version
 lock; it is never read from ``common.sh``.
 
@@ -27,6 +26,8 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
+from types import SimpleNamespace
 import stat
 import subprocess
 import sys
@@ -35,12 +36,19 @@ from urllib.parse import urlsplit
 
 
 SCRIPT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(SCRIPT_REPOSITORY_ROOT))
-from ci.lib.framework_revision_pins import (
-    FrameworkRevisionPinsError, LOCK_RELATIVE_PATH, parse_framework_revision_pins,
-)
-from ci.lib import active_inventory_updates as inventory_updates
-from ci.lib.active_test_inventory import load_inventory
+if __package__:
+    from ..lib.framework_revision_pins import (
+        FrameworkRevisionPinsError, LOCK_RELATIVE_PATH, parse_framework_revision_pins,
+    )
+    from ..lib import maintenance_changes as product_changes
+else:
+    # Standalone product CLI keeps fixed source ownership without placing the
+    # entire subject checkout on Python's global import path.
+    _pins = runpy.run_path(str(SCRIPT_REPOSITORY_ROOT / "ci/lib/framework_revision_pins.py"))
+    FrameworkRevisionPinsError = _pins["FrameworkRevisionPinsError"]
+    LOCK_RELATIVE_PATH = _pins["LOCK_RELATIVE_PATH"]
+    parse_framework_revision_pins = _pins["parse_framework_revision_pins"]
+    product_changes = SimpleNamespace(**runpy.run_path(str(SCRIPT_REPOSITORY_ROOT / "ci/lib/maintenance_changes.py")))
 
 
 MAX_COMMON_BYTES = 256 * 1024
@@ -323,6 +331,8 @@ class FrameworkShaProjectionSpec:
 
     relative_path: str
     syntax: str
+    reference_count: int = 0
+    input_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -335,44 +345,12 @@ class RenderedTarget:
 
 # This is the primary Parent write allowlist. Discovery never broadens it: a
 # new Framework value needs an explicit target and a dedicated target renderer.
-# The two fixed companions contain only derived existing SHA-slot changes.
+# Test/provisioning/broker sources are Framework-owned and are never write targets.
 TARGET_REGISTRY = (
     TargetSpec(
         "connectors/envoy/config/envoy-ext-proc-versions.env",
         (("ENVOY_RELEASE", "ENVOY_VERSION"), ("ENVOY_IMAGE", "ENVOY_IMAGE")),
         "shell",
-    ),
-    TargetSpec(
-        "ci/provisioning/components/prepare-runtime-components.py",
-        (("DEFAULT_HAPROXY_VERSION", "HAPROXY_VERSION"),),
-        "python",
-    ),
-    TargetSpec(
-        "tests/test_prepare_runtime_components.py",
-        (
-            ("TEST_HAPROXY_LOCKED_VERSION", "HAPROXY_VERSION"),
-            ("TEST_HAPROXY_LOCKED_SOURCE_URL", "HAPROXY_SOURCE_URL"),
-            ("TEST_HAPROXY_LOCKED_SHA256", "HAPROXY_SHA256"),
-        ),
-        "python",
-    ),
-    TargetSpec(
-        "ci/runtime/broker/nginx_root_broker.py",
-        (
-            ("CRS_APPROVED_REPOSITORY", "CRS_APPROVED_REPO_URL"),
-            ("CRS_RELEASE_TAG", "CRS_RELEASE_TAG"),
-            ("CRS_APPROVED_COMMIT", "CRS_APPROVED_COMMIT"),
-        ),
-        "python",
-    ),
-    TargetSpec(
-        "ci/runtime/broker/protected_nginx_broker_caller.py",
-        (
-            ("CRS_REPOSITORY", "CRS_APPROVED_REPO_URL"),
-            ("CRS_RELEASE_TAG", "CRS_RELEASE_TAG"),
-            ("CRS_COMMIT", "CRS_APPROVED_COMMIT"),
-        ),
-        "python",
     ),
     TargetSpec(
         "connectors/lighttpd/lighttpd-version.contract",
@@ -412,14 +390,6 @@ TARGET_REGISTRY = (
         ),
         "python",
     ),
-    TargetSpec(
-        "tests/test_compiler_guides.py",
-        (
-            ("MODSECURITY_REF_COMMAND", "MODSECURITY_REF_COMMAND"),
-            ("MODSECURITY_COMMIT_COMMAND", "MODSECURITY_COMMIT_COMMAND"),
-        ),
-        "python",
-    ),
 )
 
 # This target class is deliberately separate from TARGET_REGISTRY. The value
@@ -428,6 +398,28 @@ TARGET_REGISTRY = (
 # synchronizer from gaining ownership of unrelated runtime or NGINX pins.
 FRAMEWORK_SHA_PROJECTION_TARGETS = (
     FrameworkShaProjectionSpec(LOCK_RELATIVE_PATH, "project-versions-lock"),
+    FrameworkShaProjectionSpec(".github/workflows/ci-findings-regressions.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/lint.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/nginx-root-broker.yml", "framework-workflow", 1, 0),
+    FrameworkShaProjectionSpec(".github/workflows/open-connectors-smoke.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/protocol-contract.yml", "framework-workflow", 2, 2),
+    FrameworkShaProjectionSpec(".github/workflows/quick-framework-check.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/reusable-five-connectors-profile.yml", "framework-workflow", 3, 3),
+    FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-exact-head.yml", "framework-workflow", 1, 0),
+    FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-root-broker.yml", "framework-workflow", 1, 0),
+    FrameworkShaProjectionSpec(".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml", "framework-workflow", 1, 0),
+    FrameworkShaProjectionSpec(".github/workflows/sonar-native-security.yml", "framework-workflow", 2, 2),
+    FrameworkShaProjectionSpec(".github/workflows/sonarqube.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/test-apache.yml", "framework-workflow", 2, 2),
+    FrameworkShaProjectionSpec(".github/workflows/test-common.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/test-connectors-with-crs-no-mrts.yml", "framework-workflow", 2, 2),
+    FrameworkShaProjectionSpec(".github/workflows/test-envoy.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/test-full-smoke-sequential.yml", "framework-workflow", 2, 2),
+    FrameworkShaProjectionSpec(".github/workflows/test-haproxy.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/test-lighttpd.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/test-nginx-exact-head.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/test-nginx.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/test-traefik.yml", "framework-workflow", 1, 1),
 )
 
 # Security boundary: the general Framework updater must never regain ownership
@@ -441,8 +433,9 @@ if any(
     for _target_name, source_name in spec.fields
 ):
     raise RuntimeError("NGINX must not be registered as a Framework Parent target")
-if any("nginx" in spec.relative_path.lower() for spec in FRAMEWORK_SHA_PROJECTION_TARGETS):
-    raise RuntimeError("NGINX must not be registered as a Framework SHA projection target")
+if any("nginx" in spec.relative_path.lower() and spec.syntax != "framework-workflow"
+       for spec in FRAMEWORK_SHA_PROJECTION_TARGETS):
+    raise RuntimeError("NGINX source pins must not be Framework SHA projection targets")
 
 
 def _absolute(path: Path) -> Path:
@@ -1010,7 +1003,7 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
 def _render_framework_sha_projection_targets(
     root: Path, framework_sha: str, originals: dict[str, bytes] | None = None,
 ) -> list[RenderedTarget]:
-    """Update only the approved Framework revision; retain MRTS and toolchain pins."""
+    """Project a single reviewed Framework identity; retain all other bytes."""
     path = _target_path(root, LOCK_RELATIVE_PATH)
     original, mode = (_read_regular(path, "Framework revision lock", allowed_root=root)
                       if originals is None else (originals[LOCK_RELATIVE_PATH], 0o644))
@@ -1018,12 +1011,55 @@ def _render_framework_sha_projection_targets(
         payload = parse_framework_revision_pins(original)
     except FrameworkRevisionPinsError as exc:
         raise SyncError(f"invalid Framework revision lock: {exc}") from exc
-    if payload["framework_sha"] == framework_sha:
+    old_sha = payload["framework_sha"]
+    if old_sha == framework_sha:
         replacement = original
     else:
         payload["framework_sha"] = framework_sha
         replacement = (json.dumps(payload, indent=2) + "\n").encode("utf-8")
-    return [RenderedTarget(path, original, replacement, mode)]
+    rendered = [RenderedTarget(path, original, replacement, mode)]
+    for spec in FRAMEWORK_SHA_PROJECTION_TARGETS:
+        if spec.syntax == "project-versions-lock":
+            continue
+        if spec.syntax != "framework-workflow":
+            raise SyncError("unsupported Framework identity projection syntax")
+        target = _target_path(root, spec.relative_path)
+        data, target_mode = (_read_regular(target, "Framework workflow identity", allowed_root=root)
+                             if originals is None else (originals[spec.relative_path], 0o644))
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise SyncError("Framework workflow identity must be UTF-8") from exc
+        replacement_text = _render_framework_workflow(spec, text, old_sha, framework_sha)
+        rendered.append(RenderedTarget(target, data, replacement_text.encode("utf-8"), target_mode))
+    return rendered
+
+
+def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
+                               old_sha: str, new_sha: str) -> str:
+    """Only exact remote references and their context inputs carry identity.
+
+    Fixed file/count registries prevent discovery from expanding publication
+    authority. Every reference must agree with the trusted lock, including on
+    a no-op, so a stale, symbolic or independently changed pin fails closed.
+    Historical proof identities and upstream NGINX/tool pins are not matched.
+    """
+    uses = re.compile(
+        r"(?m)^(?P<prefix>[ \t]*(?:-[ \t]+)?uses:[ \t]+"
+        r"Easton97-Jens/ModSecurity-test-Framework/\.github/"
+        r"(?:actions/[A-Za-z0-9_./-]+|workflows/[A-Za-z0-9_.-]+\.yml)@)"
+        r"(?P<sha>[^\s#]+)(?P<suffix>[ \t]*(?:#[^\n]*)?)$"
+    )
+    inputs = re.compile(
+        r"(?m)^(?P<prefix>[ \t]*framework-revision:[ \t]+)"
+        r"(?P<sha>[^\s#]+)(?P<suffix>[ \t]*(?:#[^\n]*)?)$"
+    )
+    for pattern, expected in ((uses, spec.reference_count), (inputs, spec.input_count)):
+        matches = list(pattern.finditer(text))
+        if len(matches) != expected or any(match["sha"] != old_sha for match in matches):
+            raise SyncError("Framework workflow pin differs from fixed trusted identity: " + spec.relative_path)
+        text = pattern.sub(lambda match: match["prefix"] + new_sha + match["suffix"], text)
+    return text
 
 
 def _render_targets(
@@ -1066,73 +1102,17 @@ def _render_targets(
 
 def _primary_paths(framework_sha: str | None) -> frozenset[str]:
     paths = frozenset(spec.relative_path for spec in TARGET_REGISTRY)
-    return paths | {LOCK_RELATIVE_PATH} if framework_sha is not None else paths
+    return (paths | frozenset(spec.relative_path for spec in FRAMEWORK_SHA_PROJECTION_TARGETS)
+            if framework_sha is not None else paths)
 
-
-def _derive_inventory_companions(
-    inventory: bytes, archive: bytes, before: dict[str, bytes], after: dict[str, bytes],
-    approved: frozenset[str],
-) -> dict[str, bytes]:
-    """Derive only existing SHA slots from proven, fixed primary replacements."""
-    outputs = inventory_updates.derive_companions(inventory, archive, before, after, approved)
-    old_archive = json.loads(archive, object_pairs_hook=inventory_updates._object)
-    updated = json.loads(outputs[inventory_updates.ARCHIVE], object_pairs_hook=inventory_updates._object)
-    sources = updated.get("sources")
-    if not isinstance(sources, list):
-        raise SyncError("Framework maintenance archive must contain its source array")
-    seen: set[str] = set()
-    for row in sources:
-        if not isinstance(row, dict) or not isinstance(row.get("source"), str):
-            raise SyncError("Framework maintenance archive source row is invalid")
-        name = row["source"]
-        if name in seen:
-            raise SyncError("Framework maintenance archive repeats a source")
-        seen.add(name)
-        if name not in before:
-            continue
-        if row.get("source_sha256") != inventory_updates.digest(before[name]):
-            raise SyncError("Framework maintenance archive has a stale primary source digest")
-        replacement = inventory_updates.digest(after[name])
-        if replacement != row["source_sha256"]:
-            row["source_sha256"] = replacement
-    # Match the native generator's canonical ordering, including lock-only updates.
-    # A semantic no-op below retains the exact original bytes.
-    outputs[inventory_updates.ARCHIVE] = (json.dumps(updated, indent=2, sort_keys=True) + "\n").encode()
-    if old_archive == updated:
-        outputs[inventory_updates.ARCHIVE] = archive
-    return outputs
-
-
-def _render_inventory_companions(
-    root: Path, rendered: list[RenderedTarget], framework_sha: str | None,
-) -> tuple[list[RenderedTarget], bool]:
-    approved = _primary_paths(framework_sha)
-    snapshot = inventory_updates.capture_update(root, approved)
-    if snapshot is None:
-        return [], False
-    proposed = {str(item.path.relative_to(root)): item.replacement for item in rendered}
-    # Admit the entire baseline and reject concurrent or unapproved source drift.
-    inventory_updates.planned_companions(root, snapshot, proposed)
-    after = dict(snapshot["before"])
-    after.update(proposed)
-    outputs = _derive_inventory_companions(snapshot["inventory"], snapshot["archive"],
-                                           snapshot["before"], after, approved)
-    companions = []
-    for name in sorted(inventory_updates.COMPANIONS):
-        path = _target_path(root, name)
-        original, mode = _read_regular(path, "inventory companion", allowed_root=root)
-        if original != snapshot["inventory" if name == inventory_updates.INVENTORY else "archive"] or mode != 0o644:
-            raise SyncError("inventory companion changed concurrently or has an invalid mode")
-        companions.append(RenderedTarget(path, original, outputs[name], mode))
-    return companions, True
 
 
 def _publication_bytes(root: Path, name: str, approved: frozenset[str], staged: bool) -> bytes:
-    if name not in approved | inventory_updates.COMPANIONS:
+    if name not in approved:
         raise SyncError("Framework publication path escapes its fixed registry")
     if not staged:
         data, mode = _read_regular(_target_path(root, name), "publication target", allowed_root=root,
-                                   maximum=inventory_updates.MAX_BYTES)
+                                   maximum=product_changes.MAX_BYTES)
         if mode != 0o644:
             raise SyncError("Framework publication target must have mode 100644")
         return data
@@ -1142,37 +1122,27 @@ def _publication_bytes(root: Path, name: str, approved: frozenset[str], staged: 
             or b" 0\t" not in rows[0] or rows[0].split(b"\t", 1)[-1].decode() != name):
         raise SyncError("Framework publication index requires one regular stage-zero blob")
     data = subprocess.check_output(command + ["show", "--no-textconv", ":" + name], timeout=30)
-    if len(data) > inventory_updates.MAX_BYTES:
+    if len(data) > product_changes.MAX_BYTES:
         raise SyncError("Framework publication index blob exceeds its bounded size")
     return data
 
 
-def verify_inventory_companions(
+def verify_primary_changes(
     root: Path, framework_common: Path, framework_sha: str, base: str, *, staged: bool = False,
 ) -> None:
-    """Rebuild fixed primary and companion bytes from immutable trusted Git data."""
+    """Rebuild exact product projection bytes from immutable trusted Git data."""
     repository_root = _require_directory(root, "repository root")
     if not LOWER_HEX40.fullmatch(base) or not LOWER_HEX40.fullmatch(framework_sha):
         raise SyncError("Framework publication requires exact lowercase SHA-40 identities")
     values = parse_common(framework_common)
     with _project_version_transaction(repository_root, False):
         approved = _primary_paths(framework_sha)
-        before = {name: inventory_updates.trusted_blob(repository_root, base, name) for name in approved}
+        before = {name: product_changes.trusted_blob(repository_root, base, name) for name in approved}
         rendered = _render_targets(repository_root, values, framework_sha, before)
         expected = {str(item.path.relative_to(repository_root)): item.replacement for item in rendered}
         for name in approved:
             if _publication_bytes(repository_root, name, approved, staged) != expected[name]:
                 raise SyncError("Framework publication primary differs from trusted-base reconstruction: " + name)
-        outputs = _derive_inventory_companions(
-            inventory_updates.trusted_blob(repository_root, base, inventory_updates.INVENTORY),
-            inventory_updates.trusted_blob(repository_root, base, inventory_updates.ARCHIVE),
-            before, expected, approved,
-        )
-        for name in inventory_updates.COMPANIONS:
-            if _publication_bytes(repository_root, name, approved, staged) != outputs[name]:
-                raise SyncError("Framework companions differ from trusted-base reconstruction: " + name)
-        if not staged:
-            load_inventory(repository_root)
 
 
 def _render_target(
@@ -1265,12 +1235,9 @@ def synchronize(
     try:
         with _project_version_transaction(repository_root, sync):
             rendered = _render_targets(repository_root, values, framework_sha)
-            companions, admitted = _render_inventory_companions(repository_root, rendered, framework_sha)
-            rendered.extend(companions)
             changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
             if sync and changed:
-                verify = partial(load_inventory, repository_root) if admitted else None
-                _commit_rendered(rendered, verify)
+                _commit_rendered(rendered)
     except ValueError as exc:
         if isinstance(exc, SyncError):
             raise
@@ -1346,28 +1313,28 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--validate", action="store_true", help="parse inputs and targets without requiring an already-synced tree")
     mode.add_argument("--check", action="store_true", help="fail when a fixed target would change")
     mode.add_argument("--sync", action="store_true", help="write the fixed target registry atomically")
-    mode.add_argument("--verify-companions", action="store_true", help="reconstruct fixed publication bytes from the trusted base")
+    mode.add_argument("--verify-primary", action="store_true", help="reconstruct fixed product publication bytes from the trusted base")
     parser.add_argument("--base", help="exact trusted Parent base SHA for publication verification")
     parser.add_argument("--staged", action="store_true", help="verify stage-zero index blobs instead of working-tree files")
     parser.add_argument("--repo-root", type=Path, default=SCRIPT_REPOSITORY_ROOT)
     parser.add_argument("--framework-common", type=Path, required=True)
     parser.add_argument(
         "--framework-sha",
-        help="validated official Framework SHA to project to the ordinary project version lock",
+        help="validated official Framework SHA for the fixed revision lock and integration references",
     )
     args = parser.parse_args(argv)
     try:
         if _absolute(args.repo_root) != SCRIPT_REPOSITORY_ROOT:
             raise SyncError("CLI repository root must be the repository containing this script")
-        if args.verify_companions:
+        if args.verify_primary:
             if not args.base or not args.framework_sha:
-                raise SyncError("companion verification requires both --base and --framework-sha")
-            verify_inventory_companions(SCRIPT_REPOSITORY_ROOT, _absolute(args.framework_common),
+                raise SyncError("product-primary verification requires both --base and --framework-sha")
+            verify_primary_changes(SCRIPT_REPOSITORY_ROOT, _absolute(args.framework_common),
                                         args.framework_sha, args.base, staged=args.staged)
-            print("FRAMEWORK_COMPANIONS_VERIFIED")
+            print("FRAMEWORK_PRIMARY_VERIFIED")
             return 0
         if args.base or args.staged:
-            raise SyncError("--base and --staged require --verify-companions")
+            raise SyncError("--base and --staged require --verify-primary")
         changed = synchronize(
             SCRIPT_REPOSITORY_ROOT,
             _absolute(args.framework_common),

@@ -37,7 +37,7 @@ READMEs oder Reports zurückkopiert werden.
 | eine ältere Konfiguration aktualisieren | [Migration](migration.de.md) | Aktuelle generierte Konfigurationsreferenzen in den Hostbeispielen |
 | einen Host vorbereiten oder bauen | [Build](build/README.de.md) | [Compiler-Guides](build/compilers/README.de.md) |
 | Variablen oder Toolchains wählen | [Variablen](reference/variables.de.md) | [Versions-Pins](reference/version-pins.de.md) |
-| Standardtests ausführen | [Tests und Nachweise](testing-and-evidence.de.md) | [Test-Einstiegspunkte](../tests/README.de.md) |
+| Standardtests ausführen | [Tests und Nachweise](testing-and-evidence.de.md) | [Test-Einstiegspunkte](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_tests/README.de.md) |
 | einen Laufzeitbericht einordnen | [Reports](../reports/README.de.md) | Profil, Regeln, Revision, Run-ID, Artefakte und verbleibende Grenzen |
 | sicher betreiben | [Betrieb und Sicherheit](operations-and-security.de.md) | [Schwachstellen melden](../SECURITY.de.md) |
 | CI und Scanner verstehen | [CI-Sicherheitswerkzeuge](security/ci-security-tooling.de.md) | [CI-Einstiegspunkte](../ci/README.de.md) |
@@ -75,7 +75,7 @@ fertigen sicheren Deployments. Ein `all`-Layout kann einen Strict-Modus wählen,
 den das betreffende Hostprofil nicht zulässt.
 
 Die normale funktionale Auswahl gehört zu
-[config/testing/active-cases.json](../config/testing/active-cases.json).
+[config/testing/active-cases.json](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json).
 `make check-active-inventory` prüft die gesamte Auswahl ohne Ausführung;
 `make test` führt die aktive Auswahl mit ihren tatsächlichen Voraussetzungen
 aus. `make quick-check` enthält statische Checks und zugelassene funktionale

@@ -19,12 +19,17 @@ from pathlib import Path
 import re
 import stat
 import sys
+import runpy
 
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from ci.lib.framework_revision_pins import (
-    FrameworkRevisionPinsError, load_framework_revision_pins, read_framework_mrts_gitlink,
-)
+if __package__:
+    from ..lib.framework_revision_pins import (
+        FrameworkRevisionPinsError, load_framework_revision_pins, read_framework_mrts_gitlink,
+    )
+else:
+    _pins = runpy.run_path(str(Path(__file__).resolve().parents[2] / "ci/lib/framework_revision_pins.py"))
+    FrameworkRevisionPinsError = _pins["FrameworkRevisionPinsError"]
+    load_framework_revision_pins = _pins["load_framework_revision_pins"]
+    read_framework_mrts_gitlink = _pins["read_framework_mrts_gitlink"]
 
 
 MAX_INPUT_BYTES = 512 * 1024
@@ -80,7 +85,7 @@ class ContractError(ValueError):
 
 @dataclass(frozen=True)
 class ParentProjection:
-    """One read-only unprotected Parent NGINX handoff field."""
+    """One fixed unprotected NGINX field from its explicit source owner."""
 
     relative_path: str
     syntax: str
@@ -498,8 +503,7 @@ def _safe_yaml_value(value: str, label: str) -> str:
 def _parent_assignment(
     root: Path, projection: ParentProjection | ParentPolicyProjection
 ) -> str:
-    path = _root_relative_path(root, projection.relative_path)
-    text = _read_text(path, f"registered Parent projection {projection.relative_path}")
+    text = _projection_text(root, projection.relative_path)
     if projection.syntax == "yaml":
         pattern = re.compile(
             rf"(?m)^[ \t]*{re.escape(projection.name)}[ \t]*:[ \t]*(?P<value>[^\r\n#]+?)[ \t]*(?:#.*)?$"
@@ -517,6 +521,22 @@ def _parent_assignment(
             f"{projection.relative_path}:{projection.name}",
         )
     raise ContractError(f"unsupported registered Parent syntax: {projection.syntax}")
+
+
+def _projection_text(root: Path, relative: str) -> str:
+    """Read a closed handoff input from its current explicit source owner."""
+    from modsecurity_test_framework.connector_context import source_path
+    if (Path(relative).is_absolute() or not relative
+            or any(part in ("", ".", "..") for part in relative.split("/"))):
+        raise ContractError(f"unsafe registered handoff path: {relative}")
+    path = source_path(relative, root=root)
+    if relative in (NGINX_EXACT_HEAD_WORKFLOW_PATH, NGINX_FULL_SMOKE_WORKFLOW_PATH):
+        from modsecurity_test_framework.workflow_sources import WorkflowSourceError, read_connector_workflow
+        try:
+            return read_connector_workflow(path)
+        except WorkflowSourceError as error:
+            raise ContractError(f"cannot verify pinned workflow handoff: {error}") from error
+    return _read_text(path, f"registered handoff projection {relative}")
 
 
 def _candidate_field_writes(text: str, name: str) -> list[re.Match[str]]:
@@ -668,10 +688,7 @@ def _verify_unprotected_nginx_handoff(root: Path, values: dict[str, str]) -> Non
                 f"unprotected NGINX handoff mismatch at "
                 f"{projection.relative_path}:{projection.name}"
             )
-    exact_head = _read_text(
-        _root_relative_path(root, NGINX_EXACT_HEAD_WORKFLOW_PATH),
-        "NGINX exact-head workflow",
-    )
+    exact_head = _projection_text(root, NGINX_EXACT_HEAD_WORKFLOW_PATH)
     # The hosted inventory runner consumes the provisioned runtime rather than
     # a separate --nginx-archive argument. Keep the complete reviewed tuple and
     # Parent provenance policy across its explicit env -i boundary.

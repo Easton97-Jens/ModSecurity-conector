@@ -89,7 +89,7 @@ for incomplete samples, framing restrictions, and unproven behavior.
 ## Test selection is centralized
 
 Normal local, CI, and scheduled functional checks use
-[config/testing/active-cases.json](../config/testing/active-cases.json).
+[config/testing/active-cases.json](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json).
 The 100-case core and the separately authorized guarded offline Python
 exception have distinct accounting. Additional offline cases do not imply
 additional connector E2E selection.
@@ -108,7 +108,7 @@ remain subsets, not full-profile evidence.
 Archived assessment suites are not automatic defaults. Specialist execution
 requires a separate current request and the documented `ON_DEMAND_TESTS=1`
 opt-in. Neither this guide nor that flag authorizes new I12 captures. Use
-[Testing and evidence](testing-and-evidence.md), [Test entry points](../tests/README.md),
+[Testing and evidence](testing-and-evidence.md), [Test entry points](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_tests/README.md),
 and the recorded closeout documents to distinguish current selection from
 historical coverage.
 

@@ -20,7 +20,6 @@ msconnector_request msconnector_lighttpd_bridge_make_probe_request(
     const char *uri);
 msconnector_lighttpd_bridge_decision msconnector_lighttpd_bridge_evaluate_probe(
     const msconnector_request *request);
-enum msconnector_status msconnector_lighttpd_bridge_self_test(void);
 
 #ifdef __cplusplus
 }

@@ -17,7 +17,6 @@ typedef msconnector_decision msconnector_envoy_bridge_decision;
 
 msconnector_envoy_bridge_decision msconnector_envoy_bridge_evaluate(
     const msconnector_request *request);
-int msconnector_envoy_bridge_self_test(void);
 
 #ifdef __cplusplus
 }

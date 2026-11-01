@@ -19,7 +19,7 @@ libmodsecurity v3, HAProxy-3.2.25-Source, der repository-eigene native HTX-Filte
 - [Nativer HTX-Overlay](../../../connectors/haproxy/htx-overlay/)
 - [HTX-Overlay-Builder](../../../connectors/haproxy/htx-overlay/build-overlay.sh)
 - [Source-Zuordnung](../../../connectors/haproxy/SOURCE_MAP.json)
-- [Native-HTX-Laufzeitkonfigurationshelper](../../../connectors/haproxy/harness/run_haproxy_htx_runtime.sh)
+- [Native-HTX-Laufzeitkonfigurationshelper](../../../modules/ModSecurity-test-Framework/connector_suite/adapters/haproxy/harness/run_haproxy_htx_runtime.sh)
 
 Dies ist der primäre Connectorpfad dieser Anleitung: connectors/haproxy/. Die offizielle Hostdokumentation im folgenden Abschnitt erklärt nur Bereitstellung oder Build des Hosts und ersetzt nicht die Connectorquelle.
 

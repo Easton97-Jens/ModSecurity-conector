@@ -61,7 +61,7 @@ compile_runtime_binary() {
         -Wextra \
         -Werror \
         -pthread \
-        $main_define \
+        "$main_define" \
         -I "$REPO_ROOT" \
         -I "$REPO_ROOT/common/include" \
         -I "$REPO_ROOT/common/runtime" \
@@ -83,16 +83,11 @@ compile_runtime_binary \
     "$OUT_DIR/lighttpd-stock-sidecar" \
     "$CONNECTOR_DIR/stock_sidecar/stock_sidecar.c" \
     -DMSCONNECTOR_STOCK_SIDECAR_MAIN
-compile_runtime_binary \
-    "$OUT_DIR/runtime-begin-smoke" \
-    "$CONNECTOR_DIR/stock_sidecar/runtime_begin_smoke.c" \
-    ''
 
 source_inputs_sha256() {
     (
         for source in \
             "$CONNECTOR_DIR/stock_sidecar/stock_sidecar.c" \
-            "$CONNECTOR_DIR/stock_sidecar/runtime_begin_smoke.c" \
             "$CONNECTOR_DIR/stock_sidecar/stock_sidecar.h" \
             "$REPO_ROOT/common/runtime/msconnector_runtime.c" \
             "$REPO_ROOT/common/runtime/msconnector_runtime.h" \
@@ -126,7 +121,6 @@ case "$git_status" in
     *) blocked "cannot determine Parent source-tree state" ;;
 esac
 sidecar_binary_sha256=$(sha256sum "$OUT_DIR/lighttpd-stock-sidecar" | awk "$AWK_FIRST")
-runtime_begin_smoke_sha256=$(sha256sum "$OUT_DIR/runtime-begin-smoke" | awk "$AWK_FIRST")
 sidecar_source_inputs_sha256=$(source_inputs_sha256)
 modsecurity_library_sha256=$(sha256sum "$MODSECURITY_LIB_DIR/libmodsecurity.so" | awk "$AWK_FIRST")
 artifact_manifest="$OUT_DIR/stock-sidecar-artifact.manifest"
@@ -134,7 +128,7 @@ artifact_manifest_tmp=$(mktemp "$OUT_DIR/.stock-sidecar-artifact.manifest.XXXXXX
     blocked "cannot create Stock lighttpd Sidecar artifact manifest"
 
 {
-    printf 'schema_version=1\n'
+    printf 'schema_version=2\n'
     printf 'artifact_kind=lighttpd_stock_sidecar\n'
     printf 'connector_id=lighttpd\n'
     printf 'integration_mode=stock-lighttpd-sidecar\n'
@@ -143,8 +137,6 @@ artifact_manifest_tmp=$(mktemp "$OUT_DIR/.stock-sidecar-artifact.manifest.XXXXXX
     printf 'c_standard=%s\n' "$MSCONNECTOR_C_STD"
     printf 'sidecar_path=%s\n' "$OUT_DIR/lighttpd-stock-sidecar"
     printf 'sidecar_binary_sha256=%s\n' "$sidecar_binary_sha256"
-    printf 'runtime_begin_smoke_path=%s\n' "$OUT_DIR/runtime-begin-smoke"
-    printf 'runtime_begin_smoke_sha256=%s\n' "$runtime_begin_smoke_sha256"
     printf 'sidecar_source_inputs_sha256=%s\n' "$sidecar_source_inputs_sha256"
     printf 'modsecurity_library_sha256=%s\n' "$modsecurity_library_sha256"
 } > "$artifact_manifest_tmp"
@@ -159,7 +151,6 @@ mv -f "$artifact_manifest_tmp" "$artifact_manifest" || \
     printf 'listen_scope=literal_ipv4_loopback_only\n'
     printf 'upstream_scope=literal_ipv4_loopback_only\n'
     printf 'sidecar=%s\n' "$OUT_DIR/lighttpd-stock-sidecar"
-    printf 'runtime_begin_smoke=%s\n' "$OUT_DIR/runtime-begin-smoke"
     printf 'modsecurity_include_dir=%s\n' "$MODSECURITY_INCLUDE_DIR"
     printf 'modsecurity_lib_dir=%s\n' "$MODSECURITY_LIB_DIR"
     printf 'artifact_manifest=%s\n' "$artifact_manifest"

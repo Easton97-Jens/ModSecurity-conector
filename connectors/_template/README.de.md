@@ -103,7 +103,7 @@ Anwesenheit allein ist keine Build-Verifizierung.
 
 Gilt nicht für die Vorlage. Laufzeitnachweise entstehen nur für konkrete
 Connectoren und ihre tatsächlich ausgeführten Profile. Normale Aliase nutzen
-[config/testing/active-cases.json](../../config/testing/active-cases.json),
+[config/testing/active-cases.json](../../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json),
 kein neues lokales Testinventar: projektweit höchstens 100 vollständig
 expandierte aktive Verhaltensfälle. Neue aktive Anforderungen benötigen stabile
 IDs, Profile und ausführbare Selektoren; an der Obergrenze ist Ersatz oder

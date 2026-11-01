@@ -40,6 +40,43 @@ resident Python path, and it performs no post-collector privileged path
 operation. The runner preflight also fails closed when this gate is absent or
 has the wrong owner, group, mode, or file type.
 
+The two allowlisted Parent paths are now small source-integration shims. The
+large launcher, collector, dispatcher and cell driver belong to the pinned
+Test-Framework under `connector_suite/modsecurity_connector_ci/runtime/broker/`.
+The shims authenticate `ci/run-trusted-framework.py` against their reviewed
+`BRIDGE_SHA256` before executing its bytes. That bridge resolves the Framework
+revision only from the exact trusted Parent Base gitlink
+`modules/ModSecurity-test-Framework`, verifies both checkout identities, and
+compares the requested implementation with its exact Framework Git blob.
+Candidate-selected Framework revisions, changed implementation bytes, symlinked
+source paths, nonregular files and oversized sources are rejected.
+
+When invoked as root, Git inspection runs as the explicitly supplied nonroot
+`--runner-uid` and `--runner-gid` through `/usr/bin/setpriv`, with supplemental
+groups and all capability sets cleared and `--no-new-privs`. Authenticated
+Python bytes enter a sealed `memfd` and a fresh isolated interpreter; neither
+candidate imports nor changes to `sys.path` or `sys.modules` are needed. The
+launcher separately binds the shell cell driver to the trusted Parent
+gitlink's Framework blob and retains its descriptor across sandbox setup.
+
+Both shim invocation envelopes explicitly carry `--base-repo-root` and
+`--trusted-dispatcher-base-sha` after the gate's `--` separator, in addition to
+the entrypoint's existing evidence and runner arguments. The collector shim
+consumes those two source-binding options before calling the Framework
+collector. Host owners must review the installed gate's forwarded-option
+validation against this envelope. A gate that rejects these options remains
+blocked; the workflow must never bypass it or execute a checkout-resident
+launcher directly. The closed gate entrypoint allowlist above is unchanged.
+
+Current workflow orchestration lives in the Framework reusable workflow
+`connector-protected-nginx-exact-head.yml`; the Parent retains its small
+`run-protected-nginx-exact-head.yml` dispatch entrypoint with an exact Framework
+commit pin. Protected branch, actor, environment, runner, manifest and artifact
+guards remain in the called workflow. Historical NGINX root-broker callers
+retain their immutable Parent `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` and
+Framework `99a7985c1be92a2297b1b59208f64df6768f2cbf` contracts. These historical
+calls do not qualify the migrated source revision.
+
 This repository cannot prove installation or behavior of the host bootstrap
 from a normal checkout. A protected exact-head run therefore requires a
 dedicated ephemeral runner with the gate installed and reviewed by its host

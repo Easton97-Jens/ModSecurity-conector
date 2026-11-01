@@ -10,7 +10,6 @@ OUT_DIR="$BUILD_ROOT/traefik-build-starter"
 METADATA_BIN="$OUT_DIR/traefik_build_starter"
 DECISION_BIN="$OUT_DIR/traefik_decision_service_starter"
 RESULT_TXT="$OUT_DIR/result.txt"
-DECISION_RESULT_TXT="$OUT_DIR/decision-service-result.txt"
 
 case "$BUILD_ROOT" in
     /*) ;;
@@ -56,6 +55,8 @@ build_decision_service_starter() {
         "$REPO_ROOT/common/src/origin.c" \
         "$REPO_ROOT/common/src/capabilities.c" \
         "$REPO_ROOT/common/src/intervention.c" \
+        "$REPO_ROOT/common/src/block_statuses.c" \
+        "$REPO_ROOT/common/src/http_status.c" \
         "$REPO_ROOT/common/src/status.c" \
         "$REPO_ROOT/common/src/transaction.c" \
         "$REPO_ROOT/connectors/traefik/metadata.c" \
@@ -66,13 +67,6 @@ build_decision_service_starter() {
     echo "traefik_decision_service_starter: pass artifact=$DECISION_BIN"
 }
 
-self_test_decision_service_starter() {
-    build_decision_service_starter
-    "$DECISION_BIN" --self-test > "$DECISION_RESULT_TXT"
-    cat "$DECISION_RESULT_TXT"
-    echo "traefik_decision_service_self_test: pass result=$DECISION_RESULT_TXT"
-}
-
 case "$MODE" in
     build-starter)
         build_metadata_starter
@@ -80,15 +74,12 @@ case "$MODE" in
     build-decision-service|build-forwardauth-starter)
         build_decision_service_starter
         ;;
-    self-test|self-test-decision-service|self-test-forwardauth)
-        self_test_decision_service_starter
-        ;;
     clean)
         rm -rf "$OUT_DIR"
         echo "traefik_build_starter: clean output=$OUT_DIR"
         ;;
     *)
-        echo "usage: $0 [build-starter|build-decision-service|build-forwardauth-starter|self-test|self-test-decision-service|self-test-forwardauth|clean]"
+        echo "usage: $0 [build-starter|build-decision-service|build-forwardauth-starter|clean]"
         exit 2
         ;;
 esac

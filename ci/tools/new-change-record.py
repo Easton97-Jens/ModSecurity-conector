@@ -7,7 +7,6 @@ import argparse
 from collections.abc import Iterator
 from contextlib import contextmanager, ExitStack
 from datetime import date, datetime, timezone
-import importlib.util
 import os
 from pathlib import Path
 import re
@@ -23,14 +22,10 @@ BASE_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 
 def load_contract() -> ModuleType:
-    """Load the repository-owned checker, never code from a caller's directory."""
-    path = ROOT / "ci/checks/documentation/check-bilingual-docs.py"
-    spec = importlib.util.spec_from_file_location("change_record_bilingual_contract", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Cannot load the repository documentation contract")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    """Use the checker from the explicitly selected Framework checkout."""
+    from modsecurity_test_framework.connector_context import load_tool
+
+    return load_tool("ci/checks/documentation/check-bilingual-docs.py")
 
 
 CONTRACT = load_contract()
