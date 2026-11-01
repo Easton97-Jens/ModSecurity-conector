@@ -881,6 +881,18 @@ func (writer *responseWriter) WriteHeader(status int) {
 	if writer.committed || writer.rejected {
 		return
 	}
+	if status >= 100 && status < 200 && status != http.StatusSwitchingProtocols {
+		// Informational headers do not finalize the HTTP response. In
+		// particular, 100 Continue must reach the client before any P2 drain.
+		// Keep the final P3 and Common commit state untouched; 101 retains
+		// the existing final-header/upgrade path.
+		if _, err := boundedHeaders(writer.target.Header(), writer.state.config); err != nil {
+			writer.writeFailure()
+			return
+		}
+		writer.target.WriteHeader(status)
+		return
+	}
 	if !writer.prepareResponseHeaders(status) {
 		return
 	}
