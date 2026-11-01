@@ -7,7 +7,144 @@ evidence for HTTP/2 and HTTP/3 lifecycle parity across the six selected
 connectors. It is not a completion claim. HTTP/1.1 remains the regression
 baseline.
 
-## Update on 2026-10-30: subsequent master pin refresh
+## Update on 2026-11-01: migrated tests and Framework integration
+
+Test ownership has moved to the Framework. Parent PR #348 incorporates Parent
+master `a6001a09`, initially pinned to Framework `d503ddbe`. Fifteen obsolete
+Parent paths are removed rather than restored; the 13 mapped checker/test
+deltas preserve 24 definitions (19 Go, five Python) in the Framework and remain
+recoverable from Parent history `db431efa`.
+
+[Framework PR #148](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/148)
+integrates these ports and the terminal-outcome/NGINX QUIC fixes from #143/#144.
+Its regular squash merge completed at `2026-11-01T19:09:19Z`; the remotely
+verified Framework master at that checkpoint was
+`91f5370c7eddcebdc7e49d2099c58054ec2d5d5d`.
+The final PR head passed 15 hosted checks with three intended skips. Direct
+Sonar readback for that exact head recorded an OK gate with all five conditions
+and zero open PR issues. Separately, all seven workflows on master `91f5370c`
+succeeded; its direct Sonar analysis at `2026-11-01T19:26:02Z` passed all five
+conditions (ratings 1 <= 1, duplication 0 <= 3%, hotspots 100 >= 100%).
+PRs #143/#144 were closed unmerged with reference to #148; their branches at
+`b7d643f` / `9e49913` are retained.
+
+Final native Parent validation exposed additional migration-integrity defects.
+The Product generator `scripts/generate_compiler_guides.py` now maps the NGINX
+preparer's public `source_path` instead of referencing its deleted Parent path
+and fixes the actual migrated Apache/HAProxy harness links. All 18 generated
+guide outputs remain byte-identical to their tracked versions. The selected
+Parent projection/revision/candidate suite passed 55 tests. Apache initially
+passed 21 tests and failed one stale full-AST golden expectation.
+
+Separate [Framework Draft #150](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/150),
+first published head `e1b4f8b24ab95749d685db3e6581e26da302dd57` on base
+`91f5370c`, repairs
+two existing test modules: compiler expectations/actual forwarded Make targets
+and the independently audited full-AST golden. Six migration-context transforms
+reconstruct the checker byte-for-byte since #142, preserving every predicate,
+message, order and control. The combined 44 methods passed in 27.660 seconds;
+eight actual-target controls and 26 isolated parser controls also passed.
+Native Apache with #150, NGINX and Common C17 targets passed. Native generation,
+binding and admission counts remain unchanged (526 fixed Framework bindings /
+235 Product paths); 350 documentation pairs and four canonical checks passed.
+No new methods, selectors, versions or weakened gates are introduced by #150.
+
+Framework #147 subsequently advanced master to
+`5ef57603a4933f18c988f1f9f32b93f478182440` with host-execution-context
+preflights. #150 normally merges that master at its new published head
+`af6997be5c5cee38e3feb9274c3269d52784bbe1`, replacing the first candidate.
+Native regeneration resolves the inventory conflict while retaining two new
+preflight bindings and five default consumers; compared with `5ef57603`, only
+the intended compiler-test hash differs in the inventory. Current admission is
+528 fixed Framework bindings / 235 Product paths, with 100/80 standard,
+2586/1140 optional and 1993 baseline IDs unchanged. Inventory SHA-256 is
+`147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`.
+Fresh 44-method validation passed in 26.138 seconds; native generation/checks,
+public admission, 354 bilingual checks, 2159 path checks with zero obsolete
+paths, record/link checks and four canonical checks passed. Independent review
+confirmed both test fixes unchanged and no EN/DE or inventory blocker. The
+earlier #150 compiler-guide entrypoint also passed 22 tests in 0.848 seconds,
+with all 18 guides byte-identical. These results do not launch a host campaign.
+
+Framework #150 was actually squash-merged with an exact-SHA guard at
+`2026-11-01T20:11:25Z`, producing official master
+`b85280278310f4034af78149ac13671438965c7b`. Its complete tree equals `af6997be`.
+That PR head passed 12 checks / three intended skips; direct Sonar analysis at
+`2026-11-01T20:03:53Z` passed all five conditions (ratings 1 <= 1, duplication
+0 <= 3%, hotspots 100 >= 100%) and the complete OPEN/CONFIRMED query returned
+zero issues. Three CodeQL Analyze/Post-Analyze configurations passed in bounded
+without-upload mode. New `b8528027` master CI is pending, not inherited from
+the PR. GitHub's configured auto-delete removed #150's remote branch; its local
+branch/worktree remain, and #143/#144 branches remain unchanged as requested.
+
+Independent Parent #435 merged at `2026-11-01T19:49:13Z` into master
+`2abad408cae7e5a103d12a9a9e432129bfe0468f`, inheriting Framework pin `e628`,
+not `91f5370c`. A clean normal merge produced local Parent
+`5b5a4a89aa9cb55b0b95b485611aadb78f276185`; only the incoming 12 middleware
+lines are composed with the parity changes. Independent source/security review
+found no P3/EOS/protocol regression. Twenty-three pin projections match master;
+MRTS/version values are unchanged. The earlier generated intermediate views
+were backed up externally before the merge; task source/docs were preserved.
+
+Bounded merge-interaction unit validation passed 16 parity plus six informational
+selectors: 22 top-level tests, 53 passing test/subtest terminals plus a package
+pass, 48 leaves including all 31 informational leaves, zero failures/skips and
+no race report. This used the merged worktree before the local merge commit,
+not a whole-committed-head qualification. Its middleware SHA-256 remains
+`b8df119f43332c00e7308478cae3f84a5f2d015a96e8d4e9c18d74261e73884b`
+after commit. This is real httptest unit evidence, not native-host, private
+Common-service, TLS/H2/H3 or MRTS execution.
+
+Final local pin alignment is implemented, not yet committed/pushed: nested
+Framework and staged gitlink are exact `b8528027`; native lock plus 22 workflow
+views are synchronized. Native pre-candidate `e628` → `b8528027`, 23-file sync,
+no-drift check and post-candidate `b8528027` checks passed, both using NGINX
+`release-1.31.6`. The immutable Common helper blob matches exact Framework
+`b8528027:ci/lib/common.sh`. Combined final-pin Python validation passed all
+99 existing methods in 60.799 seconds (7 projection, 19 revision, 29 candidate,
+22 compiler, 22 Apache), using Parent `5b5a4a89` plus task edits and Framework
+`b8528027`. Intentional negative SHA diagnostics in unittest output are not a
+native candidate failure. Native NGINX adoption and Common C17 helper checks
+passed with `-std=c17 -Wall -Wextra -Werror`. Public inventory admission passed
+with SHA-256 `147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`,
+100 default / 2686 total / 2586 optional cases and a truthfully dirty Parent
+worktree; admission is not test execution. Staged/unstaged whitespace checks
+passed. Final guide-byte diff confirmed all 18 outputs unchanged; native
+Parent bilingual, repository-path and documentation-link checks passed.
+Commit/push and new-head CI/Sonar remain pending at this preparation snapshot.
+
+Framework `b8528027` master CodeQL/Common/Scorecard workflows have succeeded;
+lint/Sonar are in progress. Exactly five master workflows were triggered.
+The security-Python and five-connector contract workflows are not applicable:
+none of the 11 changed paths matches their checked-in push filters. They are
+not counted as passing, skipped or missing. MRTS remains
+uninitialized/read-only, so strict local actual-materialization verification
+is unavailable. Immutable-chain/native pin checks are distinct from fresh
+hosted actual-checkout evidence. Parent #348 remains an unmerged Draft at
+published `db431efa`; local `5b5a4a89` plus final pin edits is unpublished.
+No Parent master merge is authorized.
+
+Native generation preserves 100 standard cases / 80 executions and 1993
+baseline IDs; the optional catalog is 2586 cases / 1140 executions. The earlier
+Framework stage had 526 bindings, superseded by 528 after #147. Those focused
+Framework-stage checks passed 12 Python methods,
+43 protocol methods, four QUIC helper methods, 348 documentation pairs and
+canonical checks. The post-#146 Traefik parity selection passed 16 tests / 18
+terminals with the race detector. The earlier full Traefik run (173 pass
+terminals, one real-service skip) predates #146 and does not qualify its new
+leaves. Before the later `2abad408` master integration, all 31 informational
+leaves were compiled but NOT_RUN because selected Parent `b43faa78` lacked
+the separate Product fix and #435 was then closed unmerged. That historical
+limitation is superseded by the bounded merge-interaction unit evidence above,
+not by a full host/TLS/H2/H3 runtime qualification.
+
+The dated snapshots below retain their original evidence and inventory counts;
+they do not describe current test ownership, inventory or submodule state.
+The protocol matrix remains an unqualified historical snapshot. This migration
+and integrity increment does not establish a new TLS/H2/H3 qualification
+campaign or new host runtime results. MRTS remains outside the change scope.
+
+## Historical update on 2026-10-30: subsequent master pin refresh
 
 Verified Parent head `096170f7ab0ba19537546ce861f818fbab6e1772`
 passed 59 hosted checks, with five intended skips. Master then advanced to
@@ -28,7 +165,7 @@ tightens protocol-artifact terminal-outcome integrity; its commit `78b103f8`
 is not included in the Parent pin. Current-head CI/Sonar is verified separately
 after publication. The complete H1/H2/H3 workstream remains unfinished.
 
-## Earlier update on 2026-10-30: integration integrity
+## Historical update on 2026-10-30: integration integrity
 
 The saved candidate `1dca1c8eabd17d71a3327ccf3f828c3c5cb8fa01`
 completed all 59 executed hosted checks successfully, including Sonar; five
@@ -123,8 +260,9 @@ stream identity, commit and EOS state, and stream-reset selection. H2 stream ID
 0 and a freely set `STREAM_RESET` are conservatively not emitted as a stream
 reset. This model does not prove that every adapter uses it.
 
-The Framework submodule is uninitialized and was not modified. MRTS was
-untouched. curl has HTTP/2 but lacks HTTP/3. `curl --http3` exits `2`.
+In the original 2026-08 environment snapshot, the Framework submodule was
+uninitialized and was not modified. MRTS was untouched. That curl had HTTP/2
+but lacked HTTP/3; `curl --http3` exited `2`.
 Therefore H3 runtime status is `runtime_skipped_missing_client`; H3 runtime is
 not verified.
 
@@ -203,10 +341,10 @@ Adapters must still demonstrate that they map and enforce this model. The
 matrix therefore does not promote Common-model coverage into connector runtime
 coverage.
 
-## Regression and capability evidence
+## Historical regression and capability evidence
 
 - 28 selected Python tests passed (Apache/NGINX/C/C++ group).
-- The current combined Python command passed 98 tests with 1 expected
+- The combined Python command at that revision passed 98 tests with 1 expected
   Framework-identity skip.
 - Previous baselines were 20 passed/3 skipped and 39 passed/2 skipped.
 - Capability group 93 had one expected environment failure because the
@@ -231,11 +369,13 @@ An accidental initial shared build output was observed during the workstream.
 This is a local storage limitation only; it is not protocol or runtime
 evidence and does not support a broader claim.
 
-## Delivery state
+## Historical initial delivery state
 
 Commit `5e7b34d1887984f74d061872d7652a3f71d87856` is pushed as
 `feature/http2-http3-protocol-parity` and represented by Draft PR
 [#348](https://github.com/Easton97-Jens/ModSecurity-conector/pull/348).
 At initial delivery verification, local, remote, and PR-head SHAs matched. CI checks
 were queued or in progress and are not claimed as passed. No merge has
-occurred. The Framework submodule and MRTS remain unchanged.
+occurred at that initial delivery. The Framework submodule and MRTS were
+unchanged at that point. See the 2026-11-01 update for the current integration
+scope and pending delivery evidence.

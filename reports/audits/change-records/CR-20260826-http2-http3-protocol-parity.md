@@ -13,6 +13,163 @@
 
 ## Motivation and problem statement
 
+### Test-ownership integration checkpoint — 2026-11-01
+
+The user authorized adopting Parent master
+`a6001a09210bc9516256d28af5da45d73f0fe2f2` after the completed test migration.
+Fifteen modify/delete conflicts concern thirteen now Framework-owned checker/
+test sources and two generated selection/archive files. Their old Parent paths
+are removed, not resurrected. The thirteen branch-only deltas are preserved at
+their mapped Framework paths and in the retained original `db431efa` history;
+the generated schema-5 inventory/archive must be regenerated, not copied back.
+The migrated default inventory remains capped at 100 cases.
+
+The completed ports preserve 24 definitions (19 Go, five Python). Native
+generation preserves 100 standard cases / 80 executions and 1993 baseline IDs;
+the optional catalog contains 2586 cases / 1140 executions. The initial 526
+Framework bindings became 528 after #147, as recorded below. No old Parent
+test path is restored.
+
+[Framework PR #148](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/148)
+includes the ports and verified #143/#144 integrity fixes. Its authorized
+regular squash merge completed at `2026-11-01T19:09:19Z`; the remotely verified
+Framework master at that checkpoint was
+`91f5370c7eddcebdc7e49d2099c58054ec2d5d5d`. The final PR
+head passed 15 hosted checks with three intended skips; exact-head direct
+Sonar readback reported gate OK, all five conditions and zero open PR issues.
+All seven master workflows on `91f5370c` subsequently succeeded. Direct master
+Sonar analysis at `2026-11-01T19:26:02Z` passed all five conditions: ratings
+1 <= 1, duplication 0 <= 3%, hotspots 100 >= 100%. PRs #143/#144 are closed
+unmerged with reference to #148; branches `b7d643f` / `9e49913` are retained.
+These are separate PR-head/master observations, not future-head acceptance.
+Parent #348 stays an unmerged Draft; Framework merge authority does not
+authorize a Parent master merge. No MRTS change or broad TLS/H2/H3
+qualification campaign is included. Prior dated evidence remains historical.
+
+Required final native checks uncovered migration-integrity defects. Parent
+`scripts/generate_compiler_guides.py` now maps the NGINX preparer's public
+`source_path` and corrects the actual migrated Apache/HAProxy harness links.
+All 18 generated guide outputs remain byte-identical to tracked files. The
+Parent projection/revision/candidate selection passed 55 tests; native Apache
+initially passed 21 tests and failed one stale full-AST golden expectation.
+
+[Framework Draft #150](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/150)
+was first published at `e1b4f8b24ab95749d685db3e6581e26da302dd57`, based on `91f5370c`.
+Its 11 files repair only two existing test modules plus generated bindings,
+paired documentation and Change Record: compiler expectations/actual forwarded
+Make targets and the independently audited full-AST golden. Six migration-
+context transforms reconstruct the checker byte-identically since #142; all
+predicates, messages, order and controls remain. Combined 44 methods passed
+in 27.660 seconds; eight actual-target controls and 26 independent isolated
+parser controls passed. Native Apache with #150, NGINX and Common C17 passed.
+Native generators/bindings/admission preserve 100/80 standard, 2586/1140
+optional, 526 fixed Framework bindings, 235 Product paths and 1993 baseline IDs.
+The new paired integration record and documentation passed 350-pair and four
+canonical checks; independent code/catalog and EN/DE review found no blocker.
+No new methods/selectors/versions, weakened gates or MRTS writes are included.
+
+Framework #147 independently advanced master to
+`5ef57603a4933f18c988f1f9f32b93f478182440` with host-execution-context
+preflights. A normal merge into #150 produced current published head
+`af6997be5c5cee38e3feb9274c3269d52784bbe1`, based on that master. The sole
+inventory conflict was resolved by native regeneration, retaining both new
+preflight bindings and five default consumers plus the compiler hash. Independent
+comparison against `5ef57603` finds exactly the intended compiler-test hash
+difference; master dependency indices and both test fixes are retained.
+Current inventory SHA-256 is
+`147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`:
+528 fixed Framework bindings / 235 Product paths; 100/80 standard, 2586/1140
+optional and 1993 baseline IDs unchanged. Fresh 44-method validation passed in
+26.138 seconds. Native generation/checks, public admission, 354 bilingual
+checks, 2159 path checks with zero obsolete paths, record/link and four canonical
+checks passed; independent inventory/EN-DE review found no blocker. The earlier
+#150 native Parent `check-compiler-guides ON_DEMAND_TESTS=1` entrypoint passed
+22 tests in 0.848 seconds, retaining all 18 guide outputs byte-identically.
+No additional host campaign, tests, selectors, versions, gate changes or MRTS
+writes accompany this master synchronization. The first candidate's earlier
+results remain historical and do not establish current-head hosted acceptance.
+
+Framework #150 was actually squash-merged with an exact-SHA guard at
+`2026-11-01T20:11:25Z`, producing official master
+`b85280278310f4034af78149ac13671438965c7b`. Its complete tree equals `af6997be`.
+That PR head passed 12 checks / three intended skips; direct Sonar analysis at
+`2026-11-01T20:03:53Z` passed all five conditions (ratings 1 <= 1, duplication
+0 <= 3%, hotspots 100 >= 100%) and the complete OPEN/CONFIRMED query returned
+zero issues. Three CodeQL Analyze/Post-Analyze configurations passed in bounded
+without-upload mode. New `b8528027` master CI is pending, not inherited from
+the PR. GitHub's configured auto-delete removed #150's remote branch; its local
+branch/worktree remain, and #143/#144 branches remain unchanged as requested.
+
+Independent Parent #435 merged at `2026-11-01T19:49:13Z` into master
+`2abad408cae7e5a103d12a9a9e432129bfe0468f`, inheriting Framework pin `e628`,
+not `91f5370c`. A clean normal merge produced local Parent
+`5b5a4a89aa9cb55b0b95b485611aadb78f276185`; only the incoming 12 middleware
+lines are composed with the parity changes. Independent source/security review
+found no P3/EOS/protocol regression. Twenty-three pin projections match master;
+MRTS/version values are unchanged. The earlier generated intermediate views
+were backed up externally before the merge; task source/docs were preserved.
+
+Bounded merge-interaction unit validation passed 16 parity plus six informational
+selectors: 22 top-level tests, 53 passing test/subtest terminals plus a package
+pass, 48 leaves including all 31 informational leaves, zero failures/skips and
+no race report. This used the merged worktree before the local merge commit,
+not a whole-committed-head qualification. Its middleware SHA-256 remains
+`b8df119f43332c00e7308478cae3f84a5f2d015a96e8d4e9c18d74261e73884b`
+after commit. This is real httptest unit evidence, not native-host, private
+Common-service, TLS/H2/H3 or MRTS execution.
+
+Final local pin alignment is implemented, not yet committed/pushed: nested
+Framework and staged gitlink are exact `b8528027`; native lock plus 22 workflow
+views are synchronized. Native pre-candidate `e628` → `b8528027`, 23-file sync,
+no-drift check and post-candidate `b8528027` checks passed, both using NGINX
+`release-1.31.6`. The immutable Common helper blob matches exact Framework
+`b8528027:ci/lib/common.sh`. Combined final-pin Python validation passed all
+99 existing methods in 60.799 seconds (7 projection, 19 revision, 29 candidate,
+22 compiler, 22 Apache), using Parent `5b5a4a89` plus task edits and Framework
+`b8528027`. Intentional negative SHA diagnostics in unittest output are not a
+native candidate failure. Native NGINX adoption and Common C17 helper checks
+passed with `-std=c17 -Wall -Wextra -Werror`. Public inventory admission passed
+with SHA-256 `147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`,
+100 default / 2686 total / 2586 optional cases and a truthfully dirty Parent
+worktree; admission is not test execution. Staged/unstaged whitespace checks
+passed. Final guide-byte diff confirmed all 18 outputs unchanged; native
+Parent bilingual, repository-path and documentation-link checks passed.
+Commit/push and new-head CI/Sonar remain pending at this preparation snapshot.
+
+Framework `b8528027` master CodeQL/Common/Scorecard workflows have succeeded;
+lint/Sonar are in progress. Exactly five master workflows were triggered.
+The security-Python and five-connector contract workflows are not applicable:
+none of the 11 changed paths matches their checked-in push filters. They are
+not counted as passing, skipped or missing. MRTS remains
+uninitialized/read-only, so strict local actual-materialization verification
+is unavailable. Immutable-chain/native pin checks are distinct from fresh
+hosted actual-checkout evidence. Parent #348 remains an unmerged Draft at
+published `db431efa`; local `5b5a4a89` plus final pin edits is unpublished.
+No Parent master merge is authorized.
+
+An initial check against the old d503 checkers rejected the merged product:
+NGINX reported three obsolete exact-pattern contracts and Apache rejected the
+negotiated Phase3 protocol call (both Make exit2). These are compatibility
+failures requiring the preserved Framework checker changes, not failing
+product-runtime evidence. Integrated Framework-stage checkers now pass, as do
+12 selected Python methods, 43 protocol methods, four QUIC helper methods,
+Common C17, 348 documentation pairs and canonical checks. These are bounded
+static/unit/compile results, not real negotiated host-protocol evidence.
+
+The post-#146 Traefik race selection passed 16 parity tests / 18 terminals.
+The earlier full Traefik result (173 pass terminals, one real-service skip)
+predates #146. Before `2abad408` integration, its 31 new informational leaves
+were compiled but NOT_RUN, because selected external Parent `b43faa78` lacked
+their separate Product fix and #435 was then closed unmerged. This historical
+limitation is superseded by the bounded merge-interaction unit proof above,
+not a full host qualification. The earlier
+Envoy race run covered eight packages / 392 pass terminals without failures
+or skips. Local Go 1.27.3 matches the selected toolchain; both module minimum
+directives remain 1.26.9. This is not live host/protocol qualification.
+Dependency-setup and overlong AF_UNIX failures remain recorded, not converted
+to passes. Parent source is external validation input; production context
+guards are unchanged and mutation fixtures use real post-mutation Git binding.
+
 This independent Parent workstream records evidence for HTTP/2 and HTTP/3
 lifecycle parity across Apache, NGINX, HAProxy, Envoy, Traefik, and lighttpd,
 while retaining HTTP/1.1 as the regression baseline. It is in progress and is
@@ -63,6 +220,10 @@ not verified.
 
 ## Changed files
 
+This is the historical original-path list. Test/checker paths removed during
+the 2026-11-01 migration are retained here as history, not current Parent-owned
+files; their mapped implementation is delivered by Framework PR #148.
+
 - `connectors/lighttpd/README.md`
 - `connectors/lighttpd/README.de.md`
 - `docs/protocol-parity.md`
@@ -90,8 +251,9 @@ not verified.
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 
-The Framework submodule is uninitialized and was not modified. MRTS was
-untouched.
+At the original 2026-08 checkpoint the Framework submodule was uninitialized
+and was not modified. MRTS was untouched. The current integration state is
+recorded in the 2026-11-01 checkpoint above.
 
 ## Commands executed
 
@@ -100,7 +262,8 @@ They have not been rerun or promoted to the merged 2026-10-24 revision. The
 2026-10-24 update used source review, Go formatting, JSON/Python syntax,
 conflict-marker, Git-index, and diff-integrity inspection only. Functional
 tests, builds, runtime traffic, and CI-green acceptance are deferred by the
-current user request.
+user request at that historical checkpoint; the 2026-11-01 scope supersedes
+that test deferral without authorizing a broad qualification campaign.
 
 The Change Record structural contract passed. The bilingual documentation
 checker reports 22 existing missing links into the uninitialized Framework

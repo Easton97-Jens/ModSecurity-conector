@@ -13,6 +13,179 @@
 
 ## Motivation und Problemstellung
 
+### Integrationscheckpoint nach Testumzug — 2026-11-01
+
+Der Nutzer autorisierte die Übernahme von Parent-Master
+`a6001a09210bc9516256d28af5da45d73f0fe2f2` nach abgeschlossenem Testumzug.
+Fünfzehn Modify/Delete-Konflikte betreffen dreizehn nun Framework-eigene
+Prüfer-/Testquellen und zwei generierte Auswahl-/Archivdateien. Ihre alten
+Parent-Pfade werden entfernt, nicht wiederhergestellt. Die dreizehn Branch-
+Deltas bleiben an den zugeordneten Framework-Pfaden und in der ursprünglichen
+`db431efa`-Historie erhalten; Schema-5-Inventar/Archiv müssen regeneriert,
+nicht zurückkopiert werden. Das migrierte Standardinventar bleibt auf 100 Fälle
+begrenzt.
+
+Die abgeschlossenen Ports erhalten 24 Definitionen (19 Go, fünf Python).
+Native Generierung erhält 100 Standardfälle / 80 Ausführungen und 1993
+Basis-IDs; der optionale Katalog enthält 2586 Fälle / 1140 Ausführungen. Die
+anfänglichen 526 Framework-Bindungen wurden nach #147 zu 528, wie unten
+aufgezeichnet. Kein alter Parent-Testpfad wird wiederhergestellt.
+
+[Framework-PR #148](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/148)
+enthält die Ports und verifizierten #143/#144-Integritätsfixes. Sein
+freigegebener regulärer Squash-Merge erfolgte um `2026-11-01T19:09:19Z`;
+der remote verifizierte Framework-Master an diesem Checkpoint war
+`91f5370c7eddcebdc7e49d2099c58054ec2d5d5d`. Der finale PR-Head bestand
+15 Hosted-Prüfungen bei drei vorgesehenen Skips; direkte headgenaue Sonar-
+Rücklesung meldete Gate OK, alle fünf Bedingungen und null offene PR-Issues.
+Alle sieben Master-Workflows auf `91f5370c` bestanden anschließend. Direkte
+Master-Sonar-Analyse um `2026-11-01T19:26:02Z` bestand alle fünf Bedingungen:
+Ratings 1 <= 1, Duplikation 0 <= 3%, Hotspots 100 >= 100%. PRs #143/#144 sind
+ungemergt mit Verweis auf #148 geschlossen; Branches `b7d643f` / `9e49913`
+bleiben erhalten. Dies sind getrennte PR-Head-/Master-Beobachtungen, keine
+Abnahme künftiger Heads.
+Parent #348 bleibt ein ungemergter Draft; Framework-Merge-Freigabe erlaubt
+keinen Parent-Master-Merge. Keine MRTS-Änderung oder breite TLS-/H2-/H3-
+Qualifikationskampagne ist enthalten. Frühere datierte Evidence bleibt historisch.
+
+Erforderliche finale native Checks deckten Migrationsintegritätsfehler auf.
+Parent-`scripts/generate_compiler_guides.py` bildet nun den öffentlichen
+`source_path` des NGINX-Preparers ab und korrigiert die tatsächlich migrierten
+Apache-/HAProxy-Harnesslinks. Alle 18 generierten Guide-Ausgaben bleiben
+byteidentisch zu versionierten Dateien. Die Parent-Projektions-/Revisions-/
+Kandidatenauswahl bestand 55 Tests; natives Apache bestand zunächst 21 Tests
+und scheiterte an einer veralteten vollständigen AST-Golden-Erwartung.
+
+[Framework-Draft #150](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/150)
+wurde zuerst auf `e1b4f8b24ab95749d685db3e6581e26da302dd57`, Basis `91f5370c`,
+veröffentlicht. Seine 11 Dateien reparieren nur zwei bestehende Testmodule
+samt generierten Bindungen, gepaarter Dokumentation und Change Record:
+Compilererwartungen/tatsächlich weitergeleitete Make-Targets und das unabhängig
+auditierte vollständige AST-Golden. Sechs Migrationskontext-Transformationen
+rekonstruieren den Prüfer seit #142 byteidentisch; alle Prädikate, Meldungen,
+Reihenfolge und Kontrollen bleiben erhalten. Kombinierte 44 Methoden bestanden
+in 27.660 Sekunden; acht tatsächliche Target-Kontrollen und 26 unabhängige
+isolierte Parserkontrollen bestanden. Natives Apache mit #150, NGINX und
+Common C17 bestanden. Native Generatoren/Bindungen/Zulassung erhalten 100/80
+Standard, 2586/1140 optional, 526 feste Framework-Bindungen, 235 Produktpfade
+und 1993 Basis-IDs. Neuer gepaarter Integrationsrecord und Dokumentation
+bestanden 350-Paar- und vier kanonische Checks; unabhängiges Code-/Katalog- und
+EN/DE-Review fand keinen Blocker. Keine neuen Methoden/Selektoren/Versionen,
+abgeschwächten Gates oder MRTS-Schreibzugriffe sind enthalten.
+
+Framework #147 setzte Master unabhängig mit Host-Ausführungskontext-Preflights
+auf `5ef57603a4933f18c988f1f9f32b93f478182440`. Ein normaler Merge in #150
+erzeugte den aktuellen veröffentlichten Head
+`af6997be5c5cee38e3feb9274c3269d52784bbe1` auf dieser Master-Basis. Der einzige
+Inventarkonflikt wurde durch native Regenerierung gelöst, unter Erhalt beider
+neuer Preflight-Bindungen und fünf Standardverbraucher samt Compilerhash.
+Unabhängiger Vergleich gegen `5ef57603` findet exakt den beabsichtigten
+Compiler-Testhash-Unterschied; Master-Abhängigkeitsindizes und beide Testfixes
+bleiben erhalten. Aktueller Inventar-SHA-256:
+`147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`:
+528 feste Framework-Bindungen / 235 Produktpfade; 100/80 Standard, 2586/1140
+optional und 1993 Basis-IDs unverändert. Frische 44-Methoden-Validierung bestand
+in 26.138 Sekunden. Native Generierung/Checks, öffentliche Zulassung, 354
+bilinguale Checks, 2159 Pfadchecks ohne veraltete Pfade, Record-/Link- und vier
+kanonische Checks bestanden; unabhängiges Inventar-/EN-DE-Review fand keinen
+Blocker. Der frühere native Parent-#150-Einstieg
+`check-compiler-guides ON_DEMAND_TESTS=1` bestand 22 Tests in 0.848 Sekunden
+bei 18 byteidentisch erhaltenen Guide-Ausgaben. Keine zusätzliche Hostkampagne,
+Tests, Selektoren, Versionen, Gateänderungen oder MRTS-Schreibzugriffe begleiten
+diesen Master-Abgleich. Frühere Ergebnisse des ersten Kandidaten bleiben
+historisch und belegen keine aktuelle gehostete Head-Abnahme.
+
+Framework #150 wurde tatsächlich mit Exact-SHA-Guard um
+`2026-11-01T20:11:25Z` per Squash gemergt; offizieller Master ist
+`b85280278310f4034af78149ac13671438965c7b`. Sein vollständiger Tree entspricht
+`af6997be`. Dieser PR-Head bestand 12 Checks / drei vorgesehene Skips;
+direkte Sonar-Analyse um `2026-11-01T20:03:53Z` bestand alle fünf Bedingungen
+(Ratings 1 <= 1, Duplikation 0 <= 3%, Hotspots 100 >= 100%), die vollständige
+OPEN/CONFIRMED-Abfrage ergab null Issues. Drei CodeQL-Analyze-/Post-Analyze-
+Konfigurationen bestanden im begrenzten Modus ohne Upload. Neue `b8528027`-
+Master-CI steht aus und wird nicht vom PR übernommen. GitHubs konfiguriertes
+Auto-Delete entfernte den Remote-Branch von #150; lokaler Branch/Worktree und
+die ausdrücklich behaltenen #143/#144-Branches bleiben unverändert erhalten.
+
+Unabhängiger Parent #435 wurde um `2026-11-01T19:49:13Z` in Master
+`2abad408cae7e5a103d12a9a9e432129bfe0468f` gemergt, mit geerbtem Framework-
+Pin `e628`, nicht `91f5370c`. Ein sauberer normaler Merge erzeugte lokalen Parent
+`5b5a4a89aa9cb55b0b95b485611aadb78f276185`; nur die eingehenden zwölf
+Middleware-Zeilen werden mit den Paritätsänderungen verbunden. Unabhängiges
+Quell-/Security-Review fand keine P3-/EOS-/Protokollregression. 23 Pinprojektionen
+entsprechen Master; MRTS-/Versionswerte bleiben unverändert. Frühere generierte
+Zwischenansichten wurden vor dem Merge extern gesichert; Aufgabenquellen und
+Dokumentation blieben erhalten.
+
+Begrenzte Merge-Interaktions-Unitvalidierung bestand mit 16 Paritäts- plus sechs
+informativen Selektoren: 22 Top-Level-Tests, 53 erfolgreiche Test-/Subtest-
+Abschlüsse plus Paket-Pass, 48 Leaves einschließlich aller 31 informativen
+Leaves, null Fehler/Skips und kein Race-Report. Dies verwendete den gemergten
+Worktree vor dem lokalen Merge-Commit, keine Qualifikation des gesamten
+committeten Heads. Sein Middleware-SHA-256 bleibt nach Commit
+`b8df119f43332c00e7308478cae3f84a5f2d015a96e8d4e9c18d74261e73884b`.
+Dies ist echte httptest-Unit-Evidence, keine Native-Host-, private Common-Dienst-,
+TLS-/H2-/H3- oder MRTS-Ausführung.
+
+Finaler lokaler Pin-Abgleich ist implementiert, noch nicht committet/gepusht:
+Verschachteltes Framework und gestagter Gitlink sind exakt `b8528027`; nativer
+Lock und 22 Workflow-Ansichten sind synchronisiert. Native Pre-Candidate-
+`e628` → `b8528027`-, 23-Dateien-Sync-, No-Drift- und Post-Candidate-
+`b8528027`-Checks bestanden, beide mit NGINX `release-1.31.6`. Der unveränderliche
+Common-Helferblob entspricht exakt Framework-`b8528027:ci/lib/common.sh`.
+Kombinierte finale Pin-Pythonvalidierung bestand alle 99 bestehenden Methoden
+in 60.799 Sekunden (7 Projektion, 19 Revision, 29 Kandidat, 22 Compiler,
+22 Apache), mit Parent `5b5a4a89` plus Aufgabenänderungen und Framework
+`b8528027`. Absichtliche negative SHA-Diagnosen in Unittest-Ausgabe sind kein
+nativer Kandidatenfehler. Native NGINX-Adoption und Common-C17-Helferchecks
+bestanden mit `-std=c17 -Wall -Wextra -Werror`. Öffentliche Inventarzulassung
+bestand mit SHA-256
+`147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`,
+100 Standard- / 2686 Gesamt- / 2586 optionalen Fällen und wahrheitsgemäß
+schmutzigem Parent-Worktree; Zulassung ist keine Testausführung. Gestagte/
+ungestagte Whitespace-Checks bestanden. Finaler Guide-Byte-Diff bestätigt alle
+18 Ausgaben unverändert; native Parent-Zweisprachigkeits-, Repositorypfad- und
+Dokumentationslinkprüfungen bestanden. Commit/Push und neue Head-CI/Sonar stehen
+bei diesem Vorbereitungssnapshot aus.
+
+Framework-`b8528027`-Master-Workflows CodeQL/Common/Scorecard bestanden;
+Lint/Sonar laufen. Genau fünf Master-Workflows wurden ausgelöst. Security-Python-
+und Fünf-Connector-Vertragsworkflows sind nicht anwendbar: Keiner der elf
+geänderten Pfade passt zu ihren eingecheckten Push-Filtern. Sie zählen nicht
+als bestanden, übersprungen oder fehlend.
+MRTS bleibt uninitialisiert/schreibgeschützt; strikte lokale Prüfung tatsächlicher
+Materialisierung ist daher nicht verfügbar. Immutable-Chain-/native Pinchecks
+sind getrennt von frischer gehosteter Actual-Checkout-Evidence. Parent #348
+bleibt ein ungemergter Draft auf veröffentlichtem `db431efa`; lokaler
+`5b5a4a89` plus finale Pinänderungen ist unveröffentlicht. Kein Parent-Master-
+Merge ist freigegeben.
+
+Ein erster Lauf mit den alten d503-Prüfern lehnte das gemergte Produkt ab:
+NGINX meldete drei veraltete exakte Musterverträge und Apache lehnte den
+ausgehandelten Phase3-Protokollaufruf ab (jeweils Make-Exit2). Dies sind
+Kompatibilitätsfehler, die die erhaltenen Framework-Prüferänderungen benötigen,
+keine fehlgeschlagenen Produkt-Runtime-Nachweise. Integrierte Framework-Prüfer
+bestehen nun, ebenso 12 ausgewählte Python-Methoden, 43 Protokollmethoden,
+vier QUIC-Helfermethoden, Common C17, 348 Dokumentationspaare und kanonische
+Checks. Das sind begrenzte Static-/Unit-/Compile-Ergebnisse, keine Evidence
+für tatsächlich ausgehandelte Host-Protokolle.
+
+Die Traefik-Race-Auswahl nach #146 bestand mit 16 Paritätstests / 18 Abschlüssen.
+Das frühere volle Traefik-Ergebnis (173 erfolgreiche Abschlüsse, ein
+Echtdienst-Skip) liegt vor #146. Vor `2abad408`-Integration waren dessen 31 neue
+informative Leaves kompiliert, aber NOT_RUN, weil dem gewählten externen Parent
+`b43faa78` ihr separater Produktfix fehlte und #435 damals ungemergt geschlossen
+war. Diese historische Grenze ist durch den begrenzten Merge-Interaktions-
+Unitnachweis oben überholt, nicht durch eine volle Hostqualifikation.
+Der frühere Envoy-Race-Lauf
+umfasste acht Pakete / 392 erfolgreiche Abschlüsse ohne Fehler oder Skips.
+Lokales Go 1.27.3 entspricht der ausgewählten Toolchain; beide Modul-Minimum-
+Direktiven bleiben bei 1.26.9. Das ist keine Live-Host-/Protokollqualifikation.
+Abhängigkeitssetup- und überlange AF_UNIX-Fehler bleiben aufgezeichnet und
+werden nicht zu Pässen erklärt. Parent-Source ist externe Validierungseingabe;
+Produktionskontext-Guards bleiben unverändert und Mutationsfixtures nutzen
+echte Git-Bindung nach Mutation.
+
 Dieser unabhängige Parent-Workstream dokumentiert Evidence für HTTP/2- und
 HTTP/3-Lifecycle-Parität über Apache, NGINX, HAProxy, Envoy, Traefik und
 lighttpd, während HTTP/1.1 als Regressions-Baseline erhalten bleibt. Er ist
@@ -65,6 +238,10 @@ verified.
 
 ## Geänderte Dateien
 
+Dies ist die historische Liste ursprünglicher Pfade. Beim Umzug am 2026-11-01
+entfernte Test-/Checker-Pfade bleiben hier als Historie, nicht als aktuelle
+Parent-Dateien; ihre zugeordnete Implementierung liefert Framework-PR #148.
+
 - `connectors/lighttpd/README.md`
 - `connectors/lighttpd/README.de.md`
 - `docs/protocol-parity.md`
@@ -92,8 +269,9 @@ verified.
 - `reports/audits/change-records/README.md`
 - `reports/audits/change-records/README.de.md`
 
-Das Framework-Submodul ist nicht initialisiert und wurde nicht geändert. MRTS
-wurde nicht angefasst.
+Am ursprünglichen Checkpoint von 2026-08 war das Framework-Submodul nicht
+initialisiert und wurde nicht geändert. MRTS wurde nicht angefasst. Der
+Integrationscheckpoint vom 2026-11-01 oben dokumentiert den aktuellen Stand.
 
 ## Ausgeführte Befehle
 
@@ -102,8 +280,9 @@ historisch. Sie wurden nicht erneut ausgeführt oder auf die zusammengeführte
 Revision vom 2026-10-24 übertragen. Die Aktualisierung vom 2026-10-24 nutzte
 nur Quellreview, Go-Formatierung, JSON-/Python-Syntax-, Konfliktmarker-,
 Git-Index- und Diff-Integritätsprüfung. Funktionstests, Builds,
-Laufzeitverkehr und CI-Grünstatus sind durch den aktuellen Benutzerauftrag
-zurückgestellt.
+Laufzeitverkehr und CI-Grünstatus waren durch den damaligen Benutzerauftrag
+zurückgestellt; der Umfang vom 2026-11-01 hebt diese Testzurückstellung auf,
+ohne eine breite Qualifikationskampagne freizugeben.
 
 Der strukturelle Change-Record-Vertrag bestand. Der bilinguale
 Dokumentationschecker meldet 22 bestehende fehlende Links in den nicht
