@@ -33,6 +33,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/ci-findings-regressions/nginx-b09-regression@e6284e8a8a64d999bf60f777252987172ab24756
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/ci-findings-regressions/nginx-b09-regression@5ef57603a4933f18c988f1f9f32b93f478182440
         with:
-          framework-revision: e6284e8a8a64d999bf60f777252987172ab24756
+          framework-revision: 5ef57603a4933f18c988f1f9f32b93f478182440

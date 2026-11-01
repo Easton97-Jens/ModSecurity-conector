@@ -16,7 +16,7 @@ Load only the policies needed for the current task. `AGENTS.md` is the concise e
 | Shell/project command execution and RTK | `command-execution-policy.md` |
 | Storage, CPU, memory, worktrees, caches | `resources-and-storage.md` |
 | Security-sensitive work | `security-policy.md` |
-| Native NGINX/Envoy security runtime preflight | `security-runtime-preflight.md` |
+| Native host-test execution context, identity/UDS preflight, NGINX/Envoy runtime blockers | `security-runtime-preflight.md` |
 | Git state, branches, staging, remotes | `git-policy.md` |
 | Commit/push/PR/CI to `verified_pr` | `delivery-and-ci.md` |
 | PR feedback / CI remediation | `pr-remediation.md` |

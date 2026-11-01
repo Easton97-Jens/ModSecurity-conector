@@ -79,7 +79,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-INDEX"
 source = ".codex/context/index.md"
-sha256 = "535d9747811453344c862f80cb5cbfb6ffc013a29507db9e9519ade93fd9112b"
+sha256 = "a0b3224df520815e4f7a715aad078756a594c25edc1b047837f9f8bd810e7269"
 inheritable = true
 
 [[policies]]
@@ -133,7 +133,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-SECURITY-RUNTIME-PREFLIGHT"
 source = ".codex/context/security-runtime-preflight.md"
-sha256 = "83a470e08b0ccf8a22a6e1e606ec4b8684e954636c2034c7b9c7535a17a33fa5"
+sha256 = "a9d28e7701319417cc759c716296024ec3a45afd3ccdc3d64f606ef909f83e52"
 inheritable = true
 
 [[policies]]
