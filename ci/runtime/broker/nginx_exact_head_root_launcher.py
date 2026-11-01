@@ -25,10 +25,7 @@ def main():
     fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
         for component in (*root.parts[1:], "ci"):
-            name = os.path.basename(component)
-            if name in {"", ".", ".."} or name != component:
-                raise ValueError("protected base components must be exact directory names")
-            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
             os.close(fd)
             fd = child
         source = os.open("run-trusted-framework.py", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
