@@ -13,6 +13,38 @@
 
 ## Motivation and problem statement
 
+### N33 verified Framework follow-up pin
+
+Framework PR #145 is merged at `d503ddbea1a3b6df7766edc247b0a9886ff10668`, with the same source
+tree as reviewed head `88a37226750bec50ebc21b78468d31985a30b6dc`. Its current-head
+CI and Sonar checks passed before integration with 0 open PR findings and 0
+hotspots awaiting review. The reader uses 5 focused helpers and 36 shared
+artifact/source names. Independent helper/constant inlining preserves the former
+dispatcher; inlining the last 25 constants reconstructs the entire preceding
+module AST exactly. The initial refactor matched 198711 ordered trace events.
+The final canonical offline-guard run passed 70 methods / 291 subtests in
+24.086 seconds with 0 failures, errors or skips. The 2 corrected pointer-fault
+expectations retain the proven `1, 500, 500` and `connector_error` contract.
+
+The Connector gitlink and all 55 workflow/lock references in 23 files now select
+the actual merged Framework revision; 37 other references / 7 unique values are
+preserved. All 6 metadata generator/check operations passed with unchanged
+selection rows, 522 Framework bindings and 235 Product paths. Inventory SHA-256:
+`9e20fa07577086f03db106ba4d709f2331454496528393c311d74db29326d4b6`.
+Selection remains 100 standard cases / 80 executions and 2551 optional cases /
+1133 executions. Recorded-pair, separate DEV acceptance at
+`88a37226750bec50ebc21b78468d31985a30b6dc`, updater tests and exact new Connector-head
+CI/Sonar still require renewal for this pin.
+
+The previous Connector `5007f5e8f4fc4fd292b80cc93952068cb5d9037a` measured
+32 / 1927 duplicated new lines (UI 1.7%), reduced from 38 / 1933 (UI 2.0%);
+its 27 workflows, 59 successful checks and 5 event-inapplicable skips qualify
+that previous pin only. The Framework master's broad previous-version period
+since 2026-05-15 contained 120 older findings; source comparison identified the
+4 task-worsened findings corrected here. This does not claim zero total master
+findings. Actual UID1001 bootstrap remains NOT_EXECUTED locally. The following
+checkpoints retain their historical scope.
+
 ### N31 Framework integration and measured duplication
 
 The user-authorized integration of Framework PR #142 produced master

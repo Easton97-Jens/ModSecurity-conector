@@ -19,6 +19,41 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## N33-Pin des geprüften Framework-Folgestands
+
+Framework-PR #145 ist als `d503ddbea1a3b6df7766edc247b0a9886ff10668` integriert, mit demselben
+Quellbaum wie der geprüfte Head `88a37226750bec50ebc21b78468d31985a30b6dc`. Seine
+headgenauen CI- und Sonar-Prüfungen bestanden vor der Integration mit 0 offenen
+PR-Findings und 0 noch zu prüfenden Hotspots. Der Reader nutzt 5 gezielte Helper
+und 36 gemeinsame Artefakt-/Quellnamen. Unabhängiges Helper-/Konstanten-Inlining
+erhält den früheren Dispatcher; das Inlining der letzten 25 Konstanten
+rekonstruiert den gesamten vorherigen Modul-AST exakt. Der erste Umbau verglich
+198711 geordnete Trace-Ereignisse ohne Abweichung. Der finale kanonische Lauf
+unter dem Offline-Guard bestand 70 Methoden / 291 Subtests in 24.086 Sekunden
+mit 0 Fehlern, Ausnahmen oder Skips. Die 2 korrigierten Zeigerfehler-Erwartungen
+erhalten den belegten Vertrag `1, 500, 500` und `connector_error`.
+
+Der Connector-Gitlink und alle 55 Workflow-/Lock-Referenzen in 23 Dateien wählen
+jetzt die tatsächliche integrierte Framework-Revision; 37 andere Referenzen /
+7 eindeutige Werte bleiben erhalten. Alle 6 Metadaten-Generator-/Prüfschritte
+bestanden mit unveränderten Auswahlzeilen, 522 Framework-Bindungen und
+235 Produktpfaden. Inventar-SHA-256:
+`9e20fa07577086f03db106ba4d709f2331454496528393c311d74db29326d4b6`.
+Die Auswahl bleibt bei 100 Standardfällen / 80 Ausführungen und 2551 optionalen
+Fällen / 1133 Ausführungen. Aufgezeichnetes Paar, getrennte DEV-Abnahme bei
+`88a37226750bec50ebc21b78468d31985a30b6dc`, Updater-Tests und headgenaue CI-/Sonar-
+Prüfungen des neuen Connector-Heads müssen für diesen Pin erneuert werden.
+
+Der vorherige Connector `5007f5e8f4fc4fd292b80cc93952068cb5d9037a` maß
+32 / 1927 duplizierte neue Zeilen (UI 1.7%), reduziert von 38 / 1933 (UI 2.0%);
+seine 27 Workflows, 59 erfolgreichen Checks und 5 für das Ereignis unzutreffenden
+Skips qualifizieren nur jenen vorherigen Pin. Der breite Previous-Version-Zeitraum
+des Framework-Masters seit 2026-05-15 enthielt 120 ältere Findings; der Quellvergleich
+identifizierte die 4 hier korrigierten aufgabenbedingten Verschlechterungen.
+Dies behauptet keine null Gesamtfindings auf dem Master. Tatsächlicher
+UID1001-Bootstrap bleibt lokal NOT_EXECUTED. Die folgenden Sicherungsstände
+behalten ihren historischen Umfang.
+
 ## N31-Framework-Integration und gemessene Duplikation
 
 Die vom Nutzer freigegebene Integration von Framework-PR #142 ergab Master
