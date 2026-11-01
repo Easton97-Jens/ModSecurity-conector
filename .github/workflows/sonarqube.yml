@@ -54,9 +54,9 @@ jobs:
           submodules: true
           persist-credentials: false
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@78461314f5b1df294de02e1cb7c8a3fa00910bbb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@ed02c5bbe06c67493fe3c9671197a7b8a1484b72
         with:
-          framework-revision: 78461314f5b1df294de02e1cb7c8a3fa00910bbb
+          framework-revision: ed02c5bbe06c67493fe3c9671197a7b8a1484b72
       - name: Keep analysis output outside the checkout
         shell: bash
         run: |
