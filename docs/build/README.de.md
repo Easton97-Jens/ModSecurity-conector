@@ -107,7 +107,7 @@ Modus `--ci-toolcache`; sie ersetzt den Setup-Interpreter nicht und ändert `GIT
 
 ### Aktuelle Parent-Workflow-/Job-Inventarisierung
 
-Das geschlossene Inventar im [Python-Workflow-Checker](../../ci/checks/common/check-python-version-contract.py)
+Das geschlossene Inventar im [Python-Workflow-Checker](../../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-version-contract.py)
 enthält 41 normale Jobs, einen Candidate-Job, zwei unveränderlich gepinnte
 Protected-Aufrufe, einen lokalen wiederverwendbaren Aufrufer und einen geprüften
 System-Python-Namespace-Job. Normale Jobs wählen `.python-version` und prüfen den

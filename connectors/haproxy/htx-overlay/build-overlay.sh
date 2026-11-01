@@ -116,7 +116,7 @@ cp "$CONNECTOR_ROOT/common/runtime/response_companion_protocol.h" "$WORKTREE/src
 cp "$CONNECTOR_ROOT/common/runtime/response_companion_transport.h" "$WORKTREE/src/response_companion_transport.h"
 cp "$CONNECTOR_ROOT/common/runtime/msconnector_runtime.h" "$WORKTREE/src/msconnector_runtime.h"
 
-COMMON_SOURCES='config.c config_parser.c directive_spec.c directive_adapter.c request_helpers.c response_helpers.c request_mapper_contract.c response_mapper_contract.c headers.c event.c event_jsonl.c json_escape.c rule_id.c log_sanitize.c redaction.c resource_limits.c dos_guard.c error.c status.c body_policy.c crs.c transaction_state.c decision.c decision_action.c late_intervention.c flow_guard.c integrity_event.c rule_loader.c rule_merge.c http_status.c block_statuses.c path_policy.c intervention.c rule_error.c rule_event.c artifacts.c artifact_layout.c test_result.c test_result_json.c'
+COMMON_SOURCES='config.c config_parser.c directive_spec.c directive_adapter.c request_helpers.c response_helpers.c request_mapper_contract.c response_mapper_contract.c headers.c event.c event_jsonl.c json_escape.c rule_id.c log_sanitize.c redaction.c resource_limits.c dos_guard.c error.c status.c body_policy.c crs.c transaction_state.c decision.c decision_action.c late_intervention.c flow_guard.c integrity_event.c rule_loader.c rule_merge.c http_status.c block_statuses.c path_policy.c intervention.c rule_error.c rule_event.c artifacts.c artifact_layout.c'
 for source in $COMMON_SOURCES; do
     require_file "$CONNECTOR_ROOT/common/src/$source" "Common SDK source"
     cp "$CONNECTOR_ROOT/common/src/$source" "$WORKTREE/src/msconnector_$source"

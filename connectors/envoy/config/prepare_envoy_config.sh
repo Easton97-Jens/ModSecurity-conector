@@ -6,7 +6,7 @@ CONNECTOR_DIR=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(CDPATH= cd "$CONNECTOR_DIR/../.." && pwd)
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 CONFIG_FILE=${CONFIG_FILE:-$SCRIPT_DIR/envoy-ext-authz.conf}
-RULES_FILE=${RULES_FILE:-$REPO_ROOT/common/rules/modsecurity_targeted_smoke.conf}
+RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-}}
 EVENT_LOG_PATH=${EVENT_LOG_PATH:-$BUILD_ROOT/envoy-connector/events.jsonl}
 OUTPUT_CONFIG=${OUTPUT_CONFIG:-$BUILD_ROOT/envoy-connector/config/envoy-ext-authz.runtime.conf}
 
@@ -32,6 +32,8 @@ CONFIG_FILE=$(absolute_existing_file "$CONFIG_FILE") || {
     echo "envoy_config: config template is not a file: $CONFIG_FILE" >&2
     exit 2
 }
+: "${RULES_FILE:?explicit product RULES_FILE or MSCONNECTOR_RULES_FILE is required}"
+
 RULES_FILE=$(absolute_existing_file "$RULES_FILE") || {
     echo "envoy_config: rules file is not a file: $RULES_FILE" >&2
     exit 2

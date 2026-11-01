@@ -35,7 +35,7 @@ compatibility aliases. Do not copy them back from an old README or report.
 | update an older configuration | [Migration](migration.md) | Current generated configuration references linked by each host example |
 | prepare or build a host | [Build](build/README.md) | [Compiler guides](build/compilers/README.md) |
 | select variables or toolchains | [Variables](reference/variables.md) | [Version pins](reference/version-pins.md) |
-| run standard tests | [Testing and evidence](testing-and-evidence.md) | [Test entry points](../tests/README.md) |
+| run standard tests | [Testing and evidence](testing-and-evidence.md) | [Test entry points](../modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_tests/README.md) |
 | interpret a runtime report | [Reports](../reports/README.md) | Profile, rules, revision, run ID, artifacts, and remaining limitations |
 | operate safely | [Operations and security](operations-and-security.md) | [Vulnerability reporting](../SECURITY.md) |
 | understand CI and scanners | [CI security tooling](security/ci-security-tooling.md) | [CI entry points](../ci/README.md) |
@@ -72,7 +72,7 @@ deployments. An `all` layout may select a strict mode that a particular host
 profile cannot admit.
 
 Normal functional selection is owned by
-[config/testing/active-cases.json](../config/testing/active-cases.json).
+[config/testing/active-cases.json](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json).
 `make check-active-inventory` checks the complete selection without executing
 it; `make test` runs the active selection with its actual prerequisites.
 `make quick-check` includes static checks and admitted functional subsets.

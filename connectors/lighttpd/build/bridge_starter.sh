@@ -35,6 +35,8 @@ MSCONNECTOR_C_STD=${MSCONNECTOR_C_STD:-c17}
     -I "$REPO_ROOT/common/include" \
     "$REPO_ROOT/common/src/capabilities.c" \
     "$REPO_ROOT/common/src/intervention.c" \
+        "$REPO_ROOT/common/src/block_statuses.c" \
+        "$REPO_ROOT/common/src/http_status.c" \
     "$REPO_ROOT/common/src/origin.c" \
     "$REPO_ROOT/common/src/status.c" \
     "$REPO_ROOT/common/src/transaction.c" \

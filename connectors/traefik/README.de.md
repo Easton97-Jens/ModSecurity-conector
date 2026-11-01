@@ -3,7 +3,7 @@
 **Sprache:** [English](README.md) | Deutsch
 
 Automatische Tests wählen ausschließlich
-[config/testing/active-cases.json](../../config/testing/active-cases.json) mit
+[config/testing/active-cases.json](../../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json) mit
 projektweit höchstens 100 expandierten Verhaltensfällen.
 <code>make -C connectors/traefik test-engine-service</code> wählt die zugelassene
 Gruppe <code>traefik-python</code>;
@@ -115,7 +115,7 @@ weiterzuleiten. Der Response-Pfad wird durch
 und
 [`config/traefik-forwardauth-composite-dynamic.yaml`](config/traefik-forwardauth-composite-dynamic.yaml)
 konfiguriert; der lokale Runner liegt unter
-[`harness/run_traefik_composite_matrix.sh`](harness/run_traefik_composite_matrix.sh).
+[`harness/run_traefik_composite_matrix.sh`](../../modules/ModSecurity-test-Framework/connector_suite/adapters/traefik/harness/run_traefik_composite_matrix.sh).
 
 P4 Safe ist log-only und erhält die ursprüngliche Antwort. P4 Strict ist kein
 bestandenes Ergebnis, solange kein echter, für den Client sichtbarer Abbruch

@@ -18,7 +18,7 @@ libmodsecurity v3, Apache HTTP Server 2.4, APR/APR-util, PCRE2, der Repository-A
 - [Produktive Apache-Quellen](../../../connectors/apache/src/)
 - [Autotools-Konfiguration](../../../connectors/apache/configure.ac)
 - [Source-Zuordnung](../../../connectors/apache/SOURCE_MAP.json)
-- [Eigenständiges Apache-Konfigurationsharness](../../../connectors/apache/harness/apache_smoke.conf)
+- [Eigenständiges Apache-Konfigurationsharness](../../../modules/ModSecurity-test-Framework/connector_suite/adapters/apache/harness/apache_smoke.conf)
 
 Dies ist der primäre Connectorpfad dieser Anleitung: connectors/apache/. Die offizielle Hostdokumentation im folgenden Abschnitt erklärt nur Bereitstellung oder Build des Hosts und ersetzt nicht die Connectorquelle.
 

@@ -42,6 +42,50 @@ oder Task-Root frei und führt nach dem Collector keine privilegierte
 Pfadoperation aus. Das Runner-Preflight bricht außerdem ab, wenn das Gate
 fehlt oder Eigentümer, Gruppe, Modus bzw. Dateityp nicht stimmen.
 
+Die beiden erlaubten Parent-Pfade sind jetzt kleine Entrypoints für die
+Quellintegration. Der umfangreiche Launcher, Collector, Dispatcher und
+Zelltreiber gehören zum gepinnten Test-Framework unter
+`connector_suite/modsecurity_connector_ci/runtime/broker/`. Die Shims prüfen
+`ci/run-trusted-framework.py` vor Ausführung seiner Bytes anhand ihres
+geprüften `BRIDGE_SHA256`. Diese Brücke bestimmt die Framework-Revision
+ausschließlich aus dem Gitlink `modules/ModSecurity-test-Framework` der exakt
+vertrauten Parent-Base, prüft beide Checkout-Identitäten und vergleicht die
+angeforderte Implementierung mit ihrem exakten Framework-Git-Blob.
+Vom Kandidaten ausgewählte Framework-Revisionen, veränderte
+Implementierungsbytes, symbolische Quellpfade, nichtreguläre Dateien und
+übergroße Quellen werden abgelehnt.
+
+Bei einem Aufruf als root laufen Git-Prüfungen über `/usr/bin/setpriv` unter
+der explizit angegebenen Nicht-root-Identität `--runner-uid` und
+`--runner-gid`, ohne Zusatzgruppen oder Capability-Sets und mit
+`--no-new-privs`. Authentifizierte Python-Bytes gelangen über einen versiegelten
+`memfd` in einen neuen isolierten Interpreter. Kandidatenimporte oder
+Änderungen an `sys.path` bzw. `sys.modules` sind nicht erforderlich. Der
+Launcher bindet den Shell-Zelltreiber zusätzlich an den Framework-Blob des
+vertrauten Parent-Gitlinks und hält dessen Deskriptor während des
+Sandbox-Aufbaus offen.
+
+Beide Shim-Aufrufe übergeben nach dem `--`-Trennzeichen des Gates explizit
+`--base-repo-root` und `--trusted-dispatcher-base-sha`, zusätzlich zu den
+bisherigen Evidenz- und Runner-Argumenten des Entrypoints. Der Collector-Shim
+verarbeitet diese beiden Optionen zur Quellenbindung vor dem Aufruf des
+Framework-Collectors. Host-Eigentümer müssen die Prüfung weitergereichter
+Optionen im installierten Gate mit diesem Aufrufvertrag abgleichen. Lehnt
+ein Gate diese Optionen ab, bleibt der Lauf blockiert. Der Workflow darf das
+Gate weder umgehen noch einen Launcher direkt aus dem Checkout ausführen.
+Die geschlossene Entrypoint-Allowlist des Gates bleibt unverändert.
+
+Die aktuelle Workflow-Orchestrierung liegt im wiederverwendbaren
+Framework-Workflow `connector-protected-nginx-exact-head.yml`. Der Parent
+behält den kleinen Dispatch-Entrypoint
+`run-protected-nginx-exact-head.yml` mit exaktem Framework-Commit-Pin.
+Prüfungen für geschützten Branch, Akteur, Environment, Runner, Manifeste und
+Artefakte bleiben im aufgerufenen Workflow erhalten. Historische
+NGINX-Root-Broker-Aufrufer behalten ihre unveränderlichen Verträge für Parent
+`8ae707d72f1a8acb25d239e55e28a73cbc7522b1` und Framework
+`99a7985c1be92a2297b1b59208f64df6768f2cbf`. Diese historischen Aufrufe
+qualifizieren die migrierte Quellrevision nicht.
+
 Die Installation und das Verhalten des Host-Bootstraps können aus einem
 normalen Checkout nicht nachgewiesen werden. Ein geschützter Exact-Head-Lauf
 benötigt daher einen dedizierten, ephemeren Runner mit einem vom Host-Eigentümer

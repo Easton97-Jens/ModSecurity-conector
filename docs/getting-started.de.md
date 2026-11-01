@@ -49,7 +49,7 @@ make quick-check
 ```
 
 Der erste Befehl prüft die Zulässigkeit des gesamten
-[aktiven Inventars](../config/testing/active-cases.json), ohne Tests auszuführen.
+[aktiven Inventars](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json), ohne Tests auszuführen.
 Der zweite prüft statische Repository-Verträge und zugelassene funktionale
 Teilmengen. Die normale Auswahl besitzt eine Kerngrenze von 100 Fällen und eine
 getrennt autorisierte geschützte Offline-Python-Ausnahme; diese erweitert nicht

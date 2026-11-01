@@ -109,50 +109,6 @@ def compiler_supports(compiler_path: str, flag: str) -> bool:
         return result.returncode == 0
 
 
-def run_self_test() -> int:
-    validate_standard_flag(STD_C17)
-    validate_standard_flag(STD_C2X)
-    validate_compiler_id(COMPILER_GCC)
-    validate_compiler_id(COMPILER_CLANG)
-    validate_compiler_id("gcc-13")
-    validate_compiler_id("clang-18")
-
-    for rejected_flag in ("-std=c20", "-std=c26"):
-        try:
-            validate_standard_flag(rejected_flag)
-        except ValueError:
-            pass
-        else:
-            print(f"self-test failed: accepted {rejected_flag}", file=sys.stderr)
-            return 1
-
-    for rejected_compiler in (
-        "sh",
-        "bash",
-        "cc;rm -rf /",
-        "cc -bad",
-        "clang -bad",
-        "/bin/sh",
-        "/usr/bin/clang",
-        "python3",
-        "../cc",
-        "",
-    ):
-        try:
-            validate_compiler_id(rejected_compiler)
-        except CompilerValidationError:
-            pass
-        else:
-            print(f"self-test failed: accepted compiler {rejected_compiler!r}", file=sys.stderr)
-            return 1
-
-    try:
-        resolve_compiler_id(COMPILER_CC)
-    except CompilerValidationError as exc:
-        print(f"self-test notice: cc unavailable: {exc}", file=sys.stderr)
-
-    print("detect-c-standard self-test: pass")
-    return 0
 
 
 def main() -> int:
@@ -163,14 +119,10 @@ def main() -> int:
         default=COMPILER_CC,
         help="Allowed compiler id, not an arbitrary command path.",
     )
-    parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
-    if args.self_test:
-        return run_self_test()
-
     if args.profile is None:
-        print("INVALID: --profile is required unless --self-test is used", file=sys.stderr)
+        print("INVALID: --profile is required", file=sys.stderr)
         return 2
 
     profile = args.profile.lower()

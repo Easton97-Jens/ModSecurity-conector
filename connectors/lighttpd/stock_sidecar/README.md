@@ -92,20 +92,29 @@ parallelism, connection reuse, and non-reading-client deadline cleanup. It is
 sidecar component evidence, not a claim that an unmodified Stock lighttpd
 process has native body hooks.
 
-`runtime-begin-smoke` is installed beside the sidecar. It verifies the exact
-Common profile and streaming P2/P4 configuration against a real runtime
-configuration before deployment.
+The pinned Test Framework builds `runtime-begin-smoke` in external test output.
+It verifies the exact Common profile and streaming P2/P4 configuration against
+a real runtime configuration. It is not part of the product build or deployment.
 
 ## Real Stock-host evidence attestation
 
 `build-lighttpd-stock-sidecar` writes
-`stock-sidecar-artifact.manifest` beside the two Sidecar binaries. It records
-the Parent revision, C17 mode, exact binary hashes, and the bounded Common/
+the closed schema-2 `stock-sidecar-artifact.manifest` beside the product sidecar.
+It records the Parent revision, C17 mode, exact product binary and library
+hashes, and the bounded Common/
 runtime build-input hash. That hash includes stable repository-relative names
 and content digests for every direct Sidecar/Common compile input, including
 the private runtime, registry, and header-validation headers. The manifest is
 build metadata only: because it is written with the selected artifact, it is
 not an independent authenticity claim.
+
+The Framework separately emits a schema-1 `stock-sidecar-test-artifact.manifest`
+that binds the product-manifest digest, Framework revision, smoke source and
+smoke binary. The real-backend Make entrypoint builds this test artifact and
+passes its explicit path as `STOCK_SIDECAR_TEST_MANIFEST`; it verifies both
+manifests before running. Direct Framework callers must supply that path too.
+Rebuild old schema-1 product manifests instead of mixing the two ownership
+domains. Neither manifest replaces the independent operator attestation below.
 
 The real backend target therefore additionally requires
 `STOCK_SIDECAR_ARTIFACT_ATTESTATION` to name an operator-supplied, regular,

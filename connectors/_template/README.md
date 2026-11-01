@@ -102,7 +102,7 @@ presence alone is not build verification.
 
 Not applicable to template. Runtime evidence requires concrete connectors and
 actually executed profiles. Standard aliases use
-[config/testing/active-cases.json](../../config/testing/active-cases.json),
+[config/testing/active-cases.json](../../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json),
 not a new local catalog: at most 100 fully expanded active behavioral cases
 project-wide. New active requirements need stable IDs, profiles and executable
 selectors; at capacity, name the replacement or genuine consolidation and its

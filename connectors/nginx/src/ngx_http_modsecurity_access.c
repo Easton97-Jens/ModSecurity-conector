@@ -222,6 +222,8 @@ ngx_http_modsecurity_request_error_log_event(ngx_http_request_t *r,
     event.decision.actual_action = "";
     event.decision.rule_id = "";
     event.decision.reason = msconnector_transaction_error_class_name(cause);
+    event.http.http_status = ctx->request_error_status >= NGX_HTTP_BAD_REQUEST &&
+        ctx->request_error_status <= 599 ? (int) ctx->request_error_status : 0;
     event.http.transport_result = "not_observable";
     event.request.method = ctx->contract.request_method;
     event.request.uri = ctx->contract.request_uri;

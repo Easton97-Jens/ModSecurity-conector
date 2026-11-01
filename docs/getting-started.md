@@ -46,7 +46,7 @@ make quick-check
 ```
 
 The first command admits the complete
-[active inventory](../config/testing/active-cases.json) without executing tests.
+[active inventory](../modules/ModSecurity-test-Framework/connector_suite/config/testing/active-cases.json) without executing tests.
 The second checks static repository contracts and admitted functional subsets.
 Normal selection has a 100-case core ceiling and a separately authorized
 guarded offline Python exception; that exception does not expand connector

@@ -1,25 +1,28 @@
-# lighttpd-Quelle
+# lighttpd-Quellcode
 
 **Sprache:** [English](README.md) | Deutsch
 
-Status: nativer Phase-1-Mapper plus beibehaltene Legacy-Starter
+Plugin-Lebenszyklus und Common-Runtime-Aufrufe liegen in
+`../module/mod_msconnector.c`. `lighttpd_modsecurity_mapper.h` / `.c` übertragen
+Request-/Response-Metadaten des Hosts in Common-SDK-Typen. Der Mapper-Stub ohne
+Host-API erlaubt Compile-Prüfungen ohne bereitgestellte lighttpd-Header;
+`../build/build_module.sh` wählt mit `MSCONNECTOR_LIGHTTPD_HOST_API`, gepinnten
+Host-Headern und generierter `config.h` die echte Hostimplementierung aus.
 
-Primäre native Quelle:
+`lighttpd_build_starter.c` bleibt eine Metadatenprobe. `lighttpd_bridge.h` / `.c`
+und `lighttpd_bridge_main.c` behalten den historischen Decision-Service-Starter.
+Das Bridge-Programm bietet `--status`; sein Befehl `--self-test` und die
+enthaltenen Assertions wurden aus dem Produkt entfernt.
 
-- `../module/mod_msconnector.c`: Lighttpd-Plugin-Lebenszyklus und Common Runtime
-  Callsites;
-- `lighttpd_modsecurity_mapper.h/.c`: echte Anfrage-/Antwort-Metadaten und Header
-  Zuordnung von angehefteten Lighttpd-Typen zu allgemeinen SDK-Typen.
+Dieselben Assertions liegen nun im gepinnten Framework unter
+`connector_native_tests/connectors/lighttpd/src/lighttpd_bridge.inc`.
+Aus dem Connector-Wurzelverzeichnis erfolgt der Aufruf mit
+`make -C connectors/lighttpd self-test-lighttpd-bridge ON_DEMAND_TESTS=1`.
+Connector-spezifische Fixtures, native Smoke-Harnesses und Python-Tests gehören
+zum Framework unter `connector_suite/adapters/lighttpd/`.
 
-Der Mapper verfügt über einen Nicht-Host-Stub, sodass Repository-weite Common C-Standard-Prüfungen möglich sind
-kompilieren, ohne Lighttpd-Header bereitzustellen. `build/build_module.sh` definiert
-`MSCONNECTOR_LIGHTTPD_HOST_API` und kompiliert die tatsächliche Implementierung gegen
-Host-Quelle angepinnt und `config.h` generiert.
-
-`lighttpd_build_starter.c` bleibt eine Metadatenprobe.
-`lighttpd_bridge.h/.c` und `lighttpd_bridge_main.c` bleiben eine separate Historie
-Entscheidungsservice-Brückenstarter. Sein Selbsttest ist kein Beweis für den nativen Wirt.
-
-Die native Quelle ordnet derzeit nur Header zu. Es bildet bewusst keine Anfrage ab
-oder Antwortkörper und erstellt keinen Körper, CRS, Produktion, Sicherheit oder Vollmatrix
-Anspruch.
+Der Framework-Runner verlangt einen expliziten Connector-Checkout samt Revision
+und ein externes Ausgabeverzeichnis. Diese Spezialtests erweitern die
+Standardauswahl nicht. Kompilierung und lokale Starterprüfungen beweisen kein
+Hostverhalten; Stock-Sidecar und gepatchtes natives Plugin bleiben getrennte
+Laufzeitprofile.

@@ -126,7 +126,7 @@ or production hardening without dedicated artifacts.
 ## No-CRS fixture isolation
 
 The patched lifecycle's No-CRS baseline uses the trusted private-namespace
-runner documented in the [harness guide](../../connectors/lighttpd/harness/README.md).
+runner documented in the [harness guide](../../modules/ModSecurity-test-Framework/connector_suite/adapters/lighttpd/harness/README.md).
 Root-owned `/usr/bin/unshare`, fixed `/usr/bin/dash` and `/usr/bin/mount`, and
 then `/usr/bin/bwrap` establish the user, mount, and PID boundary. The shell
 setup makes propagation private and mounts a private `nosuid,nodev,noexec`

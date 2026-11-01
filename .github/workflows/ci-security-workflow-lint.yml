@@ -18,6 +18,29 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - name: Set up toolchain
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -27,15 +50,15 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Install reviewed hash-bound CI dependencies
-        run: python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Verify current Framework-owned APR-util provenance and Parent source policy
         run: |
           sh ci/tools/print-framework-apr-util-env.sh "$PWD/modules/ModSecurity-test-Framework" "$PWD" >/dev/null
-          python3 ci/tools/run-active-tests.py --group apr-provenance --group supply-chain
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group apr-provenance --group supply-chain
       - name: Validate the four inventoried runtime path policies
-        run: python3 ci/tools/run-active-tests.py --group runtime-path-policy
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group runtime-path-policy
 
   actionlint:
     permissions:
@@ -44,7 +67,31 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           persist-credentials: false
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - name: Set up toolchain
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -54,18 +101,18 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Install pinned CI test dependencies
         run: |
-          python3 ci/tools/install-ci-dependencies.py --ci-toolcache
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache
       - name: Fetch checksum-verified actionlint
-        run: python3 ci/tools/fetch_security_tool.py --tool actionlint --destination "$RUNNER_TEMP/security-tools"
+        run: python3 -P ci/tools/fetch_security_tool.py --tool actionlint --destination "$RUNNER_TEMP/security-tools"
       - name: Lint workflows with ShellCheck when present
         run: |
           set -eu
-          python3 ci/tools/lint_workflows.py
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/lint_workflows.py
       - name: Validate CI-security workflow contracts
-        run:  python3 ci/tools/run-active-tests.py --group supply-chain
+        run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group supply-chain
 
   zizmor:
     permissions:
@@ -74,7 +121,31 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          submodules: true
           persist-credentials: false
+      - name: Read the pinned Framework identity
+        id: framework-gitlink
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - name: Set up toolchain
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -84,11 +155,11 @@ jobs:
       - name: Verify Python interpreter contract
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Fetch checksum-verified zizmor
-        run: python3 ci/tools/fetch_security_tool.py --tool zizmor --destination "$RUNNER_TEMP/security-tools"
+        run: python3 -P ci/tools/fetch_security_tool.py --tool zizmor --destination "$RUNNER_TEMP/security-tools"
       - name: Analyze workflows offline
         run: |
           "$RUNNER_TEMP/security-tools/zizmor" --offline .github/workflows
       - name: Execute all four inventoried scanner fixture controls
-        run: python3 ci/tools/run-active-tests.py --group workflow-fixtures
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group workflow-fixtures
