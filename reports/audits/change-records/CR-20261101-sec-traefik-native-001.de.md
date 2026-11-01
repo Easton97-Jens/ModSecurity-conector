@@ -38,6 +38,10 @@ Upgrade-Pfade bleiben für P3 und Commit zuständig. Kein Response-Bodypuffer ka
 `connectors/traefik/native_middleware/middleware.go`, `docs/connectors/traefik.md`,
 `docs/connectors/traefik.de.md` und dieses EN/DE-Change-Record-Paar. Der unabhängige
 Framework-Branch besitzt Tests, Fixtures, Adapter, Inventar und Testdokumentation.
+Die autorisierte Integrationsnachbesserung aktualisiert außerdem Framework-Gitlink,
+`ci/tooling/project-versions.lock.json` und die 22 registrierten Workflow-Verbraucher
+auf den tatsächlichen Framework-#146-Squash-Merge-Commit
+`c3f3aa4747315bdbfc7f6443edb47cef54a4e804`. Komponenten- und MRTS-Pins bleiben unverändert.
 
 ## Ausgeführte Befehle
 
@@ -87,17 +91,37 @@ Der rohe Hijack-Ownership-Vertrag bleibt erhalten und wird nicht neu entworfen.
 Sourcetests belegen nicht jedes Upgrade- oder Deployment-Szenario. Bestehende CI-
 und Quality-Gates müssen vor einem separat autorisierten Merge am ausgelieferten
 PR-Head bewertet werden.
+Der Benutzer hat die reguläre Integration von Framework #146 und danach
+Connector #435 jetzt unter der Bedingung abschließender Head-Prüfungen und
+frischer Abnahme des neuen Connector-/gemergten-Framework-Paars autorisiert.
+Die Hostnachweise des früheren Paars sind historisch und ersetzen diese Abnahme
+nicht.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
 Keine vollständige Connector-/Protokoll-/MRTS-Matrix: ausdrücklich außerhalb dieser
-Korrektur. Kein Produktionsdeployment oder Merge. Hosted-CI-/Sonar-Status gehört
-zum tatsächlichen aktuellen PR-Head, nicht zu diesem lokalen Ausführungsnachweis.
+Korrektur. Kein Produktionsdeployment. Hosted-CI-/Sonar-Status und die drei
+Hostwiederholungen des neuen Paars gehören zur Verifikation des tatsächlichen
+finalen PR-Heads, nicht zum früheren lokalen Ausführungsnachweis. Direkter
+master-Push oder administrativer Bypass ist nicht autorisiert.
 
 ## Finaler Diff- und Review-Status
 
 Eine unabhängige Read-only-Kandidatenprüfung fand keinen konkreten verbleibenden
 Bypass oder Regression an der geänderten Grenze. Produkt und Framework bleiben
-getrennte Commits und Draft-PRs. Framework-Tests zuerst integrieren; ein später
-ausdrücklich autorisiertes Parent-Pin-Update kann jene gemergte Framework-Revision
-auswählen. Kein Gitlink-Update, direkter master-Push oder Merge gehört zu dieser Aufgabe.
+getrennte Commits und separat reviewbare PRs. Framework #146 wurde nach bestandenen
+finalen Head-Prüfungen und Sonar-Gate ohne offene PR-Befunde/Hotspots regulär
+per Squash gemergt. Der native reine Datenverifier akzeptierte den tatsächlichen
+Merge-Commit; der native Synchronisierer aktualisiert nur die registrierten
+Framework-Identitätsziele. Connector #435 muss mit genau diesem gemergten
+Framework-Pin ein neues finales Review, CI/Sonar und drei unabhängige reale
+Hostläufe bestehen, bevor sein regulärer Merge erfolgt. Die fünf neuen
+Framework-Sonar-Befunde wurden ohne Unterdrückungen oder Gate-Änderungen behoben;
+unabhängige Baseline-Inventare (Framework 83, Connector 5) bleiben getrennt unter
+dem externen Evidence-Root `integration/`.
+Die Zweisprachigkeitsprüfung des neuen Paars zeigte anschließend eine falsche
+Reihenfolge der deutschen Sprachumschaltung im neuen Framework-Leitfaden.
+Framework #149 bereitet die gezielte Dokumentationskorrektur vor; er liegt
+außerhalb der zwei ausgewählten Merge-PRs und benötigt eine zusätzliche Auswahl.
+Die Connector-Integration bleibt blockiert, bis diese Abhängigkeit aufgelöst
+und das daraus entstandene finale Paar frisch verifiziert ist.

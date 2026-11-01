@@ -38,6 +38,10 @@ remain responsible for P3 and commitment. No response-body buffer was added.
 `connectors/traefik/native_middleware/middleware.go`, `docs/connectors/traefik.md`,
 `docs/connectors/traefik.de.md`, and this EN/DE Change Record pair. The independent
 Framework branch owns tests, fixtures, adapters, inventory and test documentation.
+The authorized integration follow-up also updates the Framework gitlink,
+`ci/tooling/project-versions.lock.json` and the 22 registered workflow consumers
+to the actual Framework #146 squash-merge commit
+`c3f3aa4747315bdbfc7f6443edb47cef54a4e804`. Component and MRTS pins are unchanged.
 
 ## Commands executed
 
@@ -86,17 +90,34 @@ connectors, forwardAuth, HTTP/2/3, MRTS or a general protocol matrix.
 The raw Hijack ownership contract is preserved, not redesigned. Source tests do
 not establish every upgrade or deployment scenario. Existing CI and Quality Gates
 must be evaluated at the delivered PR head before any separately authorized merge.
+The user has now authorized regular integration of Framework #146 followed by
+Connector #435, conditional on final-head checks and fresh acceptance of the
+new Connector/merged-Framework pair. The earlier pair's host evidence is
+historical and does not substitute for that acceptance.
 
 ## Checks not run and rationale
 
 No full connector/protocol/MRTS matrix: expressly outside this correction.
-No production deployment or merge. Hosted CI/Sonar status belongs to the PR's
-actual current head, not this local execution record.
+No production deployment. Hosted CI/Sonar status and the three new-pair host
+repetitions belong to the PR's actual final-head verification evidence, not the
+earlier local execution record. No direct master push or administrative bypass
+is authorized.
 
 ## Final diff and review status
 
 An independent read-only candidate review found no concrete surviving bypass or
 regression in the changed seam. Product and Framework remain separate commits
-and Draft PRs. Integrate Framework tests first; a later explicitly authorized
-Parent pin update can select that merged Framework revision. No gitlink change,
-direct master push or merge is part of this task.
+and separately reviewable PRs. Framework #146 was regularly squash-merged after
+its final-head checks and Sonar gate passed with zero open PR issues/hotspots.
+The native data-only candidate verifier accepted its actual merged commit;
+the native synchronizer updates only the registered Framework identity targets.
+Connector #435 must pass a new final-head review, CI/Sonar and three independent
+real-host runs with this exact merged Framework pin before its regular merge.
+The five new Framework Sonar findings were fixed without suppressions or gate
+changes; unrelated baseline inventories (Framework 83, Connector 5) remain
+separate under the external `integration/` evidence root.
+The new-pair bilingual check subsequently exposed a German language-switch
+order error in the new Framework guide. Framework #149 prepares the focused
+documentation correction; it is outside the two selected merge PRs and requires
+an additional selection. Connector integration remains blocked until that
+dependency is resolved and the resulting final pair is freshly verified.
