@@ -41,6 +41,17 @@ Events; es besitzt weder Traefik-Objekte noch Commit-Semantik.
 | P4 | Begrenzte Response-Ranges mit konservativem Post-Commit-Ergebnis verarbeiten | Ausgewähltes Safe-Ergebnis ist <code>log_only</code> |
 | Service-Cleanup | Genau eine Transaktion pro ausgewähltem Request finish/destroy | Fokussierte Sourcetests sind kein Hostverkehrsclaim |
 
+Nichtterminale Informationsantworten (100--199 außer 101) werden weitergeleitet,
+ohne Request-EOS/P2, finales P3 oder den finalen Headers-sent-/Commit-Zustand zu
+verbrauchen. P3 prüft vor dem Commit genau einmal den tatsächlichen Status und
+die Header der finalen Antwort, einschließlich erst nach einer Informationsantwort
+hinzugefügter Header. Die Header-Limits gelten weiterhin für Informationsantworten.
+Ein finales P3-Deny oder Redirect unterdrückt den Upstream-Body; die Middleware
+kann ihren eigenen Ablehnungsbody senden. Dafür ist kein vollständiges
+Response-Buffering erforderlich. 101 Switching Protocols behält das bestehende
+Final-Header-/Upgrade-Verhalten; ein erfolgreiches Hijack übergibt die Verbindung
+und erzeugt kein künstliches HTTP-Response-EOS.
+
 ## Build
 
 Der [Traefik-Compiler-Guide](../build/compilers/traefik.de.md) beschreibt

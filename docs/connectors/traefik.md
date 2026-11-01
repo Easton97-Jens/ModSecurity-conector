@@ -39,6 +39,16 @@ objects or commit semantics.
 | P4 | Process bounded response ranges with a conservative post-commit outcome | Selected safe outcome is <code>log_only</code> |
 | Service cleanup | Finish/destroy exactly one transaction per selected request | Focused source tests are not a host traffic claim |
 
+Nonterminal informational responses (100--199 except 101) are forwarded without
+consuming request EOS/P2, final P3, or the final headers-sent/commit state.
+The final response's actual status and headers are evaluated once by P3 before
+commitment, including headers added only after an informational response.
+Header limits still apply to informational responses. A final P3 denial or
+redirect suppresses the upstream body; the middleware may send its own rejection
+body. This requires no full-response buffering. 101 Switching Protocols retains
+the existing final-header/upgrade behavior; a successful Hijack transfers
+connection ownership and does not synthesize HTTP response EOS.
+
 ## Build
 
 Use [the Traefik compiler guide](../build/compilers/traefik.md) for selected
