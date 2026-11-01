@@ -40,8 +40,9 @@ Upgrade-Pfade bleiben für P3 und Commit zuständig. Kein Response-Bodypuffer ka
 Framework-Branch besitzt Tests, Fixtures, Adapter, Inventar und Testdokumentation.
 Die autorisierte Integrationsnachbesserung aktualisiert außerdem Framework-Gitlink,
 `ci/tooling/project-versions.lock.json` und die 22 registrierten Workflow-Verbraucher
-auf den tatsächlichen Framework-#146-Squash-Merge-Commit
-`c3f3aa4747315bdbfc7f6443edb47cef54a4e804`. Komponenten- und MRTS-Pins bleiben unverändert.
+auf den tatsächlichen Framework-#149-Squash-Merge-Commit der Nachbesserung
+`e6284e8a8a64d999bf60f777252987172ab24756`, der die durch Framework #146 gemergte
+Regressionssuite enthält. Komponenten- und MRTS-Pins bleiben unverändert.
 
 ## Ausgeführte Befehle
 
@@ -91,8 +92,9 @@ Der rohe Hijack-Ownership-Vertrag bleibt erhalten und wird nicht neu entworfen.
 Sourcetests belegen nicht jedes Upgrade- oder Deployment-Szenario. Bestehende CI-
 und Quality-Gates müssen vor einem separat autorisierten Merge am ausgelieferten
 PR-Head bewertet werden.
-Der Benutzer hat die reguläre Integration von Framework #146 und danach
-Connector #435 jetzt unter der Bedingung abschließender Head-Prüfungen und
+Der Benutzer hat die reguläre Integration von Framework #146 und seiner nötigen
+Dokumentationsnachbesserung #149 sowie danach Connector #435 unter der Bedingung
+abschließender Head-Prüfungen und
 frischer Abnahme des neuen Connector-/gemergten-Framework-Paars autorisiert.
 Die Hostnachweise des früheren Paars sind historisch und ersetzen diese Abnahme
 nicht.
@@ -121,7 +123,13 @@ unabhängige Baseline-Inventare (Framework 83, Connector 5) bleiben getrennt unt
 dem externen Evidence-Root `integration/`.
 Die Zweisprachigkeitsprüfung des neuen Paars zeigte anschließend eine falsche
 Reihenfolge der deutschen Sprachumschaltung im neuen Framework-Leitfaden.
-Framework #149 bereitet die gezielte Dokumentationskorrektur vor; er liegt
-außerhalb der zwei ausgewählten Merge-PRs und benötigt eine zusätzliche Auswahl.
-Die Connector-Integration bleibt blockiert, bis diese Abhängigkeit aufgelöst
-und das daraus entstandene finale Paar frisch verifiziert ist.
+Der Benutzer hat Framework #149 für die gezielte Dokumentationskorrektur
+ausdrücklich ausgewählt und die Wiederöffnung von #435 angefordert. Framework
+#149 wurde nach allen neun erfolgreichen Workflows und bestandenem Sonar-Gate
+am exakten Head ohne offene Befunde/Hotspots regulär per Squash gemergt. Der
+finale Pin wählt jetzt diesen tatsächlichen Merge-Commit. Kandidatenvertrag,
+Synchronisierung und Rekonstruktion aus der vertrauenswürdigen Basis müssen
+zusammen mit frischen Go-Prüfungen und drei realen Hostwiederholungen des finalen
+Paars vor der Connector-Integration bestehen. Historische Paar-Evidence bleibt
+getrennt; finale Committed-Pair-Ergebnisse gehören nach Ausführung zur
+Verifikationsevidence des PRs.

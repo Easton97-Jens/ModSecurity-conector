@@ -40,8 +40,9 @@ remain responsible for P3 and commitment. No response-body buffer was added.
 Framework branch owns tests, fixtures, adapters, inventory and test documentation.
 The authorized integration follow-up also updates the Framework gitlink,
 `ci/tooling/project-versions.lock.json` and the 22 registered workflow consumers
-to the actual Framework #146 squash-merge commit
-`c3f3aa4747315bdbfc7f6443edb47cef54a4e804`. Component and MRTS pins are unchanged.
+to the actual Framework #149 follow-up squash-merge commit
+`e6284e8a8a64d999bf60f777252987172ab24756`, which includes the regression suite
+merged through Framework #146. Component and MRTS pins are unchanged.
 
 ## Commands executed
 
@@ -90,8 +91,9 @@ connectors, forwardAuth, HTTP/2/3, MRTS or a general protocol matrix.
 The raw Hijack ownership contract is preserved, not redesigned. Source tests do
 not establish every upgrade or deployment scenario. Existing CI and Quality Gates
 must be evaluated at the delivered PR head before any separately authorized merge.
-The user has now authorized regular integration of Framework #146 followed by
-Connector #435, conditional on final-head checks and fresh acceptance of the
+The user has authorized regular integration of Framework #146 and its necessary
+documentation follow-up #149, followed by Connector #435, conditional on final-head
+checks and fresh acceptance of the
 new Connector/merged-Framework pair. The earlier pair's host evidence is
 historical and does not substitute for that acceptance.
 
@@ -117,7 +119,12 @@ The five new Framework Sonar findings were fixed without suppressions or gate
 changes; unrelated baseline inventories (Framework 83, Connector 5) remain
 separate under the external `integration/` evidence root.
 The new-pair bilingual check subsequently exposed a German language-switch
-order error in the new Framework guide. Framework #149 prepares the focused
-documentation correction; it is outside the two selected merge PRs and requires
-an additional selection. Connector integration remains blocked until that
-dependency is resolved and the resulting final pair is freshly verified.
+order error in the new Framework guide. The user explicitly selected Framework
+#149 for the focused documentation correction and requested reopening #435.
+Framework #149 was regularly squash-merged after all nine workflows and its
+exact-head Sonar gate passed with zero open issues/hotspots. The final pin now
+selects that actual merge commit. Its candidate contract, synchronization and
+trusted-base reconstruction must pass, together with fresh final-pair Go and
+three real-host repetitions, before Connector integration. Historical pair
+evidence remains separate; final committed-pair results belong to the PR's
+verification evidence after execution.
