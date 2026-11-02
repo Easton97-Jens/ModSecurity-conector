@@ -13,7 +13,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-CHANGE-WORKFLOW"
 source = ".codex/context/change-workflow.md"
-sha256 = "99338bc8dcf501aaad27af55e2360b32cdbd8194afe88d721a49f9b073933fb2"
+sha256 = "f31807b2c8b4b1c4d081652bc0db4725c90f0fdffb7704fcbd92f0316397a9a2"
 inheritable = true
 
 [[policies]]
@@ -31,13 +31,13 @@ inheritable = true
 [[policies]]
 id = "PARENT-CONNECTOR-MATRIX"
 source = ".codex/context/connector-matrix.md"
-sha256 = "36cc8773af6ee6dfc9bc28ad3453529ad2fd6ba16d2e07c6fc2cb70b1247bcbf"
+sha256 = "9a389f063befeaaf7acb1abc6d1ba57558923b3aded2d03d563aad62ab140b3a"
 inheritable = true
 
 [[policies]]
 id = "PARENT-DEFINITION-OF-DONE"
 source = ".codex/context/definition-of-done.md"
-sha256 = "4b0c7bd9492fc6dbc8529928e56a1f76c4f14449964d4df47b308208c3a56c26"
+sha256 = "081423c3fc38059ee4ddb2cdace9329c86f3bf7192dc14218cc96708c84e0986"
 inheritable = true
 
 [[policies]]
@@ -91,7 +91,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-PHASE4-TARGET-SEMANTICS"
 source = ".codex/context/phase4-target-semantics.md"
-sha256 = "1b814c00833ced3c100746da8eae034da803e66067ea5d992b6429d91ff9ea3c"
+sha256 = "98c1428686983164ffec5f5199ada02608a7ff9b8a7924f37f54536f72734150"
 inheritable = true
 
 [[policies]]
@@ -133,7 +133,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-SECURITY-RUNTIME-PREFLIGHT"
 source = ".codex/context/security-runtime-preflight.md"
-sha256 = "0e957fe655c78707ae24a39710e682fc07e2a2f880b22c3fb54d57cb55bff0a0"
+sha256 = "8baa6df3c2ba1fe8090a18dff52e1535fef5054f0e62caeb535ff6582735ecab"
 inheritable = true
 
 [[policies]]
@@ -157,7 +157,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-TESTING-AND-EVIDENCE"
 source = ".codex/context/testing-and-evidence.md"
-sha256 = "cc55e61bfefed4ff6b9763c02270a7b692cb8f78692fa9fbbf3e10b6c1669118"
+sha256 = "bb27ab028f753bcdad503fd20245304fd01e33510fde84647d12b004bd7d69f8"
 inheritable = true
 
 [[policies]]

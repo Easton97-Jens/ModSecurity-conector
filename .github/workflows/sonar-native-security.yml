@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_framework=a26b028104b28ddd980290b5af7b3fb195c43f9a
+          expected_framework=03fa02bacfc327863d91723fdc77a4888a33f0a8
           declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           test "$declared_framework" = "$expected_framework"
@@ -63,9 +63,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@a26b028104b28ddd980290b5af7b3fb195c43f9a
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@03fa02bacfc327863d91723fdc77a4888a33f0a8
         with:
-          framework-revision: a26b028104b28ddd980290b5af7b3fb195c43f9a
+          framework-revision: 03fa02bacfc327863d91723fdc77a4888a33f0a8
       - name: Install canonical SDK build prerequisites
         run: |
           set -euo pipefail
@@ -145,7 +145,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_framework=a26b028104b28ddd980290b5af7b3fb195c43f9a
+          expected_framework=03fa02bacfc327863d91723fdc77a4888a33f0a8
           declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           test "$declared_framework" = "$expected_framework"
@@ -162,9 +162,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@a26b028104b28ddd980290b5af7b3fb195c43f9a
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@03fa02bacfc327863d91723fdc77a4888a33f0a8
         with:
-          framework-revision: a26b028104b28ddd980290b5af7b3fb195c43f9a
+          framework-revision: 03fa02bacfc327863d91723fdc77a4888a33f0a8
       - name: Set up canonical Go for native CGo producers
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "inventory_kind": "source_build_component_inventory_not_binary_sbom",
+  "checked_date": "2026-11-02",
+  "connector_revision": "430d3194fa04ca4aafcdaef6aeb256d21dc18f0c",
+  "framework_revision": "91145b7ba721bdec4e89af754cf40bf496fd2a08",
+  "sources": [
+    "Framework ci/lib/common.sh",
+    "Connector ci/tooling/project-versions.lock.json",
+    "Connector connectors/envoy/ext_proc/go.mod",
+    "Connector connectors/envoy/ext_proc/go.sum"
+  ],
+  "scope_limit": "No exhaustive native transitive SCA, binary linkage graph or container SBOM. Installed package metadata does not prove a selected build linked it.",
+  "components": [
+    {
+      "name": "nginx",
+      "version": "release-1.31.6",
+      "assessment": "unresolved_local_reachability",
+      "rationale": "Published affected upstream ranges; optional HTTP/3 build enabled. No exploit demonstrated. Reviewed source update/build still required.",
+      "official_source": "https://nginx.org/en/security_advisories.html",
+      "latest_observed": "1.31.8"
+    },
+    {
+      "name": "envoy",
+      "version": "1.39.1",
+      "assessment": "unresolved_local_reachability",
+      "rationale": "BoringSSL certificate-memory issue fixed in1.39.2; admitted attacker certificate not demonstrated.",
+      "official_source": "https://www.envoyproxy.io/docs/envoy/v1.39.2/version_history/v1.39/v1.39.2",
+      "latest_observed": "1.39.6"
+    },
+    {
+      "name": "traefik",
+      "version": "3.7.13",
+      "assessment": "not_affected_selected_conditions",
+      "rationale": "Official Go1.26 artifact not exposed to Go1.27-only SNI issue. Selected fixtures do not configure connection-bound NTLM/Negotiate; custom builds/configs unresolved.",
+      "official_source": "https://github.com/traefik/traefik/security/advisories",
+      "latest_observed": "3.7.17"
+    },
+    {
+      "name": "python-parent",
+      "version": "3.15.1",
+      "assessment": "unresolved_local_reachability",
+      "rationale": "3.15.2 security update available; archive/TLS reachability and reviewed exact runner build unverified; existing updater work remains separate.",
+      "official_source": "https://www.python.org/downloads/release/python-3152/",
+      "latest_observed": "3.15.2"
+    },
+    {
+      "name": "python-framework",
+      "version": "3.14.10",
+      "assessment": "not_affected_selected_advisories",
+      "rationale": "Selected maintenance release includes referenced expedited security fixes; local test interpreter3.14.4 is a different environment.",
+      "official_source": "https://www.python.org/downloads/release/python-31410/",
+      "latest_observed": "3.14.10"
+    },
+    {
+      "name": "go-toolchain",
+      "version": "1.27.3",
+      "assessment": "not_affected_selected_advisories",
+      "rationale": "Selected CA fix included. Module go directive1.26.9 is a floor, not compiled artifact proof.",
+      "official_source": "https://go.dev/doc/devel/release",
+      "latest_observed": "1.27.3"
+    },
+    {
+      "name": "openssl",
+      "version": "4.0.3",
+      "assessment": "not_affected_selected_advisories",
+      "rationale": "Selected September4.0 advisory ranges end before4.0.3. New major4.1.0 alone is no update requirement.",
+      "official_source": "https://openssl-library.org/news/vulnerabilities/",
+      "latest_observed": "4.1.0"
+    },
+    {
+      "name": "modsecurity",
+      "version": "v3.0.17",
+      "assessment": "not_affected_selected_advisories",
+      "rationale": "Includes GHSA-cxqf-vgrr-xxrv and GHSA-2vqc-36qp-ccmw fixes; selected source1925753989ccce977cdaae417b55c9726c7cf02c.",
+      "official_source": "https://github.com/owasp-modsecurity/ModSecurity/releases",
+      "latest_observed": "v3.0.17"
+    },
+    {
+      "name": "coreruleset",
+      "version": "v4.30.0",
+      "assessment": "unresolved_advisory_completeness",
+      "rationale": "Selected release includes published fixes reviewed in bounded pass; sourcee03a4f6dabc7a30ebd8c52c97d28a154f590a48f; no exhaustive rule vulnerability claim.",
+      "official_source": "https://coreruleset.org/tags/release/",
+      "latest_observed": "v4.30.0"
+    },
+    {
+      "name": "apache-httpd",
+      "version": "2.4.69",
+      "assessment": "unresolved_advisory_completeness",
+      "rationale": "Matches observed recommended release; no blanket absence-of-vulnerabilities claim.",
+      "official_source": "https://httpd.apache.org/download.cgi",
+      "latest_observed": "2.4.69"
+    },
+    {
+      "name": "apr",
+      "version": "1.7.6",
+      "assessment": "unresolved_advisory_completeness",
+      "rationale": "Matches observed upstream release; actual system library selection requires build provenance.",
+      "official_source": "https://apr.apache.org/",
+      "latest_observed": "1.7.6"
+    },
+    {
+      "name": "apr-util",
+      "version": "1.6.5",
+      "assessment": "unresolved_advisory_completeness",
+      "rationale": "Matches observed upstream release; installed development package differs.",
+      "official_source": "https://apr.apache.org/",
+      "latest_observed": "1.6.5"
+    },
+    {
+      "name": "pcre2",
+      "version": "10.49",
+      "assessment": "not_affected_selected_advisories",
+      "rationale": "Selected version fixes GHSA-r9hj-j2rw-4q3m; system-selected alternate version not exonerated.",
+      "official_source": "https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.49",
+      "latest_observed": "10.49"
+    },
+    {
+      "name": "lighttpd",
+      "version": "1.4.85",
+      "assessment": "unresolved_advisory_completeness",
+      "rationale": "Matches observed latest; source tuple hash matches official archive. No exhaustive advisory claim.",
+      "official_source": "https://www.lighttpd.net/2026/07/08/1.4.85/",
+      "latest_observed": "1.4.85"
+    },
+    {
+      "name": "haproxy",
+      "version": "3.2.25",
+      "assessment": "unresolved_advisory_completeness",
+      "rationale": "Selected HTX/runtime same maintenance version; no applicable defect established in bounded pass.",
+      "official_source": "https://www.haproxy.org/bugs/",
+      "latest_observed": "3.2.25"
+    },
+    {
+      "name": "aws-lc",
+      "version": "v5.11.0",
+      "assessment": "not_active_runtime",
+      "rationale": "Explicit unused future candidate in Framework common.sh; do not update as active dependency.",
+      "official_source": "https://github.com/aws/aws-lc/releases/tag/v5.12.0",
+      "latest_observed": "v5.12.0"
+    },
+    {
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "assessment": "unresolved_advisory_completeness",
+      "rationale": "Exact requirements hashes locked; no applicable advisory established in bounded pass.",
+      "official_source": "https://pypi.org/project/PyYAML/",
+      "latest_observed": "6.0.3"
+    }
+  ],
+  "go": {
+    "module": "connectors/envoy/ext_proc",
+    "go_directive": "1.26.9",
+    "direct": {
+      "github.com/envoyproxy/go-control-plane/envoy": "v1.40.0",
+      "golang.org/x/sys": "v0.49.0",
+      "google.golang.org/grpc": "v1.84.0",
+      "google.golang.org/protobuf": "v1.36.12"
+    },
+    "indirect": {
+      "github.com/cncf/xds/go": "v0.0.0-20260202195803-dba9d589def2",
+      "github.com/envoyproxy/protoc-gen-validate": "v1.3.3",
+      "github.com/planetscale/vtprotobuf": "v0.6.1-0.20240319094008-0393e58bdf10",
+      "golang.org/x/net": "v0.61.0",
+      "golang.org/x/text": "v0.43.0",
+      "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260720211330-0afa2a65878a"
+    },
+    "go_sum_only": {
+      "github.com/golang/protobuf": "v1.5.4",
+      "github.com/google/go-cmp": "v0.7.0",
+      "gonum.org/v1/gonum": "v0.17.0"
+    },
+    "traefik_modules": "native_middleware,response_observer,composite_middleware: no external requirements",
+    "advisories": [
+      {
+        "module": "golang.org/x/net",
+        "version": "v0.61.0",
+        "ids": [
+          "GO-2026-6866",
+          "GO-2026-6860"
+        ],
+        "fixed": "v0.62.0",
+        "package": "golang.org/x/net/html",
+        "status": "not_reachable_in_observed_envoy_default_build",
+        "urls": [
+          "https://pkg.go.dev/vuln/GO-2026-6866",
+          "https://pkg.go.dev/vuln/GO-2026-6860"
+        ]
+      }
+    ],
+    "remaining": "Complete advisory assessment for remaining Go modules unresolved; go.sum-only modules do not prove linkage.",
+    "compiled_package_evidence": {
+      "command": "go list -deps ./...",
+      "toolchain": "go1.27.3 linux/amd64",
+      "packages": [
+        "golang.org/x/net/internal/timeseries",
+        "golang.org/x/net/trace",
+        "golang.org/x/net/idna",
+        "golang.org/x/net/http/httpguts",
+        "golang.org/x/net/http2/hpack",
+        "golang.org/x/net/internal/httpcommon",
+        "golang.org/x/net/internal/httpsfv",
+        "golang.org/x/net/http2"
+      ],
+      "absent_advisory_package": "golang.org/x/net/html",
+      "limitation": "Default-build selected Envoy graph only; future tags/custom builds require re-evaluation.",
+      "raw_evidence": "/var/tmp/codex/ModSecurity-conector/runs/master-reconcile-20261102/coverage/envoy-deps.txt"
+    }
+  },
+  "installed_development_packages": {
+    "command": "rtk bypass dpkg-query -W -f='${Package}\\t${Version}\\n' libapr1-dev libaprutil1-dev libssl-dev libpcre2-dev libxml2-dev libyajl-dev liblmdb-dev zlib1g-dev libcurl4-openssl-dev gcc g++",
+    "packages": {
+      "gcc": "4:15.2.0-5ubuntu1",
+      "g++": "4:15.2.0-5ubuntu1",
+      "libapr1-dev": "1.7.6-3",
+      "libaprutil1-dev": "1.6.3-3ubuntu3.1",
+      "libcurl4-openssl-dev": "8.18.0-1ubuntu2.8",
+      "liblmdb-dev": "0.9.31-1build2",
+      "libpcre2-dev": "10.46-1build1",
+      "libssl-dev": "3.5.5-1ubuntu3.7",
+      "libxml2-dev": "2.15.2+dfsg-0.1ubuntu0.3",
+      "libyajl-dev": "2.1.0-5.1",
+      "zlib1g-dev": "1:1.3.dfsg+really1.3.1-1ubuntu3.2"
+    },
+    "status": "observed_installed_not_linkage_proof",
+    "advisory_review": "not_run_for_distro_builds"
+  },
+  "local_sonar": "Lokale Sonar-Secrets-Prüfung aufgrund ausdrücklicher Benutzeranweisung nicht ausgeführt."
+}

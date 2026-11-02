@@ -47,7 +47,7 @@ Companion-/Composite-Profile von direkten Hostrouten getrennt.
 
 | Hostintegration | Aktueller Kernpfad der Hostfamilie | Grenze für Response-Body |
 | --- | --- | --- |
-| Apache | Natives HTTPD-Modul | EOS-only-All-Response-Output-Gate; normalisierte Brigades werden bis zum ersten EOS vor Release zurückgehalten |
+| Apache | Natives HTTPD-Modul | Progressive Weiterleitung vor EOS; das terminale EOS-Fragment wartet auf die abschließende P4-Entscheidung |
 | NGINX | Natives HTTP-Modul | Response-Filter und Request-/Subrequest-End-of-Stream |
 | HAProxy | Nativer HTX-Filter | HTX-End-of-Stream |
 | Envoy | Gestreamter <code>ext_proc</code>-Dienst | Stream-Abschluss im ausgewählten Service-Protokoll |
@@ -67,7 +67,7 @@ Buildpfad, Grenzen, Kompatibilitätspfade, Betrieb und Validierung:
 | P1 | Request-Header-Verarbeitung nach Connection-/URI-Voraussetzungen | Request-Metadaten mappen und einen zulässigen Eingriff vor Commit anwenden | Connection und URI sind Voraussetzungen, nicht P1 selbst |
 | P2 | Request-Body anhängen und abschließen | Nur wie vom ausgewählten Hostpfad erlaubt streamen oder puffern; einmal bei Request-EOS abschließen | Body-Unterstützung ist profilspezifisch |
 | P3 | Response-Header-Verarbeitung | Ursprungsstatus erhalten und feststellen, ob Header noch veränderbar sind | Ein P3-Ergebnis belegt kein P4-Verhalten |
-| P4 | Response-Body anhängen und abschließen | Begrenzte Chunks verarbeiten, die ausgewählte Host-Release-Grenze einhalten und späten Eingriff sicher auflösen; Apache hält alle normalisierten Outputs bis zum ersten EOS vor Release zurück | Aktion nach Commit bleibt host- und nachweisabhängig |
+| P4 | Response-Body anhängen und abschließen | Begrenzte Chunks verarbeiten, die ausgewählte Host-Release-Grenze einhalten und späten Eingriff sicher auflösen; Apache leitet das normalisierte Präfix vor EOS vor seiner abschließenden P4-Entscheidung weiter | Aktion nach Commit bleibt host- und nachweisabhängig |
 | Logging | Transaktionslogging und Cleanup | Payload-sichere Metadaten ausgeben und Host-/Engine-Zustand genau einmal freigeben | Logs sind laufbezogene Nachweise, keine Laufzeitgarantie |
 
 Die Engine-seitige öffentliche Reihenfolge basiert auf libmodsecurity-v3-Aufrufen
@@ -108,11 +108,19 @@ Das ausgewählte Safe-P4-Verhalten ist konservativ: Eine Bedingung nach Commit
 wird als begrenzte, payload-sichere Beobachtung aufgezeichnet, sofern der
 ausgewählte Hostpfad und Laufzeitnachweis keine client-sichtbare Aktion
 belegen. Ein Dokumentationslabel wie <code>strict</code> ist kein Nachweis für
-einen Abbruch oder HTTP-Fehler. Apache ist eine beabsichtigte Pre-Commit-
-Ausnahme: Sein P4-All-Response-Gate hält ursprüngliche Ausgabe bis zum ersten
-EOS zurück, sodass ein normaler Deny diese Ausgabe verwirft und seinen
-terminalen Fehler vor Release sendet. Apache-Safe-/Strict-Late-Verhalten gilt
-nur für einen unabhängig als bereits committed nachgewiesenen Pfad.
+einen Abbruch oder HTTP-Fehler. Apache leitet Daten- und
+FLUSH-Buckets an seiner Next-Filter-Grenze vor der abschließenden
+P4-Entscheidung weiter. Nach dieser Commit-Grenze verwendet ein gewöhnliches
+disruptives P4-Ergebnis Safe <code>log_only</code> oder Strict
+<code>abort_connection</code>; es kann das weitergereichte Präfix nicht
+umschreiben. Ein natives Body-Limit-Reject der Engine ist ein terminaler
+Inspektionsfehler und bricht eine bereits committete Response in jedem
+Connector-Modus ab. Der Adapter hat keinen eigenen Body-Größenstandard oder
+Inspektions-Cap: <code>Sec*</code>-Direktiven der Engine bestimmen
+Inspektionslimits und Aktionen bei Überschreitung.
+Der [Apache-Guide](connectors/apache.de.md) beschreibt
+Konfigurationsabhängigkeiten und den Unterschied zwischen normalem
+EOS-Abschluss und Fehlerfinalisierung.
 
 ## Fähigkeits-, Status- und Nachweismodell
 

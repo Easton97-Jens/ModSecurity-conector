@@ -1,0 +1,294 @@
+{
+  "status": "PROPOSED_NOT_APPLIED",
+  "requires_separate_user_approval": true,
+  "checked_date": "2026-11-02",
+  "repositories": [
+    {
+      "repository": "Easton97-Jens/ModSecurity-conector",
+      "existing_ruleset_unchanged": {
+        "id": 19138299,
+        "name": "Protect master",
+        "target": "branch",
+        "source_type": "Repository",
+        "source": "Easton97-Jens/ModSecurity-conector",
+        "enforcement": "active",
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/master",
+              "refs/heads/Archiv3",
+              "refs/heads/Archiv2",
+              "refs/heads/master_archiv",
+              "~DEFAULT_BRANCH"
+            ]
+          }
+        },
+        "rules": [
+          {
+            "type": "deletion"
+          },
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "type": "pull_request",
+            "parameters": {
+              "required_approving_review_count": 0,
+              "dismiss_stale_reviews_on_push": true,
+              "required_reviewers": [],
+              "require_code_owner_review": false,
+              "require_last_push_approval": false,
+              "required_review_thread_resolution": true,
+              "require_extra_approval_for_unattributed_changes": true,
+              "allowed_merge_methods": [
+                "merge",
+                "squash",
+                "rebase"
+              ]
+            }
+          },
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": true,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "actions",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "bounded-c-cpp",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "envoy-go",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "traefik-go",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "actionlint",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "zizmor",
+                  "integration_id": 15368
+                }
+              ]
+            }
+          }
+        ],
+        "node_id": "RRS_lACqUmVwb3NpdG9yec5J2r1uzgEkBvs",
+        "created_at": "2026-07-18T10:15:56.266+02:00",
+        "updated_at": "2026-08-14T13:03:24.795+02:00",
+        "bypass_actors": [],
+        "current_user_can_bypass": "never",
+        "_links": {
+          "self": {
+            "href": "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/rulesets/19138299"
+          },
+          "html": {
+            "href": "https://github.com/Easton97-Jens/ModSecurity-conector/rules/19138299"
+          }
+        }
+      },
+      "additional_ruleset": {
+        "name": "Master continuous build test lint and security checks",
+        "target": "branch",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {
+          "ref_name": {
+            "include": [
+              "refs/heads/master"
+            ],
+            "exclude": []
+          }
+        },
+        "rules": [
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": true,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "scaffold-lint",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "common-structure",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "apache-autotools-bootstrap",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "apache-structure",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "nginx-structure",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "nginx-exact-head",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "haproxy-structure",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "envoy-contract",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "lighttpd-contract",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "traefik-contract",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "quick-check",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "report-governance",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "protocol-contract",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "apr-util-provenance",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "pull-request-range",
+                  "integration_id": 15368
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "repository": "Easton97-Jens/ModSecurity-test-Framework",
+      "existing_ruleset_unchanged": {
+        "id": 19700778,
+        "name": "master",
+        "target": "branch",
+        "source_type": "Repository",
+        "source": "Easton97-Jens/ModSecurity-test-Framework",
+        "enforcement": "active",
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/master",
+              "refs/heads/Archiv3",
+              "refs/heads/master_archiv"
+            ]
+          }
+        },
+        "rules": [
+          {
+            "type": "deletion"
+          },
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "type": "pull_request",
+            "parameters": {
+              "required_approving_review_count": 0,
+              "dismiss_stale_reviews_on_push": true,
+              "required_reviewers": [],
+              "require_code_owner_review": false,
+              "require_last_push_approval": false,
+              "required_review_thread_resolution": true,
+              "require_extra_approval_for_unattributed_changes": true,
+              "allowed_merge_methods": [
+                "merge",
+                "squash",
+                "rebase"
+              ]
+            }
+          }
+        ],
+        "node_id": "RRS_lACqUmVwb3NpdG9yec5J62-1zgEsnCo",
+        "created_at": "2026-07-24T20:06:46.277+02:00",
+        "updated_at": "2026-09-30T12:40:54.013+02:00",
+        "bypass_actors": [],
+        "current_user_can_bypass": "never",
+        "_links": {
+          "self": {
+            "href": "https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/rulesets/19700778"
+          },
+          "html": {
+            "href": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/rules/19700778"
+          }
+        }
+      },
+      "additional_ruleset": {
+        "name": "Master continuous build test lint and security checks",
+        "target": "branch",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {
+          "ref_name": {
+            "include": [
+              "refs/heads/master"
+            ],
+            "exclude": []
+          }
+        },
+        "rules": [
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": true,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "scaffold-lint",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "common-structure",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "CodeQL PR (actions)",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "CodeQL PR (python)",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "CodeQL PR (c-cpp)",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "pull-request-range",
+                  "integration_id": 15368
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -82,29 +82,49 @@ Enable/Disable-Direktive.
 
 Das native Modul verarbeitet P1 bis P4 in seinen Host-Hooks und Filtern. P3
 kann handeln, bevor die Response committed ist, wenn ausgewählter Case und
-Hostzustand es erlauben. P4 bleibt für die Regelauswertung EOS-only, ist nun
-aber ein progressiver Ausgabepfad: Jeder Response-Daten-Bucket wird genau
+Hostzustand es erlauben. Die normale P4-Regelauswertung endet bei EOS über
+einen progressiven Ausgabepfad: Jeder Response-Daten-Bucket wird genau
 einmal angehängt, FLUSH und andere Apache-Metadaten vor EOS bleiben erhalten,
 und das normalisierte Präfix vor EOS wird sofort an den nächsten Filter
 weitergereicht. Der Filter hält keine vollständige Response-Brigade; nur das
 terminale EOS-Fragment wartet auf den einmaligen Aufruf von
 `msc_process_response_body` und die Late-Action-Auflösung.
 
-ModSecurity bestimmt die Response-MIME-Inspektion über
-`SecResponseBodyMimeType` und `SecResponseBodyAccess`. Die Connector-eigene
-MIME-Dateioption wurde entfernt; Apache übergibt Response-Daten unabhängig
-vom MIME-Typ über seinen begrenzten P4-Eingabepfad an die Engine.
-Das konfigurierbare Connector-Standardlimit beträgt
-1048576 Byte (1 MiB); die Grenze wird geprüft, bevor ein weiterer Daten-Bucket
-angehängt wird. Ein Fehler nach einem weitergereichten Präfix kann dieses nicht
-umschreiben; die terminale Aktion wird darum über die gemeinsame
-Post-Commit-Policy abgebildet. `r->sent_bodyct` und `eos_sent` sind kein
+Response-Inspektion hängt von Connector <code>modsecurity on</code>, dem
+geladenen <code>SecRuleEngine</code>-Modus, <code>SecResponseBodyAccess</code>
+und der MIME-Auswahl der Engine durch <code>SecResponseBodyMimeType</code> und
+<code>SecResponseBodyMimeTypesClear</code> ab. Der Adapter hat keine eigene
+MIME-Allowlist; er übergibt jeden vollständigen Daten-Bucket an die Engine,
+die die Inspektionspolicy besitzt. Body-Zähler schützen Arithmetik und
+Lifecycle-Zustand; sie beweisen keine Engine-Inspektion jedes angehängten Bytes.
+
+Der Connector hat keine Body-Größenoption, keinen solchen Standardwert und
+keinen Inspektionspräfix-Cap. Engine <code>SecResponseBodyLimit</code> und
+<code>SecResponseBodyLimitAction</code> werden in den geladenen Regeln
+konfiguriert. Das Safe-Beispiel setzt explizit 1048576 Byte (1 MiB) mit
+<code>ProcessPartial</code>; dies ist eine beispielhafte Engine-Policy und
+kein hartes Connector-Limit. Request-Inspektionslimits gehören ebenso zu
+Engine <code>SecRequestBodyLimit</code>, <code>SecRequestBodyNoFilesLimit</code>
+und <code>SecRequestBodyLimitAction</code>. Unabhängige Host-Ressourcenlimits
+bleiben getrennt.
+
+Ein beim Append erkanntes Engine-Body-Limit-<code>Reject</code> löst eine
+einmalige Fehlerfinalisierung vor Weiterleitung der aktuellen Brigade oder
+Append eines weiteren Buckets aus, auch vor Host-EOS. Dies ist kein
+erfolgreicher EOS-Abschluss. Vor Commit kann der native Status die Response
+beenden; nach Commit bricht der Filter die Verbindung in jedem Connector-Modus
+ab, einschließlich Safe. Gewöhnliche späte Regelinterventionen verwenden die
+gemeinsame Post-Commit-Policy. Ein Fehler kann ein bereits an den nächsten
+Filter weitergereichtes Präfix nicht umschreiben.
+
+`r->sent_bodyct` und `eos_sent` sind kein
 Commit-Nachweis, weil Upstream-/Core-Pfade sie setzen können, bevor dieser
 Filter Ausgabe freigibt. Der Next-Filter-Aufruf ist die monotone
 Commit-Grenze des Source-Contracts; zusätzlich behält der Filter seinen
 EOS-Release-Guard und Apaches `r->bytes_sent`-Metadaten.
 
-P4-Regelauswertung erfolgt nicht pro Chunk, sondern nur bei EOS. Ein
+Die normale P4-Regelauswertung erfolgt nicht pro Chunk, sondern endet bei EOS,
+mit der oben beschriebenen Ausnahme für terminale Inspektionsfehler. Ein
 progressiver P4-Pfad behauptet darum keinen verlässlichen Deny oder Redirect
 vor Commit, nachdem ein Response-Präfix weitergereicht wurde; P3 bleibt der
 Entscheidungspunkt vor dem Response-Header-Commit. Off bewahrt die native
