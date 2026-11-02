@@ -100,9 +100,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode@965797c84142813e2992971fdf2add9a56170d5a
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode@cc8af0427c49ef32701220748caf35dad7940246
         with:
-          framework-revision: 965797c84142813e2992971fdf2add9a56170d5a
+          framework-revision: cc8af0427c49ef32701220748caf35dad7940246
           caller-inputs: ${{ toJSON(inputs) }}
           caller-matrix: ${{ toJSON(matrix) }}
           checkout-outcome: ${{ steps.checkout.outcome }}
@@ -126,7 +126,7 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-connectors-with-crs-no-mrts/aggregate-with-crs-no-mrts@965797c84142813e2992971fdf2add9a56170d5a
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-connectors-with-crs-no-mrts/aggregate-with-crs-no-mrts@cc8af0427c49ef32701220748caf35dad7940246
         with:
-          framework-revision: 965797c84142813e2992971fdf2add9a56170d5a
+          framework-revision: cc8af0427c49ef32701220748caf35dad7940246
           caller-inputs: ${{ toJSON(inputs) }}
