@@ -14,6 +14,6 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Run the pinned Framework NGINX exact-head test adapter
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head@44d5481cff7c7c75974e9f1f61a10f6eee4a286d
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head@6459ce672cda99bb0f1b868780c64280ae4a5035
         with:
-          framework-revision: 44d5481cff7c7c75974e9f1f61a10f6eee4a286d
+          framework-revision: 6459ce672cda99bb0f1b868780c64280ae4a5035

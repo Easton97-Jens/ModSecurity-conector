@@ -33,9 +33,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts@44d5481cff7c7c75974e9f1f61a10f6eee4a286d
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts@6459ce672cda99bb0f1b868780c64280ae4a5035
         with:
-          framework-revision: 44d5481cff7c7c75974e9f1f61a10f6eee4a286d
+          framework-revision: 6459ce672cda99bb0f1b868780c64280ae4a5035
           caller-matrix: ${{ toJSON(matrix) }}
   manual-heavy-runtime-validation:
     if: ${{ always() && inputs.on_demand }}
@@ -78,7 +78,7 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation@44d5481cff7c7c75974e9f1f61a10f6eee4a286d
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation@6459ce672cda99bb0f1b868780c64280ae4a5035
         with:
-          framework-revision: 44d5481cff7c7c75974e9f1f61a10f6eee4a286d
+          framework-revision: 6459ce672cda99bb0f1b868780c64280ae4a5035
           caller-matrix: ${{ toJSON(matrix) }}

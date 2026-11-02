@@ -237,7 +237,7 @@ sets up and verifies Python too. The trusted-base Go resolver retains its
 separately checked compatibility bootstrap.
 
 The jointly authorized integration pins Framework to
-`44d5481cff7c7c75974e9f1f61a10f6eee4a286d`, including the Python 3.15 updater
+`6459ce672cda99bb0f1b868780c64280ae4a5035`, including the Python 3.15 updater
 and matching Framework inventories/composite ordering. The native component
 synchronizer updates the project lock and 22 registered workflow projections,
 including the six early gate pins, together with the Parent Framework gitlink.

@@ -252,7 +252,7 @@ Submodul-Resolver richtet Python jetzt ein und prüft es. Der Go-Resolver auf
 Trusted-Base behält seinen separat geprüften Kompatibilitäts-Bootstrap.
 
 Die gemeinsam autorisierte Integration pinnt Framework auf
-`44d5481cff7c7c75974e9f1f61a10f6eee4a286d`, einschließlich Python-3.15-Updater
+`6459ce672cda99bb0f1b868780c64280ae4a5035`, einschließlich Python-3.15-Updater
 und passender Framework-Inventare/Composite-Reihenfolgen. Der native
 Komponenten-Synchronisierer aktualisiert Projekt-Lock und 22 registrierte
 Workflow-Projektionen einschließlich der sechs frühen Prüfungs-Pins zusammen
