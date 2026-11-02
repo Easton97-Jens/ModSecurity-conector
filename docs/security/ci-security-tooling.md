@@ -237,7 +237,7 @@ sets up and verifies Python too. The trusted-base Go resolver retains its
 separately checked compatibility bootstrap.
 
 The jointly authorized integration pins Framework to
-`f4998db666349e155e84cb5720f3401be544d800`, including the Python 3.15 updater
+`a26b028104b28ddd980290b5af7b3fb195c43f9a`, including the Python 3.15 updater
 and matching Framework inventories/composite ordering. The native component
 synchronizer updates the project lock and 22 registered workflow projections,
 including the six early gate pins, together with the Parent Framework gitlink.
@@ -247,6 +247,14 @@ candidate contract passes with NGINX `release-1.31.6`. The Framework child
 `8a6bb546c4c81d8ffc7be801dceac60c6925685f`; no MRTS source changes are included.
 These are local joint-checkout and contract results; hosted execution and
 Parent PR success have not yet been established.
+
+The joint revision also consumes Framework's reviewed Ruff `0.17.3` lock
+and the upstream maintenance import/diagnostic and tooling fixes. The
+canonical-maintenance transaction admits the one registered
+`.github/workflows/ci-findings-regressions.yml` output; replay of the archived
+43-update plan verifies that path repair without publishing those component
+updates. Parent's Python baseline remains `3.15.1`, NGINX remains
+`release-1.31.6`, and the separate upstream MRTS revision is not selected.
 
 ## Constrained Python 3.15 patch updater
 

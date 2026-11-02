@@ -252,7 +252,7 @@ Submodul-Resolver richtet Python jetzt ein und prüft es. Der Go-Resolver auf
 Trusted-Base behält seinen separat geprüften Kompatibilitäts-Bootstrap.
 
 Die gemeinsam autorisierte Integration pinnt Framework auf
-`f4998db666349e155e84cb5720f3401be544d800`, einschließlich Python-3.15-Updater
+`a26b028104b28ddd980290b5af7b3fb195c43f9a`, einschließlich Python-3.15-Updater
 und passender Framework-Inventare/Composite-Reihenfolgen. Der native
 Komponenten-Synchronisierer aktualisiert Projekt-Lock und 22 registrierte
 Workflow-Projektionen einschließlich der sechs frühen Prüfungs-Pins zusammen
@@ -263,6 +263,14 @@ bleiben bei `8a6bb546c4c81d8ffc7be801dceac60c6925685f`; MRTS-Quelländerungen
 sind nicht enthalten. Dies sind lokale Ergebnisse des gemeinsamen Checkouts
 und der Verträge; gehostete Ausführung und erfolgreicher Parent-PR sind noch
 nicht belegt.
+
+Der gemeinsame Stand nutzt außerdem Frameworks geprüften Ruff-`0.17.3`-Lock
+sowie die Upstream-Korrekturen für Maintenance-Imports, Diagnostik und Tooling.
+Die Canonical-Maintenance-Transaktion lässt die eine registrierte Ausgabe
+`.github/workflows/ci-findings-regressions.yml` zu; das Replay des archivierten
+43-Update-Plans prüft diese Pfadkorrektur ohne Veröffentlichung jener
+Komponentenupdates. Die Parent-Python-Baseline bleibt `3.15.1`, NGINX bleibt
+`release-1.31.6`; die separate Upstream-MRTS-Revision wird nicht ausgewählt.
 
 ## Eingeschränkter Python-3.15-Patch-Updater
 
