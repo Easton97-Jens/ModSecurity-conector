@@ -85,6 +85,7 @@ jobs:
           REPORT="$report" python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
+          import runpy
 
           data = json.loads(os.environ["REPORT"])
           required = {"status", "current_version", "latest_version", "update_available"}
@@ -106,6 +107,10 @@ jobs:
               raise SystemExit("resolver returned inconsistent update availability")
           if status != ("update_available" if available else "current"):
               raise SystemExit("resolver returned an inconsistent status")
+          runner_builds = runpy.run_path(
+              "modules/ModSecurity-test-Framework/ci/tools/python_runner_builds.py"
+          )
+          runner_builds["require_build"](runner_builds["fetch_manifest"](), latest)
           print(f"status={status}")
           print(f"current_version={current}")
           print(f"latest_version={latest}")

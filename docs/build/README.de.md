@@ -163,7 +163,7 @@ Der Updater behält seine eigene Candidate-Grenze. Der eingecheckte Workflow
 
 | Job | Interpreter und Trust-Grenze | Erforderliches Verhalten |
 | --- | --- | --- |
-| `resolve-python-patch` | Exakter vertrauenswürdiger Event-SHA und aktuelle kanonische `.python-version`; `contents: read` | Ruft nur die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. Seine getestete Schnittstelle `--check --json` gibt `status`, `current_version`, `latest_version` und `update_available` aus; sie schlägt nur einen höheren stabilen `3.15.N`-Patch vor. |
+| `resolve-python-patch` | Exakter vertrauenswürdiger Event-SHA und aktuelle kanonische `.python-version`; `contents: read` | Ruft die feste offizielle strukturierte Python-Release-API `https://www.python.org/api/v2/downloads/release/?is_published=true` über HTTPS mit exaktem Host `www.python.org`, ohne Redirects, mit `application/json`, begrenzter Response-Verarbeitung und Schema-Validierung auf. Seine getestete Schnittstelle `--check --json` gibt `status`, `current_version`, `latest_version` und `update_available` aus; sie schlägt nur einen höheren stabilen `3.15.N`-Patch vor. |
 | `validate-python-patch` | Exakter vertrauenswürdiger Event-SHA und unabhängig installierter Candidate; `contents: read` | Löst den Candidate mit `--expected-version` erneut auf, prüft den exakten Candidate-Interpreter, installiert hash-gesperrte CI-Abhängigkeiten, führt `pip check`, Compile/Contracts/fokussierte Tests und `make check-ci-security-contract` aus; keine Source- oder Branch-Mutation. |
 | `publish-python-update` | Kanonisches Nicht-Fork-Event auf `master`, aktuelles vertrauenswürdiges `origin/master`; normales `GITHUB_TOKEN` hat `contents: read` | Der einzige App-Secret-Consumer erstellt das vorhandene gepinnte GitHub-App-Token mit nur `Contents: write` und `Pull requests: write`, baut den Wartungs-Branch von aktuellem master neu auf und darf nur den passenden Same-Repository-Draft-PR erstellen oder aktualisieren. |
 | `report-python-update-outcome` | Läuft immer; `permissions: {}` | Schlägt bei inkonsistenten Resolver-/Validator-/Publisher-Resultaten fehl und schreibt für das aktuelle oder unabhängig validierte/veröffentlichte Resultat eine englische/deutsche Zusammenfassung. |
@@ -175,7 +175,17 @@ Concurrency-Gruppe lautet
 mit `cancel-in-progress: false`. Resolver, Validator und Publisher verlangen
 jeweils das exakte kanonische Repository, ein Nicht-Fork-Event, den literalen
 Default-Branch/Ref `master` sowie ein Zeitplan- oder manuelles Event, bevor sie
-`${{ github.sha }}` ohne Submodules oder persistierte Credentials auschecken.
+`${{ github.sha }}` mit dem gepinnten Framework-Submodule und ohne persistierte Credentials auschecken.
+
+Vor der Ausgabe von Resolver-Job-Outputs lädt der Workflow den festen
+Helper `ci/tools/python_runner_builds.py` aus dem gepinnten Framework-Checkout
+am vertrauenswürdigen Event-Stand. Er prüft das begrenzte offizielle
+`actions/python-versions`-Manifest auf dieselbe stabile CPython-Version und
+das exakte Archiv für `ubuntu-26.04`/`x64`. Eine veröffentlichte Python-Version
+allein reicht nicht: Fehlende oder ungültige Manifest-/Build-Metadaten lassen
+den Resolver vor Candidate-Setup oder Veröffentlichung fehlschlagen. Diese
+Workflow-Prüfung erhält die Updater-CLI und ihre JSON-Schnittstelle mit vier
+Feldern.
 
 `--check` löst und validiert einen Candidate ohne Dateien zu ändern. `--update`
 ist dem Publisher vorbehalten, nachdem die unabhängige Validierung und die

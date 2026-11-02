@@ -157,7 +157,7 @@ The updater retains its separate candidate boundary. The checked-in
 
 | Job | Interpreter and trust boundary | Required behavior |
 | --- | --- | --- |
-| `resolve-python-patch` | Exact trusted event SHA and current canonical `.python-version`; `contents: read` | Calls only the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. Its tested `--check --json` interface emits `status`, `current_version`, `latest_version`, and `update_available`; it proposes only a higher stable `3.15.N` patch. |
+| `resolve-python-patch` | Exact trusted event SHA and current canonical `.python-version`; `contents: read` | Calls the fixed official structured Python release API `https://www.python.org/api/v2/downloads/release/?is_published=true` through HTTPS with exact host `www.python.org`, no redirects, `application/json`, bounded response handling, and schema validation. Its tested `--check --json` interface emits `status`, `current_version`, `latest_version`, and `update_available`; it proposes only a higher stable `3.15.N` patch. |
 | `validate-python-patch` | Exact trusted event SHA and independently installed candidate; `contents: read` | Re-resolves the candidate with `--expected-version`, verifies the exact candidate interpreter, installs hash-locked CI dependencies, runs `pip check`, compile/contracts/focused tests, and `make check-ci-security-contract`; it performs no source or branch mutation. |
 | `publish-python-update` | Canonical non-fork `master` event, current trusted `origin/master`; normal `GITHUB_TOKEN` has `contents: read` | The sole App-secret consumer mints the existing pinned GitHub App token with only `Contents: write` and `Pull requests: write`, rebuilds the maintenance branch from current master, and may create or update only the matching same-repository Draft PR. |
 | `report-python-update-outcome` | Always runs; `permissions: {}` | Fails closed on inconsistent resolver/validator/publisher results and writes an English/German summary for either the current or independently validated/published result. |
@@ -168,7 +168,16 @@ group is `modsecurity-conector-python-version-maintenance-${{ github.repository 
 with `cancel-in-progress: false`. Resolver, validator, and publisher each
 require the exact canonical repository, non-fork event, literal `master`
 default branch/ref, and schedule-or-manual event before checking out
-`${{ github.sha }}` without submodules or persisted credentials.
+`${{ github.sha }}` with the pinned Framework submodule and without persisted credentials.
+
+Before emitting any resolver job outputs, the workflow loads the fixed
+`ci/tools/python_runner_builds.py` helper from the pinned Framework checkout
+at the trusted event revision. It checks the bounded official
+`actions/python-versions` manifest for the same stable CPython version and
+exact `ubuntu-26.04`/`x64` archive. A published Python release alone is
+insufficient: missing or invalid manifest/build metadata fails the resolver
+before candidate setup or publication. This workflow guard preserves the
+updater CLI and its four-field JSON interface.
 
 `--check` resolves and validates a candidate without changing files. `--update`
 is reserved for the publisher after the independent validation and expected-
