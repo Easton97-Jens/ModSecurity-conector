@@ -79,13 +79,15 @@ H2/H3-Matrix.
    lokale Prüfung über beide PRs den vorgeschlagenen Framework-Checkout
    explizit über `FRAMEWORK_ROOT` wählen; dies aktualisiert keinen Parent-Gitlink.
 
-Der Parent-Framework-Pin ist jetzt
+Die historische Integration #433 wählte Framework
 `d3b47aec9410f7adc3bb40df1ea413c00c438e89`, übernommen aus Parent-Master
 `ee1345f17c5390fd2341751e88fc510c7e7b580c` (Submodul-Update #433).
-Diese Revision enthält sowohl `ci/provisioning/mrts-package.py` als auch
+Diese historische Revision enthält sowohl `ci/provisioning/mrts-package.py` als auch
 `ci/lib/mrts_results.py`; die zuvor fehlende API-Abhängigkeit ist verfügbar.
 Diese Quell-/Pin-Prüfung ist keine neue native Runtime-Qualifikation oder
 Erlaubnis, einen anderen PR zu mergen oder den MRTS-Pin zu ändern.
+Der aktuelle exakte Framework-Pin steht im Parent-Gitlink und in
+`ci/tooling/project-versions.lock.json`; diesen datierten SHA nicht als neuesten behandeln.
 Der Testumzug kann denselben Parent-Einstiegspunkt oder das
 generierte On-Demand-Archiv berühren; diese Schnittstellen abgleichen, ohne
 den Importer zu kopieren oder den Korpus erneut zu verschieben. HTTP/2, HTTP/3,

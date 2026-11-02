@@ -7,6 +7,28 @@ aktuelle Evidence für HTTP/2- und HTTP/3-Lifecycle-Parität über die sechs
 ausgewählten Connectoren. Dies ist keine Abschlussbehauptung. HTTP/1.1 bleibt
 die Regressions-Baseline.
 
+## Aktualisierung am 2026-11-02: Fixture-Integration, keine Protokollpromotion
+
+[Framework #153](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/153)
+wurde am `2026-11-02T06:11:26Z` regulär per Squash in
+`f11d4617ff98ad615c72c1b6672fc386394db41e` integriert. Sein vollständiger Baum entspricht
+geprüftem PR-Head `64e53d3a9c850711493f1349b44c1290d6486e1f`, einschließlich
+unabhängigem #152. Alle fünf vorhandenen Mapper-Methoden bestanden beide
+V3-Modi mit strengem C17, 14 beobachteten Probes/zehn benannten Unterfällen je
+Modus und ohne Skips; angrenzende Verträge, native Generatoren, Docs/Secrets,
+Head-CI/CodeQL/Sonar bestanden. Dies sind Fixture-/Vertragsergebnisse, keine
+Live-H2-/H3-/TLS-Qualifikation.
+
+Der aktuelle Benutzer autorisiert separat geordnete reguläre Integration von
+#153 und bestehendem #348. Parent übernimmt mastere6b36f7 normal und pinnt den
+tatsächlichen Framework-Merge-SHA mit nativen Werkzeugen. Framework-Masterprüfungen,
+neues Commitpaar, frische Parent-Gates/-Provenienz/-Reviews, exakter Parent-Merge
+und tatsächliche Parent-Master-/Baumprüfungen bleiben an diesem
+Vorbereitungspunkt verpflichtend. Frühere Mergeverbote/offene Schritte unten
+sind datierte Snapshots, nicht aktuelle Freigabe oder Pin. MRTS unverändert;
+keine vollständige Protokollqualifikation behauptet. Den gepaarten
+Fixture-Pin-Change-Record beachten.
+
 ## Aktualisierung am 2026-11-01: migrierte Tests und Framework-Integration
 
 Die Testverantwortung ist ins Framework umgezogen. Parent-PR #348 übernimmt

@@ -7,6 +7,26 @@ evidence for HTTP/2 and HTTP/3 lifecycle parity across the six selected
 connectors. It is not a completion claim. HTTP/1.1 remains the regression
 baseline.
 
+## Update on 2026-11-02: fixture integration, not protocol promotion
+
+[Framework #153](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/153)
+was regularly squash-merged at `2026-11-02T06:11:26Z` to
+`f11d4617ff98ad615c72c1b6672fc386394db41e`. Its complete tree equals verified PR head
+`64e53d3a9c850711493f1349b44c1290d6486e1f`, preserving independent #152.
+All five existing mapper methods passed both V3 modes with strict C17, 14
+observed probes/ten named subcases per mode and no skips; adjacent contracts,
+native generators, docs/secrets, head CI/CodeQL/Sonar passed. These are
+fixture/contract results, not live H2/H3/TLS qualification.
+
+The current user separately authorizes ordered regular integration of #153 and
+existing #348. Parent incorporates mastere6b36f7 normally and pins the actual
+Framework merge SHA through native tools. Framework master checks, the new
+committed pair, fresh Parent gates/provenance/reviews, exact-head Parent merge
+and actual Parent master/tree checks remain mandatory at this preparation
+checkpoint. Earlier no-merge/pending statements below are dated snapshots,
+not the current authorization or pin. MRTS is unchanged; no full protocol
+qualification is claimed. See the paired fixture-pin Change Record.
+
 ## Update on 2026-11-01: migrated tests and Framework integration
 
 Test ownership has moved to the Framework. Parent PR #348 incorporates Parent

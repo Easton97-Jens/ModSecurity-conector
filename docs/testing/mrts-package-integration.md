@@ -72,13 +72,15 @@ historical MRTS or H2/H3 matrix is required by this change.
    cross-PR verification, select the proposed Framework checkout explicitly
    through `FRAMEWORK_ROOT`; this does not update the Parent gitlink.
 
-The Parent Framework pin is now
+The historical #433 integration selected Framework
 `d3b47aec9410f7adc3bb40df1ea413c00c438e89`, inherited from Parent master
 `ee1345f17c5390fd2341751e88fc510c7e7b580c` (submodule update #433).
-That revision contains both `ci/provisioning/mrts-package.py` and
+That historical revision contains both `ci/provisioning/mrts-package.py` and
 `ci/lib/mrts_results.py`; the previously missing API dependency is available.
 This source/pin check is not a new native runtime qualification or authority
 to merge another PR or change the MRTS pin.
+The current exact Framework pin is recorded by the Parent gitlink and
+`ci/tooling/project-versions.lock.json`; do not treat this dated SHA as latest.
 The test-ownership migration may touch the same Parent entry point or generated
 on-demand archive; reconcile those interfaces without copying the importer or
 moving the corpus again. HTTP/2, HTTP/3, coverage and dependency-matrix expansion

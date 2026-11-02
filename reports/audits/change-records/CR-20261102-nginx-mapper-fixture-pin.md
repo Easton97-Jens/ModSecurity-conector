@@ -137,3 +137,35 @@ Redacted staged-diff Gitleaks passed (40444bytes,no leaks) and whitespace passed
 Independent staged-diff/EN-DE review confirmed only22workflow/54identity
 substitutions, framework_sha-only lock change, exact remote gitlink and records.
 Final committed-pair receipts and fresh hosted analysis remain required.
+
+### Separately authorized final integration
+
+Earlier sections describe the original provisional-pin delivery checkpoint.
+The current user separately authorizes regular Framework153 then Parent348
+integration with exact-head protection, only after all required checks.
+Framework153 was actually squash-merged at `2026-11-02T06:11:26Z` to
+`f11d4617ff98ad615c72c1b6672fc386394db41e`; its tree equals verified64e53d3 exactly.
+Final PR-head methods bothV3 (14 observed probes/ten named subcases per mode,
+no skips), eleven adjacent methods, native checks, nine workflows, CodeQL and
+five Sonar conditions passed; PR issues/hotspots0. Master checks remain separate.
+
+Parent mastere6b36f7 is incorporated normally in3d1ab620; only five independent
+policy/record files inherited. Product changes preserved; contextPR436 excluded.
+Exact committed Framework common data extracted with git archive under
+RUNNER_TEMP feeds native verifier/synchronizer. Pre-candidate34dc7f9->f11d461
+passed; native sync updated23projection files: only framework_sha and54references
+in22workflows. Gitlink selects the same actual Framework merge. MRTS8a6bb546,
+Python3.15.1 andGo1.27.3 unchanged. Historical MRTS-guide pin wording is dated;
+gitlink/lock remain current authority. No manual digest correction.
+
+Fresh final committed-pair methods/contracts/generators/docs/secrets/pins,
+strict fresh hosted provenance, all ParentCI/CodeQL/Sonar scopes/issues/hotspots,
+review/rules/base checks and post-merge master/tree evidence remain mandatory.
+Local uninitialized MRTS is a missing prerequisite, not local provenancePASS or
+permission to initialize it. Historical Traefik feedback is individually
+source-reviewed: retained terminal error prevents ReaderFrom bypass; native
+MSE1/op7 uses the monotonic C peer, not compositeMSC2/op5. Fresh related existing
+checks and concrete replies precede resolution. Exact final receipts are
+retained externally under `nginx-mapper-integration-20261102` and in guarded
+PR metadata. No old green, new protocol campaign, risk acceptance, weakened
+check, bypass, direct master push, force push, MRTS edit or full qualification.

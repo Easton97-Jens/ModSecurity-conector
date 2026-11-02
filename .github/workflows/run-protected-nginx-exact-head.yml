@@ -18,7 +18,7 @@ jobs:
   framework:
     permissions:
       contents: read
-    uses: Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-protected-nginx-exact-head.yml@34dc7f9e7f9f9b1de42b5a19a491e804f7c7d747
+    uses: Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-protected-nginx-exact-head.yml@f11d4617ff98ad615c72c1b6672fc386394db41e
     with:
       pr_number: ${{ inputs.pr_number }}
       expected_head_sha: ${{ inputs.expected_head_sha }}

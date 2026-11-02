@@ -137,3 +137,37 @@ Redigierter Staged-Diff-Gitleaks bestanden (40444Bytes,keine Funde), Whitespace
 bestanden. Unabhängiges Staged-Diff-/EN-DE-Review bestätigt nur22Workflow-/
 54Identitätsersetzungen, nur framework_sha im Lock, exakten Remotegitlink und
 Records. Finale Commitpaarreceipts und frische Hosted-Analyse bleiben erforderlich.
+
+### Separat autorisierte finale Integration
+
+Vorstehende Abschnitte beschreiben den ursprünglichen vorläufigen Pin-Stand.
+Der aktuelle Benutzer autorisiert separat reguläre Framework153-/Parent348-
+Integration in dieser Reihenfolge mit exakter Head-Bindung, nur nach allen
+Pflichtprüfungen. Framework153 wurde tatsächlich am `2026-11-02T06:11:26Z` per
+Squash in `f11d4617ff98ad615c72c1b6672fc386394db41e` integriert; sein Baum entspricht
+exakt geprüftem64e53d3. Finale PR-Head-Methoden beideV3 (14 beobachtete Probes/zehn
+benannte Unterfälle je Modus, keine Skips), elf angrenzende Methoden, native
+Prüfungen, neun Workflows, CodeQL und fünf Sonar-Bedingungen bestanden;
+PR-Issues/Hotspots0. Masterprüfungen bleiben separat.
+
+Parent-mastere6b36f7 normal in3d1ab620 übernommen; nur fünf unabhängige
+Policy-/Record-Dateien geerbt. Produktänderungen erhalten; KontextPR436 ausgeschlossen.
+Exakte eingecheckte Framework-Common-Daten per git archive unter RUNNER_TEMP
+speisen nativen Verifier/Synchronizer. Pre-Kandidat34dc7f9->f11d461 bestand;
+nativer Sync aktualisierte23Projektionsdateien: nur framework_sha und54Referenzen
+in22Workflows. Gitlink wählt denselben tatsächlichen Framework-Merge.
+MRTS8a6bb546, Python3.15.1 undGo1.27.3 unverändert. Historische Pin-Aussage im
+MRTS-Guide datiert; aktuelle Autorität bleiben Gitlink/Lock. Keine manuelle Digestkorrektur.
+
+Frische finale Commitpaar-Methoden/-Verträge/-Generatoren/-Docs/-Secrets/-Pins,
+strenge frische Hosted-Provenienz, alle ParentCI-/CodeQL-/Sonar-Scopes/-Issues/
+-Hotspots, Review-/Regel-/Basisprüfungen und Post-Merge-Master-/Baumevidenz bleiben
+verpflichtend. Lokal uninitialisiertes MRTS ist fehlende Voraussetzung, kein
+lokales ProvenienzPASS oder Initialisierungserlaubnis. Historisches Traefik-
+Feedback einzeln quellengeprüft: erhaltener Terminalfehler verhindert ReaderFrom-
+Bypass; nativeMSE1/op7 nutzen monotonen C-Peer, nicht compositeMSC2/op5.
+Frische verwandte vorhandene Prüfungen und konkrete Antworten gehen Auflösung
+voraus. Exakte finale Receipts bleiben extern unter
+`nginx-mapper-integration-20261102` und in geschützten PR-Metadaten erhalten.
+Kein altes Grün, neue Protokollkampagne, Risikoakzeptanz, abgeschwächter Check,
+Bypass, direkter Master-Push, Force-Push, MRTS-Edit oder Vollqualifikation.
