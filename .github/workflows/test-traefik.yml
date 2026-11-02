@@ -19,6 +19,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-traefik/traefik-contract@f11d4617ff98ad615c72c1b6672fc386394db41e
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-traefik/traefik-contract@44d5481cff7c7c75974e9f1f61a10f6eee4a286d
         with:
-          framework-revision: f11d4617ff98ad615c72c1b6672fc386394db41e
+          framework-revision: 44d5481cff7c7c75974e9f1f61a10f6eee4a286d

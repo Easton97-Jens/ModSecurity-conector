@@ -208,8 +208,9 @@ the Python candidate validator additionally passes its independently checked
 Parent jobs consuming Framework's existing lock pass
 `--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
 this rejects dependency/version drift and preserves PyYAML `6.0.3` while the
-Parent owns the reviewed Python-3.15 artifact. Framework/MRTS repositories and
-gitlinks stay unchanged; this is not Framework runtime qualification.
+Parent owns the reviewed Python-3.15 artifact. Dependency preparation itself
+does not change repositories or gitlinks; this is not Framework runtime
+qualification.
 
 For read-only submodule validation, the ordinary runner invokes the reviewed
 installer in guarded `--ci-toolcache` mode while the Framework checkout still
@@ -233,9 +234,19 @@ SHA before running checked-out Python. The component synchronizer projects
 these six gate pins through a closed file/count registry together with the
 existing action/input pins, rejecting stale, missing or extra gate pins. The submodule resolver now
 sets up and verifies Python too. The trusted-base Go resolver retains its
-separately checked compatibility bootstrap. Framework-wide workflow inventories
-and composite ordering require their own Framework change; composed static
-validation is not proof of a changed gitlink or successful hosted execution.
+separately checked compatibility bootstrap.
+
+The jointly authorized integration pins Framework to
+`44d5481cff7c7c75974e9f1f61a10f6eee4a286d`, including the Python 3.15 updater
+and matching Framework inventories/composite ordering. The native component
+synchronizer updates the project lock and 22 registered workflow projections,
+including the six early gate pins, together with the Parent Framework gitlink.
+The native Python contract now accepts 53 jobs, and the exact Framework
+candidate contract passes with NGINX `release-1.31.6`. The Framework child
+`tools/MRTS` gitlink and Parent MRTS lock remain
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`; no MRTS source changes are included.
+These are local joint-checkout and contract results; hosted execution and
+Parent PR success have not yet been established.
 
 ## Constrained Python 3.15 patch updater
 

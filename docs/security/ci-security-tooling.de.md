@@ -221,8 +221,8 @@ der Python-Candidate-Validator übergibt zusätzlich seine unabhängig geprüfte
 Parent-Jobs mit bestehender Framework-Lockdatei übergeben
 `--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
 dies weist Abhängigkeits-/Versionsdrift zurück und erhält PyYAML `6.0.3`, während
-der Parent das geprüfte Python-3.15-Artefakt verantwortet. Framework-/MRTS-Repositories
-und Gitlinks bleiben unverändert; dies ist keine Framework-Runtime-Qualifizierung.
+der Parent das geprüfte Python-3.15-Artefakt verantwortet. Die Abhängigkeitsvorbereitung
+selbst verändert keine Repositories oder Gitlinks; dies ist keine Framework-Runtime-Qualifizierung.
 
 Für die schreibgeschützte Submodul-Validierung ruft der normale Runner den
 geprüften Installer im geschützten Modus `--ci-toolcache` auf, solange der
@@ -250,9 +250,19 @@ gemeinsam mit den bestehenden Action-/Input-Pins und verwirft veraltete, fehlend
 oder zusätzliche Prüfungs-Pins. Auch der
 Submodul-Resolver richtet Python jetzt ein und prüft es. Der Go-Resolver auf
 Trusted-Base behält seinen separat geprüften Kompatibilitäts-Bootstrap.
-Framework-weite Workflow-Inventare und Composite-Reihenfolgen erfordern eine
-eigene Framework-Änderung; zusammengesetzte statische Validierung belegt weder
-einen geänderten Gitlink noch eine erfolgreiche gehostete Ausführung.
+
+Die gemeinsam autorisierte Integration pinnt Framework auf
+`44d5481cff7c7c75974e9f1f61a10f6eee4a286d`, einschließlich Python-3.15-Updater
+und passender Framework-Inventare/Composite-Reihenfolgen. Der native
+Komponenten-Synchronisierer aktualisiert Projekt-Lock und 22 registrierte
+Workflow-Projektionen einschließlich der sechs frühen Prüfungs-Pins zusammen
+mit dem Parent-Framework-Gitlink. Der native Python-Vertrag akzeptiert jetzt
+53 Jobs; der exakte Framework-Kandidatenvertrag besteht mit NGINX
+`release-1.31.6`. Frameworks Kind-Gitlink `tools/MRTS` und der Parent-MRTS-Lock
+bleiben bei `8a6bb546c4c81d8ffc7be801dceac60c6925685f`; MRTS-Quelländerungen
+sind nicht enthalten. Dies sind lokale Ergebnisse des gemeinsamen Checkouts
+und der Verträge; gehostete Ausführung und erfolgreicher Parent-PR sind noch
+nicht belegt.
 
 ## Eingeschränkter Python-3.15-Patch-Updater
 
