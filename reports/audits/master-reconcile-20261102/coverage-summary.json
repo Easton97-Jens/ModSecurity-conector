@@ -1,0 +1,86 @@
+{
+  "parent_revision": "430d3194fa04ca4aafcdaef6aeb256d21dc18f0c",
+  "framework_revision": "91145b7ba721bdec4e89af754cf40bf496fd2a08",
+  "framework_uncommitted_changes": true,
+  "framework_source_sha256": {
+    "connector_suite/source-map.json": "efd8ec2d12ab62762d251c3b8ecd85185a3c397b7b0a258ed95fc39e183a71e8",
+    "connector_suite/modsecurity_connector_ci/checks/analysis/run-sonar-coverage.py": "30524c5d9be991b23c921f7331405aa4354fff4fb2014760f27b19b557c66e23",
+    "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py": "b63c604813f06314d45d9a60fa111d3ed061321523c6d381fe188bbcfcc11d16",
+    "connector_suite/modsecurity_connector_tests/test_sonar_coverage.py": "7b96bc9997fdb250d2b472c36b3aff5d97deff900f2256c50e9f0b745e0ac5ff",
+    "connector_suite/modsecurity_connector_tests/test_evidence_input_security.py": "803b407c4f9f0f9bd9979ae85bb2e38b8027105b0c7e8ece2a1862a96fdd45f3",
+    "connector_suite/config/testing/active-cases.json": "a73ba71b5b27e4884e8d9fac5ab5342365f039fbbae20b6c14df55d9c51358cb"
+  },
+  "limitation": "selected actual coverage of Parent base revision with dirty Framework changes, not final merged pair qualification",
+  "sonar": "Lokale Sonar-Secrets-Pr\u00fcfung aufgrund ausdr\u00fccklicher Benutzeranweisung nicht ausgef\u00fchrt.",
+  "metrics": {
+    "go": {
+      "status": "passed",
+      "counts": {
+        "envoy": {
+          "covered_statements": 1104,
+          "total_statements": 3971,
+          "percent": 27.80156131956686
+        },
+        "traefik-native": {
+          "covered_statements": 586,
+          "total_statements": 959,
+          "percent": 61.105318039624606
+        },
+        "traefik-composite": {
+          "covered_statements": 383,
+          "total_statements": 563,
+          "percent": 68.0284191829485
+        },
+        "traefik-observer": {
+          "covered_statements": 300,
+          "total_statements": 752,
+          "percent": 39.8936170212766
+        }
+      },
+      "manifest": "/var/tmp/codex/ModSecurity-conector/runs/master-reconcile-20261102/coverage/after/go/manifest.json"
+    },
+    "native": {
+      "status": "passed",
+      "counts": {
+        "line_covered": 2869,
+        "line_total": 4290,
+        "branch_covered": 1903,
+        "branch_total": 3977,
+        "aggregation": "union of actual execution observations by Parent source, line and gcov branch index across generated binary reports; zeroes retained"
+      },
+      "manifest": "/var/tmp/codex/ModSecurity-conector/runs/master-reconcile-20261102/coverage/after/native/manifest.json"
+    },
+    "python": {
+      "status": "passed_selected_scope",
+      "counts": {
+        "lines-covered": 59,
+        "lines-valid": 6552,
+        "branches-covered": 16,
+        "branches-valid": 2240,
+        "line_percent": 0.9004884004884005,
+        "branch_percent": 0.7142857142857143
+      },
+      "scope": "116 existing named Python tests; full offline assessment excluded",
+      "sources": 33,
+      "selected_scope_manifest": "/var/tmp/codex/ModSecurity-conector/runs/master-reconcile-20261102/coverage/focused/python/selected-scope.json",
+      "xml": "/var/tmp/codex/ModSecurity-conector/runs/master-reconcile-20261102/coverage/focused/python/python.xml"
+    }
+  },
+  "exclusions": [
+    "Framework-owned Python code excluded from Parent XML",
+    "Go selectors unchanged, all default-build packages retained via -coverpkg=./...",
+    "native generated harnesses and Framework test helpers excluded from Parent counts",
+    "offline-timing execution is unmeasured",
+    "runtime/host qualification and analyzer import are not implied"
+  ],
+  "full_python_assessment": {
+    "status": "failed",
+    "selected_measured_executions": 976,
+    "completed_passed_executions": 56,
+    "failed_execution": "offline.nginx-broker-parser.caller-top-level-permissions-remain-exactly-deny-default",
+    "failure": "caller top-level fixture rejected earlier for unexpected key set instead of exactly deny-default permissions diagnostic",
+    "summary": "/var/tmp/codex/ModSecurity-conector/runs/master-reconcile-20261102/coverage/after/python/offline-measured/active-tests-ns79e2ly/summary.json",
+    "timing_partition": "not reached",
+    "log": "/var/tmp/codex/ModSecurity-conector/runs/master-reconcile-20261102/coverage/python.log"
+  }
+}

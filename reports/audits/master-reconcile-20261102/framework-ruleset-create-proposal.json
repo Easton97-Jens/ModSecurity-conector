@@ -1,0 +1,49 @@
+{
+  "name": "Master continuous build test lint and security checks",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/master"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "scaffold-lint",
+            "integration_id": 15368
+          },
+          {
+            "context": "common-structure",
+            "integration_id": 15368
+          },
+          {
+            "context": "CodeQL PR (actions)",
+            "integration_id": 15368
+          },
+          {
+            "context": "CodeQL PR (python)",
+            "integration_id": 15368
+          },
+          {
+            "context": "CodeQL PR (c-cpp)",
+            "integration_id": 15368
+          },
+          {
+            "context": "pull-request-range",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ]
+}

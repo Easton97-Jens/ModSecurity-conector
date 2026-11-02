@@ -1,0 +1,85 @@
+{
+  "name": "Master continuous build test lint and security checks",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/master"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "scaffold-lint",
+            "integration_id": 15368
+          },
+          {
+            "context": "common-structure",
+            "integration_id": 15368
+          },
+          {
+            "context": "apache-autotools-bootstrap",
+            "integration_id": 15368
+          },
+          {
+            "context": "apache-structure",
+            "integration_id": 15368
+          },
+          {
+            "context": "nginx-structure",
+            "integration_id": 15368
+          },
+          {
+            "context": "nginx-exact-head",
+            "integration_id": 15368
+          },
+          {
+            "context": "haproxy-structure",
+            "integration_id": 15368
+          },
+          {
+            "context": "envoy-contract",
+            "integration_id": 15368
+          },
+          {
+            "context": "lighttpd-contract",
+            "integration_id": 15368
+          },
+          {
+            "context": "traefik-contract",
+            "integration_id": 15368
+          },
+          {
+            "context": "quick-check",
+            "integration_id": 15368
+          },
+          {
+            "context": "report-governance",
+            "integration_id": 15368
+          },
+          {
+            "context": "protocol-contract",
+            "integration_id": 15368
+          },
+          {
+            "context": "apr-util-provenance",
+            "integration_id": 15368
+          },
+          {
+            "context": "pull-request-range",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ]
+}
