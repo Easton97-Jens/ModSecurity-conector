@@ -11,6 +11,12 @@ angelegt werden.
 
 ## Ausdrücklich autorisierte Records
 
+- [CR-20260826-http2-http3-protocol-parity](CR-20260826-http2-http3-protocol-parity.de.md) —
+  der aktuelle Benutzer autorisierte diesen unabhängigen Parent-Workstream zur
+  HTTP/2-/HTTP/3-Protokollparität und seine gekoppelte Dokumentation. Er weist
+  nur gelieferte Evidence aus; Runtime-Lücken und der aktuelle Lieferstatus
+  von Draft-PR #348 bleiben ausdrücklich sichtbar.
+
 - [CR-20261013-pr382-consolidated](CR-20261013-pr382-consolidated.de.md) | English companion: `CR-20261013-pr382-consolidated.md` — vom Benutzer autorisierte Zusammenfassung der 122 in PR #382 hinzugefügten EN/DE-Paare; vollständige historische Evidence bleibt über unveränderliche Git-Links erhalten. Bestehende `origin/master`-Records bleiben erhalten; aktuelle Remediation und offene I12-Evidence werden getrennt ausgewiesen.
 
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.de.md)

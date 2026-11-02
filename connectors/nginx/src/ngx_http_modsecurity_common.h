@@ -92,7 +92,7 @@ typedef struct {
  * paths from drifting while leaving their phase-specific inspection actions
  * in their respective callers. */
 static ngx_inline ngx_table_elt_t *
-ngx_http_modsecurity_next_header(ngx_list_part_t **part,
+ngx_http_modsecurity_next_header(const ngx_list_part_t **part,
     ngx_table_elt_t **data, ngx_uint_t *index)
 {
     for (;;) {
@@ -108,6 +108,48 @@ ngx_http_modsecurity_next_header(ngx_list_part_t **part,
         *data = (*part)->elts;
         *index = 0U;
     }
+}
+
+
+/* HTTP/3 retains the received :authority outside the ordinary header list.
+ * Expose it only to the inspection adapter, without changing NGINX's headers
+ * or substituting a configured routing name. Preserve the original port just
+ * as NGINX's HTTP/2 Host shim does. An explicit Host always takes precedence. */
+static ngx_inline ngx_str_t
+ngx_http_modsecurity_http3_authority(const ngx_http_request_t *r)
+{
+    ngx_str_t authority = ngx_null_string;
+#if (NGX_HTTP_V3) && defined(NGX_HTTP_VERSION_30)
+    u_char host_name[] = "Host";
+    const ngx_list_part_t *part;
+    ngx_table_elt_t *data;
+    ngx_table_elt_t *header;
+    ngx_uint_t index;
+
+    if (r == NULL || r->http_version != NGX_HTTP_VERSION_30 ||
+        r->headers_in.host != NULL || r->host_start == NULL ||
+        r->host_end == NULL || r->host_end <= r->host_start) {
+        return authority;
+    }
+
+    part = &r->headers_in.headers.part;
+    data = part->elts;
+    index = 0U;
+    while ((header = ngx_http_modsecurity_next_header(&part, &data,
+            &index)) != NULL) {
+        if (header->key.len == sizeof("Host") - 1U &&
+            ngx_strncasecmp(header->key.data, host_name,
+                sizeof("Host") - 1U) == 0) {
+            return authority;
+        }
+    }
+
+    authority.data = r->host_start;
+    authority.len = (size_t)(r->host_end - r->host_start);
+#else
+    (void)r;
+#endif
+    return authority;
 }
 
 

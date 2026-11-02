@@ -10,6 +10,12 @@ reports without an explicit repository-policy decision or user decision.
 
 ## Explicitly authorized records
 
+- [CR-20260826-http2-http3-protocol-parity](CR-20260826-http2-http3-protocol-parity.md)
+  | [Deutsch](CR-20260826-http2-http3-protocol-parity.de.md) — the current
+  user authorized this independent Parent HTTP/2/HTTP/3 protocol-parity
+  workstream and its paired documentation. It records supplied evidence only;
+  runtime gaps and the current Draft PR #348 delivery state remain explicit.
+
 - [CR-20261013-pr382-consolidated](CR-20261013-pr382-consolidated.md) | [Deutsch](CR-20261013-pr382-consolidated.de.md) — user-authorized consolidation of the 122 EN/DE pairs added in PR #382; complete historical evidence remains available through immutable Git links. Existing `origin/master` records are retained; current remediation and open I12 evidence are recorded separately.
 
 - [CR-20260919-submodule-updater-workflows-capability](CR-20260919-submodule-updater-workflows-capability.md)

@@ -42,6 +42,19 @@ source migration, materialized-source build, and real NGINX smokes passed.
 | `connectors/nginx/harness/run_nginx_smoke.sh` | n/a | repo-owned Parent harness | n/a | Parent root-only distinct-worker, private-output, and worker-leaf ownership hardening | Apache-2.0-compatible project support file | Direct NGINX harness with `NGINX_MEMCHECK_EVIDENCE_DIR` private below `LOG_DIR/memcheck-evidence/<case>` and only worker-owned state/server access/error/audit leaves below the worker-traversable harness root |
 | `connectors/nginx/SOURCE_MAP.json` | n/a | repo-owned provenance manifest | n/a | records base, PR #377, selected PRs #384--#386, scoped #387/#388/#389 disposition, and Parent/Finding evidence boundaries including current response and harness hardening | Apache-2.0-compatible project metadata | Source migration and PR provenance map |
 
+## Parent adaptation for issue #401
+
+[Issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401)
+is design input for a Parent-owned correction in
+`src/ngx_http_modsecurity_common.h`, `src/ngx_http_modsecurity_access.c`, and
+`src/ngx_http_modsecurity_mapper.c`; it is not an imported upstream commit.
+The adapter exposes received raw HTTP/3 authority as one inspection-only Host
+when no explicit Host exists, preserving port/IPv6, hostname mapping, P1 input,
+and header metrics without changing NGINX's header list. This follows NGINX's
+raw-authority HTTP/2 shim rather than its normalized routing hostname.
+Status on 2026-10-24: `implemented_not_runtime_verified`; tests, builds, and
+runtime validation are deferred at the user's request.
+
 ## Phase 13 Layout Moves
 
 | Former path | Current path | Materialized path |

@@ -232,13 +232,14 @@ Datei-/Zero-Copy-Ausgabepfad. Der aktuelle Harness führt keinen Streaming-P4-
 Traffic aus; es gibt keinen Real-Client-Nachweis für ein sichtbares Safe-Ergebnis,
 ein Pre-Commit-Deny, First-Byte-Auslieferung oder einen strikten
 Verbindungsabbruch. Der Quellpfad zeichnet ein disruptives Ergebnis im Safe-Modus
-als `log_only` auf. Off bewahrt die native Behandlung ohne zusätzliche Late-Policy. Der gepatchte Callback gibt bei einer
-verbindungsbehafteten Strict-Intervention jetzt
-`PLUGIN_BODY_HOOK_ABORT` an den Response-Fehlerpfad des gepatchten Cores
-zurück; die gemeinsame Runtime weist Strict für dieses Profil bei der
-Adapteraktivierung zurück, bis ein client-sichtbarer Abbruch und ein
-Follow-up-Health-Nachweis vorliegen. Entsprechend bleiben die eingecheckten
-Phase-4-bezogenen Capability-Zustände für das ausgewählte Evidenzprofil
+als `log_only` auf. Off bewahrt die native Behandlung ohne zusätzliche
+Late-Policy. Die gepatchte ABI definiert `PLUGIN_BODY_HOOK_ABORT`, aber der
+aktuelle Strict-Zweig nach dem Commit protokolliert `NOT EXECUTED` und gibt
+`PLUGIN_BODY_HOOK_CONTINUE` zurück; dies belegt keinen Transportabbruch. Die
+gemeinsame Runtime weist Strict bei der Adapteraktivierung zurück, weil dieses
+Profil keine Strict-Aktion nach dem Commit deklariert. Client-sichtbarer Abbruch
+und Follow-up-Health-Nachweis fehlen weiterhin. Entsprechend bleiben die
+eingecheckten Phase-4-bezogenen Capability-Zustände für das ausgewählte Evidenzprofil
 `not_implemented`.
 
 Dies ist eine Evidenzgrenze, nicht die Aussage, dass lighttpd niemals
@@ -256,7 +257,8 @@ Response-Body-Payload.
 
 ## Phase-4-Modus und Eigentümerschaft von Response-Body-Limits
 
-Der Standardmodus ist `off`; erlaubt sind `off`, `safe` und `strict`. Kein
+Der Standardmodus ist `off`; die gemeinsame Konfiguration kennt `off`, `safe`
+und `strict`, vorbehaltlich der oben beschriebenen Profilzulassung. Kein
 gültiger Phase-4-Modus fügt ein Connector-eigenes kumuliertes
 Response-Inspection-Budget hinzu. libModSecurity besitzt die WAF-Auswahl und
 -Limits über `SecResponseBodyAccess`, `SecResponseBodyMimeType`,

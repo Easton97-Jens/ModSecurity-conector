@@ -4,8 +4,8 @@
 
 Der native MRTS-Aufrufer verwendet die Framework-Paketschnittstelle unter
 `ci/provisioning/mrts-package.py`. MRTS bleibt ein gepinnter, schreibgeschützter
-Generator: Dieser Auftrag ändert weder MRTS-Quellen noch einen der beiden
-Repository-Gitlinks. Der allgemeine Testumzug bleibt ein eigener Auftrag.
+Generator: Native Paketbefehle ändern weder MRTS-Quellen noch seinen Gitlink.
+Der allgemeine Testumzug bleibt ein eigener Auftrag.
 
 ## Vorbereitung und private Übergabe
 
@@ -79,9 +79,16 @@ H2/H3-Matrix.
    lokale Prüfung über beide PRs den vorgeschlagenen Framework-Checkout
    explizit über `FRAMEWORK_ROOT` wählen; dies aktualisiert keinen Parent-Gitlink.
 
-Der aktuelle Parent-Pin enthält diese Schnittstelle noch nicht; der Aufrufer-PR
-ist deshalb abhängig und bleibt bis Framework-Integration und explizitem
-Pin-Update Draft. Der Testumzug kann denselben Parent-Einstiegspunkt oder das
+Die historische Integration #433 wählte Framework
+`d3b47aec9410f7adc3bb40df1ea413c00c438e89`, übernommen aus Parent-Master
+`ee1345f17c5390fd2341751e88fc510c7e7b580c` (Submodul-Update #433).
+Diese historische Revision enthält sowohl `ci/provisioning/mrts-package.py` als auch
+`ci/lib/mrts_results.py`; die zuvor fehlende API-Abhängigkeit ist verfügbar.
+Diese Quell-/Pin-Prüfung ist keine neue native Runtime-Qualifikation oder
+Erlaubnis, einen anderen PR zu mergen oder den MRTS-Pin zu ändern.
+Der aktuelle exakte Framework-Pin steht im Parent-Gitlink und in
+`ci/tooling/project-versions.lock.json`; diesen datierten SHA nicht als neuesten behandeln.
+Der Testumzug kann denselben Parent-Einstiegspunkt oder das
 generierte On-Demand-Archiv berühren; diese Schnittstellen abgleichen, ohne
 den Importer zu kopieren oder den Korpus erneut zu verschieben. HTTP/2, HTTP/3,
 Coverage und Erweiterungen der Abhängigkeitsmatrix bleiben eigene Arbeiten.

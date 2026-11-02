@@ -4,7 +4,7 @@
 
 The native MRTS caller consumes the Framework package interface at
 `ci/provisioning/mrts-package.py`. MRTS remains a pinned, read-only generator:
-neither MRTS sources nor either repository gitlink change in this task.
+native package commands change neither MRTS sources nor its gitlink.
 The general test-ownership migration is separate.
 
 ## Preparation and private handoff
@@ -72,8 +72,15 @@ historical MRTS or H2/H3 matrix is required by this change.
    cross-PR verification, select the proposed Framework checkout explicitly
    through `FRAMEWORK_ROOT`; this does not update the Parent gitlink.
 
-The current Parent pin predates this interface, so the caller PR is dependent
-and remains Draft until the Framework integration and explicit pin update.
+The historical #433 integration selected Framework
+`d3b47aec9410f7adc3bb40df1ea413c00c438e89`, inherited from Parent master
+`ee1345f17c5390fd2341751e88fc510c7e7b580c` (submodule update #433).
+That historical revision contains both `ci/provisioning/mrts-package.py` and
+`ci/lib/mrts_results.py`; the previously missing API dependency is available.
+This source/pin check is not a new native runtime qualification or authority
+to merge another PR or change the MRTS pin.
+The current exact Framework pin is recorded by the Parent gitlink and
+`ci/tooling/project-versions.lock.json`; do not treat this dated SHA as latest.
 The test-ownership migration may touch the same Parent entry point or generated
 on-demand archive; reconcile those interfaces without copying the importer or
 moving the corpus again. HTTP/2, HTTP/3, coverage and dependency-matrix expansion

@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 import re
 
+from modsecurity_test_framework.connector_context import source_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "docs" / "build" / "compilers"
@@ -98,7 +100,7 @@ ENVOY_CONTRACT = read_assignment_contract(
     {"ENVOY_RELEASE", "ENVOY_IMAGE", "ENVOY_GO_PROTO_MODULE", "ENVOY_GO_PROTO_VERSION"},
 )
 NGINX_CONTRACT = read_python_literals(
-    ROOT / "ci" / "provisioning" / "components" / "prepare-runtime-components.py",
+    source_path("ci/provisioning/components/prepare-runtime-components.py", root=ROOT),
     {
         "NGINX_PINNED_SOURCE_REPOSITORY",
         "NGINX_PINNED_RELEASE_TAG",
@@ -1859,7 +1861,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             (
                 "Standalone Apache configuration harness",
                 "Eigenständiges Apache-Konfigurationsharness",
-                "../../../connectors/apache/harness/apache_smoke.conf",
+                "../../../modules/ModSecurity-test-Framework/connector_suite/adapters/apache/harness/apache_smoke.conf",
             ),
         ),
         "repository_connector_build_steps": (
@@ -2015,7 +2017,7 @@ MANUAL_GUIDES: dict[str, dict[str, object]] = {
             (
                 "Native HTX runtime configuration helper",
                 "Native-HTX-Laufzeitkonfigurationshelper",
-                "../../../connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
+                "../../../modules/ModSecurity-test-Framework/connector_suite/adapters/haproxy/harness/run_haproxy_htx_runtime.sh",
             ),
         ),
         "repository_connector_build_steps": (

@@ -3,6 +3,7 @@
 # This intentionally uses STREAMED (not BUFFERED) body modes. The template is
 # not itself evidence; runtime-smoke-envoy-ext-proc materializes it outside the
 # checkout and validates that generated configuration with Envoy.
+# Generated downstream protocol profile: @DOWNSTREAM_PROTOCOL@
 static_resources:
   listeners:
   - name: msconnector_ext_proc_listener
@@ -16,6 +17,8 @@ static_resources:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           common_tls_context:
+            alpn_protocols:
+            - "@DOWNSTREAM_ALPN_PROTOCOL@"
             tls_certificates:
             - certificate_chain:
                 filename: "@TLS_CERTIFICATE@"
@@ -25,6 +28,8 @@ static_resources:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          codec_type: @DOWNSTREAM_CODEC_TYPE@
+@DOWNSTREAM_HTTP2_PROTOCOL_OPTIONS@
           stat_prefix: msconnector_ext_proc_ingress
           route_config:
             name: msconnector_ext_proc_route

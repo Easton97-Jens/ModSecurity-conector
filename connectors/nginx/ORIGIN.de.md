@@ -43,6 +43,20 @@ NGINX-Smokes bestanden hatten.
 | `connectors/nginx/harness/run_nginx_smoke.sh` | n/a | repository-eigener Parent-Harness | n/a | Parent-Root-only-Distinct-Worker-, private-Output- und Worker-Leaf-Ownership-Härtung | Apache-2.0-kompatible Projekt-Support-Datei | Direkter NGINX-Harness mit `NGINX_MEMCHECK_EVIDENCE_DIR` privat unter `LOG_DIR/memcheck-evidence/<case>` und nur worker-eigenen State-/Server-Access-/Error-/Audit-Leaves unter dem Worker-traversierbaren Harness-Root |
 | `connectors/nginx/SOURCE_MAP.json` | n/a | repository-eigenes Provenienzmanifest | n/a | zeichnet Basis, PR #377, ausgewählte PRs #384--#386, die abgegrenzte Disposition von #387/#388/#389 sowie Parent-/Finding-Evidenzgrenzen einschließlich aktueller Response- und Harness-Härtung auf | Apache-2.0-kompatible Projektmetadaten | Quellmigrations- und PR-Provenienzübersicht |
 
+## Parent-Anpassung für Issue #401
+
+[Issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401)
+ist Design-Input für eine Parent-eigene Korrektur in
+`src/ngx_http_modsecurity_common.h`, `src/ngx_http_modsecurity_access.c` und
+`src/ngx_http_modsecurity_mapper.c`; es ist kein importierter Upstream-Commit.
+Der Adapter stellt die empfangene rohe HTTP/3-Authority als genau einen
+Inspection-only-Host bereit, wenn kein expliziter Host existiert; Port/IPv6,
+Hostname-Mapping, P1-Eingabe und Header-Metriken bleiben erhalten, ohne die
+NGINX-Headerliste zu verändern. Dies folgt dem Raw-Authority-HTTP/2-Shim von
+NGINX statt seinem normalisierten Routing-Hostname.
+Status am 2026-10-24: `implemented_not_runtime_verified`; Tests, Builds und
+Laufzeitvalidierung sind auf Benutzerwunsch zurückgestellt.
+
 ## Layout-Verschiebungen in Phase 13
 
 | Früherer Pfad | Aktueller Pfad | Materialisierter Pfad |

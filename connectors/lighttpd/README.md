@@ -213,12 +213,13 @@ output route. The current harness does not execute streaming P4 traffic, and
 there is no real-client proof of a visible safe result, a precommit deny,
 first-byte delivery, or a strict connection abort. The source path records a
 safe disruptive outcome as `log_only`. Off preserves native handling without
-the additional late policy. The patched callback now returns
-`PLUGIN_BODY_HOOK_ABORT` into the patched core's response-error path for a
-committed Strict intervention; the shared runtime rejects Strict at adapter
-activation for this profile until client-visible abort and follow-up-health
-evidence exists. Accordingly the checked-in Phase-4-related capability states
-remain `not_implemented` for the selected evidence profile.
+the additional late policy. The patched ABI defines `PLUGIN_BODY_HOOK_ABORT`,
+but the current committed-Strict branch logs `NOT EXECUTED` and returns
+`PLUGIN_BODY_HOOK_CONTINUE`; it does not establish a transport abort. The shared
+runtime rejects Strict at adapter activation because this profile does not
+declare a Strict post-commit action. Client-visible abort and follow-up-health
+evidence is still missing. Accordingly the checked-in Phase-4-related capability
+states remain `not_implemented` for the selected evidence profile.
 
 This is an evidence boundary, not a statement that lighttpd can never support
 response-body processing. Phase-4 cases remain unverified (or are omitted by
@@ -233,7 +234,8 @@ remain metadata-only and never include a response-body payload.
 
 ## Phase-4 mode and response-body limit ownership
 
-The default mode is `off`; supported values are `off`, `safe`, and `strict`.
+The default mode is `off`; the shared configuration recognizes `off`, `safe`,
+and `strict`, subject to the profile admission described above.
 No valid Phase-4 mode adds a connector-owned cumulative response-inspection
 budget. libModSecurity owns WAF inspection selection and limits through
 `SecResponseBodyAccess`, `SecResponseBodyMimeType`,

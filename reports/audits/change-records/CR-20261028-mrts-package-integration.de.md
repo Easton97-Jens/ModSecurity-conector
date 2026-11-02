@@ -20,6 +20,13 @@ Jedes Ziel erhält ein geprüftes privates Paket; Vorbereitungsfehler dürfen ke
 
 ## Implementierungsentscheidung und Begründung
 
+**Pin-Statushinweis, 2026-10-30:** Parent-Master `ee1345f1` (#433) wählt
+Framework `d3b47aec9410f7adc3bb40df1ea413c00c438e89` mit beiden Paket-/
+Ergebnis-APIs. Dies ersetzt die fehlende API-/Pin-Voraussetzung dieses
+historischen Records, führt dessen Runtime-Evidence aber nicht erneut aus und
+qualifiziert sie nicht höher. MRTS bleibt unverändert. Ursprüngliche
+aufgabenspezifische Aussagen bleiben unten erhalten.
+
 Die einzige Framework-Schnittstelle `ci/provisioning/mrts-package.py` für `prepare`, `verify` und `materialize` verwenden. Jedes native Ziel nutzt ein eigenes Paket und eine mittels `--output json --file` erzeugte `go-ftw.json`. Framework besitzt `ci/lib/mrts_results.py` und die erneute Berichtsvalidierung. Berichte verwenden den externen `MRTS_NATIVE_REPORT_ROOT`, standardmäßig unter `MRTS_NATIVE_ROOT`. Der aktuelle Parent-Pin enthält diese APIs noch nicht; der PR ist abhängig und bleibt bis Framework-Integration und separat autorisiertem Parent-Pin-Update Draft. Keine Änderung an MRTS-Quellen oder Pin. Die generischen Apache-Einzelfall-, Fallloop- und Fehlerergebnispfade stoppen jetzt bei Writerfehlern; der ausgewählte CRS-Veröffentlichungsvertrag bleibt unverändert. Das Inventar aktualisiert nur die geänderte Apache-Quellbindung, keine Fallauswahl.
 
 ## Geänderte Dateien
