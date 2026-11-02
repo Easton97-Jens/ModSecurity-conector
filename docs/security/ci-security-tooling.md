@@ -208,18 +208,53 @@ the Python candidate validator additionally passes its independently checked
 Parent jobs consuming Framework's existing lock pass
 `--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
 this rejects dependency/version drift and preserves PyYAML `6.0.3` while the
-Parent owns the reviewed Python-3.15 artifact. Framework/MRTS repositories and
-gitlinks stay unchanged; this is not Framework runtime qualification.
+Parent owns the reviewed Python-3.15 artifact. Dependency preparation itself
+does not change repositories or gitlinks; this is not Framework runtime
+qualification.
 
-For read-only submodule validation, the ordinary runner invokes this trusted
-Parent installer in guarded `--ci-toolcache` mode after candidate data checks
-and before sandbox creation. The Framework lock is only parsed as data; no
-candidate code runs during preparation. The runtime containing the verified
-pure-Python dependency is then bound read-only. After dropping privileges, the
+For read-only submodule validation, the ordinary runner invokes the reviewed
+installer in guarded `--ci-toolcache` mode while the Framework checkout still
+matches the pinned Parent gitlink, before candidate checkout and the first
+YAML-dependent candidate contract check. Both installer code and the Framework
+lock come from that pinned checkout; no candidate code runs during preparation.
+The runtime containing the verified pure-Python dependency is then bound read-only. After dropping privileges, the
 candidate verifies the dependency with an isolated `-I` import before running
 `quick-check` using the original selected interpreter. No dependency install or
 builder output is added inside `/external`, whose permission and symlink guards
 remain unchanged.
+
+The Python, Go, workflow-tool and submodule updaters invoke the interpreter verifier with
+`python3 -P` and the exact selected interpreter path. This matches the pinned
+Framework verifier-command contract and excludes the script directory from
+Python's implicit import path. Native jobs authenticate the Framework gitlink and initialized checkout with
+a shell-only gate before setup and the stdlib interpreter verifier; context
+binding then runs before other Python consumers. For jobs using the immutable context action, the early gate requires both
+the committed gitlink and initialized checkout to match that action's selected
+SHA before running checked-out Python. The component synchronizer projects
+these six gate pins through a closed file/count registry together with the
+existing action/input pins, rejecting stale, missing or extra gate pins. The submodule resolver now
+sets up and verifies Python too. The trusted-base Go resolver retains its
+separately checked compatibility bootstrap.
+
+The jointly authorized integration pins Framework to
+`a26b028104b28ddd980290b5af7b3fb195c43f9a`, including the Python 3.15 updater
+and matching Framework inventories/composite ordering. The native component
+synchronizer updates the project lock and 22 registered workflow projections,
+including the six early gate pins, together with the Parent Framework gitlink.
+The native Python contract now accepts 53 jobs, and the exact Framework
+candidate contract passes with NGINX `release-1.31.6`. The Framework child
+`tools/MRTS` gitlink and Parent MRTS lock remain
+`8a6bb546c4c81d8ffc7be801dceac60c6925685f`; no MRTS source changes are included.
+These are local joint-checkout and contract results; hosted execution and
+Parent PR success have not yet been established.
+
+The joint revision also consumes Framework's reviewed Ruff `0.17.3` lock
+and the upstream maintenance import/diagnostic and tooling fixes. The
+canonical-maintenance transaction admits the one registered
+`.github/workflows/ci-findings-regressions.yml` output; replay of the archived
+43-update plan verifies that path repair without publishing those component
+updates. Parent's Python baseline remains `3.15.1`, NGINX remains
+`release-1.31.6`, and the separate upstream MRTS revision is not selected.
 
 ## Constrained Python 3.15 patch updater
 

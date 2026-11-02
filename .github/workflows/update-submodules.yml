@@ -76,7 +76,21 @@ jobs:
           set -euo pipefail
           revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$actual_framework" = "$revision"
           printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Set up canonical Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Bind explicit pinned Framework test context
         shell: bash
@@ -188,7 +202,21 @@ jobs:
           set -euo pipefail
           revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$actual_framework" = "$revision"
           printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Set up toolchain
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Bind explicit pinned Framework test context
         shell: bash
@@ -206,23 +234,18 @@ jobs:
             --connector-revision "$connector_revision" \
             --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
 
-      - name: Set up toolchain
-        id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: .python-version
-          check-latest: false
-
-      - name: Verify Python interpreter contract
-        env:
-          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
-
       - name: Install selected Apache native lifecycle prerequisites
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
+
+      - name: Prepare reviewed Python dependency before runtime protection
+        run: |
+          set -euo pipefail
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
 
       - name: Capture immutable Parent validation baseline
         run: |
@@ -342,13 +365,6 @@ jobs:
             --framework-common "$framework_common" \
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
             --expected-parent-framework-sha "$CURRENT_GITLINK_SHA"
-
-      - name: Prepare reviewed Python dependency before runtime protection
-        run: |
-          set -euo pipefail
-          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache \
-            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
-          python3 -m pip check
 
       - name: Create private read-only candidate guard
         id: create-readonly-candidate-sandbox-guard
@@ -530,7 +546,21 @@ jobs:
           set -euo pipefail
           revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$actual_framework" = "$revision"
           printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Bind explicit pinned Framework test context
         shell: bash
@@ -547,18 +577,6 @@ jobs:
             --connector-root "$connector_root" \
             --connector-revision "$connector_revision" \
             --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
-
-      - name: Setup Python
-        id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: .python-version
-          check-latest: false
-
-      - name: Verify Python interpreter contract
-        env:
-          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
 
       - name: Verify submodule publisher GitHub App configuration
         env:
