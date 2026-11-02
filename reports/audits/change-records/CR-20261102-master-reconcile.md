@@ -55,4 +55,3 @@ Lokale Sonar-Secrets-Prüfung aufgrund ausdrücklicher Benutzeranweisung nicht a
 ## Final diff and review status
 
 Task-owned changes are isolated from existing checkouts/worktrees. Framework and Parent delivery remain separate Draft PRs, with MRTS minimal test-only DraftPR#5 independently approved and delivered at bf756a403ead39863cc15a81b5608e2b6062435d. No merge, force-push, direct master/main push or protection change is authorized or performed. Overall outcome remains partial until recorded mandatory gaps are resolved.
-

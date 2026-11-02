@@ -55,4 +55,3 @@ Lokale Sonar-Secrets-Prüfung aufgrund ausdrücklicher Benutzeranweisung nicht a
 ## Finaler Diff- und Review-Status
 
 Taskänderungen sind von bestehenden Checkouts/Worktrees isoliert. Framework- und Parent-Lieferung bleiben getrennte Draft-PRs; der minimale reine MRTS-Test-DraftPR#5 wurde unabhängig freigegeben und mit bf756a403ead39863cc15a81b5608e2b6062435d geliefert. Kein Merge, Force-Push, direkter Master-/Main-Push oder Schutzregelwechsel ist freigegeben oder ausgeführt. Gesamtergebnis bleibt partial bis zur Auflösung der erfassten Pflichtlücken.
-
