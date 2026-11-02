@@ -33,9 +33,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts@03fa02bacfc327863d91723fdc77a4888a33f0a8
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts@965797c84142813e2992971fdf2add9a56170d5a
         with:
-          framework-revision: 03fa02bacfc327863d91723fdc77a4888a33f0a8
+          framework-revision: 965797c84142813e2992971fdf2add9a56170d5a
           caller-matrix: ${{ toJSON(matrix) }}
   manual-heavy-runtime-validation:
     if: ${{ always() && inputs.on_demand }}
@@ -60,10 +60,10 @@ jobs:
       BUILD_NGINX_FROM_SOURCE: "1"
       NGINX_SOURCE_MODE: github-release
       NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
-      NGINX_RELEASE_TAG: release-1.31.6
-      NGINX_SOURCE_GIT_REF: release-1.31.6
-      NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz
-      NGINX_SHA256: 974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1
+      NGINX_RELEASE_TAG: release-1.31.8
+      NGINX_SOURCE_GIT_REF: release-1.31.8
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.8.tar.gz
+      NGINX_SHA256: 0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1
       NGINX_REQUIRE_PINNED_PROVENANCE: "1"
       SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
       SMOKE_LOCK_MODE: wait
@@ -78,7 +78,7 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation@03fa02bacfc327863d91723fdc77a4888a33f0a8
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation@965797c84142813e2992971fdf2add9a56170d5a
         with:
-          framework-revision: 03fa02bacfc327863d91723fdc77a4888a33f0a8
+          framework-revision: 965797c84142813e2992971fdf2add9a56170d5a
           caller-matrix: ${{ toJSON(matrix) }}

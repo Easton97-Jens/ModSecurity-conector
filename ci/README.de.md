@@ -27,6 +27,14 @@ Auswahl privilegierten Testcodes. Kandidatenquellen sind kein vertrauenswürdige
 Code. Feste Tool-Allowlist und geschütztes Host-Gate bleiben Pflicht; fehlende
 Hostvoraussetzungen bedeuten `BLOCKED`, niemals automatischen Fallback oder PASS.
 
+Der Submodul-Updater führt seinen Kandidaten-Vertragsprüfer mit isoliertem Python
+(`-I`) aus. Er expandiert Parent-Workflow-Wrapper mit Parsercode aus dem
+committeten Parent-Framework-Gitlink und liest Action- und Producer-Daten aus der
+exakten Framework-Revision im geprüften Parent-Lock. So sind Prüfungen vor und
+nach der Synchronisierung unabhängig vom aktiven Framework-Checkout und
+`FRAMEWORK_REVISION`. Kandidaten-Python wird nicht importiert; inkompatible
+NGINX-Übergaben schlagen weiterhin fehl.
+
 ## Auswahl und Evidence
 
 Das Framework-Inventar bewahrt 100 Standardfälle / 80 Ausführungen und die

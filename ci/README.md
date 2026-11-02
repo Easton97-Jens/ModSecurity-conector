@@ -26,6 +26,13 @@ before selecting privileged test code. Candidate source is not trusted code.
 The fixed tool allowlist and protected-host gate remain mandatory; an absent
 host prerequisite is `BLOCKED`, never an automatic fallback or PASS.
 
+The submodule updater runs its candidate-contract verifier with isolated Python
+(`-I`). It expands Parent workflow wrappers using parser code from the committed
+Parent Framework gitlink and reads action and producer data from the exact
+Framework revision in the checked Parent lock. This keeps pre-sync and post-sync
+checks independent of the active Framework checkout and `FRAMEWORK_REVISION`.
+Candidate Python is not imported; incompatible NGINX handoffs still fail.
+
 ## Selection and evidence
 
 The Framework inventory preserves 100 standard cases / 80 executions and the

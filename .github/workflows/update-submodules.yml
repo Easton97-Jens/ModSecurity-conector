@@ -359,7 +359,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
             --framework-sha "$CANDIDATE_SHA"
-          python3 ci/tools/verify-framework-candidate-contract.py \
+          python3 -I ci/tools/verify-framework-candidate-contract.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
@@ -577,6 +577,14 @@ jobs:
             --connector-root "$connector_root" \
             --connector-revision "$connector_revision" \
             --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
+
+      - name: Prepare reviewed publisher parser dependency before credentials
+        run: |
+          set -euo pipefail
+          python3 modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache \
+            --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+          python3 -m pip check
+          python3 -I -c 'import yaml'
 
       - name: Verify submodule publisher GitHub App configuration
         env:
@@ -1079,7 +1087,7 @@ jobs:
             --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
           # Confirm the checked Parent projection still matches the reviewed
           # gitlink before the privileged job transforms it to the candidate.
-          python3 ci/tools/verify-framework-candidate-contract.py \
+          python3 -I ci/tools/verify-framework-candidate-contract.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
@@ -1095,7 +1103,7 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
             --framework-sha "$CANDIDATE_SHA"
-          python3 ci/tools/verify-framework-candidate-contract.py \
+          python3 -I ci/tools/verify-framework-candidate-contract.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
