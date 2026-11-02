@@ -211,15 +211,31 @@ this rejects dependency/version drift and preserves PyYAML `6.0.3` while the
 Parent owns the reviewed Python-3.15 artifact. Framework/MRTS repositories and
 gitlinks stay unchanged; this is not Framework runtime qualification.
 
-For read-only submodule validation, the ordinary runner invokes this trusted
-Parent installer in guarded `--ci-toolcache` mode after candidate data checks
-and before sandbox creation. The Framework lock is only parsed as data; no
-candidate code runs during preparation. The runtime containing the verified
-pure-Python dependency is then bound read-only. After dropping privileges, the
+For read-only submodule validation, the ordinary runner invokes the reviewed
+installer in guarded `--ci-toolcache` mode while the Framework checkout still
+matches the pinned Parent gitlink, before candidate checkout and the first
+YAML-dependent candidate contract check. Both installer code and the Framework
+lock come from that pinned checkout; no candidate code runs during preparation.
+The runtime containing the verified pure-Python dependency is then bound read-only. After dropping privileges, the
 candidate verifies the dependency with an isolated `-I` import before running
 `quick-check` using the original selected interpreter. No dependency install or
 builder output is added inside `/external`, whose permission and symlink guards
 remain unchanged.
+
+The Python, Go, workflow-tool and submodule updaters invoke the interpreter verifier with
+`python3 -P` and the exact selected interpreter path. This matches the pinned
+Framework verifier-command contract and excludes the script directory from
+Python's implicit import path. Native jobs authenticate the Framework gitlink and initialized checkout with
+a shell-only gate before setup and the stdlib interpreter verifier; context
+binding then runs before other Python consumers. For jobs using the immutable context action, the early gate requires both
+the committed gitlink and initialized checkout to match that action's selected
+SHA before running checked-out Python. The component synchronizer projects
+these six gate pins through a closed file/count registry together with the
+existing action/input pins, rejecting stale, missing or extra gate pins. The submodule resolver now
+sets up and verifies Python too. The trusted-base Go resolver retains its
+separately checked compatibility bootstrap. Framework-wide workflow inventories
+and composite ordering require their own Framework change; composed static
+validation is not proof of a changed gitlink or successful hosted execution.
 
 ## Constrained Python 3.15 patch updater
 

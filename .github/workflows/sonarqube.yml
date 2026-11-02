@@ -53,10 +53,16 @@ jobs:
           fetch-depth: 0
           submodules: true
           persist-credentials: false
-      - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@f11d4617ff98ad615c72c1b6672fc386394db41e
-        with:
-          framework-revision: f11d4617ff98ad615c72c1b6672fc386394db41e
+      - name: Authenticate pinned Framework before interpreter verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_framework=f11d4617ff98ad615c72c1b6672fc386394db41e
+          declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$declared_framework" = "$expected_framework"
+          test "$actual_framework" = "$expected_framework"
+
       - name: Keep analysis output outside the checkout
         shell: bash
         run: |
@@ -76,6 +82,10 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Validate the pinned Framework and explicit connector context
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@f11d4617ff98ad615c72c1b6672fc386394db41e
+        with:
+          framework-revision: f11d4617ff98ad615c72c1b6672fc386394db41e
       - name: Validate Parent analysis scope
         run: |
           set -eu

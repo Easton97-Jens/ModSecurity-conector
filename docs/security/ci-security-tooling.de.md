@@ -224,16 +224,35 @@ dies weist Abhängigkeits-/Versionsdrift zurück und erhält PyYAML `6.0.3`, wä
 der Parent das geprüfte Python-3.15-Artefakt verantwortet. Framework-/MRTS-Repositories
 und Gitlinks bleiben unverändert; dies ist keine Framework-Runtime-Qualifizierung.
 
-Für die schreibgeschützte Submodul-Validierung ruft der normale Runner diesen
-vertrauenswürdigen Parent-Installer nach der Kandidatendatenprüfung und vor der
-Sandbox-Erstellung im geschützten Modus `--ci-toolcache` auf. Der Framework-Lock
-wird nur als Daten geparst; bei der Vorbereitung läuft kein Kandidatencode.
+Für die schreibgeschützte Submodul-Validierung ruft der normale Runner den
+geprüften Installer im geschützten Modus `--ci-toolcache` auf, solange der
+Framework-Checkout noch dem gepinnten Parent-Gitlink entspricht: vor dem
+Kandidaten-Checkout und der ersten YAML-abhängigen Kandidatenvertragsprüfung.
+Installer-Code und Framework-Lock stammen aus diesem gepinnten Checkout;
+bei der Vorbereitung läuft kein Kandidatencode.
 Die Runtime mit der geprüften reinen Python-Abhängigkeit wird anschließend
 schreibgeschützt eingebunden. Nach dem Privilegienwechsel prüft der Kandidat
 die Abhängigkeit durch einen isolierten `-I`-Import und führt danach
 `quick-check` mit dem ursprünglich gewählten Interpreter aus. Innerhalb von
 `/external` werden keine Abhängigkeiten oder Builder-Ausgaben hinzugefügt;
 dessen Rechte- und Symlink-Schutz bleiben unverändert.
+
+Die Python-, Go-, Workflow-Tool- und Submodul-Updater rufen den Interpreter-Verifier mit
+`python3 -P` und dem exakten Pfad des ausgewählten Interpreters auf. Das
+entspricht dem Verifier-Befehlsvertrag des gepinnten Frameworks und schließt
+das Skriptverzeichnis aus Pythons implizitem Importpfad aus. Native Jobs authentifizieren Framework-Gitlink und initialisierten Checkout
+durch eine reine Shell-Prüfung vor Setup und dem stdlib-Interpreter-Verifier;
+die Kontextbindung erfolgt danach vor anderen Python-Verbrauchern. Bei Jobs mit der unveränderlichen Kontext-Action müssen vor ausgechecktem
+Python sowohl committed Gitlink als auch initialisierter Checkout zum
+ausgewählten SHA dieser Action passen. Der Komponenten-Synchronisierer
+projiziert diese sechs Prüfungs-Pins durch ein geschlossenes Datei-/Anzahlregister
+gemeinsam mit den bestehenden Action-/Input-Pins und verwirft veraltete, fehlende
+oder zusätzliche Prüfungs-Pins. Auch der
+Submodul-Resolver richtet Python jetzt ein und prüft es. Der Go-Resolver auf
+Trusted-Base behält seinen separat geprüften Kompatibilitäts-Bootstrap.
+Framework-weite Workflow-Inventare und Composite-Reihenfolgen erfordern eine
+eigene Framework-Änderung; zusammengesetzte statische Validierung belegt weder
+einen geänderten Gitlink noch eine erfolgreiche gehostete Ausführung.
 
 ## Eingeschränkter Python-3.15-Patch-Updater
 
