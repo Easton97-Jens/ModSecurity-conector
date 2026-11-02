@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@b85280278310f4034af78149ac13671438965c7b
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@34dc7f9e7f9f9b1de42b5a19a491e804f7c7d747
         with:
-          framework-revision: b85280278310f4034af78149ac13671438965c7b
+          framework-revision: 34dc7f9e7f9f9b1de42b5a19a491e804f7c7d747
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@b85280278310f4034af78149ac13671438965c7b
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@34dc7f9e7f9f9b1de42b5a19a491e804f7c7d747
         with:
-          framework-revision: b85280278310f4034af78149ac13671438965c7b
+          framework-revision: 34dc7f9e7f9f9b1de42b5a19a491e804f7c7d747
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@b85280278310f4034af78149ac13671438965c7b
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@34dc7f9e7f9f9b1de42b5a19a491e804f7c7d747
         with:
-          framework-revision: b85280278310f4034af78149ac13671438965c7b
+          framework-revision: 34dc7f9e7f9f9b1de42b5a19a491e804f7c7d747
