@@ -42,6 +42,13 @@ Keine frische Connector-Host- oder H2/H3-Kampagne. Common-/gcov- und Go-Coverage
 
 ## Bekannte Einschränkungen
 
+Der Benutzer wählte gezielte Coverage-Messung mit dokumentierten Grenzen.
+Die116 benannten Python-Tests und tatsächlichen Go-/Common-Messungen erfüllen
+diesen Messumfang; Abschluss oder Wiederholung des vollständigen
+Spezialassessments mit977 Ausführungen ist nicht erforderlich. Sein historischer
+Abbruch und unabhängige Broker-, Runtime- und Dependency-Befunde bleiben
+dokumentiert; CI-Prüfungen bleiben unverändert.
+
 Gehostete Parent440-CI an38ebc633 lehnt vor ausgewählter Ausführung die
 common.sh-Bindung des gewählten Framework91145 ab:156 änderte den Python-
 Patchpin ohne Aktualisierung dieses Digests. Alle28 untersuchten einzeln

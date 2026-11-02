@@ -25,12 +25,20 @@ Separate work refreshed before delivery: Framework [PR155](https://github.com/Ea
 |3 Traefik auth preparation | Removed Connector-local capture/manifest references use Framework source_path; split-checkout source-location regression passes through real offline admission. | Full preparation still fails Sealed Traefik profile differs;10/19 historical repository objects drifted. Keep registry/profile/export guards; obtain supported archive regeneration and reviewed source contract. No manual archive rewrite or host claim. |
 |4 Inheritance and host guide | Five Parent policy bodies substantively reviewed; catalog/templates and Framework inheritance pins refreshed; Parent native inheritance validator passes. Guide records147/437 integrated and436 closed unmerged. Historical November1 receipt is present. | Full native cross-repository validation against the currently pinned children remains nonpassing; actual MRTS child digests stay unchanged under the narrowly approved test-only scope. No fresh final-pair NGINX/Envoy host run. |
 |5 Apache docs | EN/DE architecture and Apache guide now match progressive pre-EOS forwarding, commitment and engine-owned inspection limits. No product source changed. Native bilingual/link checks pass. | Documentation/source evidence only, no new runtime qualification. |
-|6 Coverage/dependencies | Real scoped Python, four Go-module and Common/gcov metrics with branches where available; source hashes/selectors/exclusions recorded. Bounded components and installed-package metadata inventory produced. x/net/html absent from real Envoy compiled graph. | Full Python specialist run failed after 56 passes; later caller-boundary fixture repair has 22 passes but full run was not repeated. Generic broker module remains45/46. Native tuple updates/reachability and exhaustive native/binary/container SBOM stay open. Sonar coverage exception/import unchanged. |
+|6 Coverage/dependencies | User-selected targeted measurement delivered: real scoped Python, four Go-module and Common/gcov metrics with branches where available; source hashes/selectors/exclusions recorded. Bounded components and installed-package metadata inventory produced. x/net/html absent from real Envoy compiled graph. | Historical full Python specialist run failed after56 passes; completing or repeating it is outside the selected measurement scope. Later caller-boundary fixture repair has22 passes; generic broker module remains45/46 as an independent defect. Native tuple updates/reachability and exhaustive native/binary/container SBOM stay open. Sonar coverage exception/import unchanged. |
 |7 Merge checks | Live before/after JSON and standalone additive master-only create payloads prepared; current protection preserved; events, forks, path filters, duplicate names and advisory/manual boundaries reviewed. | Proposals NOT APPLIED. Separate admin approval required; classic branch-protection reads return403. No manual host/H2/H3 campaign made required. |
 |8 FIFO/setup/MRTS | FIFO import startup separated from unchanged2s operation watchdog;27 cold-cache artifact/receipt/fixture tests pass. Original Ubuntu Framework structure validator passes after ignored nonsecret local setup. MRTS exact governance suite30/30 after one-line existing-diagnostic assertion repair; all five returned PR5 checks pass. | Local Python 3.14.4 is not exact MRTS CI3.14.6 parity; GitHub governance lane supplies its own current-head result. No MRTS corpus/product or gitlink change. |
 |9 Verification/delivery | Separate Drafts, paired records, native generators/checks and independent bounded patch review; no introduced material findings. No master/main push, force-push, merge or protection bypass. | Overall partial; current-head CI must be assessed separately and unresolved items above cannot be closed by broad green CI. |
 
 ## Actual coverage
+
+The user explicitly selected targeted measurement with documented limitations:
+116 named Python tests plus the measured four Go modules and Common/native scope.
+These measurements satisfy that selected measurement deliverable. Completing or
+rerunning the full977-execution specialist assessment is not a completion
+criterion for this coverage scope. Its historical failure and independently
+relevant defects remain recorded. Required CI gates and the default100-case
+selection remain unchanged.
 
 | Scope | Observed coverage | Meaning |
 | --- | --- | --- |
@@ -41,7 +49,7 @@ Separate work refreshed before delivery: Framework [PR155](https://github.com/Ea
 | Traefik observer Go |300/752 statements(39.89%) |Same scoped selection boundary. |
 | Common native |2869/4290 lines(66.88%);1903/3977 branches(47.85%) |Union of real gcov observations by Parent source/line/branch across generated binaries. |
 
-Go profiles provide statement coverage, not branch counts. No arbitrary target was added. The raw coverage run binds Parent 430d3194 and then-dirty Framework 91145 sources by recorded SHA-256; later fixture metadata changes do not retroactively qualify another pair. This closes the absence of actual scoped measurement, while broad Python execution, host coverage and analyzer import remain distinct gaps. Existing Sonar coverage exclusion remains intact.
+Go profiles provide statement coverage, not branch counts. No arbitrary target was added. The raw coverage run binds Parent 430d3194 and then-dirty Framework 91145 sources by recorded SHA-256; later fixture metadata changes do not retroactively qualify another pair. This closes the absence of actual scoped measurement. Broader Python execution is outside the user-selected measurement scope; host qualification and analyzer import are not established. Existing Sonar coverage exclusion remains intact.
 
 ## Validation and evidence
 

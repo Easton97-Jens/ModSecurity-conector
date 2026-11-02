@@ -25,12 +25,20 @@ Vor Lieferung erneut geprüfte getrennte Arbeiten: Framework[PR155](https://gith
 |3 Traefik-Auth-Vorbereitung |Entfernte Connector-Capture-/Manifestpfade verwenden Framework-source_path; Source-Location-Regression mit getrennten Checkouts besteht unter echter Offline-Zulassung. |Vollständige Vorbereitung scheitert weiterhin mit Sealed Traefik profile differs;10/19 historische Repository-Objekte weichen ab. Registry-/Profil-/Export-Guards erhalten; unterstützte Archivregenerierung und geprüften Quellvertrag bereitstellen. Kein manuelles Archivumschreiben oder Hostanspruch. |
 |4 Inheritance und Hostanleitung |Fünf Parent-Policy-Inhalte geprüft; Katalog/Templates und Framework-Vererbungspins erneuert; nativer Parent-Inheritance-Validator besteht. Anleitung erfasst147/437 integriert und436 ungemergt geschlossen. Historischer November1-Beleg vorhanden. |Vollständige native Prüfung gegen aktuell gepinnte Kinder bleibt nicht bestanden; tatsächliche MRTS-Kind-Digests bleiben wegen eng freigegebenem reinen Testumfang unverändert. Kein frischer NGINX-/Envoy-Hostlauf des endgültigen Paars. |
 |5 Apache-Dokumentation |EN/DE-Architektur und Apache-Anleitung entsprechen progressiver Weiterleitung vor EOS, Commit-Grenze und engineeigenen Inspection-Limits. Kein Produktquelltext geändert. Native Sprachpaar-/Linkprüfungen bestehen. |Dokumentations-/Quellnachweis, keine neue Runtime-Qualifikation. |
-|6 Coverage/Abhängigkeiten |Echte gezielte Python-, vier Go-Modul- und Common-/gcov-Werte mit verfügbaren Branch-Daten; Quelldigests/Selektoren/Ausschlüsse erfasst. Begrenztes Komponenten- und installiertes Paketmetadaten-Inventar erstellt. x/net/html fehlt im tatsächlichen Envoy-Buildgraphen. |Vollständiger Python-Speziallauf scheiterte nach 56 Erfolgen; spätere Caller-Fixture-Korrektur hat 22 Erfolge, Gesamtlauf nicht wiederholt. Generisches Broker-Modul bleibt 45/46. Native Tupelupdates/Erreichbarkeit und vollständige native/Binär-/Container-SBOM bleiben offen. Sonar-Coverage-Ausnahme/-Import unverändert. |
+|6 Coverage/Abhängigkeiten |Vom Benutzer gewählte gezielte Messung geliefert: echte begrenzte Python-, vier Go-Modul- und Common-/gcov-Werte mit verfügbaren Branch-Daten; Quelldigests/Selektoren/Ausschlüsse erfasst. Begrenztes Komponenten- und installiertes Paketmetadaten-Inventar erstellt. x/net/html fehlt im tatsächlichen Envoy-Buildgraphen. |Historischer vollständiger Python-Speziallauf scheiterte nach56 Erfolgen; Abschluss oder Wiederholung liegt außerhalb des gewählten Messumfangs. Spätere Caller-Fixture-Korrektur hat22 Erfolge; generisches Broker-Modul bleibt45/46 als unabhängiger Fehler. Native Tupelupdates/Erreichbarkeit und vollständige native/Binär-/Container-SBOM bleiben offen. Sonar-Coverage-Ausnahme/-Import unverändert. |
 |7 Merge-Prüfungen |Live-Vorher-/Nachher-JSON und eigenständige additive Master-Anlagevorlagen vorbereitet; bestehender Schutz erhalten; Ereignisse, Forks, Pfadfilter, doppelte Namen und Beratungs-/manuelle Grenzen geprüft. |Vorlagen NICHT ANGEWENDET. Gesonderte Adminfreigabe nötig; klassische Branch-Protection liefert 403. Keine manuellen Host-/H2/H3-Kampagnen verpflichtend gemacht. |
 |8 FIFO/Einrichtung/MRTS |FIFO-Importstart vom unveränderten 2s-Operationswatchdog getrennt;27 Cold-Cache-Artefakt-/Receipt-/Fixture-Tests bestehen. Ursprünglicher Ubuntu-Framework-Strukturvalidator besteht nach ignorierter nicht geheimer Einrichtung. MRTS-Governance exakt30/30 nach einzeiliger Anpassung an vorhandene Diagnose; alle fünf gelieferten PR5-Checks bestehen. |Lokales Python 3.14.4 bedeutet keine exakte MRTS-CI3.14.6-Parität; GitHub-Governance-Lane liefert eigenen aktuellen Head-Nachweis. Keine MRTS-Korpus-/Produkt- oder Gitlink-Änderung. |
 |9 Verifikation/Lieferung |Getrennte Drafts, Sprachpaar-Nachweise, native Generatoren/Prüfungen und unabhängige begrenzte Patchprüfung; keine eingeführten wesentlichen Befunde. Kein Master-/Main-Push, Force-Push, Merge oder Schutzbypass. |Gesamtergebnis partial; CI des aktuellen Heads gesondert bewerten, offene Punkte nicht durch allgemeine grüne CI schließen. |
 
 ## Tatsächliche Coverage
+
+Der Benutzer wählte ausdrücklich eine gezielte Messung mit dokumentierten Grenzen:
+116 benannte Python-Tests sowie die gemessenen vier Go-Module und Common/Native.
+Diese Messungen erfüllen den gewählten Messauftrag. Abschluss oder Wiederholung
+des vollständigen Spezialassessments mit977 Ausführungen ist kein
+Abschlusskriterium dieses Coverage-Umfangs. Sein historischer Abbruch und
+unabhängig relevante Fehler bleiben dokumentiert. CI-Pflichtprüfungen und die
+Standardauswahl von100 Fällen bleiben unverändert.
 
 | Umfang | Beobachtete Coverage | Bedeutung |
 | --- | --- | --- |
@@ -41,7 +49,7 @@ Vor Lieferung erneut geprüfte getrennte Arbeiten: Framework[PR155](https://gith
 |Traefik observer Go |300/752 Statements(39,89%) |Dieselbe begrenzte Auswahl. |
 |Common native |2869/4290 Zeilen(66,88%);1903/3977 Branches(47,85%) |Vereinigung echter gcov-Beobachtungen nach Parent-Quelle/Zeile/Branch über erzeugte Binärdateien. |
 
-Go-Profile liefern Statement-Coverage, keine Branch-Zahlen. Kein beliebiges Ziel hinzugefügt. Die Rohmessung bindet Parent 430d3194 und damalige nicht eingecheckte Framework 91145-Quellen über erfasste SHA-256; spätere Fixture-Metadaten qualifizieren kein anderes Paar rückwirkend. Damit ist die Lücke fehlender tatsächlicher begrenzter Messung geschlossen; breite Python-Ausführung, Host-Coverage und Analyseimport bleiben getrennte Lücken. Bestehender Sonar-Coverage-Ausschluss bleibt erhalten.
+Go-Profile liefern Statement-Coverage, keine Branch-Zahlen. Kein beliebiges Ziel hinzugefügt. Die Rohmessung bindet Parent 430d3194 und damalige nicht eingecheckte Framework 91145-Quellen über erfasste SHA-256; spätere Fixture-Metadaten qualifizieren kein anderes Paar rückwirkend. Damit ist die Lücke fehlender tatsächlicher begrenzter Messung geschlossen. Breitere Python-Ausführung liegt außerhalb des vom Benutzer gewählten Messumfangs; Hostqualifikation und Analyseimport sind nicht nachgewiesen. Bestehender Sonar-Coverage-Ausschluss bleibt erhalten.
 
 ## Validierung und Nachweise
 

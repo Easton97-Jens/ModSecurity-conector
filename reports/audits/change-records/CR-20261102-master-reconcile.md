@@ -42,6 +42,12 @@ No fresh connector-host or H2/H3 campaign. Common/gcov and Go coverage establish
 
 ## Known limitations
 
+The user selected targeted coverage measurement with documented limitations.
+The116 named Python tests plus actual Go/Common measurements satisfy that
+measurement scope; completing or rerunning the full977-execution specialist
+assessment is not required. Its historical failure and the independent broker,
+runtime and dependency findings remain documented; CI gates are unchanged.
+
 Hosted Parent440 CI at38ebc633 rejects the selected91145 Framework common.sh
 binding before selected execution:156 changed the Python patch pin without
 refreshing that digest. All28 inspected individual failed jobs share this
