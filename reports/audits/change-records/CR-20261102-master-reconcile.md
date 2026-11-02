@@ -42,6 +42,15 @@ No fresh connector-host or H2/H3 campaign. Common/gcov and Go coverage establish
 
 ## Known limitations
 
+Hosted Parent440 CI at38ebc633 rejects the selected91145 Framework common.sh
+binding before selected execution:156 changed the Python patch pin without
+refreshing that digest. All28 inspected individual failed jobs share this
+admission cause; the five-cell aggregate additionally fails after incomplete
+failure-receipt retention. The exact-head JSON and EN/DE closeout preserve
+diagnostics and source hashes. Framework159 regenerates the binding through
+the existing tool; no guard is weakened. After authorized Framework integration,
+pin its actual merge commit and qualify the final committed pair.
+
 Full Traefik auth preparation still fails closed on a sealed profile;10/19 historical registry repository objects drifted. The full Python specialist measurement failed after 56 completed cases on the protected caller contract; timing was not reached. The current thin Parent wrapper is incompatible with the immutable protected broker's historical inline admission contract. Native full inheritance against the currently pinned nested Framework/MRTS remains pending.
 
 ## Remaining risks

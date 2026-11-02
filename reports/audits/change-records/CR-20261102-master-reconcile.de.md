@@ -42,6 +42,16 @@ Keine frische Connector-Host- oder H2/H3-Kampagne. Common-/gcov- und Go-Coverage
 
 ## Bekannte Einschränkungen
 
+Gehostete Parent440-CI an38ebc633 lehnt vor ausgewählter Ausführung die
+common.sh-Bindung des gewählten Framework91145 ab:156 änderte den Python-
+Patchpin ohne Aktualisierung dieses Digests. Alle28 untersuchten einzeln
+fehlgeschlagenen Jobs haben diese Zulassungsursache; das Fünf-Zellen-Aggregat
+scheitert zusätzlich nach unvollständiger Aufbewahrung der Fehlerbelege.
+Headgebundenes JSON und EN/DE-Abschlussnachweis erhalten Diagnosen und
+Quelldigests. Framework159 regeneriert die Bindung mit dem bestehenden Werkzeug;
+kein Guard wird abgeschwächt. Nach genehmigter Framework-Integration dessen
+tatsächlichen Merge-Commit pinnen und das endgültige eingecheckte Paar qualifizieren.
+
 Die vollständige Traefik-Auth-Vorbereitung scheitert weiterhin geschlossen an einem versiegelten Profil;10/19 historische Registry-Repository-Objekte weichen ab. Die vollständige Python-Spezialmessung scheiterte nach 56 abgeschlossenen Fällen am geschützten Aufrufervertrag; Timing wurde nicht erreicht. Der aktuelle dünne Parent-Wrapper ist mit dem historischen Inline-Zulassungsvertrag des unveränderlich gepinnten Brokers inkompatibel. Vollständige native Vererbungsprüfung gegen derzeit eingebettetes Framework/MRTS bleibt offen.
 
 ## Verbleibende Risiken

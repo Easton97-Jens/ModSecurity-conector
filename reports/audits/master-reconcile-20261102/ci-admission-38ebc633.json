@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-11-02T10:20:56Z",
+  "repository": "Easton97-Jens/ModSecurity-conector",
+  "head_sha": "38ebc6337e4cc2eaf56930a2f5be890804f3a669",
+  "selected_framework_sha": "91145b7ba721bdec4e89af754cf40bf496fd2a08",
+  "scope": "Historical exact-head CI inspection; not a qualification of subsequent commits or of the final integrated commit pair.",
+  "classification": {
+    "primary": "All 28 inspected individual failed jobs reject the stale Framework common.sh source binding before selected execution.",
+    "actual_sha256": "8e39a221e044441e89753bfff64564579dcbc656bccf7d92368e518a2d7a59db",
+    "expected_sha256": "3aa782dd117fdf66194861e5a1f97e492f13321db77129da79aadcec2e655e2c",
+    "source_change": "Framework #156 updated CPython 3.14.8 to3.14.10 without regenerating the inventory binding.",
+    "binding_scope": "Exactly one drift among 528 Framework source bindings at91145.",
+    "prepared_correction": "Framework PR159 regenerates reviewed bindings through the existing maintenance generator; integration is not authorized.",
+    "secondary": [
+      "Envoy/Traefik/lighttpd failure receipt retention rejects the absent verified directory after early admission failure.",
+      "Only Apache failure receipt downloaded; aggregate rejects a non-directory and does not establish five-cell coverage."
+    ],
+    "inference_limit": "Selected product test/build/runtime execution behind admission was not established. Subsequent failures remain possible after correction."
+  },
+  "checks": [
+    {
+      "id": 125215465574,
+      "name": "SonarCloud Code Analysis",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/runs/125215465574"
+    },
+    {
+      "id": 125215222415,
+      "name": "Aggregate exact five with-CRS / no MRTS cells",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394445/job/125215222415"
+    },
+    {
+      "id": 125214793490,
+      "name": "CodeQL",
+      "status": "completed",
+      "conclusion": "neutral",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/runs/125214793490"
+    },
+    {
+      "id": 125214568015,
+      "name": "osv-scanner",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/runs/125214568015"
+    },
+    {
+      "id": 125214223738,
+      "name": "envoy-go",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394470/job/125214223738"
+    },
+    {
+      "id": 125214223700,
+      "name": "traefik-go",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394470/job/125214223700"
+    },
+    {
+      "id": 125213930845,
+      "name": "scheduled-advisory",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394367/job/125213930845"
+    },
+    {
+      "id": 125213930009,
+      "name": "nginx-profile-and-client-preflight",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394413/job/125213930009"
+    },
+    {
+      "id": 125213929743,
+      "name": "default-branch",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394311/job/125213929743"
+    },
+    {
+      "id": 125213929336,
+      "name": "advisory-full-history",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394364/job/125213929336"
+    },
+    {
+      "id": 125213929211,
+      "name": "Runtime with CRS / no MRTS / traefik",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394445/job/125213929211"
+    },
+    {
+      "id": 125213929098,
+      "name": "Runtime with CRS / no MRTS / envoy",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394445/job/125213929098"
+    },
+    {
+      "id": 125213929079,
+      "name": "Runtime with CRS / no MRTS / haproxy",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394445/job/125213929079"
+    },
+    {
+      "id": 125213929051,
+      "name": "Runtime with CRS / no MRTS / lighttpd",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394445/job/125213929051"
+    },
+    {
+      "id": 125213928679,
+      "name": "Runtime with CRS / no MRTS / apache",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394445/job/125213928679"
+    },
+    {
+      "id": 125213928621,
+      "name": "scaffold-lint",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394389/job/125213928621"
+    },
+    {
+      "id": 125213928490,
+      "name": "go-candidate (connectors/traefik/response_observer)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394301/job/125213928490"
+    },
+    {
+      "id": 125213928477,
+      "name": "apr-util-provenance",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394282/job/125213928477"
+    },
+    {
+      "id": 125213928451,
+      "name": "go-candidate (connectors/envoy/ext_proc)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394301/job/125213928451"
+    },
+    {
+      "id": 125213928395,
+      "name": "actions",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394470/job/125213928395"
+    },
+    {
+      "id": 125213928379,
+      "name": "go-candidate (connectors/traefik/composite_middleware)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394301/job/125213928379"
+    },
+    {
+      "id": 125213928364,
+      "name": "bounded-c-cpp",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394470/job/125213928364"
+    },
+    {
+      "id": 125213928363,
+      "name": "sdk",
+      "status": "in_progress",
+      "conclusion": null,
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394401/job/125213928363"
+    },
+    {
+      "id": 125213928336,
+      "name": "pull-request-diff",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394367/job/125213928336"
+    },
+    {
+      "id": 125213928322,
+      "name": "quick-check",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394335/job/125213928322"
+    },
+    {
+      "id": 125213928306,
+      "name": "Sonar C++20 (advisory)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394363/job/125213928306"
+    },
+    {
+      "id": 125213928305,
+      "name": "zizmor",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394282/job/125213928305"
+    },
+    {
+      "id": 125213928212,
+      "name": "Sonar C++17 (required)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394363/job/125213928212"
+    },
+    {
+      "id": 125213928179,
+      "name": "apache-autotools-bootstrap",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394420/job/125213928179"
+    },
+    {
+      "id": 125213928017,
+      "name": "go-candidate (connectors/traefik/native_middleware)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394301/job/125213928017"
+    },
+    {
+      "id": 125213928012,
+      "name": "actionlint",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394282/job/125213928012"
+    },
+    {
+      "id": 125213927967,
+      "name": "Sonar C++23 (advisory)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394363/job/125213927967"
+    },
+    {
+      "id": 125213927961,
+      "name": "protocol-contract",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394413/job/125213927961"
+    },
+    {
+      "id": 125213927921,
+      "name": "trusted-go-version",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394470/job/125213927921"
+    },
+    {
+      "id": 125213927901,
+      "name": "apache-structure",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394420/job/125213927901"
+    },
+    {
+      "id": 125213927816,
+      "name": "nginx-exact-head",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394415/job/125213927816"
+    },
+    {
+      "id": 125213927692,
+      "name": "lighttpd-contract",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394339/job/125213927692"
+    },
+    {
+      "id": 125213927651,
+      "name": "report-governance",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394344/job/125213927651"
+    },
+    {
+      "id": 125213927619,
+      "name": "pull-request-range",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394364/job/125213927619"
+    },
+    {
+      "id": 125213927549,
+      "name": "nginx-structure",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394381/job/125213927549"
+    },
+    {
+      "id": 125213927429,
+      "name": "common-structure",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394323/job/125213927429"
+    },
+    {
+      "id": 125213927418,
+      "name": "nginx-b09-regression",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394405/job/125213927418"
+    },
+    {
+      "id": 125213927410,
+      "name": "same-repository-pull-request",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394311/job/125213927410"
+    },
+    {
+      "id": 125213927341,
+      "name": "envoy-contract",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394265/job/125213927341"
+    },
+    {
+      "id": 125213927226,
+      "name": "traefik-contract",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394263/job/125213927226"
+    },
+    {
+      "id": 125213927191,
+      "name": "haproxy-structure",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41426394345/job/125213927191"
+    }
+  ]
+}
