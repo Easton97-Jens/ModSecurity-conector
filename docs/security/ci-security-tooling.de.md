@@ -249,7 +249,16 @@ kanonische Nicht-Fork-Ref `master` von `Easton97-Jens/ModSecurity-conector` zu.
 Der Resolver verwendet den exakten vertrauenswürdigen Event-SHA, die kanonische
 Projekt-Lockdatei samt geprüfter `.python-version`-Ansicht und `scripts/update-python-version.py --check --json`, um
 die typisierten Outputs `status`, `current_version`, `latest_version` und
-`update_available` auszugeben. Der Validator installiert und prüft den
+`update_available` auszugeben. Vor der Ausgabe lädt er ausschließlich den
+festen Helper `ci/tools/python_runner_builds.py` aus diesem gepinnten
+vertrauenswürdigen Framework-Checkout. Der Helper ruft das begrenzte offizielle
+`actions/python-versions`-Manifest ohne Credentials oder Redirects ab und
+verlangt dieselbe stabile CPython-Version und das exakte Archiv für
+`ubuntu-26.04`/`x64`. Fehlende oder ungültige Manifest-/Build-Metadaten führen
+vor Candidate-Setup oder Veröffentlichung zum Fehler; eine veröffentlichte
+Version allein belegt keine Runner-Verfügbarkeit. Die Prüfung lädt keinen
+Candidate-Code; der CLI-/JSON-Vertrag des Updaters bleibt unverändert.
+Der Validator installiert und prüft den
 Candidate-Patch unabhängig, löst ihn mit `--expected-version` erneut auf,
 nutzt hash-gesperrte CI-Abhängigkeiten und führt vor der Veröffentlichung die
 Python-/Versions- und CI-Sicherheitsverträge aus. Beide Jobs besitzen nur

@@ -234,6 +234,14 @@ canonical non-fork `Easton97-Jens/ModSecurity-conector` `master` ref.
 The resolver uses the exact trusted event SHA, the canonical project lock and
 its checked `.python-version` view, and `scripts/update-python-version.py --check --json` to emit the typed
 `status`, `current_version`, `latest_version`, and `update_available` outputs.
+Before emitting those outputs, it loads only the fixed
+`ci/tools/python_runner_builds.py` helper from that pinned trusted Framework
+checkout. The helper fetches the bounded official `actions/python-versions`
+manifest without credentials or redirects and requires the same stable
+CPython version and exact `ubuntu-26.04`/`x64` archive. Missing or invalid
+manifest/build metadata fails before candidate setup or publication; release
+publication alone does not prove runner availability. No candidate code is
+loaded by this guard, and the updater CLI/JSON contract remains unchanged.
 The validator independently installs and verifies the candidate patch,
 re-resolves it with `--expected-version`, uses hash-locked CI dependencies,
 and runs the Python/version and CI-security contracts before publication.
