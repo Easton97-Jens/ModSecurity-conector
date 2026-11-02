@@ -34,7 +34,7 @@ jobs:
   framework:
     permissions:
       contents: read
-    uses: Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-nginx-root-broker-historical.yml@0ca218773b11bbd401478808b4e8a11af123df57
+    uses: Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-nginx-root-broker-historical.yml@f4998db666349e155e84cb5720f3401be544d800
     with:
       caller_manifest_artifact: ${{ inputs.caller_manifest_artifact }}
       parent_head_sha: ${{ inputs.parent_head_sha }}
