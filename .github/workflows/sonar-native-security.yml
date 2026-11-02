@@ -42,10 +42,16 @@ jobs:
           fetch-depth: 0
           submodules: true
           persist-credentials: false
-      - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@91145b7ba721bdec4e89af754cf40bf496fd2a08
-        with:
-          framework-revision: 91145b7ba721bdec4e89af754cf40bf496fd2a08
+      - name: Authenticate pinned Framework before interpreter verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_framework=03fa02bacfc327863d91723fdc77a4888a33f0a8
+          declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$declared_framework" = "$expected_framework"
+          test "$actual_framework" = "$expected_framework"
+
       - name: Set up canonical Python
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -56,6 +62,10 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Validate the pinned Framework and explicit connector context
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@03fa02bacfc327863d91723fdc77a4888a33f0a8
+        with:
+          framework-revision: 03fa02bacfc327863d91723fdc77a4888a33f0a8
       - name: Install canonical SDK build prerequisites
         run: |
           set -euo pipefail
@@ -131,10 +141,16 @@ jobs:
           fetch-depth: 0
           submodules: true
           persist-credentials: false
-      - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@91145b7ba721bdec4e89af754cf40bf496fd2a08
-        with:
-          framework-revision: 91145b7ba721bdec4e89af754cf40bf496fd2a08
+      - name: Authenticate pinned Framework before interpreter verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_framework=03fa02bacfc327863d91723fdc77a4888a33f0a8
+          declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$declared_framework" = "$expected_framework"
+          test "$actual_framework" = "$expected_framework"
+
       - name: Set up canonical Python
         id: setup-python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -145,6 +161,10 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Validate the pinned Framework and explicit connector context
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@03fa02bacfc327863d91723fdc77a4888a33f0a8
+        with:
+          framework-revision: 03fa02bacfc327863d91723fdc77a4888a33f0a8
       - name: Set up canonical Go for native CGo producers
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -171,7 +191,7 @@ jobs:
             --transfer "$RUNNER_TEMP/native-sdk-transfer" --target "$NATIVE_TARGET"
       - name: Analyze the actual target and wait for its terminal Quality Gate
         id: scan
-        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_SCANNER_JAVA_OPTS: -Xmx2g

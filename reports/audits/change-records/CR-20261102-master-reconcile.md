@@ -18,11 +18,11 @@ Reconcile stale Framework integration identity, Apache documentation and inherit
 
 ## Acceptance criteria
 
-Use one reviewed, already integrated Framework commit consistently in gitlink, lock and fixed workflow projections; correct Apache EN/DE behavior claims; validate reviewed inheritance updates; publish actual coverage, bounded dependency inventory and unapplied rules proposals. Final adoption of newly repaired Framework code requires its separately authorized merge and a subsequent exact merge-SHA pin.
+Use one reviewed, already integrated Framework commit consistently in gitlink, lock and fixed workflow projections; correct Apache EN/DE behavior claims; validate reviewed inheritance updates; publish actual coverage, bounded dependency inventory and unapplied rules proposals. The PR440 repair adopts an actual integrated Framework revision after the separate Framework/MRTS merges; new-head hosted CI must qualify the resulting pair.
 
 ## Implementation decision and rationale
 
-Select Framework 91145b7ba721bdec4e89af754cf40bf496fd2a08, including merged TLS-floor#154 and Python-patch#156. Use sync-framework-component-versions.py with its fixed target registry, not blanket string replacement. Parent Python 3.15.1 remains independent of Framework 3.14.10. Preserve source policy bodies after substantive inheritance review; refresh only reviewed digests/templates and update the host-context guide. Existing maintenance#155/#157/#158 remains separately owned.
+The original selection was Framework91145b7. The PR440 CI repair selects integrated Framework03fa02bacfc327863d91723fdc77a4888a33f0a8, including separately merged155/159/162/158/163 and MRTS75394f9a687ca2f09fd7623b23ac527bba10d7d9 with mergedMRTS5. Parent master1a1023b92eb30ef73546cd2a2c3e84b39d34a153 is incorporated regularly into the PR branch. Its erroneous pre-squash Framework158 heada26b028104b28ddd980290b5af7b3fb195c43f9a fails the unchanged ancestry guard; select the integrated identity instead. Framework164 at1b0885 is excluded because NGINX1.31.8 conflicts with the independently checked1.31.6 handoff. Use sync-framework-component-versions.py with its fixed target registry, not blanket string replacement. Parent Python3.15.1 and Framework Python3.15.2 keep their independently pinned interpreter contracts. Preserve source policy bodies after substantive inheritance review; refresh only reviewed digests/templates and update the host-context guide. The separate maintenance integrations are consumed without reimplementing their source changes;157 remains closed unmerged.
 
 ## Changed files
 
@@ -30,7 +30,7 @@ Framework gitlink, ci/tooling/project-versions.lock.json and the generator-owned
 
 ## Commands executed
 
-RTK-wrapped native operations: sync-framework-component-versions.py --sync/--check with exact selected SHA and a git-extracted common.sh below RUNNER_TEMP; --check returned no changes. Explicit on-demand test_update_framework_versions and test_project_toolchain_pins:55 tests passed. make check-bilingual-docs check-doc-links passed before final report additions; final checks are recorded in the closeout. Parent validate-codex-inheritance.py --check --repository parent passed. Actual measured counts/provenance are in coverage-summary.json; no overall full-Python PASS is claimed.
+RTK-wrapped native operations: sync-framework-component-versions.py --sync/--check with exact selected SHA and a git-extracted common.sh below RUNNER_TEMP; --check returned no changes. Explicit on-demand test_update_framework_versions and test_project_toolchain_pins:55 tests passed. make check-bilingual-docs check-doc-links passed before final report additions; final checks are recorded in the closeout. Parent validate-codex-inheritance.py --check --repository parent passed. For the new selected revision, the native projection generator check reports no changes and candidate verification passes; check-python-version-contract passes (Python3.15.1,53 jobs),94 existing pin/toolchain/projection/candidate regressions pass (133.158s), and the updated Parent inheritance validator passes. All active hosted checks and SonarCloud for selected Framework03fa02b passed; new Parent-head hosted CI is pending at this update. Actual measured counts/provenance are in coverage-summary.json; no overall full-Python PASS is claimed.
 
 ## Security impact
 
@@ -53,20 +53,22 @@ binding before selected execution:156 changed the Python patch pin without
 refreshing that digest. All28 inspected individual failed jobs share this
 admission cause; the five-cell aggregate additionally fails after incomplete
 failure-receipt retention. The exact-head JSON and EN/DE closeout preserve
-diagnostics and source hashes. Framework159 regenerates the binding through
-the existing tool; no guard is weakened. After authorized Framework integration,
-pin its actual merge commit and qualify the final committed pair.
+diagnostics and source hashes. Framework159 regenerated the binding through
+the existing tool and is now separately merged, included in selected03fa02b; no
+guard is weakened. The reported master run41470651827/job125363368715 instead
+correctly rejects the pre-squash158 identity. The PR440 repair adopts integrated
+03fa02b and must qualify its new committed head; historical snapshots remain unchanged.
 
-Full Traefik auth preparation still fails closed on a sealed profile;10/19 historical registry repository objects drifted. The full Python specialist measurement failed after 56 completed cases on the protected caller contract; timing was not reached. The current thin Parent wrapper is incompatible with the immutable protected broker's historical inline admission contract. Native full inheritance against the currently pinned nested Framework/MRTS remains pending.
+Full Traefik auth preparation still fails closed on a sealed profile;10/19 historical registry repository objects drifted. The full Python specialist measurement failed after 56 completed cases on the protected caller contract; timing was not reached. The current thin Parent wrapper is incompatible with the immutable protected broker's historical inline admission contract. Current integrated-child inheritance qualification must be assessed separately from the historical failed check.
 
 ## Remaining risks
 
-Current-host qualification, exhaustive native/container SBOM and distro-patch advisory analysis, reviewed runtime tuple builds, classic branch protection visibility (HTTP 403), and final repaired-Framework merge/pin remain open. Existing green broad CI is not used to close these gaps.
+Current-host qualification, exhaustive native/container SBOM and distro-patch advisory analysis, reviewed runtime tuple builds, classic branch protection visibility (HTTP 403), and new-head hosted CI qualification remain open. Existing green broad CI is not used to close these gaps.
 
 ## Checks not run and rationale
 
-Lokale Sonar-Secrets-Prüfung aufgrund ausdrücklicher Benutzeranweisung nicht ausgeführt. No local Sonar repair or replacement mandatory gate. Sonar analyzer import, full H2/H3 acceptance and a fresh final merged-pair host run were not performed; that pair does not yet exist. Administrative proposals were not applied because separate approval is required.
+Lokale Sonar-Secrets-Prüfung aufgrund ausdrücklicher Benutzeranweisung nicht ausgeführt. No local Sonar repair or replacement mandatory gate. Sonar analyzer import, full H2/H3 acceptance and a fresh final merged-pair host run were not performed; the historical measurements do not qualify the newly selected pair. Administrative proposals were not applied because separate approval is required.
 
 ## Final diff and review status
 
-Task-owned changes are isolated from existing checkouts/worktrees. Framework and Parent delivery remain separate Draft PRs, with MRTS minimal test-only DraftPR#5 independently approved and delivered at bf756a403ead39863cc15a81b5608e2b6062435d. No merge, force-push, direct master/main push or protection change is authorized or performed. Overall outcome remains partial until recorded mandatory gaps are resolved.
+Task-owned changes are isolated from existing checkouts/worktrees. ParentPR440 remains unmerged. Framework159 and minimal test-only MRTS5 were delivered separately and subsequently integrated by other work; their original delivery identities are retained in the closeout. This task performs no PR merge, force-push, direct master/main push or protection change; the regular master-to-PR-branch integration preserves history. Overall outcome remains partial until recorded mandatory gaps are resolved.

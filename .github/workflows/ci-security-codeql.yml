@@ -172,22 +172,9 @@ jobs:
           set -euo pipefail
           revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$actual_framework" = "$revision"
           printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
-      - name: Bind explicit pinned Framework test context
-        shell: bash
-        env:
-          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
-        run: |
-          set -euo pipefail
-          connector_root="${GITHUB_WORKSPACE:?}"
-          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
-          python3 -I "$connector_root/ci/run-trusted-framework.py" \
-            --tool connector-context \
-            --connector-root "$connector_root" \
-            --connector-revision "$connector_revision" -- \
-            --connector-root "$connector_root" \
-            --connector-revision "$connector_revision" \
-            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ needs.trusted-go-version.outputs.version }}
@@ -203,6 +190,21 @@ jobs:
         env:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Bind explicit pinned Framework test context
+        shell: bash
+        env:
+          EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}
+        run: |
+          set -euo pipefail
+          connector_root="${GITHUB_WORKSPACE:?}"
+          connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+          python3 -I "$connector_root/ci/run-trusted-framework.py" \
+            --tool connector-context \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" -- \
+            --connector-root "$connector_root" \
+            --connector-revision "$connector_revision" \
+            --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: go
@@ -231,7 +233,20 @@ jobs:
           set -euo pipefail
           revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           printf '%s\n' "$revision" | grep -Eq '^[a-f0-9]{40}$'
+          actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$actual_framework" = "$revision"
           printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Set up canonical Python for active selection
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      # Run ASan before CodeQL installs its process-tracing LD_PRELOAD.
       - name: Bind explicit pinned Framework test context
         shell: bash
         env:
@@ -247,17 +262,6 @@ jobs:
             --connector-root "$connector_root" \
             --connector-revision "$connector_revision" \
             --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
-      - name: Set up canonical Python for active selection
-        id: setup-python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: .python-version
-          check-latest: false
-      - name: Verify Python interpreter contract
-        env:
-          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
-        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
-      # Run ASan before CodeQL installs its process-tracing LD_PRELOAD.
       - name: Execute inventoried Common parser and memory security regressions
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group common
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1

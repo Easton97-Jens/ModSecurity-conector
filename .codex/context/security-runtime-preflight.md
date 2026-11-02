@@ -1,6 +1,6 @@
 # Host-test execution context and preflight
 
-Load before native host tests that change process identity or use private Unix sockets, including focused security validation. Executable checks belong to the Framework. The implementation and profile/CLI reference is [Framework host execution context at 91145b7ba721bdec4e89af754cf40bf496fd2a08](https://github.com/Easton97-Jens/ModSecurity-test-Framework/blob/91145b7ba721bdec4e89af754cf40bf496fd2a08/docs/host-execution-context.md). This immutable source reference describes implemented prerequisites; it is not runtime qualification of a Parent/Framework pair.
+Load before native host tests that change process identity or use private Unix sockets, including focused security validation. Executable checks belong to the Framework. The implementation and profile/CLI reference is [Framework host execution context at 03fa02bacfc327863d91723fdc77a4888a33f0a8](https://github.com/Easton97-Jens/ModSecurity-test-Framework/blob/03fa02bacfc327863d91723fdc77a4888a33f0a8/docs/host-execution-context.md). This immutable source reference describes implemented prerequisites; it is not runtime qualification of a Parent/Framework pair.
 
 ## Choose the actual execution context
 
@@ -25,10 +25,12 @@ delivered the Parent host-context policy. These are separate evidence layers.
 [Connector PR #436](https://github.com/Easton97-Jens/ModSecurity-conector/pull/436)
 is closed without merge; it is not pending pin delivery.
 
-The selected newer Framework master baseline for this reconciliation is
-`91145b7ba721bdec4e89af754cf40bf496fd2a08`, including the separately integrated
-TLS-floor and Python-patch corrections. Any additional task Framework changes
-remain a separate unmerged delivery until their own PR is integrated. Read the
+The original reconciliation first selected
+`91145b7ba721bdec4e89af754cf40bf496fd2a08`. After Framework PRs #155, #158,
+#159, #162 and #163 were integrated, Parent PR #440 selects the actual merged
+commit `03fa02bacfc327863d91723fdc77a4888a33f0a8`. It preserves the existing
+NGINX source tuple; the later runtime update in #164 requires its own compatible
+handoff and is not selected by this pin correction. Read the
 actual Parent Gitlink and versions lock at invocation, select that approved
 Framework source explicitly, and verify the exact pair; this dated baseline
 does not update the Gitlink or establish final-pair runtime evidence. A missing

@@ -133,7 +133,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-SECURITY-RUNTIME-PREFLIGHT"
 source = ".codex/context/security-runtime-preflight.md"
-sha256 = "db041e82fba044681ccc84816757a061df638b969ffc62a0085838d691209a3e"
+sha256 = "8baa6df3c2ba1fe8090a18dff52e1535fef5054f0e62caeb535ff6582735ecab"
 inheritable = true
 
 [[policies]]

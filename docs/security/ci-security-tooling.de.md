@@ -57,7 +57,7 @@ bestehende Connector-Consumer kein paralleles Lock-Schema benötigen.
 | Action | Version | Unveränderlicher Commit |
 | --- | --- | --- |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `SonarSource/sonarqube-scan-action` | `v8.3.0` | `d209202bc7d53ff1cc128f7f907dac145c9d6ae9` |
+| `SonarSource/sonarqube-scan-action` | `v8.4.0` | `4d1dc0c91ee400dcf8a6dddf2f705ac36542e304` |
 | `actions/create-github-app-token` | `v3.3.0` | `64ab729a6294000f5aa4a4bc0b73d1f32bc45510` |
 | `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
 | `actions/github-script` | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
@@ -221,19 +221,56 @@ der Python-Candidate-Validator übergibt zusätzlich seine unabhängig geprüfte
 Parent-Jobs mit bestehender Framework-Lockdatei übergeben
 `--framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock`;
 dies weist Abhängigkeits-/Versionsdrift zurück und erhält PyYAML `6.0.3`, während
-der Parent das geprüfte Python-3.15-Artefakt verantwortet. Framework-/MRTS-Repositories
-und Gitlinks bleiben unverändert; dies ist keine Framework-Runtime-Qualifizierung.
+der Parent das geprüfte Python-3.15-Artefakt verantwortet. Die Abhängigkeitsvorbereitung
+selbst verändert keine Repositories oder Gitlinks; dies ist keine Framework-Runtime-Qualifizierung.
 
-Für die schreibgeschützte Submodul-Validierung ruft der normale Runner diesen
-vertrauenswürdigen Parent-Installer nach der Kandidatendatenprüfung und vor der
-Sandbox-Erstellung im geschützten Modus `--ci-toolcache` auf. Der Framework-Lock
-wird nur als Daten geparst; bei der Vorbereitung läuft kein Kandidatencode.
+Für die schreibgeschützte Submodul-Validierung ruft der normale Runner den
+geprüften Installer im geschützten Modus `--ci-toolcache` auf, solange der
+Framework-Checkout noch dem gepinnten Parent-Gitlink entspricht: vor dem
+Kandidaten-Checkout und der ersten YAML-abhängigen Kandidatenvertragsprüfung.
+Installer-Code und Framework-Lock stammen aus diesem gepinnten Checkout;
+bei der Vorbereitung läuft kein Kandidatencode.
 Die Runtime mit der geprüften reinen Python-Abhängigkeit wird anschließend
 schreibgeschützt eingebunden. Nach dem Privilegienwechsel prüft der Kandidat
 die Abhängigkeit durch einen isolierten `-I`-Import und führt danach
 `quick-check` mit dem ursprünglich gewählten Interpreter aus. Innerhalb von
 `/external` werden keine Abhängigkeiten oder Builder-Ausgaben hinzugefügt;
 dessen Rechte- und Symlink-Schutz bleiben unverändert.
+
+Die Python-, Go-, Workflow-Tool- und Submodul-Updater rufen den Interpreter-Verifier mit
+`python3 -P` und dem exakten Pfad des ausgewählten Interpreters auf. Das
+entspricht dem Verifier-Befehlsvertrag des gepinnten Frameworks und schließt
+das Skriptverzeichnis aus Pythons implizitem Importpfad aus. Native Jobs authentifizieren Framework-Gitlink und initialisierten Checkout
+durch eine reine Shell-Prüfung vor Setup und dem stdlib-Interpreter-Verifier;
+die Kontextbindung erfolgt danach vor anderen Python-Verbrauchern. Bei Jobs mit der unveränderlichen Kontext-Action müssen vor ausgechecktem
+Python sowohl committed Gitlink als auch initialisierter Checkout zum
+ausgewählten SHA dieser Action passen. Der Komponenten-Synchronisierer
+projiziert diese sechs Prüfungs-Pins durch ein geschlossenes Datei-/Anzahlregister
+gemeinsam mit den bestehenden Action-/Input-Pins und verwirft veraltete, fehlende
+oder zusätzliche Prüfungs-Pins. Auch der
+Submodul-Resolver richtet Python jetzt ein und prüft es. Der Go-Resolver auf
+Trusted-Base behält seinen separat geprüften Kompatibilitäts-Bootstrap.
+
+Die gemeinsam autorisierte Integration pinnt Framework auf
+`a26b028104b28ddd980290b5af7b3fb195c43f9a`, einschließlich Python-3.15-Updater
+und passender Framework-Inventare/Composite-Reihenfolgen. Der native
+Komponenten-Synchronisierer aktualisiert Projekt-Lock und 22 registrierte
+Workflow-Projektionen einschließlich der sechs frühen Prüfungs-Pins zusammen
+mit dem Parent-Framework-Gitlink. Der native Python-Vertrag akzeptiert jetzt
+53 Jobs; der exakte Framework-Kandidatenvertrag besteht mit NGINX
+`release-1.31.6`. Frameworks Kind-Gitlink `tools/MRTS` und der Parent-MRTS-Lock
+bleiben bei `8a6bb546c4c81d8ffc7be801dceac60c6925685f`; MRTS-Quelländerungen
+sind nicht enthalten. Dies sind lokale Ergebnisse des gemeinsamen Checkouts
+und der Verträge; gehostete Ausführung und erfolgreicher Parent-PR sind noch
+nicht belegt.
+
+Der gemeinsame Stand nutzt außerdem Frameworks geprüften Ruff-`0.17.3`-Lock
+sowie die Upstream-Korrekturen für Maintenance-Imports, Diagnostik und Tooling.
+Die Canonical-Maintenance-Transaktion lässt die eine registrierte Ausgabe
+`.github/workflows/ci-findings-regressions.yml` zu; das Replay des archivierten
+43-Update-Plans prüft diese Pfadkorrektur ohne Veröffentlichung jener
+Komponentenupdates. Die Parent-Python-Baseline bleibt `3.15.1`, NGINX bleibt
+`release-1.31.6`; die separate Upstream-MRTS-Revision wird nicht ausgewählt.
 
 ## Eingeschränkter Python-3.15-Patch-Updater
 
