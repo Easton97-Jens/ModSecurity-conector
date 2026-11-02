@@ -333,6 +333,7 @@ class FrameworkShaProjectionSpec:
     syntax: str
     reference_count: int = 0
     input_count: int = 0
+    gate_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -399,17 +400,17 @@ TARGET_REGISTRY = (
 FRAMEWORK_SHA_PROJECTION_TARGETS = (
     FrameworkShaProjectionSpec(LOCK_RELATIVE_PATH, "project-versions-lock"),
     FrameworkShaProjectionSpec(".github/workflows/ci-findings-regressions.yml", "framework-workflow", 1, 1),
-    FrameworkShaProjectionSpec(".github/workflows/lint.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/lint.yml", "framework-workflow", 1, 1, gate_count=1),
     FrameworkShaProjectionSpec(".github/workflows/nginx-root-broker.yml", "framework-workflow", 1, 0),
     FrameworkShaProjectionSpec(".github/workflows/open-connectors-smoke.yml", "framework-workflow", 1, 1),
-    FrameworkShaProjectionSpec(".github/workflows/protocol-contract.yml", "framework-workflow", 2, 2),
+    FrameworkShaProjectionSpec(".github/workflows/protocol-contract.yml", "framework-workflow", 2, 2, gate_count=2),
     FrameworkShaProjectionSpec(".github/workflows/quick-framework-check.yml", "framework-workflow", 1, 1),
     FrameworkShaProjectionSpec(".github/workflows/reusable-five-connectors-profile.yml", "framework-workflow", 3, 3),
     FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-exact-head.yml", "framework-workflow", 1, 0),
     FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-root-broker.yml", "framework-workflow", 1, 0),
     FrameworkShaProjectionSpec(".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml", "framework-workflow", 1, 0),
-    FrameworkShaProjectionSpec(".github/workflows/sonar-native-security.yml", "framework-workflow", 2, 2),
-    FrameworkShaProjectionSpec(".github/workflows/sonarqube.yml", "framework-workflow", 1, 1),
+    FrameworkShaProjectionSpec(".github/workflows/sonar-native-security.yml", "framework-workflow", 2, 2, gate_count=2),
+    FrameworkShaProjectionSpec(".github/workflows/sonarqube.yml", "framework-workflow", 1, 1, gate_count=1),
     FrameworkShaProjectionSpec(".github/workflows/test-apache.yml", "framework-workflow", 2, 2),
     FrameworkShaProjectionSpec(".github/workflows/test-common.yml", "framework-workflow", 1, 1),
     FrameworkShaProjectionSpec(".github/workflows/test-connectors-with-crs-no-mrts.yml", "framework-workflow", 2, 2),
@@ -1037,7 +1038,7 @@ def _render_framework_sha_projection_targets(
 
 def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
                                old_sha: str, new_sha: str) -> str:
-    """Only exact remote references and their context inputs carry identity.
+    """Project exact remote references, context inputs and registered early gates.
 
     Fixed file/count registries prevent discovery from expanding publication
     authority. Every reference must agree with the trusted lock, including on
@@ -1054,7 +1055,15 @@ def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
         r"(?m)^(?P<prefix>[ \t]*framework-revision:[ \t]+)"
         r"(?P<sha>[^\s#]+)(?P<suffix>[ \t]*(?:#[^\n]*)?)$"
     )
-    for pattern, expected in ((uses, spec.reference_count), (inputs, spec.input_count)):
+    gates = re.compile(
+        r"(?m)^(?P<prefix>[ \t]*expected_framework=)"
+        r"(?P<sha>[^\s#]+)(?P<suffix>[ \t]*(?:#[^\n]*)?)$"
+    )
+    for pattern, expected in (
+        (uses, spec.reference_count),
+        (inputs, spec.input_count),
+        (gates, spec.gate_count),
+    ):
         matches = list(pattern.finditer(text))
         if len(matches) != expected or any(match["sha"] != old_sha for match in matches):
             raise SyncError("Framework workflow pin differs from fixed trusted identity: " + spec.relative_path)
