@@ -1006,6 +1006,14 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
     return json.dumps(payload, indent=2) + "\n"
 
 
+def _decode_framework_workflow(data: bytes) -> str:
+    """Translate malformed workflow source bytes into the existing sync error."""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SyncError("Framework workflow identity must be UTF-8") from exc
+
+
 def _render_framework_sha_projection_targets(
     root: Path, framework_sha: str, originals: dict[str, bytes] | None = None,
     framework_object_root: Path | None = None,
@@ -1033,10 +1041,7 @@ def _render_framework_sha_projection_targets(
         target = _target_path(root, spec.relative_path)
         data, target_mode = (_read_regular(target, "Framework workflow identity", allowed_root=root)
                              if originals is None else (originals[spec.relative_path], 0o644))
-        try:
-            text = data.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise SyncError("Framework workflow identity must be UTF-8") from exc
+        text = _decode_framework_workflow(data)
         if spec.syntax == "framework-inline-caller":
             source = _inline_caller_source(root, framework_sha, framework_object_root)
             replacement_text = _render_inline_caller(spec, text, old_sha, framework_sha, source)
