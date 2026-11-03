@@ -20,6 +20,17 @@ Alte/neue Parent-Pins unabhängig von Framework-Checkout/-Kontext prüfen; falsc
 
 ## Implementierungsentscheidung und Begründung
 
+Nachtrag vom 2026-11-03: Für Framework-Quellzugriffe und den exakten
+Gitlink-Abgleich wird die bestehende Konstante `FRAMEWORK_PATH` des
+Revisions-Pin-Owners verwendet. Dies entfernt Sonar `python:S1192`, ohne Pfade,
+Quellauswahl oder Validierung zu ändern. Die acht ausgewählten
+Git-Kontext-/Prüferregressionstests bestanden. Die Sonar-Issue-Anzahl des
+aktuellen Heads muss nach der Analyse ausgelesen werden; ein bestandenes Gate
+allein erfüllt die Null-Issues-Anforderung des Nutzers nicht. Der Nutzer erlaubt
+nun die Integration der ausgewählten Framework- und Parent-PRs nach null Issues
+und bestandenen Pflichtprüfungen, mit Neupinnen auf den tatsächlichen
+Squash-Master-Commit zwischen den Merges.
+
 Begrenzte reguläre UTF-8-Git-Blobs aus der validierten Parent-Lock-Revision lesen. Parsercode getrennt aus dem Framework-Gitlink von committetem Parent HEAD beziehen und dessen geschlossenen Schema-Expander mit Git-Datenleser wiederverwenden. Updater-Prüfer mit isoliertem Python (`-I`) ausführen; bestehende geprüfte PyYAML-Abhängigkeit im separaten Publisherjob vor App-Zugangsdaten bereitstellen. Migrierte Producer bleiben Framework-eigen. Komponenten-/Voll-SHA-Verweise mit dem bestehenden Parent-Tool synchronisieren und Compiler-Anleitungen aus Quellen regenerieren. Framework-Abhängigkeit: [PR #165](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/165).
 
 ## Geänderte Dateien

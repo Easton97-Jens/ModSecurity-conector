@@ -25,11 +25,12 @@ import runpy
 
 if __package__:
     from ..lib.framework_revision_pins import (
-        FrameworkRevisionPinsError, load_framework_revision_pins, read_framework_mrts_gitlink,
+        FRAMEWORK_PATH, FrameworkRevisionPinsError, load_framework_revision_pins, read_framework_mrts_gitlink,
     )
 else:
     _pins = runpy.run_path(str(Path(__file__).resolve().parents[2] / "ci/lib/framework_revision_pins.py"))
     FrameworkRevisionPinsError = _pins["FrameworkRevisionPinsError"]
+    FRAMEWORK_PATH = _pins["FRAMEWORK_PATH"]
     load_framework_revision_pins = _pins["load_framework_revision_pins"]
     read_framework_mrts_gitlink = _pins["read_framework_mrts_gitlink"]
 
@@ -564,11 +565,11 @@ def _framework_blob(framework: Path, revision: str, relative: str) -> str:
 
 
 def _workflow_projection(root: Path, text: str, name: str, revision: str) -> str:
-    framework = _require_directory(root / "modules/ModSecurity-test-Framework", "Framework object repository")
+    framework = _require_directory(root / FRAMEWORK_PATH, "Framework object repository")
     # Parser code comes only from the committed Parent gitlink. The lock may
     # already have been synchronized to the candidate; it selects DATA only.
-    entry = _git_output(root, "ls-tree", "HEAD", "--", "modules/ModSecurity-test-Framework")
-    match = re.fullmatch(rb"160000 commit ([a-f0-9]{40})\tmodules/ModSecurity-test-Framework\n", entry)
+    entry = _git_output(root, "ls-tree", "HEAD", "--", FRAMEWORK_PATH)
+    match = re.fullmatch(rb"160000 commit ([a-f0-9]{40})\t" + re.escape(FRAMEWORK_PATH.encode()) + rb"\n", entry)
     if match is None:
         raise ContractError("committed Parent Framework gitlink is missing")
     source = _framework_blob(framework, match[1].decode("ascii"), "modsecurity_test_framework/workflow_sources.py")
@@ -604,7 +605,7 @@ def _projection_text(root: Path, relative: str) -> str:
         return text
     # These source IDs moved to Framework. Preserve its source-map authority,
     # but read that map and the mapped files from the selected immutable pin.
-    framework = _require_directory(root / "modules/ModSecurity-test-Framework", "Framework object repository")
+    framework = _require_directory(root / FRAMEWORK_PATH, "Framework object repository")
     revision = str(load_framework_revision_pins(root)["framework_sha"])
     try:
         mapping = json.loads(_framework_blob(framework, revision, "connector_suite/source-map.json"))

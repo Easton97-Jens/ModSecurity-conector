@@ -20,6 +20,15 @@ Validate old/new Parent pins independently of Framework checkout/context; reject
 
 ## Implementation decision and rationale
 
+Followup on 2026-11-03: use the existing `FRAMEWORK_PATH` constant from the
+revision-pin owner for Framework source lookups and exact gitlink matching.
+This removes Sonar `python:S1192` without changing paths, source selection or
+validation. The eight selected Git-context/verifier regression tests passed.
+Current-head Sonar issue count must be read back after analysis; a passing gate
+alone does not satisfy the user's zero-issues requirement. The user now
+authorizes integration of the selected Framework and Parent PRs after zero
+issues and required checks, with actual squash-master repinning between merges.
+
 Read bounded regular UTF-8 Git blobs at the validated Parent lock revision. Obtain parser code separately from committed Parent HEAD's Framework gitlink and reuse its closed-schema expander with a Git-backed data reader. Run updater verifier calls with isolated Python (`-I`); provision the existing reviewed PyYAML dependency in the separate publisher job before App credentials. Keep migrated producers Framework-owned. Synchronize component/full-SHA references with the existing Parent tool and regenerate compiler guides from source. Framework dependency: [PR #165](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/165).
 
 ## Changed files
