@@ -1,6 +1,24 @@
 {
-  "checked_date": "2026-11-02",
-  "classic_branch_protection": "unreadable: HTTP 403 Resource not accessible by integration",
+  "checked_date": "2026-11-03",
+  "checked_at_utc": "2026-11-03 12:32:27 UTC",
+  "source": "fresh GitHub connector GET ruleset collection with includes_parents=true and individual details; gh GET effective branch rules",
+  "classic_branch_protection": {
+    "Easton97-Jens/ModSecurity-conector": {
+      "connector": "UNREADABLE: HTTP403 Resource not accessible by integration",
+      "authenticated_cli_get": "HTTP404 Branch not protected",
+      "configuration_returned": false,
+      "scope": "No classic object returned; active rulesets remain effective. Do not interpret connector403 as absence."
+    },
+    "Easton97-Jens/ModSecurity-test-Framework": {
+      "connector": "UNREADABLE: HTTP403 Resource not accessible by integration",
+      "authenticated_cli_get": "HTTP404 Branch not protected",
+      "configuration_returned": false,
+      "scope": "No classic object returned; active rulesets remain effective. Do not interpret connector403 as absence."
+    }
+  },
+  "unchecked_layers": [
+    "Administrative UI/settings outside readable ruleset and classic GET responses; fork delivery and merge_group execution not sampled."
+  ],
   "rulesets": [
     {
       "id": 19138299,

@@ -2,41 +2,81 @@
 
 **Language:** English | [Deutsch](rules-review.de.md)
 
-Status: proposed, not applied. The user must separately approve administrative changes. The local Sonar exception changes no GitHub workflow or general policy.
+Status: **PROPOSED_NOT_APPLIED**. The existing 2026-11-02 proposal was refreshed on 3 November 2026 at 13:32 CET (12:32 UTC). Administrative application still requires separate approval. No ruleset, branch protection, workflow or remote setting was changed. The explicit local Sonar exception leaves hosted Sonar/CodeQL checks intact.
 
-[Before snapshot](rules-before.json) and [after proposal](rules-after-proposal.json) retain the full visible configurations. [Connector create payload](connector-ruleset-create-proposal.json) and [Framework create payload](framework-ruleset-create-proposal.json) are standalone API request bodies. Existing rulesets remain unchanged, including archive branch coverage, strict checks, review requirements, deletion/force-push controls and absence of bypass actors. Only an additional master-only ruleset is proposed per repository.
+[Before snapshot](rules-before.json) contains freshly read visible rulesets. [After proposal](rules-after-proposal.json) preserves those exact existing objects and adds only the unchanged [15-context Connector payload](connector-ruleset-create-proposal.json) and [6-context Framework payload](framework-ruleset-create-proposal.json). Their exact names and GitHub Actions integration ID 15368 were revalidated; no payload churn is needed when evidence confirms the existing selection.
 
-## Existing protections
+## Current protection readback
 
-Connector ruleset 19138299 requires six contexts: actions, bounded-c-cpp, envoy-go, traefik-go, actionlint, zizmor. Framework ruleset 19700778 has no required_status_checks rule. Classic branch-protection reads return HTTP 403 Resource not accessible by integration for both repositories; further classic requirements are unknown. This is a read-access limitation, not evidence that protection is absent.
+Live master revisions are Parent `11fab78a5447f75cb254ddf963eca770fa04ba04` and Framework `bb6c7580208a05c17d6d6674571731b6a71028cb`. GitHub connector GET of ruleset collections with `includes_parents=true` returned one active repository ruleset each; individual details and authenticated read-only CLI GET of effective master rules agree:
 
-Sources: [Connector ruleset](https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/rulesets/19138299), [Framework ruleset](https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/rulesets/19700778).
+- [Parent 19138299](https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/rulesets/19138299): deletion and force-push prevention, resolved review threads, zero mandatory approvals, strict up-to-date checks `actions`, `bounded-c-cpp`, `envoy-go`, `traefik-go`, `actionlint`, `zizmor`; no bypass actors.
+- [Framework 19700778](https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/rulesets/19700778): deletion and force-push prevention, resolved review threads, zero mandatory approvals; no required-status-check rule or bypass actors.
 
-## Proposed required checks
+Both classic branch-protection reads remain **unreadable through the connector** (403, Resource not accessible by integration). The existing authenticated CLI GET returns 404, Branch not protected, for both; no classic configuration object was returned. These different access results are retained, not silently collapsed into “no protection”: effective rulesets apply. Administrative UI/settings beyond these readable responses remain **unchecked**. The connector rejected effective-branch-rules URLs at its endpoint allowlist; the documented GET-only CLI fallback supplied those reads.
 
-The additional Connector list has 15 exact contexts and the Framework list 6, all bound to GitHub Actions integration 15368. Together with existing rules, this gives 21 visible Connector contexts. Source review found continuous master-PR delivery without path/fork job exclusions for these contexts. Require current-head GitHub checks; a display name alone does not establish runtime or findings status.
+## Exact check delivery
 
-| Repository | Added checks |
+Fresh API check runs were correlated by Actions run ID, app ID and exact head SHA with `event=pull_request` workflow runs. All 42 context/PR rows have actual completed execution, not skipped-job substitutes. Sampled PRs are same-repository:
+
+- Parent [442](https://github.com/Easton97-Jens/ModSecurity-conector/pull/442), head `4fcf094b7b93deda07c9b990d113f32d5d6a62da`; [440](https://github.com/Easton97-Jens/ModSecurity-conector/pull/440), head `6e72c42133ad4a9b9ddeb964724cb95805d27b84`.
+- Framework [165](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/165), head `44ce463261d1a4617d136580c6b61df4285d54b5`; [164](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/164), head `6ac8c947b8a1f84a5d4cc79d05ee61bd7222430c`.
+
+| Exact context | Workflow | PR 442 | PR 440 |
+| --- | --- | --- | --- |
+| `scaffold-lint` | `lint.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921495/job/125764045488) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802514/job/125377424853) |
+| `common-structure` | `test-common.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921243/job/125764044568) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802290/job/125377421781) |
+| `apache-autotools-bootstrap` | `test-apache.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921226/job/125764044736) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802162/job/125377421385) |
+| `apache-structure` | `test-apache.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921226/job/125764044385) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802162/job/125377421044) |
+| `nginx-structure` | `test-nginx.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921322/job/125764044920) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802413/job/125377423128) |
+| `nginx-exact-head` | `test-nginx-exact-head.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921331/job/125764044911) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802341/job/125377424639) |
+| `haproxy-structure` | `test-haproxy.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921428/job/125764045090) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802086/job/125377420617) |
+| `envoy-contract` | `test-envoy.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921203/job/125764044402) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802430/job/125377425651) |
+| `lighttpd-contract` | `test-lighttpd.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921357/job/125764045299) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802178/job/125377422143) |
+| `traefik-contract` | `test-traefik.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921310/job/125764044724) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802094/job/125377420195) |
+| `quick-check` | `quick-framework-check.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921262/job/125764044623) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802518/job/125377427397) |
+| `report-governance` | `verified-report-governance.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921246/job/125764044728) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802406/job/125377424863) |
+| `protocol-contract` | `protocol-contract.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921312/job/125764044814) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802165/job/125377421228) |
+| `apr-util-provenance` | `ci-security-workflow-lint.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921343/job/125764045127) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802084/job/125377421862) |
+| `pull-request-range` | `ci-security-secrets.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41589921257/job/125764044969) | [success](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/41474802117/job/125377421757) |
+
+| Exact context | Workflow | PR 165 | PR 164 |
+| --- | --- | --- | --- |
+| `scaffold-lint` | `lint.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41587537426/job/125756418317) | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41468640209/job/125356060906) |
+| `common-structure` | `test-common.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41587537773/job/125756419391) | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41468640054/job/125356059827) |
+| `CodeQL PR (actions)` | `ci-security-codeql-pr.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41587537447/job/125756418387) | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41468639916/job/125356059652) |
+| `CodeQL PR (python)` | `ci-security-codeql-pr.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41587537447/job/125756418598) | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41468639916/job/125356060366) |
+| `CodeQL PR (c-cpp)` | `ci-security-codeql-pr.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41587537447/job/125756419300) | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41468639916/job/125356059948) |
+| `pull-request-range` | `ci-security-secrets.yml` | [success](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41587537446/job/125756419351) | [failure](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41468640416/job/125356061346) |
+
+Framework 164's `pull-request-range` executed and **failed**; this refresh does not relabel that history. Framework 165's current sampled head passed. Requiring a check enforces its actual conclusion at the selected future PR head; it does not mean all historical runs passed.
+
+The 18 owning workflows were read from the exact master Git objects. Selected PR jobs have no path/fork exclusion; PR-only guards permit the relevant event. Ten pinned Framework composite actions backing Parent jobs have no fork/event conditional or continue-on-error marker. This supports the proposed continuous master-PR configuration, while the two same-repository samples do **not** establish fork execution, docs-only PR coverage, merge-queue delivery or results for the current task head. No merge queue is currently proposed; selected workflows lack `merge_group`.
+
+## Explicit exclusions
+
+| Checks | Current reason to remain outside this proposal |
 | --- | --- |
-| Connector | scaffold-lint; common-structure; apache-autotools-bootstrap; apache-structure; nginx-structure; nginx-exact-head; haproxy-structure; envoy-contract; lighttpd-contract; traefik-contract; quick-check; report-governance; protocol-contract; apr-util-provenance; pull-request-range |
-| Framework | scaffold-lint; common-structure; CodeQL PR (actions); CodeQL PR (python); CodeQL PR (c-cpp); pull-request-range |
+| Framework actionlint-and-contract, zizmor, python-ci-security-quality, check-action-versions, portable-contract | Current PR path filters can suppress workflow delivery. Same-repository successes do not establish every PR. |
+| Parent go-candidate variants, nginx-b09-regression, five-cell CRS aggregate | Current PR path filters. Do not promote solely because both sampled code-changing PRs delivered them. |
+| Framework OSV/Scorecard pull-request-head | Duplicate check names remain observable in both sampled heads; distinguish producers before considering requirements. |
+| Parent OSV pull-request-diff | Some underlying scan steps continue on error; fork/upload semantics remain unqualified. A green wrapper is insufficient findings evidence. |
+| Hosted Sonar/external SonarCloud | Preserve existing checks and delivery-policy gates. Fork exclusions or delivery outside sampled heads are not qualified by this selection. |
+| Scheduled/advisory jobs, C++20/23, manual root broker, H2/H3 preflight | Not continuous mandatory PR execution. `nginx-profile-and-client-preflight` is skipped in both sampled Parent PRs and remains excluded. |
 
-nginx-exact-head executes real hosted Functional-A H1 tests, including adapter provisioning and the nginx-hosted group. It is distinct from manual protected broker jobs and does not qualify H2/H3. Framework CodeQL PR jobs use upload: never; requiring them enforces analysis execution, not zero findings. All selected workflows lack merge_group; reassess before enabling a merge queue.
+`nginx-exact-head` is the ordinary hosted H1 path, separate from manual protected broker admission and H2/H3 qualification. Framework CodeQL PR uses `upload: never`; requiring execution does not prove zero findings. GitHub accepts some skipped/neutral conclusions as successful status checks, so check presence alone cannot establish execution. See [GitHub required-check troubleshooting](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks) and [effective branch-rules API](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch).
 
-## Checks requiring further work
+## Application handoff and evidence limits
 
-| Checks | Reason to remain outside this proposal |
-| --- | --- |
-| Framework actionlint-and-contract, zizmor, python-ci-security-quality, check-action-versions, portable-contract | PR path filters prevent universal delivery; remove filters and verify docs-only PR delivery before requiring. Existing maintenance PRs are not modified. |
-| Parent go-candidate variants, nginx-b09-regression, five-cell CRS aggregate | PR path filters; retain real tests and qualify exact-head delivery before promotion. |
-| Framework OSV and Scorecard | Duplicate pull-request-head identities; require explicit distinct job names and delivery qualification first. |
-| Parent OSV pull-request-diff | Fork SARIF upload/permissions need qualification; same-repository success is insufficient. |
-| Hosted Sonar and external SonarCloud checks | Fork-skipped jobs or missing external check delivery; existing CI remains intact. |
-| C++20/23, scheduled scans, maintenance jobs | Explicitly advisory or operational rather than universally required PR checks. |
-| Manual host/broker jobs and H2/H3 preflight | Not continuous runtime acceptance; never require an unimplemented campaign or fabricate an aggregate success. |
+Repository integration remains separate from protection-rule application. Parent
+keeps its current Framework gitlink at `bb6c7580208a05c17d6d6674571731b6a71028cb`;
+do not pin an unmerged Framework candidate. The generated inline broker caller
+already comes from that exact canonical blob and truthfully retains its `bb6`
+source header. Framework/MRTS Draft PRs have independent delivery boundaries.
+Only after separately authorized integration propagate the actual merge SHA,
+regenerate projections and rerun exact-pair generator/pin checks. A successful
+review here authorizes none of those merges or administrative writes.
 
-## Evidence and limits
+Keep existing archive branch coverage, required reviews/threads, strictness, deletion/force-push prevention and no-bypass policy unchanged. The hypothetical combined visible context count is 21 for Parent and 6 for Framework; this is a proposal, not server state. Before administrative approval, refresh all protection layers and verify the actual final PR head, expected app identity, fork policy and applicable Sonar gate. Reassess `merge_group` before enabling a queue. Do not require manual/regularly skipped jobs or invent a green aggregate.
 
-Inspected current Parent and Framework workflow/composite sources on 2026-11-02, plus live rulesets and delivered check metadata. No fork PR or administrative mutation was performed. Before applying, refresh the before snapshot, resolve the inaccessible classic protection layer and verify current PR-head delivery. Existing protections must never be reduced.
-
-Lokale Sonar-Secrets-Prüfung aufgrund ausdrücklicher Benutzeranweisung nicht ausgeführt.
+Fresh run-scoped evidence below the invoking project's approved external storage root: `runs/20261103T115937Z-runtime-readiness/github/governance`. It retains exact GET URLs, timestamps, immutable source hashes, current ruleset objects, classic access errors and 42 check/run correlations. JSON validation confirms existing rulesets preserved verbatim, payload references identical, exact app-bound contexts delivered and no selected skipped/missing execution. No secret values, administrative write, new PR, commit or campaign is included.

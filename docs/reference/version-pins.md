@@ -40,6 +40,18 @@ broker/Framework tuple in its dedicated caller contract. Ordinary lock changes d
 activate or repin that privileged caller. See the
 [broker contract](../security/trusted-nginx-root-broker.md).
 
+The ordinary caller view is a separate `framework-inline-caller` projection in
+`ci/tools/sync-framework-component-versions.py`. It reads only the fixed regular
+canonical caller blob from the exact selected Framework Git commit and requires
+its reviewed source SHA-256. Generation changes `workflow_call` to
+`workflow_dispatch` and adds provenance comments; the five jobs, protected tuple,
+permissions and admission gates retain their original bytes. The synchronizer
+reconstructs the previous projection before its normal transactional update.
+Only the exact historical delegated wrapper is allowed for the one-time
+migration. An isolated check can select an existing read-only Framework object
+repository with `--framework-object-root`; candidate Python is never executed.
+This view repair does not authorize a protected dispatch or claim runtime PASS.
+
 ## Component and security-tool ownership
 
 Component versions, official source URLs, checksums and approved release tuples

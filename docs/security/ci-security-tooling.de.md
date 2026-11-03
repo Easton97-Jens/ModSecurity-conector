@@ -191,8 +191,8 @@ und den ausdrücklichen Wiederherstellungsgrund.
 
 ## Geprüfter CI-Abhängigkeitsbuild für Python 3.15
 
-Für Python `3.15.1` gibt es auf PyPI kein offizielles CPython-3.15-Wheel von
-PyYAML `6.0.3`. Die ausdrücklich geprüfte Ausnahme in
+Die Python-`3.15.2`-Lane verwendet den geprüften PyYAML-`6.0.3`-Quellbuildvertrag.
+Die ausdrücklich geprüfte Ausnahme in
 `ci/tools/install-ci-dependencies.py` verwendet ausschließlich die offizielle
 SHA-256-gepinnte Quelldistribution dieses Releases und die exakten offiziellen
 universellen Build-Tool-Wheels aus `requirements-ci-build.lock`. Sie erstellt
@@ -269,8 +269,10 @@ sowie die Upstream-Korrekturen für Maintenance-Imports, Diagnostik und Tooling.
 Die Canonical-Maintenance-Transaktion lässt die eine registrierte Ausgabe
 `.github/workflows/ci-findings-regressions.yml` zu; das Replay des archivierten
 43-Update-Plans prüft diese Pfadkorrektur ohne Veröffentlichung jener
-Komponentenupdates. Die Parent-Python-Baseline bleibt `3.15.1`, NGINX bleibt
-`release-1.31.6`; die separate Upstream-MRTS-Revision wird nicht ausgewählt.
+Komponentenupdates. Jener Wartungsnachweis verwendete Python `3.15.1` und NGINX
+`release-1.31.6`; er belegt keine aktuellen Komponentenversionen. Diese
+Readiness-Änderung wählt Python `3.15.2`. Aktuelle Laufzeittupel bleiben im
+exakten ausgewählten Framework verankert; die MRTS-Auswahl bleibt getrennt.
 
 ## Eingeschränkter Python-3.15-Patch-Updater
 

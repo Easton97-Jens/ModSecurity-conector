@@ -41,6 +41,19 @@ Broker-/Framework-Tupel in seinem dedizierten Caller-Vertrag. Gewöhnliche Lock-
 oder pinnen diesen privilegierten Caller nicht neu. Siehe den
 [Broker-Vertrag](../security/trusted-nginx-root-broker.de.md).
 
+Die gewöhnliche Calleransicht ist eine getrennte `framework-inline-caller`-Projektion
+in `ci/tools/sync-framework-component-versions.py`. Sie liest ausschließlich den
+festen regulären kanonischen Callerblob aus dem exakten ausgewählten Framework-
+Gitcommit und verlangt dessen geprüften Quell-SHA-256. Die Erzeugung ändert
+`workflow_call` in `workflow_dispatch` und ergänzt Herkunftskommentare; fünf Jobs,
+geschütztes Tupel, Rechte und Admission-Gates behalten ihre originalen Bytes.
+Der Synchronisierer rekonstruiert die vorherige Projektion vor seinem gewöhnlichen
+transaktionalen Update. Ausschließlich der exakte historische delegierte Wrapper
+ist für die einmalige Migration zugelassen. Eine isolierte Prüfung kann mit
+`--framework-object-root` ein bestehendes nur lesend verwendetes Framework-
+Objektrepository wählen; Kandidaten-Python wird nie ausgeführt. Diese
+Ansichtskorrektur autorisiert keinen geschützten Dispatch und belegt kein Runtime-PASS.
+
 ## Zuständigkeit für Komponenten und Sicherheitswerkzeuge
 
 Komponentenversionen, offizielle Quell-URLs, Prüfsummen und genehmigte Release-

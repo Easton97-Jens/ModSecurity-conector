@@ -22,6 +22,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
 from functools import partial
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -75,6 +76,10 @@ HAPROXY_HTX_PROJECTION = "HAProxy HTX projection"
 HAPROXY_HTX_RESOLUTION_DEPENDENCY = "HAProxy HTX resolution dependency"
 CRS_PROJECTION = "CRS Parent projections"
 MODSECURITY_V3_PROJECTION = "ModSecurity v3 documentation projection"
+INLINE_CALLER_SOURCE = ".github/workflows/connector-protected-nginx-root-broker-caller.yml"
+INLINE_CALLER_SOURCE_SHA256 = "11ee98f070a5a4c088e0c10466c0e867869f1769e5832bacf6bf2c5986a2cb3c"
+LEGACY_CALLER_FRAMEWORK_SHA = "bb6c7580208a05c17d6d6674571731b6a71028cb"
+LEGACY_CALLER_SHA256 = "ef7cc66b33d1aaef2ba30610a68fe3c0c6359194c69878fea757d0cd07d98743"
 
 
 class SyncError(ValueError):
@@ -407,7 +412,7 @@ FRAMEWORK_SHA_PROJECTION_TARGETS = (
     FrameworkShaProjectionSpec(".github/workflows/quick-framework-check.yml", "framework-workflow", 1, 1),
     FrameworkShaProjectionSpec(".github/workflows/reusable-five-connectors-profile.yml", "framework-workflow", 3, 3),
     FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-exact-head.yml", "framework-workflow", 1, 0),
-    FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-root-broker.yml", "framework-workflow", 1, 0),
+    FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-root-broker.yml", "framework-inline-caller"),
     FrameworkShaProjectionSpec(".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml", "framework-workflow", 1, 0),
     FrameworkShaProjectionSpec(".github/workflows/sonar-native-security.yml", "framework-workflow", 2, 2, gate_count=2),
     FrameworkShaProjectionSpec(".github/workflows/sonarqube.yml", "framework-workflow", 1, 1, gate_count=1),
@@ -434,7 +439,7 @@ if any(
     for _target_name, source_name in spec.fields
 ):
     raise RuntimeError("NGINX must not be registered as a Framework Parent target")
-if any("nginx" in spec.relative_path.lower() and spec.syntax != "framework-workflow"
+if any("nginx" in spec.relative_path.lower() and spec.syntax not in {"framework-workflow", "framework-inline-caller"}
        for spec in FRAMEWORK_SHA_PROJECTION_TARGETS):
     raise RuntimeError("NGINX source pins must not be Framework SHA projection targets")
 
@@ -1003,6 +1008,7 @@ def _lighttpd_source_map(text: str, fields: tuple[tuple[str, str], ...], values:
 
 def _render_framework_sha_projection_targets(
     root: Path, framework_sha: str, originals: dict[str, bytes] | None = None,
+    framework_object_root: Path | None = None,
 ) -> list[RenderedTarget]:
     """Project a single reviewed Framework identity; retain all other bytes."""
     path = _target_path(root, LOCK_RELATIVE_PATH)
@@ -1022,7 +1028,7 @@ def _render_framework_sha_projection_targets(
     for spec in FRAMEWORK_SHA_PROJECTION_TARGETS:
         if spec.syntax == "project-versions-lock":
             continue
-        if spec.syntax != "framework-workflow":
+        if spec.syntax not in {"framework-workflow", "framework-inline-caller"}:
             raise SyncError("unsupported Framework identity projection syntax")
         target = _target_path(root, spec.relative_path)
         data, target_mode = (_read_regular(target, "Framework workflow identity", allowed_root=root)
@@ -1031,9 +1037,63 @@ def _render_framework_sha_projection_targets(
             text = data.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise SyncError("Framework workflow identity must be UTF-8") from exc
-        replacement_text = _render_framework_workflow(spec, text, old_sha, framework_sha)
+        if spec.syntax == "framework-inline-caller":
+            source = _inline_caller_source(root, framework_sha, framework_object_root)
+            replacement_text = _render_inline_caller(spec, text, old_sha, framework_sha, source)
+        else:
+            replacement_text = _render_framework_workflow(spec, text, old_sha, framework_sha)
         rendered.append(RenderedTarget(target, data, replacement_text.encode("utf-8"), target_mode))
     return rendered
+
+
+def _inline_caller_source(root: Path, revision: str, object_root: Path | None = None) -> bytes:
+    """Read only fixed reviewed source data; never import candidate code."""
+    if LOWER_HEX40.fullmatch(revision) is None:
+        raise SyncError("inline caller source requires an exact Framework SHA")
+    framework = _require_directory(object_root or root / "modules/ModSecurity-test-Framework", "Framework object repository")
+    def git(*arguments: str) -> bytes:
+        try:
+            return subprocess.run(
+                ["git", "--no-replace-objects", "-c", "core.hooksPath=/dev/null", "-C", str(framework), *arguments],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30,
+            ).stdout
+        except (OSError, subprocess.SubprocessError) as error:
+            raise SyncError("cannot read fixed Framework caller source") from error
+    entry = git("ls-tree", revision, "--", INLINE_CALLER_SOURCE)
+    match = re.fullmatch(rb"100644 blob ([a-f0-9]{40})\t" + re.escape(INLINE_CALLER_SOURCE.encode()) + rb"\n", entry)
+    if match is None:
+        raise SyncError("Framework inline caller source must be a regular Git blob")
+    oid = match[1].decode("ascii")
+    size = git("cat-file", "-s", oid).strip()
+    if not size.isdigit() or int(size) > MAX_COMMON_BYTES:
+        raise SyncError("Framework inline caller source exceeds size limit")
+    source = git("cat-file", "blob", oid)
+    if len(source) != int(size) or hashlib.sha256(source).hexdigest() != INLINE_CALLER_SOURCE_SHA256:
+        raise SyncError("Framework caller source changed; a protected contract review is required")
+    return source
+
+
+def _render_inline_caller(spec: FrameworkShaProjectionSpec, text: str,
+                          old_sha: str, new_sha: str, source: bytes) -> str:
+    """Materialize the reviewed fixed source and bind its generating revision."""
+    if hashlib.sha256(source).hexdigest() != INLINE_CALLER_SOURCE_SHA256:
+        raise SyncError("Framework caller source differs from its reviewed contract")
+    def projected(revision: str) -> str:
+        trigger = b"\non:\n  workflow_call:\n"
+        if source.count(trigger) != 1:
+            raise SyncError("Framework inline caller has an unexpected trigger")
+        header = (
+            "# Generated from Framework; edit the canonical source and regenerate.\n"
+            f"# framework-caller-source: {INLINE_CALLER_SOURCE}\n"
+            f"# framework-caller-revision: {revision}\n"
+            f"# framework-caller-source-sha256: {INLINE_CALLER_SOURCE_SHA256}\n"
+        )
+        return header + source.replace(trigger, b"\non:\n  workflow_dispatch:\n", 1).decode("utf-8")
+    legacy = (old_sha == LEGACY_CALLER_FRAMEWORK_SHA
+              and hashlib.sha256(text.encode()).hexdigest() == LEGACY_CALLER_SHA256)
+    if text != projected(old_sha) and not legacy:
+        raise SyncError("generated Framework caller differs from its fixed trusted projection: " + spec.relative_path)
+    return projected(new_sha)
 
 
 def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
@@ -1074,6 +1134,7 @@ def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
 def _render_targets(
     root: Path, values: dict[str, str], framework_sha: str | None,
     originals: dict[str, bytes] | None = None,
+    framework_object_root: Path | None = None,
 ) -> list[RenderedTarget]:
     derived = {
         "ENVOY_IMAGE": f"envoyproxy/envoy:v{values['ENVOY_VERSION']}",
@@ -1105,7 +1166,7 @@ def _render_targets(
         replacement = _render_target(spec, text, values, path, source_value)
         rendered.append(RenderedTarget(path, original, replacement.encode("utf-8"), mode))
     if framework_sha is not None:
-        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha, originals))
+        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha, originals, framework_object_root))
     return rendered
 
 
@@ -1138,6 +1199,7 @@ def _publication_bytes(root: Path, name: str, approved: frozenset[str], staged: 
 
 def verify_primary_changes(
     root: Path, framework_common: Path, framework_sha: str, base: str, *, staged: bool = False,
+    framework_object_root: Path | None = None,
 ) -> None:
     """Rebuild exact product projection bytes from immutable trusted Git data."""
     repository_root = _require_directory(root, "repository root")
@@ -1147,7 +1209,7 @@ def verify_primary_changes(
     with _project_version_transaction(repository_root, False):
         approved = _primary_paths(framework_sha)
         before = {name: product_changes.trusted_blob(repository_root, base, name) for name in approved}
-        rendered = _render_targets(repository_root, values, framework_sha, before)
+        rendered = _render_targets(repository_root, values, framework_sha, before, framework_object_root)
         expected = {str(item.path.relative_to(repository_root)): item.replacement for item in rendered}
         for name in approved:
             if _publication_bytes(repository_root, name, approved, staged) != expected[name]:
@@ -1236,6 +1298,7 @@ def synchronize(
     framework_common: Path,
     sync: bool,
     framework_sha: str | None = None,
+    framework_object_root: Path | None = None,
 ) -> list[str]:
     repository_root = _require_directory(root, "repository root")
     if framework_sha is not None and not LOWER_HEX40.fullmatch(framework_sha):
@@ -1243,7 +1306,7 @@ def synchronize(
     values = parse_common(framework_common)
     try:
         with _project_version_transaction(repository_root, sync):
-            rendered = _render_targets(repository_root, values, framework_sha)
+            rendered = _render_targets(repository_root, values, framework_sha, framework_object_root=framework_object_root)
             changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
             if sync and changed:
                 _commit_rendered(rendered)
@@ -1327,6 +1390,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--staged", action="store_true", help="verify stage-zero index blobs instead of working-tree files")
     parser.add_argument("--repo-root", type=Path, default=SCRIPT_REPOSITORY_ROOT)
     parser.add_argument("--framework-common", type=Path, required=True)
+    parser.add_argument("--framework-object-root", type=Path,
+                        help="existing read-only Framework object repository; default: fixed Parent submodule path")
     parser.add_argument(
         "--framework-sha",
         help="validated official Framework SHA for the fixed revision lock and integration references",
@@ -1339,7 +1404,8 @@ def main(argv: list[str] | None = None) -> int:
             if not args.base or not args.framework_sha:
                 raise SyncError("product-primary verification requires both --base and --framework-sha")
             verify_primary_changes(SCRIPT_REPOSITORY_ROOT, _absolute(args.framework_common),
-                                        args.framework_sha, args.base, staged=args.staged)
+                                        args.framework_sha, args.base, staged=args.staged,
+                                        framework_object_root=args.framework_object_root)
             print("FRAMEWORK_PRIMARY_VERIFIED")
             return 0
         if args.base or args.staged:
@@ -1349,6 +1415,7 @@ def main(argv: list[str] | None = None) -> int:
             _absolute(args.framework_common),
             args.sync,
             args.framework_sha,
+            args.framework_object_root,
         )
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"sync-framework-component-versions: error: {exc}")
