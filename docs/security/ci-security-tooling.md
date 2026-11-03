@@ -111,6 +111,18 @@ action/security-tool pins keep their separate lock. Protected broker tuples
 remain independently reviewed. See [project version pins](../reference/version-pins.md)
 for ownership, synchronization and failure semantics.
 
+An independently reviewed MRTS change requires an explicit nested-pin handoff.
+The component synchronizer accepts `--mrts-sha` only together with
+`--framework-sha`: the locked Framework object's MRTS Gitlink must match the
+old lock, and the candidate object's Gitlink must match the separately approved
+MRTS identity before the existing transaction updates both ordinary revision
+fields. The candidate verifier's `--expected-candidate-mrts-sha` likewise requires
+`--candidate-framework-root`. Without explicit approval the verifier continues
+requiring the locked MRTS identity; no automatic nested-pin approval is inferred.
+Malformed inputs, missing objects and mismatches fail before publication. These
+options do not establish remote merge authorization or alter protected broker,
+composite, component or toolchain identities.
+
 ## Framework submodule maintenance and artifact cleanup
 
 `update-submodules.yml` distinguishes open maintenance branches from branches

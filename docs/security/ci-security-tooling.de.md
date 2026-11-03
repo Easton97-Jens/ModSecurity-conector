@@ -115,6 +115,18 @@ Tool-Pins behalten ihre getrennte Lockdatei. Geschützte Broker-Tupel bleiben
 unabhängig geprüft. [Projekt-Versionspins](../reference/version-pins.de.md)
 erläutern Zuständigkeit, Synchronisierung und Fehlersemantik.
 
+Eine unabhängig geprüfte MRTS-Änderung benötigt einen expliziten Kind-Pin-Handoff.
+Der Komponentensynchronisierer akzeptiert `--mrts-sha` nur zusammen mit
+`--framework-sha`: Der MRTS-Gitlink des bisher gelockten Framework-Objekts muss
+zum alten Lock passen, der Gitlink des Kandidatenobjekts zur separat freigegebenen
+MRTS-Identität, bevor die bestehende Transaktion beide gewöhnlichen Revisionsfelder
+aktualisiert. Ebenso verlangt `--expected-candidate-mrts-sha` des Kandidatenprüfers
+`--candidate-framework-root`. Ohne explizite Freigabe verlangt der Prüfer weiterhin
+die gelockte MRTS-Identität; keine automatische Kind-Pin-Freigabe wird abgeleitet.
+Ungültige Eingaben, fehlende Objekte und Abweichungen scheitern vor Veröffentlichung.
+Diese Optionen begründen keine Remote-Mergeautorität und ändern keine geschützten
+Broker-, Composite-, Komponenten- oder Toolchain-Identitäten.
+
 ## Framework-Submodul-Wartung und Artefaktbereinigung
 
 `update-submodules.yml` unterscheidet offene Wartungsbranches von Branches, die

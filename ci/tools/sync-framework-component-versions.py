@@ -40,6 +40,7 @@ SCRIPT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if __package__:
     from ..lib.framework_revision_pins import (
         FrameworkRevisionPinsError, LOCK_RELATIVE_PATH, parse_framework_revision_pins,
+        read_framework_mrts_gitlink,
     )
     from ..lib import maintenance_changes as product_changes
 else:
@@ -49,6 +50,7 @@ else:
     FrameworkRevisionPinsError = _pins["FrameworkRevisionPinsError"]
     LOCK_RELATIVE_PATH = _pins["LOCK_RELATIVE_PATH"]
     parse_framework_revision_pins = _pins["parse_framework_revision_pins"]
+    read_framework_mrts_gitlink = _pins["read_framework_mrts_gitlink"]
     product_changes = SimpleNamespace(**runpy.run_path(str(SCRIPT_REPOSITORY_ROOT / "ci/lib/maintenance_changes.py")))
 
 
@@ -1014,11 +1016,38 @@ def _decode_framework_workflow(data: bytes) -> str:
         raise SyncError("Framework workflow identity must be UTF-8") from exc
 
 
-def _render_framework_sha_projection_targets(
+def _validate_mrts_handoff_input(framework_sha: str | None, mrts_sha: str | None) -> None:
+    if mrts_sha is None:
+        return
+    if framework_sha is None:
+        raise SyncError("explicit MRTS handoff requires --framework-sha")
+    if not isinstance(mrts_sha, str) or LOWER_HEX40.fullmatch(mrts_sha) is None:
+        raise SyncError("MRTS SHA must be exactly 40 lowercase hexadecimal characters")
+
+
+def _approved_mrts_sha(root: Path, payload: dict, framework_sha: str,
+                       mrts_sha: str, object_root: Path | None) -> str:
+    """Bind an explicit nested-pin approval to both immutable Framework objects."""
+    framework = _require_directory(object_root or root / "modules/ModSecurity-test-Framework",
+                                   "Framework object repository")
+    try:
+        old = read_framework_mrts_gitlink(framework, str(payload["framework_sha"]))
+        candidate = read_framework_mrts_gitlink(framework, framework_sha)
+    except FrameworkRevisionPinsError as exc:
+        raise SyncError("cannot verify explicit MRTS handoff Git provenance") from exc
+    if old != payload["mrts_sha"]:
+        raise SyncError("locked MRTS SHA differs from the locked Framework gitlink")
+    if candidate != mrts_sha:
+        raise SyncError("candidate Framework MRTS gitlink differs from explicit approval")
+    return candidate
+
+
+def _render_framework_revision_lock(
     root: Path, framework_sha: str, originals: dict[str, bytes] | None = None,
     framework_object_root: Path | None = None,
-) -> list[RenderedTarget]:
-    """Project a single reviewed Framework identity; retain all other bytes."""
+    mrts_sha: str | None = None,
+) -> tuple[RenderedTarget, str]:
+    """Project ordinary revision identities through the closed five-key lock."""
     path = _target_path(root, LOCK_RELATIVE_PATH)
     original, mode = (_read_regular(path, "Framework revision lock", allowed_root=root)
                       if originals is None else (originals[LOCK_RELATIVE_PATH], 0o644))
@@ -1027,12 +1056,24 @@ def _render_framework_sha_projection_targets(
     except FrameworkRevisionPinsError as exc:
         raise SyncError(f"invalid Framework revision lock: {exc}") from exc
     old_sha = payload["framework_sha"]
-    if old_sha == framework_sha:
+    selected_mrts = (payload["mrts_sha"] if mrts_sha is None else
+                     _approved_mrts_sha(root, payload, framework_sha, mrts_sha, framework_object_root))
+    if old_sha == framework_sha and payload["mrts_sha"] == selected_mrts:
         replacement = original
     else:
         payload["framework_sha"] = framework_sha
+        payload["mrts_sha"] = selected_mrts
         replacement = (json.dumps(payload, indent=2) + "\n").encode("utf-8")
-    rendered = [RenderedTarget(path, original, replacement, mode)]
+    return RenderedTarget(path, original, replacement, mode), str(old_sha)
+
+
+def _render_framework_sha_projection_targets(
+    root: Path, framework_sha: str, originals: dict[str, bytes] | None = None,
+    framework_object_root: Path | None = None, mrts_sha: str | None = None,
+) -> list[RenderedTarget]:
+    """Keep ordinary workflow projections separate from nested-pin approval."""
+    lock, old_sha = _render_framework_revision_lock(root, framework_sha, originals, framework_object_root, mrts_sha)
+    rendered = [lock]
     for spec in FRAMEWORK_SHA_PROJECTION_TARGETS:
         if spec.syntax == "project-versions-lock":
             continue
@@ -1140,6 +1181,7 @@ def _render_targets(
     root: Path, values: dict[str, str], framework_sha: str | None,
     originals: dict[str, bytes] | None = None,
     framework_object_root: Path | None = None,
+    mrts_sha: str | None = None,
 ) -> list[RenderedTarget]:
     derived = {
         "ENVOY_IMAGE": f"envoyproxy/envoy:v{values['ENVOY_VERSION']}",
@@ -1171,7 +1213,7 @@ def _render_targets(
         replacement = _render_target(spec, text, values, path, source_value)
         rendered.append(RenderedTarget(path, original, replacement.encode("utf-8"), mode))
     if framework_sha is not None:
-        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha, originals, framework_object_root))
+        rendered.extend(_render_framework_sha_projection_targets(root, framework_sha, originals, framework_object_root, mrts_sha))
     return rendered
 
 
@@ -1205,16 +1247,18 @@ def _publication_bytes(root: Path, name: str, approved: frozenset[str], staged: 
 def verify_primary_changes(
     root: Path, framework_common: Path, framework_sha: str, base: str, *, staged: bool = False,
     framework_object_root: Path | None = None,
+    mrts_sha: str | None = None,
 ) -> None:
     """Rebuild exact product projection bytes from immutable trusted Git data."""
     repository_root = _require_directory(root, "repository root")
     if not LOWER_HEX40.fullmatch(base) or not LOWER_HEX40.fullmatch(framework_sha):
         raise SyncError("Framework publication requires exact lowercase SHA-40 identities")
+    _validate_mrts_handoff_input(framework_sha, mrts_sha)
     values = parse_common(framework_common)
     with _project_version_transaction(repository_root, False):
         approved = _primary_paths(framework_sha)
         before = {name: product_changes.trusted_blob(repository_root, base, name) for name in approved}
-        rendered = _render_targets(repository_root, values, framework_sha, before, framework_object_root)
+        rendered = _render_targets(repository_root, values, framework_sha, before, framework_object_root, mrts_sha)
         expected = {str(item.path.relative_to(repository_root)): item.replacement for item in rendered}
         for name in approved:
             if _publication_bytes(repository_root, name, approved, staged) != expected[name]:
@@ -1304,14 +1348,17 @@ def synchronize(
     sync: bool,
     framework_sha: str | None = None,
     framework_object_root: Path | None = None,
+    *, mrts_sha: str | None = None,
 ) -> list[str]:
     repository_root = _require_directory(root, "repository root")
     if framework_sha is not None and not LOWER_HEX40.fullmatch(framework_sha):
         raise SyncError("Framework SHA must be exactly 40 lowercase hexadecimal characters")
+    _validate_mrts_handoff_input(framework_sha, mrts_sha)
     values = parse_common(framework_common)
     try:
         with _project_version_transaction(repository_root, sync):
-            rendered = _render_targets(repository_root, values, framework_sha, framework_object_root=framework_object_root)
+            rendered = _render_targets(repository_root, values, framework_sha,
+                                       framework_object_root=framework_object_root, mrts_sha=mrts_sha)
             changed = [str(item.path.relative_to(repository_root)) for item in rendered if item.replacement != item.original]
             if sync and changed:
                 _commit_rendered(rendered)
@@ -1401,6 +1448,7 @@ def main(argv: list[str] | None = None) -> int:
         "--framework-sha",
         help="validated official Framework SHA for the fixed revision lock and integration references",
     )
+    parser.add_argument("--mrts-sha", help="explicit reviewed MRTS handoff; requires --framework-sha and matching old/candidate Gitlinks")
     args = parser.parse_args(argv)
     try:
         if _absolute(args.repo_root) != SCRIPT_REPOSITORY_ROOT:
@@ -1410,7 +1458,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise SyncError("product-primary verification requires both --base and --framework-sha")
             verify_primary_changes(SCRIPT_REPOSITORY_ROOT, _absolute(args.framework_common),
                                         args.framework_sha, args.base, staged=args.staged,
-                                        framework_object_root=args.framework_object_root)
+                                        framework_object_root=args.framework_object_root, mrts_sha=args.mrts_sha)
             print("FRAMEWORK_PRIMARY_VERIFIED")
             return 0
         if args.base or args.staged:
@@ -1421,6 +1469,7 @@ def main(argv: list[str] | None = None) -> int:
             args.sync,
             args.framework_sha,
             args.framework_object_root,
+            mrts_sha=args.mrts_sha,
         )
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"sync-framework-component-versions: error: {exc}")
