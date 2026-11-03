@@ -12,22 +12,25 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from functools import lru_cache
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
 import runpy
 
 if __package__:
     from ..lib.framework_revision_pins import (
-        FrameworkRevisionPinsError, load_framework_revision_pins, read_framework_mrts_gitlink,
+        FRAMEWORK_PATH, FrameworkRevisionPinsError, load_framework_revision_pins, read_framework_mrts_gitlink,
     )
 else:
     _pins = runpy.run_path(str(Path(__file__).resolve().parents[2] / "ci/lib/framework_revision_pins.py"))
     FrameworkRevisionPinsError = _pins["FrameworkRevisionPinsError"]
+    FRAMEWORK_PATH = _pins["FRAMEWORK_PATH"]
     load_framework_revision_pins = _pins["load_framework_revision_pins"]
     read_framework_mrts_gitlink = _pins["read_framework_mrts_gitlink"]
 
@@ -523,20 +526,95 @@ def _parent_assignment(
     raise ContractError(f"unsupported registered Parent syntax: {projection.syntax}")
 
 
+def _git_output(root: Path, *arguments: str) -> bytes:
+    try:
+        return subprocess.run(
+            ["git", "--no-replace-objects", "-c", "core.hooksPath=/dev/null",
+             "-C", str(root), *arguments],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ContractError("cannot read pinned Framework Git source") from error
+
+
+@lru_cache(maxsize=128)
+def _framework_blob(framework: Path, revision: str, relative: str) -> str:
+    """Read bounded regular UTF-8 blobs, independent of the active checkout."""
+    if (not HEX40.fullmatch(revision) or not relative or "\\" in relative or "\0" in relative
+            or Path(relative).is_absolute()
+            or any(part in ("", ".", "..") for part in relative.split("/"))):
+        raise ContractError("unsafe pinned Framework source")
+    entry = _git_output(framework, "ls-tree", revision, "--", relative)
+    match = re.fullmatch(
+        rb"100(?:644|755) blob ([a-f0-9]{40})\t" + re.escape(relative.encode()) + rb"\n",
+        entry,
+    )
+    if match is None:
+        raise ContractError(f"pinned Framework source must be a regular blob: {relative}")
+    oid = match[1].decode("ascii")
+    size = _git_output(framework, "cat-file", "-s", oid).strip()
+    if not size.isdigit() or int(size) > MAX_INPUT_BYTES:
+        raise ContractError(f"pinned Framework source exceeds size limit: {relative}")
+    data = _git_output(framework, "cat-file", "blob", oid)
+    if len(data) != int(size):
+        raise ContractError(f"pinned Framework source changed while reading: {relative}")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ContractError(f"pinned Framework source is not UTF-8: {relative}") from error
+
+
+def _workflow_projection(root: Path, text: str, name: str, revision: str) -> str:
+    framework = _require_directory(root / FRAMEWORK_PATH, "Framework object repository")
+    # Parser code comes only from the committed Parent gitlink. The lock may
+    # already have been synchronized to the candidate; it selects DATA only.
+    entry = _git_output(root, "ls-tree", "HEAD", "--", FRAMEWORK_PATH)
+    match = re.fullmatch(rb"160000 commit ([a-f0-9]{40})\t" + re.escape(FRAMEWORK_PATH.encode()) + rb"\n", entry)
+    if match is None:
+        raise ContractError("committed Parent Framework gitlink is missing")
+    source = _framework_blob(framework, match[1].decode("ascii"), "modsecurity_test_framework/workflow_sources.py")
+    namespace = {"__name__": "_trusted_workflow_sources"}
+    exec(compile(source, "git:modsecurity_test_framework/workflow_sources.py", "exec"), namespace)
+    # Reuse the trusted closed-schema expander with immutable source acquisition.
+    # No candidate Python or ambient connector context is imported or executed.
+    namespace["_read"] = lambda _root, relative: _framework_blob(framework, revision, relative)
+    try:
+        return namespace["expand_workflow_source"](
+            text, framework_root=framework, framework_revision=revision, workflow_name=name,
+        )
+    except namespace["WorkflowSourceError"] as error:
+        raise ContractError(f"cannot verify pinned workflow handoff: {error}") from error
+
+
 def _projection_text(root: Path, relative: str) -> str:
-    """Read a closed handoff input from its current explicit source owner."""
-    from modsecurity_test_framework.connector_context import source_path
+    """Select projection data by the checked Parent lock, never ambient HEAD."""
     if (Path(relative).is_absolute() or not relative
             or any(part in ("", ".", "..") for part in relative.split("/"))):
         raise ContractError(f"unsafe registered handoff path: {relative}")
-    path = source_path(relative, root=root)
-    if relative in (NGINX_EXACT_HEAD_WORKFLOW_PATH, NGINX_FULL_SMOKE_WORKFLOW_PATH):
-        from modsecurity_test_framework.workflow_sources import WorkflowSourceError, read_connector_workflow
-        try:
-            return read_connector_workflow(path)
-        except WorkflowSourceError as error:
-            raise ContractError(f"cannot verify pinned workflow handoff: {error}") from error
-    return _read_text(path, f"registered handoff projection {relative}")
+    path = root / relative
+    migrated = relative in (RUNTIME_COMPONENTS_PATH, RUNTIME_PRODUCER_READINESS_PATH)
+    # Standalone captured fixtures have no Parent Git repository. In a real
+    # checkout, migrated source ownership takes precedence over stale local files.
+    captured_fixture = not (root / ".git").exists()
+    if not migrated or captured_fixture:
+        text = _read_text(path, f"registered handoff projection {relative}")
+        if (relative in (NGINX_EXACT_HEAD_WORKFLOW_PATH, NGINX_FULL_SMOKE_WORKFLOW_PATH)
+                and "Easton97-Jens/ModSecurity-test-Framework/" in text):
+            revision = str(load_framework_revision_pins(root)["framework_sha"])
+            return _workflow_projection(root, text, path.name, revision)
+        return text
+    # These source IDs moved to Framework. Preserve its source-map authority,
+    # but read that map and the mapped files from the selected immutable pin.
+    framework = _require_directory(root / FRAMEWORK_PATH, "Framework object repository")
+    revision = str(load_framework_revision_pins(root)["framework_sha"])
+    try:
+        mapping = json.loads(_framework_blob(framework, revision, "connector_suite/source-map.json"))
+        mapped = mapping["paths"][relative]
+        if not isinstance(mapped, str) or not mapped.startswith("connector_suite/"):
+            raise ValueError("unexpected mapped source owner")
+    except (KeyError, TypeError, ValueError) as error:
+        raise ContractError(f"missing pinned Framework source mapping: {relative}") from error
+    return _framework_blob(framework, revision, mapped)
 
 
 def _candidate_field_writes(text: str, name: str) -> list[re.Match[str]]:

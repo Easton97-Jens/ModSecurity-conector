@@ -96,7 +96,9 @@ func (config *Config) UnmarshalJSON(data []byte) error {
 	}
 	type plainConfig Config
 	var decoded plainConfig
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	// The embedded Yaegi interpreter requires the explicit interface conversion
+	// when passing this local config type to the binary JSON decoder.
+	if err := json.Unmarshal(data, any(&decoded)); err != nil {
 		return err
 	}
 	*config = Config(decoded)
