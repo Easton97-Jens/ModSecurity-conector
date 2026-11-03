@@ -115,6 +115,18 @@ Tool-Pins behalten ihre getrennte Lockdatei. Geschützte Broker-Tupel bleiben
 unabhängig geprüft. [Projekt-Versionspins](../reference/version-pins.de.md)
 erläutern Zuständigkeit, Synchronisierung und Fehlersemantik.
 
+Eine unabhängig geprüfte MRTS-Änderung benötigt einen expliziten Kind-Pin-Handoff.
+Der Komponentensynchronisierer akzeptiert `--mrts-sha` nur zusammen mit
+`--framework-sha`: Der MRTS-Gitlink des bisher gelockten Framework-Objekts muss
+zum alten Lock passen, der Gitlink des Kandidatenobjekts zur separat freigegebenen
+MRTS-Identität, bevor die bestehende Transaktion beide gewöhnlichen Revisionsfelder
+aktualisiert. Ebenso verlangt `--expected-candidate-mrts-sha` des Kandidatenprüfers
+`--candidate-framework-root`. Ohne explizite Freigabe verlangt der Prüfer weiterhin
+die gelockte MRTS-Identität; keine automatische Kind-Pin-Freigabe wird abgeleitet.
+Ungültige Eingaben, fehlende Objekte und Abweichungen scheitern vor Veröffentlichung.
+Diese Optionen begründen keine Remote-Mergeautorität und ändern keine geschützten
+Broker-, Composite-, Komponenten- oder Toolchain-Identitäten.
+
 ## Framework-Submodul-Wartung und Artefaktbereinigung
 
 `update-submodules.yml` unterscheidet offene Wartungsbranches von Branches, die
@@ -191,8 +203,8 @@ und den ausdrücklichen Wiederherstellungsgrund.
 
 ## Geprüfter CI-Abhängigkeitsbuild für Python 3.15
 
-Für Python `3.15.1` gibt es auf PyPI kein offizielles CPython-3.15-Wheel von
-PyYAML `6.0.3`. Die ausdrücklich geprüfte Ausnahme in
+Die Python-`3.15.2`-Lane verwendet den geprüften PyYAML-`6.0.3`-Quellbuildvertrag.
+Die ausdrücklich geprüfte Ausnahme in
 `ci/tools/install-ci-dependencies.py` verwendet ausschließlich die offizielle
 SHA-256-gepinnte Quelldistribution dieses Releases und die exakten offiziellen
 universellen Build-Tool-Wheels aus `requirements-ci-build.lock`. Sie erstellt
@@ -269,8 +281,10 @@ sowie die Upstream-Korrekturen für Maintenance-Imports, Diagnostik und Tooling.
 Die Canonical-Maintenance-Transaktion lässt die eine registrierte Ausgabe
 `.github/workflows/ci-findings-regressions.yml` zu; das Replay des archivierten
 43-Update-Plans prüft diese Pfadkorrektur ohne Veröffentlichung jener
-Komponentenupdates. Die Parent-Python-Baseline bleibt `3.15.1`, NGINX bleibt
-`release-1.31.6`; die separate Upstream-MRTS-Revision wird nicht ausgewählt.
+Komponentenupdates. Jener Wartungsnachweis verwendete Python `3.15.1` und NGINX
+`release-1.31.6`; er belegt keine aktuellen Komponentenversionen. Diese
+Readiness-Änderung wählt Python `3.15.2`. Aktuelle Laufzeittupel bleiben im
+exakten ausgewählten Framework verankert; die MRTS-Auswahl bleibt getrennt.
 
 ## Eingeschränkter Python-3.15-Patch-Updater
 

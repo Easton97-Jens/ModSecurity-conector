@@ -64,7 +64,7 @@ Remote-CI-Lauf, Pull Request, Review oder Delivery-Erfolg dar.
 Die eingecheckte Root-[`.python-version`](../../.python-version) ist die generierte
 Setup-Action-Ansicht von `python_version` aus der kanonischen
 [`ci/tooling/project-versions.lock.json`](../../ci/tooling/project-versions.lock.json).
-Ihr erforderlicher Inhalt ist das exakte stabile Release <code>3.15.1</code>. Jeder normale Python-ausführende Job aus
+Ihr erforderlicher Inhalt ist das exakte stabile Release <code>3.15.2</code>. Jeder normale Python-ausführende Job aus
 der folgenden Inventarisierung muss vor seiner ersten direkten oder indirekten
 Python-Nutzung `actions/setup-python` ausführen mit:
 
@@ -81,7 +81,7 @@ vorhandene unveränderliche Pin
 der auch in `ci/tooling/security-tools.lock.yml` dokumentiert ist; der
 Contract-Checker muss diese v7-Referenz statt einer veralteten v6-Erwartung
 validieren. Nach dem Setup muss der Workflow-Vertrag validieren, dass `python`
-und `python3` äquivalente konfigurierte Python-<code>3.15.1</code>-Interpreter
+und `python3` äquivalente konfigurierte Python-<code>3.15.2</code>-Interpreter
 auswählen, bevor einer der Namen, ein
 Python-gestütztes Make-Target oder eine indirekte Framework-Prüfung verwendet
 wird. Kein normaler Job darf auf einen ambienten Runner-, Bootstrap-,
@@ -90,7 +90,7 @@ Virtual-Environment- oder System-`python3`-Interpreter zurückfallen.
 | Alternative | Entscheidung | Begründung |
 | --- | --- | --- |
 | Floating `3.15` | Abgelehnt | Eine spätere Runner-/Tool-Cache-Auflösung kann stillschweigend ein anderes Patch-Release auswählen und Patch Drift erzeugen. |
-| Exaktes `3.15.1` aus einer eingecheckten `.python-version` | Ausgewählt | Der exakte stabile Patch ist reviewbar und reproduzierbar, während `python-version-file` allen abgedeckten Jobs dieselbe Quelle gibt. |
+| Exaktes `3.15.2` aus einer eingecheckten `.python-version` | Ausgewählt | Der exakte stabile Patch ist reviewbar und reproduzierbar, während `python-version-file` allen abgedeckten Jobs dieselbe Quelle gibt. |
 | Exakte Version plus permanenter Canary-Workflow | Abgelehnt | Die unabhängige schreibgeschützte Candidate-Validierungs-Stage unten validiert einen vorgeschlagenen Patch vor der Veröffentlichung; ein zusätzlicher Canary würde diese Kontrolle duplizieren, ohne die Publisher-Trust-Grenze zu ändern. |
 
 Für Python 3.15 werden die Parent-CI-Abhängigkeiten aus einem aufgabeneigenen
@@ -117,32 +117,32 @@ lassen den Vertrag fehlschlagen.
 
 | Workflow | Jobs | Interpreter-Vertrag |
 | --- | --- | --- |
-| `ci-findings-regressions.yml` | `nginx-b09-regression` | Kanonisches Python `3.15.1` |
-| `ci-security-codeql.yml` | `trusted-go-version` | Kanonisches Python `3.15.1` |
-| `ci-security-secrets.yml` | `advisory-full-history`, `pull-request-range` | Kanonisches Python `3.15.1` |
-| `ci-security-workflow-lint.yml` | `actionlint`, `apr-util-provenance`, `zizmor` | Kanonisches Python `3.15.1` |
-| `lint.yml` | `scaffold-lint` | Kanonisches Python `3.15.1` |
-| `nginx-root-broker.yml` | `trusted-root-smoke` | Kanonisches Python `3.15.1` |
-| `open-connectors-smoke.yml` | `open-connectors-smoke` | Kanonisches Python `3.15.1` |
-| `protocol-contract.yml` | `nginx-profile-and-client-preflight`, `protocol-contract` | Kanonisches Python `3.15.1` |
-| `quick-framework-check.yml` | `quick-check` | Kanonisches Python `3.15.1` |
-| `reusable-five-connectors-profile.yml` | `aggregate`, `no-crs`, `resolve-profile` | Kanonisches Python `3.15.1` |
-| `run-protected-nginx-root-broker.yml` | `prepare-manifests`, `verify-evidence` | Kanonisches Python `3.15.1` |
-| `test-apache.yml` | `apache-autotools-bootstrap`, `apache-structure` | Kanonisches Python `3.15.1` |
-| `test-common.yml` | `common-structure` | Kanonisches Python `3.15.1` |
-| `test-connectors-with-crs-no-mrts.yml` | `aggregate-with-crs-no-mrts`, `connector-mode` | Kanonisches Python `3.15.1` |
-| `test-envoy.yml` | `envoy-contract` | Kanonisches Python `3.15.1` |
-| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | Kanonisches Python `3.15.1` |
-| `test-haproxy.yml` | `haproxy-structure` | Kanonisches Python `3.15.1` |
-| `test-lighttpd.yml` | `lighttpd-contract` | Kanonisches Python `3.15.1` |
-| `test-nginx-exact-head.yml` | `nginx-exact-head` | Kanonisches Python `3.15.1` |
-| `test-nginx.yml` | `nginx-structure` | Kanonisches Python `3.15.1` |
-| `test-traefik.yml` | `traefik-contract` | Kanonisches Python `3.15.1` |
-| `update-go-version.yml` | `create-go-update-pr`, `resolve-go-release`, `validate-go-release` | Kanonisches Python `3.15.1` |
-| `update-python-version.yml` | `publish-python-update`, `resolve-python-patch` | Kanonisches Python `3.15.1` |
-| `update-submodules.yml` | `create-submodule-update-pr`, `validate-submodule-update` | Kanonisches Python `3.15.1` |
-| `update-workflow-tools.yml` | `publisher`, `resolver`, `validator` | Kanonisches Python `3.15.1` |
-| `verified-report-governance.yml` | `report-governance` | Kanonisches Python `3.15.1` |
+| `ci-findings-regressions.yml` | `nginx-b09-regression` | Kanonisches Python `3.15.2` |
+| `ci-security-codeql.yml` | `trusted-go-version` | Kanonisches Python `3.15.2` |
+| `ci-security-secrets.yml` | `advisory-full-history`, `pull-request-range` | Kanonisches Python `3.15.2` |
+| `ci-security-workflow-lint.yml` | `actionlint`, `apr-util-provenance`, `zizmor` | Kanonisches Python `3.15.2` |
+| `lint.yml` | `scaffold-lint` | Kanonisches Python `3.15.2` |
+| `nginx-root-broker.yml` | `trusted-root-smoke` | Kanonisches Python `3.15.2` |
+| `open-connectors-smoke.yml` | `open-connectors-smoke` | Kanonisches Python `3.15.2` |
+| `protocol-contract.yml` | `nginx-profile-and-client-preflight`, `protocol-contract` | Kanonisches Python `3.15.2` |
+| `quick-framework-check.yml` | `quick-check` | Kanonisches Python `3.15.2` |
+| `reusable-five-connectors-profile.yml` | `aggregate`, `no-crs`, `resolve-profile` | Kanonisches Python `3.15.2` |
+| `run-protected-nginx-root-broker.yml` | `prepare-manifests`, `verify-evidence` | Kanonisches Python `3.15.2` |
+| `test-apache.yml` | `apache-autotools-bootstrap`, `apache-structure` | Kanonisches Python `3.15.2` |
+| `test-common.yml` | `common-structure` | Kanonisches Python `3.15.2` |
+| `test-connectors-with-crs-no-mrts.yml` | `aggregate-with-crs-no-mrts`, `connector-mode` | Kanonisches Python `3.15.2` |
+| `test-envoy.yml` | `envoy-contract` | Kanonisches Python `3.15.2` |
+| `test-full-smoke-sequential.yml` | `manual-heavy-runtime-validation` | Kanonisches Python `3.15.2` |
+| `test-haproxy.yml` | `haproxy-structure` | Kanonisches Python `3.15.2` |
+| `test-lighttpd.yml` | `lighttpd-contract` | Kanonisches Python `3.15.2` |
+| `test-nginx-exact-head.yml` | `nginx-exact-head` | Kanonisches Python `3.15.2` |
+| `test-nginx.yml` | `nginx-structure` | Kanonisches Python `3.15.2` |
+| `test-traefik.yml` | `traefik-contract` | Kanonisches Python `3.15.2` |
+| `update-go-version.yml` | `create-go-update-pr`, `resolve-go-release`, `validate-go-release` | Kanonisches Python `3.15.2` |
+| `update-python-version.yml` | `publish-python-update`, `resolve-python-patch` | Kanonisches Python `3.15.2` |
+| `update-submodules.yml` | `create-submodule-update-pr`, `validate-submodule-update` | Kanonisches Python `3.15.2` |
+| `update-workflow-tools.yml` | `publisher`, `resolver`, `validator` | Kanonisches Python `3.15.2` |
+| `verified-report-governance.yml` | `report-governance` | Kanonisches Python `3.15.2` |
 | `update-python-version.yml` | `validate-python-patch` | Unabhängig aufgelöster exakter stabiler `3.15.N`-Candidate; kein Downgrade |
 | `run-protected-nginx-root-broker.yml` | `run-no-crs-broker`, `run-with-crs-broker` | Vorhandenes unveränderlich gepinntes Protected-Reusable-Workflow-Tupel |
 | `all-connectors-no-crs.yml` | `no-crs` | Exakter lokaler Aufrufer `$/.github/workflows/reusable-five-connectors-profile.yml`; sein festes `./`-Äquivalent wird ebenfalls akzeptiert |

@@ -1,7 +1,28 @@
 {
   "status": "PROPOSED_NOT_APPLIED",
   "requires_separate_user_approval": true,
-  "checked_date": "2026-11-02",
+  "checked_date": "2026-11-03",
+  "checked_at_utc": "2026-11-03 12:32:27 UTC",
+  "evidence": {
+    "repositories": [
+      "Easton97-Jens/ModSecurity-conector",
+      "Easton97-Jens/ModSecurity-test-Framework"
+    ],
+    "sampled_prs": {
+      "connector": [
+        442,
+        440
+      ],
+      "framework": [
+        165,
+        164
+      ]
+    },
+    "sample_count_per_repository": 2,
+    "context_delivery_rows": 42,
+    "missing_delivery_rows": 0,
+    "limits": "Samples are same-repository pull_request events, not fork, merge_group or current task-head qualification. Framework164 pull-request-range executed and failed; Framework165 passed. Skips do not qualify actual execution. Classic connector403 and CLI404 retained separately in before."
+  },
   "repositories": [
     {
       "repository": "Easton97-Jens/ModSecurity-conector",
