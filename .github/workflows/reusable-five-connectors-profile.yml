@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@bb6c7580208a05c17d6d6674571731b6a71028cb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@62b411e073551ef0fef22ab3d372e2489f2ae168
         with:
-          framework-revision: bb6c7580208a05c17d6d6674571731b6a71028cb
+          framework-revision: 62b411e073551ef0fef22ab3d372e2489f2ae168
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@bb6c7580208a05c17d6d6674571731b6a71028cb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@62b411e073551ef0fef22ab3d372e2489f2ae168
         with:
-          framework-revision: bb6c7580208a05c17d6d6674571731b6a71028cb
+          framework-revision: 62b411e073551ef0fef22ab3d372e2489f2ae168
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@bb6c7580208a05c17d6d6674571731b6a71028cb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@62b411e073551ef0fef22ab3d372e2489f2ae168
         with:
-          framework-revision: bb6c7580208a05c17d6d6674571731b6a71028cb
+          framework-revision: 62b411e073551ef0fef22ab3d372e2489f2ae168
