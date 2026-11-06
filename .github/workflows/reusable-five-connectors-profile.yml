@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@a7633419bb0257c879a5b5a775f4f2e2b81a01ef
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@d0c8bdf508f5c335736bcd442274d8db62a818c4
         with:
-          framework-revision: a7633419bb0257c879a5b5a775f4f2e2b81a01ef
+          framework-revision: d0c8bdf508f5c335736bcd442274d8db62a818c4
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@a7633419bb0257c879a5b5a775f4f2e2b81a01ef
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@d0c8bdf508f5c335736bcd442274d8db62a818c4
         with:
-          framework-revision: a7633419bb0257c879a5b5a775f4f2e2b81a01ef
+          framework-revision: d0c8bdf508f5c335736bcd442274d8db62a818c4
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@a7633419bb0257c879a5b5a775f4f2e2b81a01ef
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@d0c8bdf508f5c335736bcd442274d8db62a818c4
         with:
-          framework-revision: a7633419bb0257c879a5b5a775f4f2e2b81a01ef
+          framework-revision: d0c8bdf508f5c335736bcd442274d8db62a818c4

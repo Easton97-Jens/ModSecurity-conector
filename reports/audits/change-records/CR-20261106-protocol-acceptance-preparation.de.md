@@ -28,7 +28,7 @@ Vorbereitung insgesamt NOT_READY.
 
 ## Implementierungsentscheidung und Begründung
 
-Framework `a7633419bb0257c879a5b5a775f4f2e2b81a01ef` auswählen; MRTS
+Framework `d0c8bdf508f5c335736bcd442274d8db62a818c4` auswählen; MRTS
 `ee2174431c4edf97e66afe32558ce8454deb2397` erhalten. Native feste Projektionsregistry
 mit extrahiertem Kandidaten-`common.sh` und offiziellen Gitobjektdaten verwenden.
 Der geschützte Broker-Provenancepin bleibt unverändert; gewöhnliche Framework-
@@ -63,7 +63,7 @@ Objektdaten stammen standardmäßig aus dem ausgewählten verschachtelten Framew
 
 | RTK-Befehl oder Verfahren | Ergebnis |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha a7633419bb0257c879a5b5a775f4f2e2b81a01ef --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native feste Projektionen synchronisiert |
+| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha d0c8bdf508f5c335736bcd442274d8db62a818c4 --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native feste Projektionen synchronisiert |
 | Derselbe native Aufruf mit `--check` statt `--sync` | PASS; keine Projektionsabweichung |
 | Dieselben nativen Eingaben mit `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; Publikationsrekonstruktion aus vertrauter Basis |
 | `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; aktuelles natives Inventar/Vererbung |
@@ -155,3 +155,13 @@ betrifft Archivprojektion und Dokumentation ohne Runtimecode- oder
 Erwartungsänderung. Die Verifikation eines späteren Commitpaars bleibt separat;
 sie wird nicht aus den 5093/fa-Hostläufen abgeleitet. Exakte Folge-SHAs und
 CI-Belege bleiben extern erhalten.
+
+Die Framework-PR-CI lehnte danach den neu versionierten C-Client vor dem
+Scannerstart ab: Seine Quelle fehlte im geschlossenen nativen Compileinventar.
+Ausschließlich `tests/runners/protocol_acceptance_client.c` in die geprüften
+Rezepte aufnehmen und die exakte Offlineinventarassertion von 81 auf 82 Einheiten
+anpassen. Vollständige Mengengleichheit, Warnflags, Zugangsdatenabgrenzung und
+alle Analysegates bleiben erhalten. Generiertes Spezialtestarchiv wegen der
+geänderten Offlinetestquelle aktualisieren. Kein lokaler Scanner, keine
+Sonarinstallation oder Authentifizierung. Finale Folge-SHAs, gezielte
+Hostwiederholungen und aktuelle Head-CI-Ergebnisse bleiben extern dokumentiert.

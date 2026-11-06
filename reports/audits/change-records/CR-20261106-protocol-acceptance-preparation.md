@@ -28,7 +28,7 @@ global preparation remains NOT_READY.
 
 ## Implementation decision and rationale
 
-Select Framework `a7633419bb0257c879a5b5a775f4f2e2b81a01ef`; retain MRTS
+Select Framework `d0c8bdf508f5c335736bcd442274d8db62a818c4`; retain MRTS
 `ee2174431c4edf97e66afe32558ce8454deb2397`. Use the native fixed projection
 registry with extracted candidate `common.sh` and official Git object data.
 The protected broker provenance pin remains unchanged; ordinary Framework
@@ -62,7 +62,7 @@ comes from the selected nested Framework by default. Absolute paths and complete
 
 | RTK command or procedure | Result |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha a7633419bb0257c879a5b5a775f4f2e2b81a01ef --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native fixed projections synchronized |
+| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha d0c8bdf508f5c335736bcd442274d8db62a818c4 --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native fixed projections synchronized |
 | Same native invocation with `--check` instead of `--sync` | PASS; no projection drift |
 | Same native inputs with `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; trusted-base publication reconstruction |
 | `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; current native inventory/inheritance |
@@ -152,3 +152,12 @@ source to the archive, changing 8096 to 8111. This follow-up changes the archive
 projection and documentation, with no runtime-code or expectation change.
 Verification of a later commit pair is separate and is not claimed from the
 5093/fa host runs. Exact follow-up SHAs and CI receipts remain external.
+
+Framework PR CI then rejected the newly tracked C client before scanner startup:
+its closed native compile inventory omitted the source. Add only
+`tests/runners/protocol_acceptance_client.c` to the reviewed recipes and update
+the exact offline inventory assertion from 81 to 82 units. Preserve complete
+set equality, warning flags, credential boundaries and every analysis gate.
+Refresh the generated specialist archive for the changed offline test source.
+No local scanner, Sonar installation or authentication is run. Final follow-up
+SHAs, targeted host repetitions and current-head CI results remain external.
