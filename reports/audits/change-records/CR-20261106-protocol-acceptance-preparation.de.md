@@ -23,12 +23,12 @@ Der geprüfte Frameworkkandidat muss konsistent ausgewählt werden; MRTS-Revisio
 und fremde Toolchainpins bleiben erhalten. Native Primary-Publikationsprüfungen
 müssen mit der vertrauten Parentbasis übereinstimmen. Policyinventar und geerbte
 Digests getrennt ausweisen. Gezielte Hostergebnisse, fehlgeschlagene Pflichten
-und Cleanup bleiben sichtbar. Hostprüfung des exakten finalen Commitpaars und
-prüfbare Remoteauslieferung stehen aus; Vorbereitung insgesamt NOT_READY.
+und Cleanup bleiben sichtbar. Hostprüfung des dokumentierten 5093/fa-Paars und beide Draft-PRs sind vorhanden;
+Vorbereitung insgesamt NOT_READY.
 
 ## Implementierungsentscheidung und Begründung
 
-Framework `fa444236fa3b00c91ba94de49f69f52101087087` auswählen; MRTS
+Framework `a7633419bb0257c879a5b5a775f4f2e2b81a01ef` auswählen; MRTS
 `ee2174431c4edf97e66afe32558ce8454deb2397` erhalten. Native feste Projektionsregistry
 mit extrahiertem Kandidaten-`common.sh` und offiziellen Gitobjektdaten verwenden.
 Der geschützte Broker-Provenancepin bleibt unverändert; gewöhnliche Framework-
@@ -63,7 +63,7 @@ Objektdaten stammen standardmäßig aus dem ausgewählten verschachtelten Framew
 
 | RTK-Befehl oder Verfahren | Ergebnis |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha fa444236fa3b00c91ba94de49f69f52101087087 --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native feste Projektionen synchronisiert |
+| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha a7633419bb0257c879a5b5a775f4f2e2b81a01ef --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native feste Projektionen synchronisiert |
 | Derselbe native Aufruf mit `--check` statt `--sync` | PASS; keine Projektionsabweichung |
 | Dieselben nativen Eingaben mit `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; Publikationsrekonstruktion aus vertrauter Basis |
 | `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; aktuelles natives Inventar/Vererbung |
@@ -98,17 +98,14 @@ Zugangsdaten oder sensiblen Rohdaten werden in den Record kopiert.
 
 ## Runtime-Evidence
 
-Gezielte Framework-Hostnachweise werteten alle 25 neuen IDs aus: 21 PASS /
-4 FAIL; Cleanup 25/25 bestätigt. Fehler: `h2_phase4_strict`, `h2_server_rst_stream`,
-`h2_upstream_reset`, `phase4_strict_http2_stream_reset`. Acht angrenzende bestehende
-H2-/H3-Aushandlungs-/P2-/P3-/P4-Hostfälle bestanden. Die 15 neuen Vertragsunitmethoden,
-29 angrenzenden Unitregressionen und 21 negativen Manipulationen echter
-Beobachtungen erfüllten ihre Erwartungen; jede Manipulation wurde abgelehnt.
-
-Diese Beobachtungen binden die dokumentierten Quellbytes und Artefakte; die
-Hostprüfung des exakten finalen Parent-/Framework-Commitpaars folgt noch. Sie
-belegen weder dieses finale Paar noch alle logischen Profile oder Gesamtabnahme.
-Gesamtabnahme NOT_RUN; Vorbereitung NOT_READY.
+Finale Hostnachweise am dokumentierten Paar 5093/fa: alle 25 neuen IDs
+real ausgewertet (21 PASS / 4 FAIL), acht angrenzende Hostfälle PASS; 33/33 Cleanup
+bestätigt. Vollständige SHAs stehen im abschließenden Reviewabschnitt. Die vier
+Fehler sind `h2_phase4_strict`, `h2_server_rst_stream`, `h2_upstream_reset`,
+`phase4_strict_http2_stream_reset`. Die 15 neuen Vertragsunitmethoden plus 29
+angrenzenden Unitregressionen bestanden; 21 Manipulationen echter Beobachtungskopien
+wurden abgelehnt. Kein Nachweis einer umfassenden Abnahme oder eines späteren
+Folgecommitpaars. Gesamtabnahme NOT_RUN; Vorbereitung NOT_READY.
 
 ## Bekannte Einschränkungen
 
@@ -122,24 +119,39 @@ bleiben gemäß bestehendem Vertrag auf H1 begrenzt; kein neuer Unsupportedmarke
 
 H2-Resetverhalten und verbleibende Profilrunnerpflichten verhindern
 READY_FOR_FULL_ACCEPTANCE. Das Legacyinventar meldet weiterhin 84 Altvertragsbefunde.
-Vor Runtimeaussagen über das finale Commitpaar muss dieses exakt geprüft werden.
-Frühere quellabgeglichene Nachweise ersetzen diese Prüfung nicht.
+Ein späteres Folgepaar benötigt eigene Verifikation; die dokumentierten
+5093/fa-Nachweise qualifizieren kein neueres Paar.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Gesamtabnahme ausdrücklich NOT_RUN. Lokale Sonarinstallation/-start/-authentifizierung
-und Scans sind vom Benutzer ausgesetzt. Hostwiederholungen des exakten finalen Commitpaars wurden bei Recordaktualisierung
-noch nicht beobachtet. Native Compilerleitfadengenerierung endete mit Exit 0
-und unveränderten Ausgabebytes im korrekten Quellkontext. Keine Remote-PR-/CI-Prüfungen: Die automatische
-Freigabeprüfung lehnte den Framework-Push zweimal ab; diese Egressaktion benötigt
-neue Benutzerfreigabe. Kein Merge und keine administrative Regeländerung
-autorisiert oder durchgeführt.
+Gesamtabnahme bleibt ausdrücklich NOT_RUN. Lokale Sonarinstallation, Start,
+Authentifizierung und Scans bleiben ausgesetzt. Kein Produktfix und kein Merge.
+GitHubprüfungen laufen beziehungsweise werden untersucht; die generierte
+Archivkorrektur benötigt Folge-CI am exakten Head und Hostprüfung des späteren
+Paars. Der native Compilerleitfadengenerator bestand mit unveränderten Ausgabebytes.
 
 ## Finaler Diff- und Review-Status
 
-Dies ist der konkrete lokale Reviewrecord für den Parentkandidaten. Exakte lokale
-Commit-SHAs, Remotebranchidentitäten und Auslieferungsbelege bleiben in externen
-repositorybezogenen Nachweisen. Kein erfundener PR-Link oder erfolgreicher Push-/
-CI-Status wird behauptet. Auslieferung bleibt am abgelehnten Framework-Push
-blockiert; Ablehnung und erforderliche neue Benutzerfreigabe müssen vor Egress
-genannt werden. Die lokale Parentvorbereitung bleibt bis zur Freigabe prüfbar.
+Der ausdrücklich freigegebene Framework-[PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
+und Parent-[PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
+existieren. Neue Benutzerfreigabe ersetzte die frühere Pushablehnung; beide
+ursprünglichen Commits wurden gepusht. GitHub-CI wird weiter ausgewertet;
+finale Ergebnisse am exakten Head bleiben extern dokumentiert. Kein Merge.
+
+Alle 33 gezielten Hostwiederholungen wurden an Parent
+`5093a7aa349372279fb2c76974da6423de511332` / Framework
+`fa444236fa3b00c91ba94de49f69f52101087087` / MRTS
+`ee2174431c4edf97e66afe32558ce8454deb2397` abgeschlossen: neue Fälle
+21 PASS / 4 FAIL, angrenzende Fälle 8 PASS; alle 33 Cleanups bestätigt. Diese
+Ergebnisse qualifizieren genau dieses Paar und seine zugelassenen Artefakte.
+Vier H2-Pflichten und weitere moderne Profilpfade bleiben offen; NOT_READY und
+Gesamtabnahme NOT_RUN bleiben unverändert.
+
+Parent-CI deckte eine ausgelassene generierte Testarchivprojektion auf: Natives
+`update-test-archive --check` scheiterte in Lint-, Quick-, NGINX- und Commonprüfungen.
+Der native Frameworkgenerator ergänzt ausschließlich die neue Testquelldatei
+mit 15 Methoden im Archiv; der Bestand steigt von 8096 auf 8111. Diese Folgeänderung
+betrifft Archivprojektion und Dokumentation ohne Runtimecode- oder
+Erwartungsänderung. Die Verifikation eines späteren Commitpaars bleibt separat;
+sie wird nicht aus den 5093/fa-Hostläufen abgeleitet. Exakte Folge-SHAs und
+CI-Belege bleiben extern erhalten.

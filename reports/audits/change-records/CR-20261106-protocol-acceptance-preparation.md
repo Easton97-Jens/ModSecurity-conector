@@ -23,12 +23,12 @@ The reviewed Framework candidate must be selected consistently, retaining the
 MRTS revision and unrelated toolchain pins. Native primary-publication checks
 must agree with the trusted Parent base. Policy inventory and inherited digests
 must be reported separately. Targeted host results, failed requirements and
-cleanup must remain visible. Exact final committed-pair host verification and
-reviewable remote delivery remain outstanding; global preparation is NOT_READY.
+cleanup must remain visible. The recorded 5093/fa pair has targeted host evidence and both Draft-PRs exist;
+global preparation remains NOT_READY.
 
 ## Implementation decision and rationale
 
-Select Framework `fa444236fa3b00c91ba94de49f69f52101087087`; retain MRTS
+Select Framework `a7633419bb0257c879a5b5a775f4f2e2b81a01ef`; retain MRTS
 `ee2174431c4edf97e66afe32558ce8454deb2397`. Use the native fixed projection
 registry with extracted candidate `common.sh` and official Git object data.
 The protected broker provenance pin remains unchanged; ordinary Framework
@@ -62,7 +62,7 @@ comes from the selected nested Framework by default. Absolute paths and complete
 
 | RTK command or procedure | Result |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha fa444236fa3b00c91ba94de49f69f52101087087 --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native fixed projections synchronized |
+| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha a7633419bb0257c879a5b5a775f4f2e2b81a01ef --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native fixed projections synchronized |
 | Same native invocation with `--check` instead of `--sync` | PASS; no projection drift |
 | Same native inputs with `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; trusted-base publication reconstruction |
 | `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; current native inventory/inheritance |
@@ -97,17 +97,14 @@ into the record.
 
 ## Runtime evidence
 
-Framework targeted host evidence evaluated all 25 new IDs: 21 PASS / 4 FAIL;
-25/25 cleanup verified. Failures are `h2_phase4_strict`, `h2_server_rst_stream`,
-`h2_upstream_reset`, `phase4_strict_http2_stream_reset`. Eight adjacent existing
-H2/H3 negotiation/P2/P3/P4 host cases passed. The 15 new contract unit methods,
-29 adjacent unit regressions and 21 negative mutations of real observations
-passed their expectations; every mutation was rejected.
-
-These observations bind the recorded source bytes and artifacts; exact final
-committed Parent/Framework pair host verification is forthcoming. They do not
-prove that final pair, every logical profile, or comprehensive acceptance.
-Full acceptance is NOT_RUN and preparation is NOT_READY.
+Final host evidence at the recorded 5093/fa pair evaluated all 25 new IDs
+(21 PASS / 4 FAIL) and eight adjacent host cases (8 PASS); 33/33 cleanups verified.
+Full SHAs are recorded in the final review section. Failures are
+`h2_phase4_strict`, `h2_server_rst_stream`, `h2_upstream_reset`,
+`phase4_strict_http2_stream_reset`. The 15 new contract unit methods plus 29
+adjacent regressions passed; 21 mutations of real observation copies were
+rejected. This does not qualify comprehensive acceptance or a later follow-up
+commit pair. Full acceptance NOT_RUN; preparation NOT_READY.
 
 ## Known limitations
 
@@ -121,23 +118,37 @@ H1-scoped under their existing contract; no new unsupported marker is added.
 
 The H2 reset behavior and remaining profile runner obligations prevent
 READY_FOR_FULL_ACCEPTANCE. Legacy inventory still reports 84 old-contract
-findings. The final committed pair must be verified before making runtime
-claims about that pair. Source-matched earlier evidence cannot replace that check.
+findings. A later follow-up pair requires separate verification; the recorded 5093/fa
+evidence cannot qualify a newer pair.
 
 ## Checks not run and rationale
 
-Comprehensive acceptance is explicitly NOT_RUN. Local Sonar install/start/
-authentication and scanning are suspended by the user. Exact final committed-pair host reruns were not yet observed at this record
-update. Native compiler-guide generation completed with exit 0 and unchanged
-output bytes using the proper source context. No remote PR or CI checks ran: automatic approval review rejected
-the Framework push twice; fresh user approval is required for that egress action.
-No merge or administrative rule change is authorized or performed.
+Comprehensive acceptance remains explicitly NOT_RUN. Local Sonar installation,
+startup, authentication and scans remain suspended. No product fix or merge was
+performed. GitHub checks are running/under investigation; the generated archive
+correction requires follow-up exact-head CI and later-pair host verification.
+The native compiler-guide generator passed with unchanged output bytes.
 
 ## Final diff and review status
 
-This is the concrete local review record for the Parent candidate. Exact local
-commit SHAs, remote branch identities and delivery receipts are retained in
-external repository-scoped evidence. No fabricated PR link or successful push/
-CI status is asserted. Delivery remains blocked on the rejected Framework push;
-the rejection and required fresh user approval must be surfaced before egress.
-The local Parent preparation remains reviewable while that approval is pending.
+The explicitly approved Framework [PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
+and Parent [PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
+exist. The earlier push rejection was superseded by fresh user authorization;
+both original commits were pushed. GitHub CI remains under evaluation, with
+final exact-head outcomes retained externally. No merge was performed.
+
+All 33 targeted host reruns were completed at Parent
+`5093a7aa349372279fb2c76974da6423de511332` / Framework
+`fa444236fa3b00c91ba94de49f69f52101087087` / MRTS
+`ee2174431c4edf97e66afe32558ce8454deb2397`: new cases 21 PASS / 4 FAIL,
+adjacent cases 8 PASS; all 33 cleanups verified. Those results qualify that exact
+pair and its admitted artifacts. Four H2 requirements and other modern profile
+paths remain open; NOT_READY and full acceptance NOT_RUN remain unchanged.
+
+Parent CI exposed an omitted generated test-archive projection: the native
+`update-test-archive --check` failed in lint, quick, NGINX and Common checks.
+Running the native generator in Framework adds only the new 15-method test
+source to the archive, changing 8096 to 8111. This follow-up changes the archive
+projection and documentation, with no runtime-code or expectation change.
+Verification of a later commit pair is separate and is not claimed from the
+5093/fa host runs. Exact follow-up SHAs and CI receipts remain external.

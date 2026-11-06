@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@fa444236fa3b00c91ba94de49f69f52101087087
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@a7633419bb0257c879a5b5a775f4f2e2b81a01ef
         with:
-          framework-revision: fa444236fa3b00c91ba94de49f69f52101087087
+          framework-revision: a7633419bb0257c879a5b5a775f4f2e2b81a01ef
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@fa444236fa3b00c91ba94de49f69f52101087087
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@a7633419bb0257c879a5b5a775f4f2e2b81a01ef
         with:
-          framework-revision: fa444236fa3b00c91ba94de49f69f52101087087
+          framework-revision: a7633419bb0257c879a5b5a775f4f2e2b81a01ef
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@fa444236fa3b00c91ba94de49f69f52101087087
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@a7633419bb0257c879a5b5a775f4f2e2b81a01ef
         with:
-          framework-revision: fa444236fa3b00c91ba94de49f69f52101087087
+          framework-revision: a7633419bb0257c879a5b5a775f4f2e2b81a01ef
