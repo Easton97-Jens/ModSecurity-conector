@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@83413dc02dce6c075fccc243ce88baacf1e452bb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@b5d8d9442d7751c04ee84f478f594fc84a236e3b
         with:
-          framework-revision: 83413dc02dce6c075fccc243ce88baacf1e452bb
+          framework-revision: b5d8d9442d7751c04ee84f478f594fc84a236e3b
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@83413dc02dce6c075fccc243ce88baacf1e452bb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@b5d8d9442d7751c04ee84f478f594fc84a236e3b
         with:
-          framework-revision: 83413dc02dce6c075fccc243ce88baacf1e452bb
+          framework-revision: b5d8d9442d7751c04ee84f478f594fc84a236e3b
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@83413dc02dce6c075fccc243ce88baacf1e452bb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@b5d8d9442d7751c04ee84f478f594fc84a236e3b
         with:
-          framework-revision: 83413dc02dce6c075fccc243ce88baacf1e452bb
+          framework-revision: b5d8d9442d7751c04ee84f478f594fc84a236e3b

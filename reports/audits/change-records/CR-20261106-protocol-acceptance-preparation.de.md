@@ -184,3 +184,12 @@ mit fest typisierter JSON-Ausgabe geschrieben. Keine Sonarunterdrückung,
 Befunddisposition, Exklusion oder Gateabschwächung. Gezielte Unit-/Äquivalenz-/CLI-/
 Barrierekontrollen bestehen; frische Hostwiederholungen am eingecheckten Paar
 und die maßgebliche entfernte Headanalyse bleiben extern dokumentiert.
+
+Eine gezielte Clientfolgekorrektur prüft TLS-1.3-Minimum, Peer- und Hostprüfung
+sowie CA-Dateioptionen direkt nach der Initialisierung des Easyhandles. Eine echte
+TLS-1.2-only-Loopbackkontrolle weist alle drei versuchten Handshakes mit einem
+Protokollversionsalert zurück, beobachtet null HTTP-Bytes und bestätigt das
+Cleanup. Protokollerwartungen, explizites h2c-Verhalten, Callback-ABI und typisierte
+Beobachtungsmetadaten bleiben unverändert. Diese Kontrolle ist von der
+Hostqualifikation des eingecheckten Paars getrennt; Folge-SHAs und aktuelle
+Head-CI-Belege bleiben extern dokumentiert.

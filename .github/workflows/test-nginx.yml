@@ -20,6 +20,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-nginx/nginx-structure@83413dc02dce6c075fccc243ce88baacf1e452bb
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-nginx/nginx-structure@b5d8d9442d7751c04ee84f478f594fc84a236e3b
         with:
-          framework-revision: 83413dc02dce6c075fccc243ce88baacf1e452bb
+          framework-revision: b5d8d9442d7751c04ee84f478f594fc84a236e3b

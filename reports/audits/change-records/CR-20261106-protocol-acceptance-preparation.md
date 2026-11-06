@@ -179,3 +179,11 @@ of the loopback test contract; numeric stream IDs use fixed typed JSON output.
 No Sonar suppression, issue disposition, exclusion or gate relaxation is made.
 Targeted unit/equivalence/CLI/barrier controls pass; fresh committed-pair host
 repetitions and authoritative current-head remote analysis are recorded externally.
+
+A focused client follow-up checks the TLS 1.3 minimum, peer and host verification,
+and CA-file options directly after easy-handle initialization. A real TLS-1.2-only
+loopback control rejects all three attempted handshakes with a protocol-version
+alert, observes zero HTTP bytes and verifies cleanup. Protocol expectations,
+explicit h2c behavior, callback ABI and typed observation metadata remain
+unchanged. This control is separate from committed-pair host qualification;
+follow-up SHAs and current-head CI evidence are recorded externally.
