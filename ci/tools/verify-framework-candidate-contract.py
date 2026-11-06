@@ -736,9 +736,29 @@ def parse_candidate_nginx_handoff(common_path: Path) -> dict[str, str]:
     return actual
 
 
+def _verify_candidate_mrts_selection(framework: Path, pins: dict, candidate_sha: str,
+                                    approved_mrts_sha: str | None) -> None:
+    try:
+        candidate_mrts_sha = read_framework_mrts_gitlink(framework, candidate_sha)
+    except FrameworkRevisionPinsError as exc:
+        raise ContractError(f"cannot verify candidate Framework MRTS gitlink: {exc}") from exc
+    if approved_mrts_sha is not None:
+        try:
+            locked_mrts = read_framework_mrts_gitlink(framework, str(pins["framework_sha"]))
+        except FrameworkRevisionPinsError as exc:
+            raise ContractError("cannot verify locked Framework MRTS gitlink") from exc
+        if locked_mrts != pins["mrts_sha"]:
+            raise ContractError("locked MRTS SHA does not match locked Framework gitlink")
+    expected_mrts = pins["mrts_sha"] if approved_mrts_sha is None else approved_mrts_sha
+    if candidate_mrts_sha != expected_mrts:
+        label = "locked MRTS SHA" if approved_mrts_sha is None else "explicit MRTS approval"
+        raise ContractError("candidate Framework MRTS gitlink does not match " + label)
+
+
 def _verify_framework_sha_contract(
     root: Path, expected_parent_framework_sha: str,
     candidate_sha: str, candidate_framework_root: Path | None = None,
+    expected_candidate_mrts_sha: str | None = None,
 ) -> None:
     try:
         pins = load_framework_revision_pins(root)
@@ -748,12 +768,7 @@ def _verify_framework_sha_contract(
         raise ContractError("revision lock Framework SHA does not match expected Parent Framework SHA")
     if candidate_framework_root is not None:
         framework = _require_directory(candidate_framework_root, "candidate Framework root")
-        try:
-            candidate_mrts_sha = read_framework_mrts_gitlink(framework, candidate_sha)
-        except FrameworkRevisionPinsError as exc:
-            raise ContractError(f"cannot verify candidate Framework MRTS gitlink: {exc}") from exc
-        if candidate_mrts_sha != pins["mrts_sha"]:
-            raise ContractError("candidate Framework MRTS gitlink does not match locked MRTS SHA")
+        _verify_candidate_mrts_selection(framework, pins, candidate_sha, expected_candidate_mrts_sha)
 
 
 
@@ -801,6 +816,7 @@ def verify_contract(
     framework_common: Path,
     expected_parent_framework_sha: str | None = None,
     candidate_framework_root: Path | None = None,
+    *, expected_candidate_mrts_sha: str | None = None,
 ) -> dict[str, str]:
     repository_root = _require_directory(root, "repository root")
     if not HEX40.fullmatch(candidate_sha):
@@ -814,7 +830,13 @@ def verify_contract(
         raise ContractError(
             "expected Parent Framework SHA must be exactly 40 lowercase hexadecimal characters"
         )
-    _verify_framework_sha_contract(repository_root, expected_parent_sha, candidate_sha, candidate_framework_root)
+    if expected_candidate_mrts_sha is not None:
+        if not isinstance(expected_candidate_mrts_sha, str) or HEX40.fullmatch(expected_candidate_mrts_sha) is None:
+            raise ContractError("expected candidate MRTS SHA must be exactly 40 lowercase hexadecimal characters")
+        if candidate_framework_root is None:
+            raise ContractError("explicit candidate MRTS handoff requires --candidate-framework-root")
+    _verify_framework_sha_contract(repository_root, expected_parent_sha, candidate_sha, candidate_framework_root,
+                                   expected_candidate_mrts_sha)
     nginx = parse_candidate_nginx_handoff(framework_common)
     _verify_parent_nginx_policy(repository_root)
     _verify_unprotected_nginx_handoff(repository_root, nginx)
@@ -828,6 +850,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--framework-common", type=Path, required=True)
     parser.add_argument("--expected-parent-framework-sha")
     parser.add_argument("--candidate-framework-root", type=Path)
+    parser.add_argument("--expected-candidate-mrts-sha", help="explicit reviewed candidate MRTS selection; default retains the locked MRTS SHA")
     args = parser.parse_args(argv)
     try:
         nginx = verify_contract(
@@ -836,6 +859,7 @@ def main(argv: list[str] | None = None) -> int:
             args.framework_common,
             args.expected_parent_framework_sha,
             args.candidate_framework_root,
+            expected_candidate_mrts_sha=args.expected_candidate_mrts_sha,
         )
     except (ContractError, OSError) as error:
         print(f"verify-framework-candidate-contract: error: {error}")
