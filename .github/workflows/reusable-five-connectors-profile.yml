@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@49be8deb564ff18538c784cc166e28617f299e11
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@83413dc02dce6c075fccc243ce88baacf1e452bb
         with:
-          framework-revision: 49be8deb564ff18538c784cc166e28617f299e11
+          framework-revision: 83413dc02dce6c075fccc243ce88baacf1e452bb
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@49be8deb564ff18538c784cc166e28617f299e11
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@83413dc02dce6c075fccc243ce88baacf1e452bb
         with:
-          framework-revision: 49be8deb564ff18538c784cc166e28617f299e11
+          framework-revision: 83413dc02dce6c075fccc243ce88baacf1e452bb
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@49be8deb564ff18538c784cc166e28617f299e11
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@83413dc02dce6c075fccc243ce88baacf1e452bb
         with:
-          framework-revision: 49be8deb564ff18538c784cc166e28617f299e11
+          framework-revision: 83413dc02dce6c075fccc243ce88baacf1e452bb

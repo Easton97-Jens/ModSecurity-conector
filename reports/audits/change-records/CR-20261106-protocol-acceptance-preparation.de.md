@@ -28,7 +28,7 @@ Vorbereitung insgesamt NOT_READY.
 
 ## Implementierungsentscheidung und Begründung
 
-Framework `49be8deb564ff18538c784cc166e28617f299e11` auswählen; MRTS
+Framework `83413dc02dce6c075fccc243ce88baacf1e452bb` auswählen; MRTS
 `ee2174431c4edf97e66afe32558ce8454deb2397` erhalten. Native feste Projektionsregistry
 mit extrahiertem Kandidaten-`common.sh` und offiziellen Gitobjektdaten verwenden.
 Der geschützte Broker-Provenancepin bleibt unverändert; gewöhnliche Framework-
@@ -63,7 +63,7 @@ Objektdaten stammen standardmäßig aus dem ausgewählten verschachtelten Framew
 
 | RTK-Befehl oder Verfahren | Ergebnis |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha 49be8deb564ff18538c784cc166e28617f299e11 --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native feste Projektionen synchronisiert |
+| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha 83413dc02dce6c075fccc243ce88baacf1e452bb --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native feste Projektionen synchronisiert |
 | Derselbe native Aufruf mit `--check` statt `--sync` | PASS; keine Projektionsabweichung |
 | Dieselben nativen Eingaben mit `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; Publikationsrekonstruktion aus vertrauter Basis |
 | `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; aktuelles natives Inventar/Vererbung |
@@ -172,3 +172,15 @@ Quelldigestslots für das geprüfte Compilerezept und seinen Offlinetest. Alle
 Der Inventardigest ändert sich ausschließlich wegen dieser geprüften Quellbytes;
 das abhängige generierte Archiv wird nativ aktualisiert. Die Parentprüfung setzt
 den Frameworkroot explizit als Makeargument gegen geerbte Hostcheckoutwerte.
+
+Die erste vollständige entfernte Frameworkanalyse kompilierte den neuen Client,
+verfehlte aber den Security-Gate für neuen Code. Die Folgekorrektur setzt das
+Clientminimum auf TLS 1.3, begrenzt Clientorigins auf `127.0.0.1` mit explizitem gültigem
+Port, entfernt quadratisches Listener-Regexparsing und zerlegt die drei neuen
+Runtime-/Nachweismodule in begrenzte Helfer. Sämtliche Protokoll-, Barrieren-,
+Korrelations-, Outputfehler- und Cleanuperwartungen bleiben Pflicht. Explizites
+Klartext-h2c gehört weiter zum Loopbacktestvertrag; numerische Stream-IDs werden
+mit fest typisierter JSON-Ausgabe geschrieben. Keine Sonarunterdrückung,
+Befunddisposition, Exklusion oder Gateabschwächung. Gezielte Unit-/Äquivalenz-/CLI-/
+Barrierekontrollen bestehen; frische Hostwiederholungen am eingecheckten Paar
+und die maßgebliche entfernte Headanalyse bleiben extern dokumentiert.
