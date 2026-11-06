@@ -9,181 +9,132 @@
 | Change ID | CR-20261106-protocol-acceptance-preparation |
 | Date (UTC) | 2026-11-06 |
 | Base revision | `a5f697c35acb5386d2037f91dfed10ad4b469cd9` |
+| Follow-up starting Parent | `adf75d05ced37ccab066b8608aed1ce297be84e3` |
+| Follow-up starting Framework | `b5d8d9442d7751c04ee84f478f594fc84a236e3b` |
+| Delivery | [Parent Draft PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445), [Framework Draft PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169) |
 
 ## Motivation and problem statement
 
-Select the separately implemented Framework preparation tests through a
-consistent Parent gitlink, central version lock and native workflow projections.
-Resolve the local policy inventory discrepancy without publishing a private
-instruction or broadening inheritance. This change does not fix connector code.
+Close acceptance-preparation failures using real host evidence, preserve existing
+regressions and the 100 standard cases, and select the corrected Framework
+through consistent native pins/projections. The continuation explicitly permits
+proven product and dependency fixes. Comprehensive acceptance remains NOT_RUN.
 
 ## Acceptance criteria
 
-The reviewed Framework candidate must be selected consistently, retaining the
-MRTS revision and unrelated toolchain pins. Native primary-publication checks
-must agree with the trusted Parent base. Policy inventory and inherited digests
-must be reported separately. Targeted host results, failed requirements and
-cleanup must remain visible. The recorded 5093/fa pair has targeted host evidence and both Draft-PRs exist;
-global preparation remains NOT_READY.
+The four preserved H2 regressions require causal before/after proof; selected
+Apache, local HTX, SPOP/HTX companion and ext_proc H2 paths require executable
+independent readers. Final committed-pair targeted runs, fresh Apache CRS and
+aggregate, current hosted checks, native policy/inheritance and integrity/cleanup
+must be reconciled before READY_FOR_FULL_ACCEPTANCE. Candidate evidence alone
+cannot satisfy final delivery criteria.
 
 ## Implementation decision and rationale
 
-Select Framework `83413dc02dce6c075fccc243ce88baacf1e452bb`; retain MRTS
-`ee2174431c4edf97e66afe32558ce8454deb2397`. Use the native fixed projection
-registry with extracted candidate `common.sh` and official Git object data.
-The protected broker provenance pin remains unchanged; ordinary Framework
-references in its workflow are updated only by the native projection contract.
-Python 3.15.2, Go 1.27.3 and all MRTS values remain unchanged.
+NGINX's queued H2 reset was waiting on an unscheduled real-connection write
+path while another stream remained active. The Framework versions a minimal
+zero-fuzz native-source patch, bound into the normal build cache/provenance.
+An independent TLS/H2 frame experiment separates server queueing from client
+processing. Existing assertions and timeouts remain unchanged.
 
-The ignored 194-byte local LLM note duplicates existing agent profiles and is
-not shared normative policy. After review, a byte-identical archive and local
-classification resolve its inventory treatment. The proposed tracked reference
-was rejected because the private file would be missing from clean clones. The
-27 Parent catalog, 21 Framework and 12 MRTS inherited policy digests remain
-unchanged; no blanket child inheritance or checksum substitution was introduced.
+Apache's H2 Strict path marked the secondary connection aborted without sending
+terminal metadata through its native connection-output chain. A held peer and
+independent raw-frame probe demonstrated the missing reset. The narrow fix sends
+ERROR/FLUSH metadata through that chain before the abort flag, preserving the
+sealed request-producer guard and the existing HTTP/1 behavior. Native pinned
+HTTPD beam handling owns the cross-thread metadata copy and stream reset.
+
+A hardened repetition exposed an additional pinned HTTPD purge race after the
+reset. A native APR interleaving control proves that neither the original path
+nor a wakeup alone retires the joined stream promptly. The Framework versions
+the two-part wake/pending-purge correction at the safe outer cleanup point,
+preserving shutdown/abort precedence and binding patch bytes into Apache's
+native cache identity. Fresh build and final live cleanup proof remain required.
+
+Envoy ext_proc Strict now sends a late ImmediateResponse through the pinned
+host. Only that profile's strict-action admission bit changes in the Common
+profile registry. The service records a successful gRPC send separately from
+actual downstream reset; selected native Envoy client/access evidence proves
+the affected stream and healthy peer/follow-up. Runtime config accepts explicit
+off/safe/strict policy. The base ext_authz profile does not inherit this claim.
+
+The native Framework synchronizer owns Parent gitlink/lock/workflow projections.
+MRTS remains `ee2174431c4edf97e66afe32558ce8454deb2397`; protected provenance,
+Python/Go and unrelated toolchain pins remain unchanged. No merge is performed.
+
+The reviewed ignored local LLM note remains byte-identically archived and
+classified as local non-normative material. The 27 Parent, 21 Framework and
+12 MRTS policy digests remain unchanged. The separate 84 legacy inventory
+findings remain visible; no unchecked digest refresh erases them.
 
 ## Changed files
 
-- `modules/ModSecurity-test-Framework`: selected Framework gitlink.
-- `ci/tooling/project-versions.lock.json`: only `framework_sha` changes.
-- 22 native workflow projections under `.github/workflows/`.
-- This English/German Change Record pair.
-
-Generated compiler documentation, if required, must be updated through its
-native generator; no generator output is hand-edited by this record change.
-Local policy classification/archive is local evidence, not a versioned policy.
+- Selected Framework gitlink, central version lock and 22 native workflow projections.
+- Apache H2 terminal metadata dispatch, profile-qualified capabilities and paired guide.
+- Envoy ext_proc processor, exact profile admission, runtime config materializer,
+  profile-qualified capability metadata and paired source/connector guides.
+- Generated configuration reference through its Framework-owned generator.
+- This paired Change Record; local plans and external evidence are not committed.
 
 ## Commands executed
 
-`P` denotes the task-owned Parent worktree, `F` its selected nested Framework,
-`PYTHON` the selected task-owned Python 3.15.2 interpreter. The Parent validation
-environment was created without pip or package installation. `COMMON` denotes the reviewed extracted candidate source; official object data
-comes from the selected nested Framework by default. Absolute paths and complete invocation receipts remain external.
+Commands use RTK and explicit selected Parent/Framework roots and revisions.
+Exact commands, complete output, run identities and absolute evidence paths are
+retained in the external follow-up report.
 
-| RTK command or procedure | Result |
+| Procedure | Observed result |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha 83413dc02dce6c075fccc243ce88baacf1e452bb --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native fixed projections synchronized |
-| Same native invocation with `--check` instead of `--sync` | PASS; no projection drift |
-| Same native inputs with `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; trusted-base publication reconstruction |
-| `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; current native inventory/inheritance |
-| `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-v32-structure.py` | PASS; V3.2 structure |
-| Separate legacy audit inventory procedure | FAIL; 84 old-contract findings retained in raw evidence |
-
-`POLICY_PYTHON` denotes the earlier Parent-owned Python 3.14.4 interpreter;
-a final repeat with the task-owned 3.15.2 interpreter is separate evidence.
-
-Documentation verification used the existing Framework-owned Python 3.15.2
-interpreter (`FW_PYTHON`), without installation:
-
-| RTK command or procedure | Result |
-| --- | --- |
-| `rtk bypass "$FW_PYTHON" ci/tools/new-change-record.py check` with explicit absolute `TEST_ROOT`, `CONNECTOR_ROOT` and Framework `PYTHONPATH` | Exit 0; structure-only Change Record contract |
-| `rtk make check-bilingual-docs check-doc-links FRAMEWORK_ROOT="$F" PYTHON="$FW_PYTHON" FRAMEWORK_PYTHON="$FW_PYTHON"` | Exit 0; bilingual, repository paths and links passed |
-| `rtk bypass git diff --check` | Exit 0; whitespace passed |
-
-Initial record-check attempts with missing/relative source context failed;
-the explicit absolute source context corrected these invocation errors.
-
-Current native consistency and the legacy inventory result are distinct facts;
-the latter was not suppressed or reclassified as a pass.
+| Four unchanged H2 regressions at starting pair | 4 FAIL, retained as before evidence |
+| Independent verified TLS/H2 no-PING/PING frame probes | Queued server output proven; no-PING reset about 12 s before, about 15 ms after |
+| Fresh patched native H2/H3 builds | PASS; four regressions and eight neighbors PASS in focused candidate runs |
+| Envoy untagged and real-libmodsecurity-tagged Go suites | All eight packages PASS in each selection |
+| Envoy candidate real H2 cases | 8 PASS / 24 transactions; native target cleanup before peer release |
+| Local HTX candidate real H2 cases | 8 PASS; writer-failure cleanup and corruption controls PASS |
+| SPOP/HTX companion candidate real H2 cases | 8 PASS; original owner EOS rule and actual native stream action joined without invented MRC1 fields |
+| Profile metadata contracts | 39 tests PASS |
+| Apache fresh build, CRS and aggregate | Final native results retained in follow-up report; not inferred from failure-artifact upload |
+| Final pins, policy/inheritance, units/generators and current-head CI | Required final readback retained externally |
 
 ## Security impact
 
-No product security fix, global rights/configuration change, authentication
-change, MRTS write or protected broker authorization change. No validation gate
-is weakened. Local Sonar remains suspended; existing GitHub Sonar/CodeQL
-requirements remain intact. No credentials or raw sensitive material are copied
-into the record.
+Strict remains constrained to the selected profile and actual host action.
+Original engine decisions, successful service sends and wire observations stay
+separate. TLS verification, evidence bounds, source admission, UDS ownership,
+process isolation, compiler warnings, scanner coverage and Gate rules remain.
+No administrative rule changes, local Sonar setup/scan, or MRTS writes occur.
 
 ## Runtime evidence
 
-Final host evidence at the recorded 5093/fa pair evaluated all 25 new IDs
-(21 PASS / 4 FAIL) and eight adjacent host cases (8 PASS); 33/33 cleanups verified.
-Full SHAs are recorded in the final review section. Failures are
-`h2_phase4_strict`, `h2_server_rst_stream`, `h2_upstream_reset`,
-`phase4_strict_http2_stream_reset`. The 15 new contract unit methods plus 29
-adjacent regressions passed; 21 mutations of real observation copies were
-rejected. This does not qualify comprehensive acceptance or a later follow-up
-commit pair. Full acceptance NOT_RUN; preparation NOT_READY.
+Earlier sealed 21-PASS/4-FAIL evidence remains immutable. The new follow-up root
+retains baseline reproduction, native dependency patch/build identities,
+independent frame proofs, profile-specific access/Common/cleanup observations,
+Apache failure diagnostics and fresh-build receipts. Final source-pair hashes,
+counts, cleanup, CI and integrity manifest belong to the external report rather
+than a self-referential commit SHA in this versioned record.
 
 ## Known limitations
 
-Four mandatory H2 reset expectations fail with the peer-isolation contract
-preserved. No product correction is included. Required modern Apache H2,
-HAProxy HTX H2/SPOE companion H2 stream-shutdown and Envoy ext_proc H2 executable
-paths remain open. Current lighttpd stock/patched selected profiles remain
-H1-scoped under their existing contract; no new unsupported marker is added.
+Ext_authz, ForwardAuth and native profiles remain separate claims. SPOP's current
+NOTIFY ABI needs explicit zero Content-Length for this empty-H2-body fixture;
+forwarded rule metadata is not invented. Traefik modern/Strict paths require
+separate qualification. Stock/patched lighttpd retain their H1 contract.
 
 ## Remaining risks
 
-The H2 reset behavior and remaining profile runner obligations prevent
-READY_FOR_FULL_ACCEPTANCE. Legacy inventory still reports 84 old-contract
-findings. A later follow-up pair requires separate verification; the recorded 5093/fa
-evidence cannot qualify a newer pair.
+Current required hosted Sonar disposition and Gate results must be read back
+at the exact delivered Framework head. Individual local reviews do not alter
+server disposition. Existing independent C++20/C++23 advisory failures and the
+84 legacy findings remain visible separately from new regressions.
 
 ## Checks not run and rationale
 
-Comprehensive acceptance remains explicitly NOT_RUN. Local Sonar installation,
-startup, authentication and scans remain suspended. No product fix or merge was
-performed. GitHub checks are running/under investigation; the generated archive
-correction requires follow-up exact-head CI and later-pair host verification.
-The native compiler-guide generator passed with unchanged output bytes.
+Comprehensive acceptance is NOT_RUN by user instruction. No merge, administrative
+settings change, local Sonar install/start/auth/scan or MRTS mutation is authorized.
+No global readiness is inferred from this source record.
 
 ## Final diff and review status
 
-The explicitly approved Framework [PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
-and Parent [PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
-exist. The earlier push rejection was superseded by fresh user authorization;
-both original commits were pushed. GitHub CI remains under evaluation, with
-final exact-head outcomes retained externally. No merge was performed.
-
-All 33 targeted host reruns were completed at Parent
-`5093a7aa349372279fb2c76974da6423de511332` / Framework
-`fa444236fa3b00c91ba94de49f69f52101087087` / MRTS
-`ee2174431c4edf97e66afe32558ce8454deb2397`: new cases 21 PASS / 4 FAIL,
-adjacent cases 8 PASS; all 33 cleanups verified. Those results qualify that exact
-pair and its admitted artifacts. Four H2 requirements and other modern profile
-paths remain open; NOT_READY and full acceptance NOT_RUN remain unchanged.
-
-Parent CI exposed an omitted generated test-archive projection: the native
-`update-test-archive --check` failed in lint, quick, NGINX and Common checks.
-Running the native generator in Framework adds only the new 15-method test
-source to the archive, changing 8096 to 8111. This follow-up changes the archive
-projection and documentation, with no runtime-code or expectation change.
-Verification of a later commit pair is separate and is not claimed from the
-5093/fa host runs. Exact follow-up SHAs and CI receipts remain external.
-
-Framework PR CI then rejected the newly tracked C client before scanner startup:
-its closed native compile inventory omitted the source. Add only
-`tests/runners/protocol_acceptance_client.c` to the reviewed recipes and update
-the exact offline inventory assertion from 81 to 82 units. Preserve complete
-set equality, warning flags, credential boundaries and every analysis gate.
-Refresh the generated specialist archive for the changed offline test source.
-No local scanner, Sonar installation or authentication is run. Final follow-up
-SHAs, targeted host repetitions and current-head CI results remain external.
-
-The native inventory-binding maintainer refreshes the two existing source
-digest slots for the reviewed compile recipe and its offline test. All 100
-standard cases, execution selectors and offline exceptions remain identical.
-The inventory digest changes only because those reviewed source bytes changed;
-its dependent generated archive is refreshed natively. Parent validation uses
-an explicit command-line Framework root to avoid an inherited host checkout.
-
-The first complete remote Framework analysis compiled the new client but failed
-the new-code Security Gate. Follow-up remediation sets the client TLS minimum
-to TLS 1.3, confines client origins to `127.0.0.1` with an explicit valid port, removes
-quadratic listener-regex parsing and splits the three new runtime/evidence
-modules into bounded helpers. All protocol, barrier, correlation, output-failure
-and cleanup expectations remain required. Explicit plaintext h2c remains part
-of the loopback test contract; numeric stream IDs use fixed typed JSON output.
-No Sonar suppression, issue disposition, exclusion or gate relaxation is made.
-Targeted unit/equivalence/CLI/barrier controls pass; fresh committed-pair host
-repetitions and authoritative current-head remote analysis are recorded externally.
-
-A focused client follow-up checks the TLS 1.3 minimum, peer and host verification,
-and CA-file options directly after easy-handle initialization. A real TLS-1.2-only
-loopback control rejects all three attempted handshakes with a protocol-version
-alert, observes zero HTTP bytes and verifies cleanup. Protocol expectations,
-explicit h2c behavior, callback ABI and typed observation metadata remain
-unchanged. This control is separate from committed-pair host qualification;
-follow-up SHAs and current-head CI evidence are recorded externally.
+Focused normal commits continue the existing Draft PRs. Final review checks
+product scope, generated pins/reference outputs, unchanged standard inventory,
+protected pins and policy solution. Actual final full SHAs, terminal CI and
+requirement dispositions are recorded in the reconciled external report.

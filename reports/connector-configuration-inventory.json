@@ -1940,12 +1940,12 @@
       "validation": "Config.Validate rejects empty, non-positive, invalid enum, invalid host:port, and inconsistent gRPC/body limits.",
       "phase_relevance": "Limits and late policy affect P1\u2013P4 processor behavior.",
       "security_relevance": "Bound all header, body, gRPC, and timeout values; keep service listen address private.",
-      "runtime_effect": "Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.",
+      "runtime_effect": "Selects late decision handling; off preserves native handling, safe records log_only, and strict sends a late ImmediateResponse through the selected ext_proc host. A successful send is recorded separately from the independently observed downstream reset.",
       "example_file": "examples/envoy/safe/envoy-ext-proc-service.json",
       "example_value": "\"safe\"",
       "compatibility_only": false,
       "deprecated": false,
-      "description": "Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset."
+      "description": "Selects late decision handling; off preserves native handling, safe records log_only, and strict sends a late ImmediateResponse through the selected ext_proc host. A successful send is recorded separately from the independently observed downstream reset."
     },
     {
       "connector": "envoy",

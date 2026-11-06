@@ -9,187 +9,139 @@
 | Change-ID | CR-20261106-protocol-acceptance-preparation |
 | Datum (UTC) | 2026-11-06 |
 | Basis-Revision | `a5f697c35acb5386d2037f91dfed10ad4b469cd9` |
+| Parent zu Follow-up-Beginn | `adf75d05ced37ccab066b8608aed1ce297be84e3` |
+| Framework zu Follow-up-Beginn | `b5d8d9442d7751c04ee84f478f594fc84a236e3b` |
+| Lieferung | [Parent-Draft-PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445), [Framework-Draft-PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169) |
 
 ## Motivation und Problemstellung
 
-Die separat implementierten Framework-Vorbereitungstests über konsistenten
-Parent-Gitlink, zentralen Versionslock und native Workflowprojektionen auswählen.
-Die lokale Policyinventarabweichung ohne Veröffentlichung privater Anweisungen
-oder breitere Vererbung klären. Keine Connector-Codekorrektur.
+Abnahmevorbereitungsfehler durch echte Hostnachweise schließen, vorhandene
+Regressionen und 100 Standardfälle erhalten und das korrigierte Framework über
+konsistente native Pins/Projektionen auswählen. Die Fortsetzung erlaubt
+nachgewiesene Produkt- und Abhängigkeitskorrekturen. Die Gesamtabnahme bleibt NOT_RUN.
 
 ## Akzeptanzkriterien
 
-Der geprüfte Frameworkkandidat muss konsistent ausgewählt werden; MRTS-Revision
-und fremde Toolchainpins bleiben erhalten. Native Primary-Publikationsprüfungen
-müssen mit der vertrauten Parentbasis übereinstimmen. Policyinventar und geerbte
-Digests getrennt ausweisen. Gezielte Hostergebnisse, fehlgeschlagene Pflichten
-und Cleanup bleiben sichtbar. Hostprüfung des dokumentierten 5093/fa-Paars und beide Draft-PRs sind vorhanden;
-Vorbereitung insgesamt NOT_READY.
+Die vier erhaltenen H2-Regressionen benötigen ursächlichen Vorher-/Nachher-
+Nachweis; Apache-, lokale HTX-, SPOP/HTX-Companion- und ext_proc-H2-Pfade
+benötigen ausführbare unabhängige Leser. Gezielte Läufe am finalen Commitpaar,
+frisches Apache-CRS und Aggregate, aktuelle gehostete Checks, native Policy/
+Inheritance sowie Integrität/Cleanup sind vor READY_FOR_FULL_ACCEPTANCE
+abzugleichen. Kandidatennachweise allein erfüllen die finalen Lieferkriterien nicht.
 
 ## Implementierungsentscheidung und Begründung
 
-Framework `83413dc02dce6c075fccc243ce88baacf1e452bb` auswählen; MRTS
-`ee2174431c4edf97e66afe32558ce8454deb2397` erhalten. Native feste Projektionsregistry
-mit extrahiertem Kandidaten-`common.sh` und offiziellen Gitobjektdaten verwenden.
-Der geschützte Broker-Provenancepin bleibt unverändert; gewöhnliche Framework-
-Referenzen seines Workflows ändern sich nur gemäß nativem Projektionsvertrag.
-Python 3.15.2, Go 1.27.3 und sämtliche MRTS-Werte bleiben unverändert.
+NGINXs eingereihter H2-Reset wartete bei weiter aktivem Peer auf einen nicht
+geplanten Schreibpfad der echten Verbindung. Das Framework versioniert einen
+minimalen nativen Quellpatch ohne Fuzz und bindet ihn in Buildcache/Provenienz.
+Ein unabhängiges TLS/H2-Frameexperiment trennt Serverqueueing von Client-
+Verarbeitung. Bestehende Assertions und Timeouts bleiben unverändert.
 
-Die ignorierte lokale LLM-Notiz mit 194 Bytes dupliziert bestehende Agentprofile
-und ist keine gemeinsame normative Policy. Nach Prüfung lösen byteidentisches
-Archiv und lokale Klassifikation ihre Inventarbehandlung. Die vorgeschlagene
-versionierte Referenz wurde abgelehnt, da die private Datei in sauberen Klonen
-fehlen würde. Die 27 Parentkatalog-, 21 Framework- und 12 MRTS-Vererbungsdigests
-bleiben unverändert; keine pauschale Kindvererbung oder Prüfsummenersetzung.
+Apaches H2-Strict-Pfad markierte die sekundäre Verbindung als abgebrochen,
+ohne terminale Metadaten über ihre native Verbindungsausgabekette zu senden.
+Ein gehaltener Peer und eine unabhängige Frameprobe belegten den fehlenden
+Reset. Die begrenzte Korrektur sendet ERROR/FLUSH-Metadaten vor dem Abbruchflag
+über diese Kette; der versiegelte Request-Producer-Guard und das bisherige
+HTTP/1-Verhalten bleiben erhalten. Die native Beam-Verarbeitung des gepinnten
+HTTPD übernimmt Metadatenkopie zwischen Threads und Streamreset.
+
+Eine gehärtete Wiederholung zeigte nach dem Reset zusätzlich ein Purge-Rennen
+im gepinnten HTTPD. Eine native APR-Interleavingkontrolle belegt, dass weder der
+Originalpfad noch Wakeup allein den abgeschlossenen Stream zeitnah bereinigen.
+Das Framework versioniert die zweiteilige Wakeup-/Pending-Purge-Korrektur am
+sicheren äußeren Cleanuppunkt, erhält Shutdown-/Abort-Priorität und bindet die
+Patchbytes in Apaches native Cacheidentität. Frischer Build und finaler echter
+Cleanupnachweis bleiben erforderlich.
+
+Envoy ext_proc Strict sendet nun eine späte ImmediateResponse über den
+angehefteten Host. Im gemeinsamen Profilregister ändert sich nur das
+Strict-Aktionsbit dieses Profils. Der Dienst erfasst erfolgreichen gRPC-Send
+getrennt vom tatsächlichen Downstreamreset; ausgewählte native Envoy-Client-/
+Accessnachweise belegen Targetstream und gesunden Peer/Folgezugriff. Die
+Runtimekonfiguration akzeptiert explizit off/safe/strict. Das ext_authz-
+Basisprofil erbt diese Aussage nicht.
+
+Der native Framework-Synchronisierer besitzt Parent-Gitlink/Lock/Workflow-
+Projektionen. MRTS bleibt `ee2174431c4edf97e66afe32558ce8454deb2397`;
+geschützte Provenienz-, Python-/Go- und sonstige Toolchainpins bleiben unverändert.
+Es erfolgt kein Merge.
+
+Die geprüfte ignorierte lokale LLM-Notiz bleibt byteidentisch archiviert und
+als lokales nicht normatives Material klassifiziert. Die 27 Parent-,
+21 Framework- und 12 MRTS-Policydigests bleiben unverändert. Die getrennten
+84 Legacyinventarbefunde bleiben sichtbar; kein ungeprüfter Digestrefresh
+beseitigt sie.
 
 ## Geänderte Dateien
 
-- `modules/ModSecurity-test-Framework`: ausgewählter Framework-Gitlink.
-- `ci/tooling/project-versions.lock.json`: nur `framework_sha` ändert sich.
-- 22 native Workflowprojektionen unter `.github/workflows/`.
-- Dieses englisch/deutsche Change-Record-Paar.
-
-Generierte Compilerdokumentation wird bei Bedarf über ihren nativen Generator
-aktualisiert; keine manuelle Änderung von Generatorausgaben durch diesen Record.
-Lokale Policyklassifikation/Archivierung bleibt lokaler Nachweis, keine
-versionierte Policy.
+- Ausgewählter Framework-Gitlink, zentrale Versionslockdatei und 22 native Workflowprojektionen.
+- Apaches terminaler H2-Metadatenversand, profilbezogene Capabilities und gepaarter Guide.
+- Envoy-ext_proc-Prozessor, exakte Profilzulassung, Runtimekonfigurationsmaterialisierung,
+  profilbezogene Capabilitymetadaten und gepaarte Source-/Connectorguides.
+- Generierte Konfigurationsreferenz über ihren Framework-eigenen Generator.
+- Dieses Change-Record-Paar; lokale Pläne und externe Nachweise werden nicht committet.
 
 ## Ausgeführte Befehle
 
-`P` bezeichnet den eigenen Parentworktree, `F` dessen ausgewähltes verschachteltes
-Framework, `PYTHON` den gewählten eigenen Python-3.15.2-Interpreter. Die Parent-
-Validierungsumgebung wurde ohne pip oder Paketinstallation erstellt. `COMMON` bezeichnet die geprüfte extrahierte Kandidatenquelle; offizielle
-Objektdaten stammen standardmäßig aus dem ausgewählten verschachtelten Framework. Absolute Pfade und vollständige Aufrufbelege bleiben extern.
+Befehle verwenden RTK und explizite ausgewählte Parent-/Frameworkwurzeln und
+Revisionen. Exakte Befehle, vollständige Ausgaben, Laufidentitäten und absolute
+Nachweispfade stehen im externen Follow-up-Bericht.
 
-| RTK-Befehl oder Verfahren | Ergebnis |
+| Verfahren | Beobachtetes Ergebnis |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha 83413dc02dce6c075fccc243ce88baacf1e452bb --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native feste Projektionen synchronisiert |
-| Derselbe native Aufruf mit `--check` statt `--sync` | PASS; keine Projektionsabweichung |
-| Dieselben nativen Eingaben mit `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; Publikationsrekonstruktion aus vertrauter Basis |
-| `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; aktuelles natives Inventar/Vererbung |
-| `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-v32-structure.py` | PASS; V3.2-Struktur |
-| Separates Legacy-Auditinventarverfahren | FAIL; 84 Altvertragsbefunde als Rohnachweise erhalten |
-
-`POLICY_PYTHON` bezeichnet den früheren Parent-eigenen Python-3.14.4-Interpreter;
-eine finale Wiederholung mit eigenem 3.15.2-Interpreter ist ein separater Nachweis.
-
-Die Dokumentationsprüfung nutzte den bestehenden Framework-eigenen Python-3.15.2-
-Interpreter (`FW_PYTHON`) ohne Installation:
-
-| RTK-Befehl oder Verfahren | Ergebnis |
-| --- | --- |
-| `rtk bypass "$FW_PYTHON" ci/tools/new-change-record.py check` mit explizitem absolutem `TEST_ROOT`, `CONNECTOR_ROOT` und Framework-`PYTHONPATH` | Exit 0; struktureller Change-Record-Vertrag |
-| `rtk make check-bilingual-docs check-doc-links FRAMEWORK_ROOT="$F" PYTHON="$FW_PYTHON" FRAMEWORK_PYTHON="$FW_PYTHON"` | Exit 0; Sprachparität, Repositorypfade und Links bestanden |
-| `rtk bypass git diff --check` | Exit 0; Whitespace bestanden |
-
-Initiale Recordprüfungen ohne beziehungsweise mit relativem Quellkontext scheiterten;
-expliziter absoluter Quellkontext behob diese Aufruffehler.
-
-Aktuelle native Konsistenz und Legacyinventarergebnis sind getrennte Tatsachen;
-Letzteres wurde weder unterdrückt noch als Erfolg umgedeutet.
+| Vier unveränderte H2-Regressionen am Startpaar | 4 FAIL als Vorher-Nachweis erhalten |
+| Unabhängige verifizierte TLS/H2-Frameprobes ohne/mit PING | Serverqueueing bewiesen; Reset ohne PING vorher etwa 12 s, nachher etwa 15 ms |
+| Frische gepatchte native H2/H3-Builds | PASS; vier Regressionen und acht Nachbarn in gezielten Kandidatenläufen PASS |
+| Envoy-Go-Suites ohne Tags und mit echtem libmodsecurity-Tag | Jeweils alle acht Pakete PASS |
+| Echte Envoy-H2-Kandidatenfälle | 8 PASS / 24 Transaktionen; natives Targetcleanup vor Peerfreigabe |
+| Echte lokale HTX-H2-Kandidatenfälle | 8 PASS; Writerfehler-Cleanup und Negativkontrollen PASS |
+| Echte SPOP/HTX-Companion-H2-Kandidatenfälle | 8 PASS; originale Owner-EOS-Regel und native Streamaktion ohne erfundene MRC1-Felder verknüpft |
+| Profilmetadatenverträge | 39 Tests PASS |
+| Frischer Apache-Build, CRS und Aggregate | Finale native Ergebnisse im Follow-up-Bericht; nicht aus Failure-Artefaktupload abgeleitet |
+| Finale Pins, Policy/Inheritance, Units/Generatoren und aktuelle CI | Erforderlicher finaler Readback extern erhalten |
 
 ## Security-Auswirkung
 
-Kein Produkt-Security-Fix, keine globale Rechte-/Konfigurationsänderung,
-Authentifizierungsänderung, MRTS-Schreibaktion oder Änderung geschützter
-Brokerauthorisierung. Keine Prüfpflicht wird abgeschwächt. Lokales Sonar bleibt
-ausgesetzt; bestehende GitHub-Sonar-/CodeQL-Pflichten bleiben erhalten. Keine
-Zugangsdaten oder sensiblen Rohdaten werden in den Record kopiert.
+Strict bleibt auf ausgewähltes Profil und tatsächliche Hostaktion begrenzt.
+Originale Engineentscheidungen, erfolgreiche Service-Sends und Wirebeobachtungen
+bleiben getrennt. TLS-Verifikation, Nachweisgrenzen, Quellenzulassung, UDS-
+Ownership, Prozessisolation, Compilerwarnungen, Scannerumfang und Gateregeln
+bleiben erhalten. Keine administrativen Regeländerungen, lokale Sonareinrichtung/
+Scans oder MRTS-Schreibzugriffe.
 
 ## Runtime-Evidence
 
-Finale Hostnachweise am dokumentierten Paar 5093/fa: alle 25 neuen IDs
-real ausgewertet (21 PASS / 4 FAIL), acht angrenzende Hostfälle PASS; 33/33 Cleanup
-bestätigt. Vollständige SHAs stehen im abschließenden Reviewabschnitt. Die vier
-Fehler sind `h2_phase4_strict`, `h2_server_rst_stream`, `h2_upstream_reset`,
-`phase4_strict_http2_stream_reset`. Die 15 neuen Vertragsunitmethoden plus 29
-angrenzenden Unitregressionen bestanden; 21 Manipulationen echter Beobachtungskopien
-wurden abgelehnt. Kein Nachweis einer umfassenden Abnahme oder eines späteren
-Folgecommitpaars. Gesamtabnahme NOT_RUN; Vorbereitung NOT_READY.
+Der frühere versiegelte 21-PASS/4-FAIL-Nachweis bleibt unverändert. Die neue
+Follow-up-Wurzel erhält Baselinereproduktion, native Patch-/Buildidentitäten,
+unabhängige Framebeweise, profilbezogene Access-/Common-/Cleanup-Beobachtungen,
+Apache-Fehlerdiagnosen und frische Buildreceipts. Finale Quellpaarhashes, Zahlen,
+Cleanup, CI und Integritätsmanifest stehen im externen Bericht statt eines
+selbstreferenziellen Commit-SHA in diesem versionierten Record.
 
 ## Bekannte Einschränkungen
 
-Vier verpflichtende H2-Reseterwartungen scheitern bei erhaltenem
-Peerisolationsvertrag. Keine Produktkorrektur enthalten. Erforderliche moderne
-ausführbare Pfade für Apache H2, HAProxy HTX H2/SPOE-Begleiter-H2-Streamshutdown
-und Envoy ext_proc H2 bleiben offen. Ausgewählte lighttpd-stock-/gepatchte Profile
-bleiben gemäß bestehendem Vertrag auf H1 begrenzt; kein neuer Unsupportedmarker.
+Ext_authz, ForwardAuth und native Profile bleiben getrennte Aussagen. Die
+aktuelle SPOP-NOTIFY-ABI benötigt explizite Null-Content-Length für diese leere
+H2-Bodyfixture; weitergeleitete Regelmetadaten werden nicht erfunden. Moderne/
+Strict-Traefik-Pfade benötigen eigene Qualifizierung. Stock-/Patched-lighttpd
+behalten ihren H1-Vertrag.
 
 ## Verbleibende Risiken
 
-H2-Resetverhalten und verbleibende Profilrunnerpflichten verhindern
-READY_FOR_FULL_ACCEPTANCE. Das Legacyinventar meldet weiterhin 84 Altvertragsbefunde.
-Ein späteres Folgepaar benötigt eigene Verifikation; die dokumentierten
-5093/fa-Nachweise qualifizieren kein neueres Paar.
+Aktuelle erforderliche gehostete Sonarbewertungen und Gateergebnisse müssen
+am exakten gelieferten Frameworkhead gelesen werden. Einzelne lokale Prüfungen
+ändern keine Serverbewertung. Bestehende unabhängige C++20-/C++23-Advisoryfehler
+und 84 Legacybefunde bleiben getrennt von neuen Regressionen sichtbar.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Gesamtabnahme bleibt ausdrücklich NOT_RUN. Lokale Sonarinstallation, Start,
-Authentifizierung und Scans bleiben ausgesetzt. Kein Produktfix und kein Merge.
-GitHubprüfungen laufen beziehungsweise werden untersucht; die generierte
-Archivkorrektur benötigt Folge-CI am exakten Head und Hostprüfung des späteren
-Paars. Der native Compilerleitfadengenerator bestand mit unveränderten Ausgabebytes.
+Die Gesamtabnahme bleibt auf Benutzeranweisung NOT_RUN. Kein Merge, keine
+administrativen Änderungen, lokale Sonarinstallation/Start/Authentifizierung/
+Scans oder MRTS-Mutation. Dieser Quellrecord begründet keine globale Bereitschaft.
 
 ## Finaler Diff- und Review-Status
 
-Der ausdrücklich freigegebene Framework-[PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
-und Parent-[PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
-existieren. Neue Benutzerfreigabe ersetzte die frühere Pushablehnung; beide
-ursprünglichen Commits wurden gepusht. GitHub-CI wird weiter ausgewertet;
-finale Ergebnisse am exakten Head bleiben extern dokumentiert. Kein Merge.
-
-Alle 33 gezielten Hostwiederholungen wurden an Parent
-`5093a7aa349372279fb2c76974da6423de511332` / Framework
-`fa444236fa3b00c91ba94de49f69f52101087087` / MRTS
-`ee2174431c4edf97e66afe32558ce8454deb2397` abgeschlossen: neue Fälle
-21 PASS / 4 FAIL, angrenzende Fälle 8 PASS; alle 33 Cleanups bestätigt. Diese
-Ergebnisse qualifizieren genau dieses Paar und seine zugelassenen Artefakte.
-Vier H2-Pflichten und weitere moderne Profilpfade bleiben offen; NOT_READY und
-Gesamtabnahme NOT_RUN bleiben unverändert.
-
-Parent-CI deckte eine ausgelassene generierte Testarchivprojektion auf: Natives
-`update-test-archive --check` scheiterte in Lint-, Quick-, NGINX- und Commonprüfungen.
-Der native Frameworkgenerator ergänzt ausschließlich die neue Testquelldatei
-mit 15 Methoden im Archiv; der Bestand steigt von 8096 auf 8111. Diese Folgeänderung
-betrifft Archivprojektion und Dokumentation ohne Runtimecode- oder
-Erwartungsänderung. Die Verifikation eines späteren Commitpaars bleibt separat;
-sie wird nicht aus den 5093/fa-Hostläufen abgeleitet. Exakte Folge-SHAs und
-CI-Belege bleiben extern erhalten.
-
-Die Framework-PR-CI lehnte danach den neu versionierten C-Client vor dem
-Scannerstart ab: Seine Quelle fehlte im geschlossenen nativen Compileinventar.
-Ausschließlich `tests/runners/protocol_acceptance_client.c` in die geprüften
-Rezepte aufnehmen und die exakte Offlineinventarassertion von 81 auf 82 Einheiten
-anpassen. Vollständige Mengengleichheit, Warnflags, Zugangsdatenabgrenzung und
-alle Analysegates bleiben erhalten. Generiertes Spezialtestarchiv wegen der
-geänderten Offlinetestquelle aktualisieren. Kein lokaler Scanner, keine
-Sonarinstallation oder Authentifizierung. Finale Folge-SHAs, gezielte
-Hostwiederholungen und aktuelle Head-CI-Ergebnisse bleiben extern dokumentiert.
-
-Der native Inventarbindungsaktualisierer erneuert die zwei bestehenden
-Quelldigestslots für das geprüfte Compilerezept und seinen Offlinetest. Alle
-100 Standardfälle, Ausführungsselektoren und Offlineausnahmen bleiben identisch.
-Der Inventardigest ändert sich ausschließlich wegen dieser geprüften Quellbytes;
-das abhängige generierte Archiv wird nativ aktualisiert. Die Parentprüfung setzt
-den Frameworkroot explizit als Makeargument gegen geerbte Hostcheckoutwerte.
-
-Die erste vollständige entfernte Frameworkanalyse kompilierte den neuen Client,
-verfehlte aber den Security-Gate für neuen Code. Die Folgekorrektur setzt das
-Clientminimum auf TLS 1.3, begrenzt Clientorigins auf `127.0.0.1` mit explizitem gültigem
-Port, entfernt quadratisches Listener-Regexparsing und zerlegt die drei neuen
-Runtime-/Nachweismodule in begrenzte Helfer. Sämtliche Protokoll-, Barrieren-,
-Korrelations-, Outputfehler- und Cleanuperwartungen bleiben Pflicht. Explizites
-Klartext-h2c gehört weiter zum Loopbacktestvertrag; numerische Stream-IDs werden
-mit fest typisierter JSON-Ausgabe geschrieben. Keine Sonarunterdrückung,
-Befunddisposition, Exklusion oder Gateabschwächung. Gezielte Unit-/Äquivalenz-/CLI-/
-Barrierekontrollen bestehen; frische Hostwiederholungen am eingecheckten Paar
-und die maßgebliche entfernte Headanalyse bleiben extern dokumentiert.
-
-Eine gezielte Clientfolgekorrektur prüft TLS-1.3-Minimum, Peer- und Hostprüfung
-sowie CA-Dateioptionen direkt nach der Initialisierung des Easyhandles. Eine echte
-TLS-1.2-only-Loopbackkontrolle weist alle drei versuchten Handshakes mit einem
-Protokollversionsalert zurück, beobachtet null HTTP-Bytes und bestätigt das
-Cleanup. Protokollerwartungen, explizites h2c-Verhalten, Callback-ABI und typisierte
-Beobachtungsmetadaten bleiben unverändert. Diese Kontrolle ist von der
-Hostqualifikation des eingecheckten Paars getrennt; Folge-SHAs und aktuelle
-Head-CI-Belege bleiben extern dokumentiert.
+Gezielte normale Commits setzen die bestehenden Draft-PRs fort. Die finale
+Prüfung kontrolliert Produktumfang, generierte Pins/Referenzausgaben, unveränderte
+Standardauswahl, geschützte Pins und Policylösung. Tatsächliche finale volle SHAs,
+terminale CI und Anforderungsbewertungen stehen im abgeglichenen externen Bericht.

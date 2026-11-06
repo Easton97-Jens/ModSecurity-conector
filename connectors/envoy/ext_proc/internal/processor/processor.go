@@ -83,9 +83,9 @@ type Summary struct {
 	CloseReason         CloseReason
 }
 
-// Action is a prospective engine decision. Only decisions found before the
-// response-header boundary can use ext_proc ImmediateResponse in this source
-// groundwork.
+// Action is a prospective engine decision. A late strict decision requests
+// Envoy's native local-reply path; native/wire observations establish whether
+// the downstream headers were encoded and the affected stream was reset.
 type Action string
 
 const (
@@ -120,15 +120,16 @@ func (decision Decision) disruptive() bool {
 	return decision.Action == ActionDeny || decision.Action == ActionRedirect
 }
 
-// LateActionOutcome never claims a downstream reset. In particular, strict is
-// intentionally not implemented through a gRPC error: that is a processor
-// failure signal, not evidence of a client-visible abort.
+// LateActionOutcome records the processor message, never a downstream reset.
+// A successfully sent late ImmediateResponse invokes Envoy's native local-reply
+// path. Independent host/wire evidence must establish the downstream outcome.
 type LateActionOutcome string
 
 const (
-	LateActionNone               LateActionOutcome = "none"
-	LateActionLogged             LateActionOutcome = "log_only"
-	LateActionStrictNotAttempted LateActionOutcome = "strict_abort_not_attempted"
+	LateActionNone            LateActionOutcome = "none"
+	LateActionLogged          LateActionOutcome = "log_only"
+	LateActionStrictRequested LateActionOutcome = "strict_immediate_response_requested"
+	LateActionStrictSent      LateActionOutcome = "strict_immediate_response_sent"
 )
 
 // CloseReason describes the ext_proc stream lifecycle, not a proven underlying
@@ -137,13 +138,14 @@ const (
 type CloseReason string
 
 const (
-	CloseResponseEOS       CloseReason = "response_end_of_stream"
-	CloseImmediateResponse CloseReason = "request_immediate_response"
-	ClosePeerEOF           CloseReason = "grpc_peer_eof"
-	CloseContextCanceled   CloseReason = "grpc_context_canceled_unattributed"
-	CloseStreamIdleTimeout CloseReason = "grpc_stream_idle_timeout"
-	CloseStreamMaxLifetime CloseReason = "grpc_stream_max_lifetime"
-	CloseProcessorError    CloseReason = "processor_error"
+	CloseResponseEOS           CloseReason = "response_end_of_stream"
+	CloseImmediateResponse     CloseReason = "request_immediate_response"
+	CloseLateImmediateResponse CloseReason = "late_immediate_response"
+	ClosePeerEOF               CloseReason = "grpc_peer_eof"
+	CloseContextCanceled       CloseReason = "grpc_context_canceled_unattributed"
+	CloseStreamIdleTimeout     CloseReason = "grpc_stream_idle_timeout"
+	CloseStreamMaxLifetime     CloseReason = "grpc_stream_max_lifetime"
+	CloseProcessorError        CloseReason = "processor_error"
 )
 
 // errStreamMaxLifetime distinguishes the connector-owned absolute lifetime
@@ -1593,6 +1595,17 @@ func (state *streamState) responseForDecision(phase processingPhase, decision De
 			return immediateResponse(decision), true, nil
 		}
 		state.resolveLateAction()
+		if state.summary.LateAction == LateActionStrictRequested {
+			// Envoy 1.40.2 ext_proc::sendImmediateResponse calls the encoder's
+			// sendLocalReply. DownstreamFilterManager resets this HTTP stream
+			// when non-informational headers have already reached the codec.
+			// This sends a real host action, not a gRPC error masquerading as
+			// a reset. Do not record a host-confirmed abort from Send alone.
+			state.immediateResponse = true
+			response := immediateResponse(decision)
+			response.GetImmediateResponse().Details = "msconnector-ext-proc-late-decision"
+			return response, true, nil
+		}
 		if state.summary.LateAction == LateActionLogged && state.responseStatus >= 100 && state.responseStatus <= 599 {
 			state.pendingHostAction = &HostAction{
 				Action:          AppliedActionLogOnly,
@@ -1649,6 +1662,9 @@ func (state *streamState) markResponseCommittedAfterSuccessfulContinue(ctx conte
 // bookkeeping by the configured cleanup grace. The individual bridge calls
 // retain their tighter engine-operation limits.
 func (state *streamState) recordSuccessfulResponseEvidence(ctx context.Context, request *extprocv3.ProcessingRequest, response *extprocv3.ProcessingResponse) error {
+	if state.summary.LateAction == LateActionStrictRequested && response.GetImmediateResponse() != nil {
+		state.summary.LateAction = LateActionStrictSent
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -1688,10 +1704,7 @@ func (state *streamState) resolveLateAction() {
 	case LateActionSafe:
 		state.summary.LateAction = LateActionLogged
 	case LateActionStrict:
-		// Do not send an ImmediateResponse or a gRPC error here. Envoy's API
-		// does not make either a proven deterministic downstream stream reset;
-		// presenting either as abort evidence would be dishonest.
-		state.summary.LateAction = LateActionStrictNotAttempted
+		state.summary.LateAction = LateActionStrictRequested
 	}
 }
 
@@ -1773,6 +1786,9 @@ func immediateResponse(decision Decision) *extprocv3.ProcessingResponse {
 
 func (state *streamState) completionReason() CloseReason {
 	if state.immediateResponse {
+		if state.responseCommitted {
+			return CloseLateImmediateResponse
+		}
 		return CloseImmediateResponse
 	}
 	if state.responseDone {
