@@ -20,6 +20,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-lighttpd/lighttpd-contract@b8863d2444a9bab8cc2943689caf4fd225f80ab4
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-lighttpd/lighttpd-contract@d0c7e1036e57bdb980603f68e4e3e64e51de9049
         with:
-          framework-revision: b8863d2444a9bab8cc2943689caf4fd225f80ab4
+          framework-revision: d0c7e1036e57bdb980603f68e4e3e64e51de9049
