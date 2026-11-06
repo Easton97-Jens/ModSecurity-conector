@@ -28,7 +28,7 @@ global preparation remains NOT_READY.
 
 ## Implementation decision and rationale
 
-Select Framework `d0c8bdf508f5c335736bcd442274d8db62a818c4`; retain MRTS
+Select Framework `49be8deb564ff18538c784cc166e28617f299e11`; retain MRTS
 `ee2174431c4edf97e66afe32558ce8454deb2397`. Use the native fixed projection
 registry with extracted candidate `common.sh` and official Git object data.
 The protected broker provenance pin remains unchanged; ordinary Framework
@@ -62,7 +62,7 @@ comes from the selected nested Framework by default. Absolute paths and complete
 
 | RTK command or procedure | Result |
 | --- | --- |
-| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha d0c8bdf508f5c335736bcd442274d8db62a818c4 --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native fixed projections synchronized |
+| `rtk bypass "$PYTHON" ci/tools/sync-framework-component-versions.py --sync --repo-root "$P" --framework-common "$COMMON" --framework-sha 49be8deb564ff18538c784cc166e28617f299e11 --mrts-sha ee2174431c4edf97e66afe32558ce8454deb2397` | PASS; native fixed projections synchronized |
 | Same native invocation with `--check` instead of `--sync` | PASS; no projection drift |
 | Same native inputs with `--verify-primary --base a5f697c35acb5386d2037f91dfed10ad4b469cd9` | PASS; trusted-base publication reconstruction |
 | `rtk bypass "$POLICY_PYTHON" .codex/bin/validate-codex-inheritance.py --check --all` | PASS; current native inventory/inheritance |
@@ -161,3 +161,10 @@ set equality, warning flags, credential boundaries and every analysis gate.
 Refresh the generated specialist archive for the changed offline test source.
 No local scanner, Sonar installation or authentication is run. Final follow-up
 SHAs, targeted host repetitions and current-head CI results remain external.
+
+The native inventory-binding maintainer refreshes the two existing source
+digest slots for the reviewed compile recipe and its offline test. All 100
+standard cases, execution selectors and offline exceptions remain identical.
+The inventory digest changes only because those reviewed source bytes changed;
+its dependent generated archive is refreshed natively. Parent validation uses
+an explicit command-line Framework root to avoid an inherited host checkout.

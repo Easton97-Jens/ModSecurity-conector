@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@d0c8bdf508f5c335736bcd442274d8db62a818c4
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@49be8deb564ff18538c784cc166e28617f299e11
         with:
-          framework-revision: d0c8bdf508f5c335736bcd442274d8db62a818c4
+          framework-revision: 49be8deb564ff18538c784cc166e28617f299e11
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@d0c8bdf508f5c335736bcd442274d8db62a818c4
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@49be8deb564ff18538c784cc166e28617f299e11
         with:
-          framework-revision: d0c8bdf508f5c335736bcd442274d8db62a818c4
+          framework-revision: 49be8deb564ff18538c784cc166e28617f299e11
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@d0c8bdf508f5c335736bcd442274d8db62a818c4
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@49be8deb564ff18538c784cc166e28617f299e11
         with:
-          framework-revision: d0c8bdf508f5c335736bcd442274d8db62a818c4
+          framework-revision: 49be8deb564ff18538c784cc166e28617f299e11
