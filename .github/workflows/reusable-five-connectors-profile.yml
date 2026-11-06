@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@62b411e073551ef0fef22ab3d372e2489f2ae168
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@fa444236fa3b00c91ba94de49f69f52101087087
         with:
-          framework-revision: 62b411e073551ef0fef22ab3d372e2489f2ae168
+          framework-revision: fa444236fa3b00c91ba94de49f69f52101087087
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@62b411e073551ef0fef22ab3d372e2489f2ae168
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@fa444236fa3b00c91ba94de49f69f52101087087
         with:
-          framework-revision: 62b411e073551ef0fef22ab3d372e2489f2ae168
+          framework-revision: fa444236fa3b00c91ba94de49f69f52101087087
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@62b411e073551ef0fef22ab3d372e2489f2ae168
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@fa444236fa3b00c91ba94de49f69f52101087087
         with:
-          framework-revision: 62b411e073551ef0fef22ab3d372e2489f2ae168
+          framework-revision: fa444236fa3b00c91ba94de49f69f52101087087
