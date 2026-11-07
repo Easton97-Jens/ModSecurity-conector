@@ -567,9 +567,7 @@ func parseResult(b []byte) (result, error) {
 		return r, nil
 	}
 	if r.flags != 0 {
-		requestTerminal := r.requestOpcode == opClaim && r.flags == resultFlagRequestTerminal
-		postCommitLogOnly := (r.requestOpcode == opResponseChunk || r.requestOpcode == opResponseEOS) && (r.flags == resultFlagPostCommitLogOnly || r.flags == resultFlagPostCommitStrictAbort)
-		if (!requestTerminal && !postCommitLogOnly) || r.decision != decisionAllow || r.status != 0 || value != "" {
+		if !validTerminalFlags(r) || r.decision != decisionAllow || r.status != 0 || value != "" {
 			return result{}, errProtocol
 		}
 		return r, nil
@@ -579,6 +577,12 @@ func parseResult(b []byte) (result, error) {
 		return result{}, errProtocol
 	}
 	return r, nil
+}
+
+func validTerminalFlags(r result) bool {
+	requestTerminal := r.requestOpcode == opClaim && r.flags == resultFlagRequestTerminal
+	postCommit := (r.requestOpcode == opResponseChunk || r.requestOpcode == opResponseEOS) && (r.flags == resultFlagPostCommitLogOnly || r.flags == resultFlagPostCommitStrictAbort)
+	return requestTerminal || postCommit
 }
 
 func resultValue(b []byte, opcode byte) (string, error) {

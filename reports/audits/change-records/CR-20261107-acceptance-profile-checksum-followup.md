@@ -24,6 +24,8 @@ Independently execute complete Envoy ext_authz and Traefik ForwardAuth response-
 
 Add an explicit admitted composite late-action policy with Safe default. Strict records an abort request separately from actual downstream reset. Typed observed companion transport termination closes incomplete native transactions without fabricating EOS or attributing an unknown endpoint. Bind retained lifecycle events to a bounded method/URI SHA-256. Native Traefik gains Safe(default)/Strict phase4Mode and preserves a completed P2 denial when the downstream proxy subsequently raises http.ErrAbortHandler. Other panics and incomplete streams still propagate. Flush accepted composite response chunks so small responses remain progressive. Complete logical profile phase-ownership masks remain unchanged; only their now implemented Strict-action admission flags change.
 
+The current hosted advisory analysis also identified parseResult complexity in the composite middleware. Extract its existing terminal-flag predicate without changing the admitted opcode/flag/decision/status/value combinations; the existing full protocol regression suite remains authoritative.
+
 ## Changed files
 
 Envoy composite service/coordinator/transport and Common-backend bridge; Traefik composite and native middleware; exact profile registry flags; profile-qualified capability reasons; native configuration templates and generated references; selected Framework gitlink, lock and 22 workflow projections; this paired record. Framework owns adapters, tests, immutable Apache metadata retrieval and native compiler inventory.

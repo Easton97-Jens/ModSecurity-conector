@@ -24,6 +24,8 @@ Vollständige Envoy-ext_authz- und Traefik-ForwardAuth-Pfade mit Response-Compan
 
 Eine explizit zugelassene Composite-Late-Action-Policy mit Safe als Vorgabe ergänzen. Strict protokolliert eine Abbruchanforderung getrennt vom tatsächlichen Downstream-Reset. Typisierte beobachtete Companion-Transportbeendigung schließt unvollständige native Transaktionen ohne erfundenes EOS oder Zuordnung zu einem unbekannten Endpunkt. Retained-Lebenszyklusereignisse an einen begrenzten Methoden-/URI-SHA-256 binden. Traefik native erhält phase4Mode Safe(Vorgabe)/Strict und erhält ein abgeschlossenes P2-Deny, wenn der nachfolgende Proxy danach http.ErrAbortHandler auslöst. Andere Panics und unvollständige Streams werden weitergereicht. Akzeptierte Composite-Responsechunks flushen, damit kleine Antworten progressiv bleiben. Phasenbesitzmasken der vollständigen logischen Profile bleiben unverändert; nur ihre nun implementierten Strict-Aktionszulassungsflags ändern sich.
 
+Die aktuelle gehostete Advisory-Analyse meldete außerdem die Komplexität von parseResult in der Composite-Middleware. Das bestehende Prädikat für Terminal-Flags wird extrahiert, ohne die zugelassenen Opcode-/Flag-/Entscheidungs-/Status-/Wertkombinationen zu ändern; die vollständige vorhandene Protokoll-Regressionssuite bleibt maßgeblich.
+
 ## Geänderte Dateien
 
 Envoy-Composite-Service/-Coordinator/-Transport und Common-Backend-Bridge; Traefik-Composite- und native Middleware; exakte Profilregistryflags; profilbezogene Capability-Begründungen; native Konfigurationsvorlagen und erzeugte Referenzen; ausgewählter Framework-Gitlink, Lock und 22 Workflow-Projektionen; dieser gepaarte Record. Adapter, Tests, unveränderlicher Apache-Metadatenabruf und natives Compilerinventar gehören zum Framework.
