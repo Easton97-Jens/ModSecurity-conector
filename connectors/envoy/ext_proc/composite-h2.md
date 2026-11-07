@@ -1,5 +1,7 @@
 # Composite response policy
 
+**Language:** English | [Deutsch](composite-h2.de.md)
+
 The shared `msconnector_composite` service accepts
 `--late-action-policy off|safe|strict` (default `safe`). Strict is admitted only
 by a native engine whose parsed Common runtime uses `phase4_mode=strict`;
