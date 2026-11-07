@@ -53,8 +53,8 @@ var (
 	ErrRequestRejected = errors.New("modsecurity native middleware: request rejected")
 
 	// ErrResponseRejected is returned from Write/ReadFrom when a prospective
-	// decision is made before response commitment. It is intentionally not used
-	// to claim a late connection abort after bytes have been sent.
+	// decision is made. In Strict mode the committed-response error reaches
+	// the native handler abort path; transport observation establishes its effect.
 	ErrResponseRejected = errors.New("modsecurity native middleware: response rejected")
 )
 
@@ -76,7 +76,9 @@ type Config struct {
 	MaxResponseChunkBytes        int    `json:"maxResponseChunkBytes,omitempty"`
 	TransactionIDHeader          string `json:"transactionIDHeader,omitempty"`
 	EngineMode                   string `json:"engineMode,omitempty"`
-	EngineSocketPath             string `json:"engineSocketPath,omitempty"`
+	// Phase4Mode preserves Safe by default; Strict aborts a committed stream.
+	Phase4Mode       string `json:"phase4Mode,omitempty"`
+	EngineSocketPath string `json:"engineSocketPath,omitempty"`
 }
 
 // UnmarshalJSON rejects removed keys even when their value is null. The
@@ -116,6 +118,7 @@ func CreateConfig() *Config {
 		MaxResponseChunkBytes:        defaultMaxResponseChunkBytes,
 		TransactionIDHeader:          "X-Request-Id",
 		EngineMode:                   "uds",
+		Phase4Mode:                   "safe",
 	}
 }
 
@@ -157,6 +160,9 @@ func applyConfigDefaults(value *Config) {
 	if value.TransactionIDHeader == "" {
 		value.TransactionIDHeader = "X-Request-Id"
 	}
+	if value.Phase4Mode == "" {
+		value.Phase4Mode = "safe"
+	}
 	if value.EngineMode == "" {
 		value.EngineMode = "uds"
 	}
@@ -186,6 +192,9 @@ func validateConfigLimits(value Config) error {
 }
 
 func validateEngineConfig(value Config) error {
+	if value.Phase4Mode != "safe" && value.Phase4Mode != "strict" {
+		return fmt.Errorf("modsecurity native middleware: unsupported phase4Mode %q", value.Phase4Mode)
+	}
 	if value.EngineMode != "uds" {
 		return fmt.Errorf("modsecurity native middleware: unsupported engineMode %q", value.EngineMode)
 	}
@@ -438,8 +447,24 @@ func (middleware *Middleware) ServeHTTP(writer http.ResponseWriter, request *htt
 		defer func() { request.Body = originalBody }()
 	}
 
-	middleware.next.ServeHTTP(response, request)
+	middleware.serveNext(response, request)
 	response.finish()
+}
+
+// serveNext contains only a downstream abort after our complete pre-commit
+// denial. Reverse proxies may abort after their body reader receives the
+// terminal rejection, even though our writer already delivered the denial.
+// Every incomplete stream, unrelated panic and late Strict abort still escapes.
+func (middleware *Middleware) serveNext(response *responseWriter, request *http.Request) {
+	defer func() {
+		if value := recover(); value != nil {
+			if value == http.ErrAbortHandler && response.rejected && !response.responseIncomplete && !response.state.responseIsIncomplete() {
+				return
+			}
+			panic(value)
+		}
+	}()
+	middleware.next.ServeHTTP(response, request)
 }
 
 func endpointFromAddress(value string, fallbackPort int) (string, int) {
@@ -556,8 +581,8 @@ func (state *streamState) processRequestBody(contextValue context.Context, chunk
 }
 
 // processResponseBody invokes the engine before a bounded slice is forwarded.
-// A disruptive decision found after commitment is intentionally a log-only
-// outcome: no synthetic abort or changed visible HTTP status is claimed.
+// A disruptive decision after commitment follows the configured Safe or Strict
+// policy. Only the host transport observer can establish an actual abort.
 func (state *streamState) processResponseBody(contextValue context.Context, chunk []byte, end bool, beforeCommit bool) (Decision, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
@@ -578,6 +603,15 @@ func (state *streamState) processResponseBody(contextValue context.Context, chun
 		return allowDecision(), err
 	}
 	if decision.disruptive() && !beforeCommit {
+		if state.config.Phase4Mode == "strict" {
+			// This requests the existing net/http abort path. The transport
+			// observer must independently prove a reset; no host outcome is
+			// acknowledged before the host has executed that path.
+			state.lateAction = "strict_abort_requested"
+			state.markResponseIncompleteLocked()
+			state.terminalError = ErrResponseRejected
+			return allowDecision(), ErrResponseRejected
+		}
 		if reporter, ok := state.engine.(outcomeAcknowledger); ok {
 			if err := reporter.AcknowledgeLateLogOnly(contextValue, state.responseStatus); err != nil {
 				state.markResponseIncompleteLocked()

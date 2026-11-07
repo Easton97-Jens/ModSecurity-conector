@@ -32,7 +32,7 @@ Capability-Erklärung.
   Chunk den schnellen Pfad des umschlossenen Writers bei.
 - In `Summary` verbleiben nur Metadaten sowie Byte-/Chunk-Zähler, niemals ein
   vollständiger Request- oder Response-Body.
-- Ein disruptives Ergebnis nach dem Response-Commit wird als `log_only`
+- Im Standardmodus Safe wird ein disruptives Ergebnis nach dem Response-Commit als `log_only`
   behandelt; es wird kein geänderter Status, Reset oder Client-Abbruch
   behauptet.
 
@@ -60,7 +60,7 @@ impliziert.
 Das UDS-Protokoll lehnt unbekannte Engine-Aktionen ab, statt sie als
 HTTP-Ablehnung umzudeuten. Es meldet ein disruptives Ergebnis erst nach einem
 erfolgreichen tatsächlichen `ResponseWriter`-Schreibvorgang. Nach dem
-Response-Commit ist ein disruptives Phase-4-Ergebnis bewusst `log_only`; es
+Response-Commit ist ein disruptives Phase-4-Ergebnis im Safe-Modus bewusst `log_only`; es
 erzeugt keinen geänderten Status, Reset oder Client-Abbruch-Anspruch.
 
 ## UDS-Cancellation-, Timeout- und Cleanup-Grenze
@@ -78,9 +78,9 @@ wenn ein früherer Austausch die Verbindung bereits verworfen hat.
 Vor dem Response-Commit führt ein Engine-Austauschfehler zum dokumentierten
 geschlossenen HTTP-500-Pfad. Ein abgebrochener Host-Request kann seinen
 Response-Kanal bereits verloren haben; der Connector erfindet daher weder
-einen client-sichtbaren Status noch ein Upstream-Reset-Event. Nach dem Commit
-bleibt die dokumentierte `log_only`-/unveränderte-Response-Grenze bestehen,
-statt eine rückwirkende Umschreibung zu behaupten. Eine frische Anfrage öffnet
+einen client-sichtbaren Status noch ein Upstream-Reset-Event. Nach dem Commit brechen Engine-Austauschfehler den unvollständigen Host-Stream
+ab; disruptive Entscheidungen folgen der unten beschriebenen Safe- oder
+Strict-Richtlinie. Eine frische Anfrage öffnet
 eine neue UDS-Sitzung und behält die normalen Allow/Block-Semantiken bei.
 
 ## Lokale Quellenprüfungen
@@ -132,3 +132,18 @@ eingecheckten Referenzdateien noch einen gemeinsam genutzten Engine-Socket.
 Eine Operator-Bereitstellung muss das Modul weiterhin im lokalen
 Plugin-Arbeitsbereich der installierten Traefik-Version bereitstellen. Der
 Probe-Lauf ist kein Einsatz- oder Capability-Promotion-Nachweis.
+
+## Explizite Strict-Richtlinie für späte Antwortentscheidungen
+
+`phase4Mode` akzeptiert `safe` (Standard) oder `strict`; unbekannte Werte
+verhindern die Konfiguration. Safe behält die vorhandene `log_only`-Bestätigung
+nach der Antwortübergabe bei. Bei einer disruptiven Phase-4-Entscheidung nach
+der Übergabe markiert Strict die Antwort als unvollständig, schließt die
+UDS-Transaktion und verlässt den Handler über `http.ErrAbortHandler`. Der
+native `net/http`-Host führt den Transportabbruch aus. Die Abschlussmetadaten
+enthalten `strict_abort_requested`; Common erhält keine erfundene Bestätigung
+eines abgeschlossenen Abbruchs. Eine Host-Qualifikation muss Protokoll-Reset,
+Regel-/Transaktionszuordnung, native Freigabe und parallele Stream-Isolation
+unabhängig beobachten. Der explizite native H2-Abnahmeläufer des Frameworks
+prüft das echte Yaegi-Plugin über verifiziertes TLS mit gehaltenem Peer und
+Folgeanfrage auf derselben Verbindung.

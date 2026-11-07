@@ -8,6 +8,11 @@ BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecuri
 RULES_FILE=${MSCONNECTOR_RULES_FILE:-${RULES_FILE:-}}
 OUTPUT_CONFIG=${OUTPUT_CONFIG:-$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc-runtime.conf}
 EVENT_PATH=${EVENT_PATH:-}
+PHASE4_MODE=${ENVOY_EXT_PROC_PHASE4_MODE:-safe}
+case "$PHASE4_MODE" in
+    off|safe|strict) ;;
+    *) echo "envoy_ext_proc_runtime_config: invalid phase4 policy: $PHASE4_MODE" >&2; exit 2 ;;
+esac
 
 absolute_existing_file() {
     input=$1
@@ -59,7 +64,7 @@ umask 077
     printf '%s\n' 'transaction_id_header=x-request-id'
     printf '%s\n' 'request_body_mode=streaming'
     printf '%s\n' 'response_body_mode=streaming'
-    printf '%s\n' 'phase4_mode=safe'
+    printf 'phase4_mode=%s\n' "$PHASE4_MODE"
     printf '%s\n' 'default_block_status=403'
     printf '%s\n' 'default_error_status=500'
     printf '%s\n' 'use_error_log=off'

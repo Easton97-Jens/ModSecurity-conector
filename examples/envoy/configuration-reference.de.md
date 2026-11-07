@@ -29,7 +29,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`admin.address.socket_address.port_value`](#admin-address-socket-address-port-value) | Host / Connector | YAML-Portfeld | nein | Der Connector definiert für `admin.address.socket_address.port_value` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `admin.address.socket_address.port_value` konfiguriert die administrative Envoy-Schnittstelle. Sie konfiguriert die administrative Listener- oder Protokollierungsseite außerhalb des Datenpfads. |
 | [`cleanup_timeout_ms`](#cleanup-timeout-ms) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`engine_timeout_ms`](#engine-timeout-ms) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
-| [`late_action_policy`](#late-action-policy) | Connector-Service | LateActionPolicy | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst. |
+| [`late_action_policy`](#late-action-policy) | Connector-Service | LateActionPolicy | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Wählt die Behandlung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst log_only und strict sendet eine späte ImmediateResponse über den ausgewählten ext_proc-Host. Ein erfolgreicher Send wird getrennt vom unabhängig beobachteten Downstream-Reset erfasst. |
 | [`listen_address`](#listen-address) | Connector-Service | Zeichenkette | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_body_chunk_bytes`](#max-body-chunk-bytes) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
 | [`max_concurrent_streams`](#max-concurrent-streams) | Connector-Service | Ganzzahl | ja | kein Wert; JSON-Decoder/Config.Validate verlangt jedes ausgewählte Feld | ext_proc-Service-JSON-Objekt | Setzt eine begrenzte ext_proc-Service-Steuerung. |
@@ -1305,7 +1305,7 @@ Alle Header-, Body-, gRPC- und Timeout-Werte begrenzen; die Listen-Adresse des S
 
 ### Kurzbeschreibung
 
-Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.
+Wählt die Behandlung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst log_only und strict sendet eine späte ImmediateResponse über den ausgewählten ext_proc-Host. Ein erfolgreicher Send wird getrennt vom unabhängig beobachteten Downstream-Reset erfasst.
 
 ### Syntax
 
@@ -1339,7 +1339,7 @@ Zusammenführung: Kein Merge; ein zweiter JSON-Wert wird nach dem einen Konfigur
 
 P1–P4-Relevanz: Limits und späte Policy beeinflussen das Prozessorverhalten in P1–P4.
 
-Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.
+Wählt die Behandlung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst log_only und strict sendet eine späte ImmediateResponse über den ausgewählten ext_proc-Host. Ein erfolgreicher Send wird getrennt vom unabhängig beobachteten Downstream-Reset erfasst.
 
 ### Validierung und Fehler
 
