@@ -1,55 +1,109 @@
-# SonarQube Local Access and Cloud Quality Gate Policy
+# Sonar Free Access and Cloud Quality Gate Policy
 
 ## Purpose and primary ownership
 
-This file is the single primary owner for SonarQube local access, authentication/environment setup, SonarScanner/CLI/MCP invocation boundaries, SonarQube Cloud readback, findings, and Quality-Gate semantics.
+This file owns the Parent's Sonar Free procedure: SSH CLI access, Secrets before
+file reads, automatic hook boundaries, explicit project binding, Cloud readback
+and Quality-Gate semantics. Other policies delegate these rules here.
 
-Other assessment or delivery policies may require SonarQube, but they must reference this file instead of duplicating its authentication or wrapper rules.
+## Existing installation and execution boundaries
 
-## Canonical local authentication path
+Use the existing `sonar` command or canonical `/usr/local/bin/sonar-with-env`
+starter. Project files, Codex and Git remain on 192.168.189.173; native CLI and
+Secrets scanning run through SSH on 192.168.193.59:2222. Consult the installed
+`/usr/local/lib/sonar-remote/README.md` for implemented capabilities and blockers.
+Do not install a native CLI here or change global installation, hooks, trust,
+authentication, SSH keys, firewall or subscriptions as part of project setup.
 
-For every local SonarQube access path, including SonarQube CLI, SonarScanner, SonarQube helpers, local scripts that call Sonar APIs/scanners, and SonarQube MCP, use only:
+Before first use, verify the existing starter's executable identity and supported
+mode from current documentation and actual execution evidence. A documented
+launcher symlink is expected; reject an unexpected substitution. Help/version
+output and capabilities establish no successful scan or authentication result.
+Never discover credentials or supply them as a replacement for the starter.
+Do not store credentials in configuration, arguments, logs or evidence.
 
-`/usr/local/bin/sonar-with-env`
+For agent-issued local shell commands, retain RTK and the starter together:
 
-Do not provide or set Sonar credentials directly as a replacement for this wrapper.
+```sh
+rtk bypass /usr/local/bin/sonar-with-env remote project
+rtk bypass /usr/local/bin/sonar-with-env analyze secrets --stdin < path/to/file > /dev/null 2>&1
+```
 
-Do not store Sonar credential values in Codex, MCP, TOML, YAML, JSON, `.env`, command arguments, logs, reports, or task evidence. Do not create another wrapper whose purpose is to bypass `/usr/local/bin/sonar-with-env`.
+The installed global Codex Sonar hooks and their scanner children use the direct
+starter **without RTK**. This accepted integration boundary does not exempt
+agent-issued shell commands from `command-execution-policy.md`. Keep the existing
+project RTK `PreToolUse/Bash` hook independent; do not duplicate global Sonar
+registrations in project configuration.
 
-## Required preflight
+## Mandatory Secrets before reading
 
-Before first use in a task, establish that the wrapper:
+Before reading file contents, including content searches, explicitly run
+`analyze secrets` on the selected file or feed the exact selected bytes to
+`analyze secrets --stdin`. Filename-only discovery may precede the scan.
+Recheck changed content before reading it again. Keep raw scanner findings and
+credentials out of tool output, logs and reports; suppress scanner output and
+inspect the actual process exit status.
 
-1. exists at the canonical path;
-2. is a regular executable file;
-3. is not an unexpected symlink or path substitution;
-4. supports the required real execution mode;
-5. can establish the required authentication without printing secrets.
+Continue only after a completed Secrets scan with exit code 0. A finding,
+scanner error, unavailable scan or incomplete result stops further file reads
+and changes until resolved. Do not read a file with a Secrets finding. Never
+convert an error, empty selection or missing output into a successful scan.
+A manual successful scan establishes only the selected content's Secrets result.
 
-Inspect current wrapper documentation/help or existing known-good local usage before constructing the first invocation. Do not invent wrapper arguments, scanner modes, MCP arguments, project identifiers, or authentication variables.
+## Automatic checks and Free-only local use
 
-## RTK composition
+The existing global `UserPromptSubmit` and `PostToolUse/apply_patch` hooks perform
+deterministic Secrets checks only; the latter selects the actually edited files.
+Existing Git Secrets checks remain effective. Do not alter global hook
+definitions or trust to implement this project policy.
 
-Local shell-command execution is governed by `command-execution-policy.md`.
+No successful Vortex, STANDARD or DEEP analysis is a prerequisite for continuing
+development after a clean Secrets check. Do not automatically invoke aggregate
+`sonar analyze`, Vortex/agentic analysis, paid remediation or Advanced-Security/SCA.
+Use only available free functions. Sonar MCP remains disabled; do not configure,
+activate or use it.
 
-RTK and `/usr/local/bin/sonar-with-env` are separate mandatory controls where both apply:
+Prior installation reports and manually invoked scanners/handlers do not prove
+a new automatic event. A fresh hook claim needs current event/session evidence.
+Scanner-child exit 0 does not establish a handler-process exit when that exit
+was not recorded.
 
-- RTK governs local shell command execution;
-- `/usr/local/bin/sonar-with-env` governs SonarQube authentication/environment preparation.
+## Project binding and available Cloud reads
 
-Neither may bypass the other. Determine the supported combined invocation from the current interfaces; do not invent wrapper ordering or flags.
+Resolve the current repository's key from its own `.sonar-config.json`
+(`project.projectKey`) or `sonar-project.properties` (`sonar.projectKey`).
+If both exist they must agree for the selected project. If binding is missing
+or ambiguous, ask for the key before project-specific queries; standalone
+file/stdin Secrets checks remain possible. Never invent a global project default
+or borrow a sibling repository or advisory/native target key.
 
-## CLI and scanner use
+After resolving the binding, pass that exact key explicitly:
 
-Do not launch `sonar-scanner`, another Sonar scanner binary, or a credential-dependent Sonar CLI directly when the wrapper is required.
+```sh
+rtk bypass /usr/local/bin/sonar-with-env list projects
+rtk bypass /usr/local/bin/sonar-with-env list issues -p "$SONAR_PROJECT_KEY"
+rtk bypass /usr/local/bin/sonar-with-env quality-gate status -p "$SONAR_PROJECT_KEY"
+```
 
-A tool name does not establish its role. Distinguish scanner, query/administration CLI, helper, and MCP server by current installed behavior/documentation. If a query CLI cannot perform analysis, use the actual configured scanner path through the canonical wrapper rather than assigning fictional scan functionality to the query CLI.
+Here `SONAR_PROJECT_KEY` denotes the verified current local binding, not a preset
+global value. Use read-only `api get` with that same explicit project identity
+in the API's project parameter for available metrics, coverage and duplication.
+Check current command help/capabilities before constructing an API query; do not
+invent endpoint or parameter support.
 
-## MCP use
+## Preserve CI analysis and independent PR gates
 
-A SonarQube MCP server that requires SonarQube credentials must receive its authentication environment through `/usr/local/bin/sonar-with-env`.
+Cloud queries describe the **last analyzed Cloud revision**, not unchecked local
+modifications. A successful Secrets check is not a full code-quality analysis
+and does not replace CI or an independently applicable PR Quality Gate.
 
-Do not place raw token values in MCP configuration and do not configure a credential-dependent MCP server binary directly in a way that bypasses the wrapper.
+Fresh complete analysis belongs to the existing suitable CI SonarScanner
+workflows within Free-plan limits. Preserve their source scope, independent
+projects, supported analyzer modes, secret handling and gate waits. Do not
+replace them with Secrets-only checks or launch a local aggregate/agentic scan
+to obtain a quality result. CI's existing scanner action and CI-managed
+authentication remain their own execution context; do not rewrite CI to use
+the local SSH starter or RTK.
 
 ## Environment hygiene
 
@@ -134,7 +188,7 @@ If Sonar access or analysis cannot proceed, retain the normal technical status m
 - `sonarqube_wrapper_missing`;
 - `sonarqube_wrapper_invalid`;
 - `sonarqube_authentication_failed`;
-- `sonarqube_mcp_unavailable`;
+- `sonarqube_project_binding_missing_or_ambiguous`;
 - `sonarqube_service_unreachable`;
 - `sonarqube_analysis_failed`;
 - `sonarqube_readback_incomplete`.
@@ -145,7 +199,7 @@ These are reason codes, not alternative success states. Do not fall back to dire
 
 Record only the minimum secret-free Sonar evidence required by the task, such as:
 
-- mechanism used (scanner/CLI/MCP/readback);
+- mechanism used (Secrets/CI scanner/CLI/readback);
 - canonical wrapper use;
 - repository/project identity;
 - branch and exact commit SHA;
