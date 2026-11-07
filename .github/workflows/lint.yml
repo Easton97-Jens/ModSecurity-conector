@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_framework=0ea6ce7cd3df072822d5444d511348c3ff6eab87
+          expected_framework=5a4db56e47464e486ceea764c6e186d6567a4ba9
           declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           test "$declared_framework" = "$expected_framework"
@@ -41,9 +41,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@0ea6ce7cd3df072822d5444d511348c3ff6eab87
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@5a4db56e47464e486ceea764c6e186d6567a4ba9
         with:
-          framework-revision: 0ea6ce7cd3df072822d5444d511348c3ff6eab87
+          framework-revision: 5a4db56e47464e486ceea764c6e186d6567a4ba9
       - name: Install hash-locked CI test dependency
         run: |
           python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache
