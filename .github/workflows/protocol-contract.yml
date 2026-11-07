@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_framework=d0c7e1036e57bdb980603f68e4e3e64e51de9049
+          expected_framework=0ea6ce7cd3df072822d5444d511348c3ff6eab87
           declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           test "$declared_framework" = "$expected_framework"
@@ -45,9 +45,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@d0c7e1036e57bdb980603f68e4e3e64e51de9049
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@0ea6ce7cd3df072822d5444d511348c3ff6eab87
         with:
-          framework-revision: d0c7e1036e57bdb980603f68e4e3e64e51de9049
+          framework-revision: 0ea6ce7cd3df072822d5444d511348c3ff6eab87
       - name: Validate payload-free protocol contracts
         run: |
           set -eu
@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_framework=d0c7e1036e57bdb980603f68e4e3e64e51de9049
+          expected_framework=0ea6ce7cd3df072822d5444d511348c3ff6eab87
           declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           test "$declared_framework" = "$expected_framework"
@@ -93,9 +93,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@d0c7e1036e57bdb980603f68e4e3e64e51de9049
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@0ea6ce7cd3df072822d5444d511348c3ff6eab87
         with:
-          framework-revision: d0c7e1036e57bdb980603f68e4e3e64e51de9049
+          framework-revision: 0ea6ce7cd3df072822d5444d511348c3ff6eab87
       - name: Initialize isolated runtime paths
         run: |
           set -eu
