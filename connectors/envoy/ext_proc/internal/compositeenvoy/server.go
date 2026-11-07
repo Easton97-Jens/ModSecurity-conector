@@ -258,10 +258,11 @@ func (s *ExtProcServer) runResponseLoop(ctx context.Context, state *responseStre
 		request, err := state.stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return handleProcessError(io.ErrUnexpectedEOF)
+				finish("companion_transport_closed")
+				return status.Error(codes.Unavailable, "companion transport closed before response EOS")
 			}
 			state.responseDone = true
-			finish("grpc_context_canceled_unattributed")
+			finish("companion_transport_closed")
 			if errors.Is(err, context.Canceled) {
 				return status.Error(codes.Canceled, "ext_proc stream canceled before response EOS")
 			}
@@ -362,8 +363,9 @@ func (s *ExtProcServer) responseBody(ctx context.Context, stream extprocv3.Exter
 	if err != nil {
 		return false, &postTransportError{reason: "response_body_processing_failed_after_commit", err: err}
 	}
-	// The response has already crossed the commit boundary. Disruptive P4
-	// decisions are therefore recorded as log-only and never reset the stream.
+	if decision.Action != processor.ActionAllow && response.StrictLateAction() {
+		return sendStrictResponse(ctx, stream, response, decision, upstreamStatus, lateActionRecorded)
+	}
 	if err := sendContinue(stream, bodyResponse()); err != nil {
 		return false, err
 	}
@@ -388,6 +390,9 @@ func (s *ExtProcServer) responseTrailers(ctx context.Context, stream extprocv3.E
 	if err != nil {
 		return false, &postTransportError{reason: "response_trailer_processing_failed_after_commit", err: err}
 	}
+	if decision.Action != processor.ActionAllow && response.StrictLateAction() {
+		return sendStrictResponse(ctx, stream, response, decision, upstreamStatus, lateActionRecorded)
+	}
 	if err := sendContinue(stream, trailersResponse()); err != nil {
 		return false, err
 	}
@@ -401,6 +406,17 @@ func (s *ExtProcServer) responseTrailers(ctx context.Context, stream extprocv3.E
 			return false, &postTransportError{reason: "neutral_outcome_unknown_after_continue", err: err}
 		}
 	}
+	return true, nil
+}
+
+func sendStrictResponse(ctx context.Context, stream extprocv3.ExternalProcessor_ProcessServer, response *composite.Response, decision processor.Decision, upstreamStatus int, lateActionRecorded *bool) (bool, error) {
+	if err := sendImmediate(stream, decision); err != nil {
+		return false, err
+	}
+	if err := response.RecordLateAbortRequested(ctx, "strict_immediate_response_sent", upstreamStatus); err != nil {
+		return false, &postTransportError{reason: "strict_host_action_unknown_after_send", err: err}
+	}
+	*lateActionRecorded = true
 	return true, nil
 }
 

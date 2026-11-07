@@ -68,7 +68,8 @@ const (
 	// upstream response has committed. The writer must retain the committed
 	// bytes and record actualLogOnly; processing and limit failures never use
 	// this flag.
-	resultFlagPostCommitLogOnly byte = 2
+	resultFlagPostCommitLogOnly     byte = 2
+	resultFlagPostCommitStrictAbort byte = 4
 )
 
 var (
@@ -567,7 +568,7 @@ func parseResult(b []byte) (result, error) {
 	}
 	if r.flags != 0 {
 		requestTerminal := r.requestOpcode == opClaim && r.flags == resultFlagRequestTerminal
-		postCommitLogOnly := (r.requestOpcode == opResponseChunk || r.requestOpcode == opResponseEOS) && r.flags == resultFlagPostCommitLogOnly
+		postCommitLogOnly := (r.requestOpcode == opResponseChunk || r.requestOpcode == opResponseEOS) && (r.flags == resultFlagPostCommitLogOnly || r.flags == resultFlagPostCommitStrictAbort)
 		if (!requestTerminal && !postCommitLogOnly) || r.decision != decisionAllow || r.status != 0 || value != "" {
 			return result{}, errProtocol
 		}
@@ -772,6 +773,9 @@ func (rw *responseWriter) writeChunks(body []byte) (int, error) {
 		if res.flags == resultFlagPostCommitLogOnly {
 			rw.late = true
 		}
+		if res.flags == resultFlagPostCommitStrictAbort {
+			rw.abortStrict(false)
+		}
 		if res.decision != decisionAllow {
 			// A successful P4 Safe decision is represented by the explicit
 			// post-commit log-only flag above. A deny that reaches this wrapper
@@ -790,6 +794,12 @@ func (rw *responseWriter) writeChunks(body []byte) (int, error) {
 		if n != len(chunk) {
 			rw.transportErr = io.ErrShortWrite
 			return written, rw.transportErr
+		}
+		// Preserve streaming for a small inspected chunk while upstream EOS
+		// remains outstanding. Otherwise net/http can retain both the headers
+		// and this chunk until the handler returns, hiding the commit boundary.
+		if flusher, ok := rw.writer.(http.Flusher); ok {
+			flusher.Flush()
 		}
 	}
 	return written, nil
@@ -969,11 +979,33 @@ func (rw *responseWriter) finishResponse(ctx context.Context) bool {
 	if res.flags == resultFlagPostCommitLogOnly {
 		rw.late = true
 	}
+	if res.flags == resultFlagPostCommitStrictAbort {
+		rw.abortStrict(true)
+	}
 	if res.decision != decisionAllow {
 		rw.transportErr = errResponseBodyRejected
 		return false
 	}
 	return true
+}
+
+// abortStrict records the selected host action, closes the retained transaction,
+// then uses net/http's native request abort sentinel. Only independent client
+// frames establish the resulting H2 RST_STREAM; the protocol records a request.
+func (rw *responseWriter) abortStrict(atEOS bool) {
+	payload := []byte{4, byte(rw.status >> 8), byte(rw.status)}
+	if _, err := rw.exchange(opOutcome, payload); err != nil {
+		rw.transportErr = err
+	} else if atEOS {
+		_, rw.transportErr = rw.exchange(opFinish, nil)
+	}
+	if !atEOS && rw.proto != nil {
+		// No synthetic EOS or premature Finish: closing this actual private
+		// transport gives the service an observed incomplete-protocol terminal.
+		_ = rw.proto.conn.Close()
+	}
+	rw.finished = true
+	panic(http.ErrAbortHandler)
 }
 
 func responseHeaders(status int, protocol string, h http.Header, maxCount, maxBytes int) ([]byte, error) {

@@ -27,7 +27,7 @@
       "direct_service_response_phases": "not_exposed_by_protocol",
       "logical_connector_status": "implemented_not_asserted"
     },
-    "scope": "The legacy capability table below describes the direct request-only ext_authz service. This object describes the required complete logical connector and must be used for P1-P4 contract assessment.",
+    "scope": "The legacy capability table below describes the direct request-only ext_authz service. This object describes the required complete logical connector and must be used for P1-P4 contract assessment. The separate composite TLS/H2 executor qualifies this complete handoff path independently. Its explicit late-action service policy defaults to safe and admits off/safe/strict only when the selected native engine agrees; a sent abort request is distinct from an observed downstream reset. Shared Common backend identity is retained separately from logical host/handoff identity.",
     "phases": {
       "P1": "ext_authz authorization service maps request headers into Common Runtime",
       "P2": "ext_authz bounded request-body handoff completes Common request EOS",
@@ -232,7 +232,7 @@
     },
     "http2_downstream": {
       "state": "implemented_not_asserted",
-      "reason": "The separate selected ext_proc TLS/H2 adapter is executable; canonical promotion still requires matching host evidence. This does not qualify ext_authz."
+      "reason": "Separate ext_proc and ext_authz-plus-response-companion TLS/H2 adapters are executable. Each requires its own matching source and native host evidence; no profile inherits another profile result."
     },
     "http2_upstream": {
       "state": "not_implemented",
@@ -240,7 +240,7 @@
     },
     "http2_tls_alpn": {
       "state": "implemented_not_asserted",
-      "reason": "The selected ext_proc adapter checks verified TLS 1.3 and negotiated ALPN h2; its run evidence is required independently from configuration."
+      "reason": "Each selected ext_proc or ext_authz-plus-response-companion adapter checks verified TLS 1.3 and negotiated ALPN h2; independent profile-specific run evidence is required."
     },
     "http2_cleartext_h2c": {
       "state": "not_implemented",
@@ -248,11 +248,11 @@
     },
     "http2_multiplexing": {
       "state": "implemented_not_asserted",
-      "reason": "The selected ext_proc H2 adapter checks simultaneous target/peer streams and a follow-up on the same physical connection; no ext_authz claim is inherited."
+      "reason": "Separate ext_proc and ext_authz-plus-response-companion H2 adapters check simultaneous target/peer streams and a follow-up on the same physical connection. Results remain profile-specific."
     },
     "http2_stream_reset": {
       "state": "implemented_not_asserted",
-      "reason": "The selected ext_proc Strict path sends late ImmediateResponse through the pinned native host. The separate adapter requires the actual affected downstream RST_STREAM and healthy peer; a gRPC send is insufficient."
+      "reason": "The selected ext_proc and complete ext_authz-plus-response-companion Strict paths request a late native abort. Each independent adapter requires its own affected downstream RST_STREAM and healthy peer; a gRPC send is insufficient."
     },
     "http3_downstream": {
       "state": "not_implemented",

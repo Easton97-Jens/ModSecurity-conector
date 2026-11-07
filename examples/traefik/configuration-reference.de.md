@@ -32,6 +32,7 @@ Kompatibilitätseinträge sind ausdrücklich als solche markiert und gehören ni
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | YAML-Limitfeld | nein | 128 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | YAML-Limitfeld | nein | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes) | Host / Connector | YAML-Limitfeld | nein | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.phase4Mode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-phase4mode) | Host / Connector | Enum für die späte Antwortrichtlinie der nativen Middleware | nein | safe | http.middlewares.<name>.plugin.modsecurityNative | Wählt Safe mit Log-only-Bestätigung oder Strict mit nativem Handler-Abbruch bei einer disruptiven Phase-4-Entscheidung nach dem Antwort-Commit. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis) | Host / Connector | Ganzzahliges Request-Body-Idle-Timeout-Limit | nein | 1000 | http.middlewares.<name>.plugin.modsecurityNative | Begrenzt die Inaktivität zwischen Request-Body-Lesevorgängen unabhängig vom Engine-Timeout und schließt die eigene Quelle bei Ablauf. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader) | Host / Connector | YAML-Steuerfeld | nein | X-Request-Id | http.middlewares.<name>.plugin.modsecurityNative | Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg. |
 | [`http.routers`](#http-routers) | Host / Connector | YAML-Konfigurationsfeld | nein | Der Connector definiert für `http.routers` keinen unabhängigen Standardwert; das ausgewählte Template legt den gezeigten Wert ausdrücklich fest. | Der im ausgewählten Beispiel gezeigte YAML-Objektpfad. | Das YAML-Feld `http.routers` konfiguriert die Request-Routing-Entscheidung. Sie ordnet eingehende Requests einer Route, Middleware oder einem Upstream zu. |
@@ -1565,7 +1566,7 @@ Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plug
 
 ### Phasen und Laufzeitwirkung
 
-P1–P4-Relevanz: Die P1–P4-Relevanz folgt daraus, wie `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes` die Middleware-Anbindung konfiguriert.
+P1–P4-Relevanz: P4-Response-Body-Callback-Grenze; späte Interventionen folgen dem ausgewählten phase4Mode der nativen Middleware.
 
 Das YAML-Feld `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes` konfiguriert die Middleware-Anbindung. Sie bindet die ausgewählte Middleware an den Request- und Response-Verarbeitungsweg.
 
@@ -1589,11 +1590,65 @@ Die folgenden Quellwerte bewahren die technische, englische Originalmetadatenang
 
 ```text
 value_type: integer response-body chunk-byte bound
-phase_relevance: P4 response-body callback bound; a late disruptive result remains log-only after response commitment.
 security_relevance: The UDS wire contract rejects values above 32768; retain the bound for response-stream resource control.
 runtime_effect: Caps each streamed response-body chunk offered to the native middleware engine.
 description: Caps each streamed response-body chunk offered to the native middleware engine.
 ```
+
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-phase4mode"></a>
+## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.phase4Mode`
+
+### Kurzbeschreibung
+
+Wählt Safe mit Log-only-Bestätigung oder Strict mit nativem Handler-Abbruch bei einer disruptiven Phase-4-Entscheidung nach dem Antwort-Commit.
+
+### Syntax
+
+```text
+http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.phase4Mode: <phase4Mode>
+```
+
+### Gültige Kontexte
+
+- http.middlewares.<name>.plugin.modsecurityNative
+
+### Werte
+
+| Typ | Zulässige Werte | Erforderlich |
+| --- | --- | --- |
+| Enum für die späte Antwortrichtlinie der nativen Middleware | safe \| strict | nein |
+
+### Standardwert
+
+safe
+
+Quelle: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
+
+### Vererbung und Zusammenführung
+
+Dynamisches Traefik-Konfigurationsobjekt; kein Common-Runtime-Merge.
+
+Zusammenführung: Die Traefik-/Plugin-Konfiguration wird einmalig durch das Plugin normalisiert.
+
+### Phasen und Laufzeitwirkung
+
+P1–P4-Relevanz: P4-Intervention nach dem Antwort-Commit; Entscheidungen vor dem Commit behalten ihre normale HTTP-Statuszuordnung.
+
+Wählt Safe mit Log-only-Bestätigung oder Strict mit nativem Handler-Abbruch bei einer disruptiven Phase-4-Entscheidung nach dem Antwort-Commit.
+
+### Validierung und Fehler
+
+normalizedConfig weist ungültige Werte ab; Traefik parst die enthaltende dynamische Konfiguration.
+
+### Beispiel
+
+Ausgewählter Beispielwert: `safe`.
+
+Quellenbasiertes Beispiel: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
+
+### Sicherheit und Betrieb
+
+Strict fordert den Host-Abbruchpfad an; unabhängige native Protokoll- und Freigabenachweise müssen dessen Wirkung belegen.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`

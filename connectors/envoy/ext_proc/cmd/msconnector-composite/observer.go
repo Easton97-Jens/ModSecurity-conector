@@ -63,6 +63,7 @@ type eventLifecycle struct {
 
 type compositeEventRecord struct {
 	DecisionID       string `json:"decision_id"`
+	RequestSHA256    string `json:"request_sha256,omitempty"`
 	Connector        string `json:"connector"`
 	RuleID           string `json:"rule_id,omitempty"`
 	Phase            string `json:"phase"`
@@ -409,7 +410,8 @@ func validateCompositeEvent(event composite.Event) error {
 
 func compositeEventRecordFor(event composite.Event) ([]byte, error) {
 	record := compositeEventRecord{
-		DecisionID: event.DecisionID, Connector: event.Connector, RuleID: event.RuleID,
+		RequestSHA256: event.RequestSHA256,
+		DecisionID:    event.DecisionID, Connector: event.Connector, RuleID: event.RuleID,
 		Phase: event.Phase, Outcome: event.Outcome, Reason: event.Reason,
 		RequestedAction: event.RequestedAction, ActualHostAction: event.ActualHostAction,
 		VisibleStatus: event.VisibleStatus, CleanupOutcome: event.CleanupOutcome,

@@ -32,6 +32,7 @@ Compatibility entries are explicitly labelled and are not part of the selected c
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxHeaderCount`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxheadercount) | Host / Connector | integer header-count bound | no | 128 | http.middlewares.<name>.plugin.modsecurityNative | Caps the number of request and response headers passed to native middleware engine callbacks. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxRequestChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxrequestchunkbytes) | Host / Connector | integer request-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed request-body chunk offered to the native middleware engine. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.maxResponseChunkBytes`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-maxresponsechunkbytes) | Host / Connector | integer response-body chunk-byte bound | no | 32768 | http.middlewares.<name>.plugin.modsecurityNative | Caps each streamed response-body chunk offered to the native middleware engine. |
+| [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.phase4Mode`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-phase4mode) | Host / Connector | native middleware late-response policy enum | no | safe | http.middlewares.<name>.plugin.modsecurityNative | Selects Safe log-only acknowledgement or Strict native handler abort after a committed disruptive Phase 4 decision. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis) | Host / Connector | integer request-body idle-timeout bound | no | 1000 | http.middlewares.<name>.plugin.modsecurityNative | Bounds inactivity between request-body reads; it is independent of the engine timeout and closes the owned source on expiry. |
 | [`http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.transactionIDHeader`](#http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-transactionidheader) | Host / Connector | HTTP header-name string | no | X-Request-Id | http.middlewares.<name>.plugin.modsecurityNative | Selects the incoming request header used to correlate middleware and engine transaction metadata. |
 | [`http.routers`](#http-routers) | Host / Connector | Traefik dynamic router registry mapping | no | No connector-owned router registry default is declared; the selected template sets one app router. | The YAML object path shown in the selected example. | Groups dynamic request-routing definitions. |
@@ -1287,7 +1288,7 @@ Merge: Traefik/plugin configuration is normalized once by the plugin.
 
 ### Phases and runtime effect
 
-P4 response-body callback bound; a late disruptive result remains log-only after response commitment.
+P4 response-body callback bound; late intervention follows the selected native middleware phase4Mode.
 
 Caps each streamed response-body chunk offered to the native middleware engine.
 
@@ -1304,6 +1305,61 @@ Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../exampl
 ### Safety and operations
 
 The UDS wire contract rejects values above 32768; retain the bound for response-stream resource control.
+
+<a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-phase4mode"></a>
+## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.phase4Mode`
+
+### Short description
+
+Selects Safe log-only acknowledgement or Strict native handler abort after a committed disruptive Phase 4 decision.
+
+### Syntax
+
+```text
+http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.phase4Mode: <phase4Mode>
+```
+
+### Valid contexts
+
+- http.middlewares.<name>.plugin.modsecurityNative
+
+### Values
+
+| Type | Allowed values | Required |
+| --- | --- | --- |
+| native middleware late-response policy enum | safe \| strict | no |
+
+### Default
+
+safe
+
+Source: `connectors/traefik/native_middleware/middleware.go:CreateConfig`.
+
+### Inheritance and merge
+
+Traefik dynamic configuration object; no Common Runtime merge.
+
+Merge: Traefik/plugin configuration is normalized once by the plugin.
+
+### Phases and runtime effect
+
+P4 committed-response intervention; pre-commit decisions retain their normal HTTP status mapping.
+
+Selects Safe log-only acknowledgement or Strict native handler abort after a committed disruptive Phase 4 decision.
+
+### Validation and errors
+
+normalizedConfig rejects invalid values; Traefik parses the containing dynamic configuration.
+
+### Example
+
+Selected example value: `safe`.
+
+Source-backed example: [examples/traefik/safe/traefik-dynamic.yaml](../../examples/traefik/safe/traefik-dynamic.yaml).
+
+### Safety and operations
+
+Strict requests the host abort path; independent native protocol and cleanup evidence must establish its effect.
 
 <a id="http-middlewares-modsecurity-native-streaming-plugin-modsecuritynative-requestbodyidletimeoutmillis"></a>
 ## `http.middlewares.modsecurity-native-streaming.plugin.modsecurityNative.requestBodyIdleTimeoutMillis`
