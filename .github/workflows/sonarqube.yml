@@ -30,15 +30,12 @@ jobs:
           - cpp: "17"
             project: Easton97-Jens_ModSecurity-conector
             advisory: false
-            branch_args: ""
           - cpp: "20"
             project: Easton97-Jens_ModSecurity-conector_cpp20_advisory
             advisory: true
-            branch_args: -Dsonar.branch.name=master
           - cpp: "23"
             project: Easton97-Jens_ModSecurity-conector_cpp23_advisory
             advisory: true
-            branch_args: -Dsonar.branch.name=master
     concurrency:
       group: sonar-project-${{ matrix.project }}-${{ matrix.advisory && 'advisory' || github.event.pull_request.number || github.ref }}
       cancel-in-progress: false
@@ -131,7 +128,6 @@ jobs:
           args: >-
             -Dsonar.projectKey=${{ matrix.project }}
             -Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}
-            ${{ matrix.branch_args }}
             -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
             -Dsonar.working.directory=${{ runner.temp }}/sonar-work
             -Dsonar.cfamily.customCIncludes=${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0
