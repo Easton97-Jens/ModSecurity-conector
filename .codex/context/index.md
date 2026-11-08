@@ -30,7 +30,7 @@ Load only the policies needed for the current task. `AGENTS.md` is the concise e
 | Findings, evidence retention, remediation | `findings-policy.md` |
 | CRS/MRTS connector matrix | `connector-matrix.md` |
 | H1/H2/H3, hardening, sanitizers, static analysis | `protocol-and-hardening.md` |
-| SonarQube local access and Cloud Quality Gate | `sonarqube-policy.md` |
+| Sonar Free, Secrets before reads, SSH/hooks and Cloud Quality Gate | `sonarqube-policy.md` |
 | Phase-4 migration target semantics | `phase4-target-semantics.md` |
 | Final completion decision | `definition-of-done.md` |
 

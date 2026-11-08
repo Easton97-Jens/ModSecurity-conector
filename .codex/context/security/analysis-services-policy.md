@@ -16,13 +16,13 @@ Do not send secrets, `.codex` credentials, unrelated private data, raw customer 
 
 ## SonarQube
 
-For **all** SonarQube local access, authentication/environment preparation, SonarScanner/CLI/MCP execution, SonarQube Cloud analysis/readback, findings, exact-SHA binding, and Quality-Gate semantics, load and follow:
+For **all** SonarQube local access, authentication/environment preparation, Secrets/CI SonarScanner/CLI execution and disabled MCP, SonarQube Cloud analysis/readback, findings, exact-SHA binding, and Quality-Gate semantics, load and follow:
 
 `../sonarqube-policy.md`
 
 Do not duplicate or override its wrapper, credential, RTK-composition, scanner, MCP, readback, or delivery rules here.
 
-When an assessment requires a fresh Sonar analysis, this policy adds only the assessment requirement to reconcile that exact-revision Sonar evidence with the other analysis sources.
+When an assessment requires a fresh complete Sonar analysis, use the existing suitable CI SonarScanner within Free-plan limits and reconcile that exact-revision evidence with the other analysis sources. A clean Secrets scan permits development to continue but does not satisfy a complete code-quality requirement. This policy does not require Vortex/STANDARD/DEEP or authorize paid analysis or MCP activation.
 
 ## Reconciliation
 
