@@ -65,6 +65,10 @@ Prefer current repository-native `make` targets and checked-in scripts. Discover
 
 Before issuing local project commands, read `command-execution-policy.md`. RTK is the mandatory shell-command execution proxy; repository-native execution remains RTK-wrapped. Tool-specific authentication wrappers remain separate mandatory controls and no wrapper may bypass another policy boundary.
 
+Sonar uses the existing `sonar` / `/usr/local/bin/sonar-with-env` SSH starter: project files, Codex and Git stay on 192.168.189.173; the CLI and Secrets scanner run on 192.168.193.59:2222. Before reading file contents or searching within files, explicitly run `analyze secrets`; stop on findings or scanner errors without printing raw findings. Load `sonarqube-policy.md` for the exact procedure.
+
+The automatic `UserPromptSubmit` and `PostToolUse/apply_patch` Sonar hooks check Secrets only and use the direct starter without RTK; shell commands still use RTK. Do not require Vortex/STANDARD/DEEP success or automatically invoke aggregate `sonar analyze`, Vortex/agentic, paid remediation or Advanced-Security/SCA. Sonar MCP stays disabled. Preserve existing CI SonarScanner analyses and independently applicable current-head PR Quality Gates. Free Cloud reads require the correct explicit project key from the current local binding; they describe the last Cloud analysis, and a Secrets pass proves no complete code-quality analysis.
+
 Do not install packages, change system services, introduce toolchains, or mutate dependency files unless the current task and applicable policy authorize it.
 
 ## Security

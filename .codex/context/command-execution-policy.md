@@ -99,7 +99,7 @@ The owning domain policy remains authoritative for the action itself.
 
 When another mandatory wrapper also applies, **both boundaries remain active**.
 
-For SonarQube, the authentication/environment owner is `sonarqube-policy.md` and the required local launcher is `/usr/local/bin/sonar-with-env`. RTK must not bypass that launcher, and the Sonar launcher must not bypass the RTK execution requirement.
+For SonarQube, the authentication/environment owner is `sonarqube-policy.md` and the required local launcher is `/usr/local/bin/sonar-with-env`. Agent-issued shell commands must retain both controls, for example `rtk bypass /usr/local/bin/sonar-with-env analyze secrets --stdin`. The installed global Codex Sonar hooks and their scanner children use the accepted direct starter without RTK; this exception applies only to those automatic hooks. Their `UserPromptSubmit` and `PostToolUse/apply_patch` Secrets checks remain independent of the project RTK hook, and Sonar MCP stays disabled.
 
 Do not invent the combined wrapper syntax. Determine the supported composition from the current RTK and Sonar wrapper interfaces before first use.
 

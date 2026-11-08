@@ -2,6 +2,98 @@
 
 **Sprache:** [English](sonarqube-analysis.md) | Deutsch
 
+## Aktuelles lokales Sonar-Free-Verfahren (2026-11-07)
+
+Den vorhandenen SSH-Starter `sonar` / `/usr/local/bin/sonar-with-env` verwenden.
+Projektdateien, Codex und Git bleiben auf `192.168.189.173`; native CLI und
+Secrets-Scanner laufen auf `192.168.193.59:2222`. Keine lokale native CLI
+installieren und keine globalen Hooks, Vertrauenseinstellungen, Zugangsdaten,
+SSH-Schlüssel oder Abonnements ändern. Sonar MCP bleibt deaktiviert.
+Die lokale Betriebsregel des Repositorys ist
+[die Sonar-Free-Policy](../.codex/context/sonarqube-policy.md).
+
+Vor jedem Lesen einer Datei oder Durchsuchen ihres Inhalts ausdrücklich die
+Datei oder ihre exakt ausgewählten Bytes mit `analyze secrets` prüfen. Eine
+reine Dateinamensuche darf vorausgehen. Rohe Scannerausgabe unterdrücken, den
+tatsächlichen Exitstatus prüfen und nur nach abgeschlossenem Exit 0 fortfahren.
+Findings, Scannerfehler, nicht verfügbare Scans und unvollständige Ergebnisse
+stoppen weitere Dateilesezugriffe und Änderungen bis zur Klärung; niemals rohe
+Findings oder Zugangsdatenwerte ausgeben. Geänderte Bytes vor erneutem Lesen
+nochmals prüfen. Beispielsweise muss die Shell diesen Befehl mit Exit 0 beenden,
+bevor die ausgewählte Datei gelesen wird:
+
+```sh
+rtk bypass /usr/local/bin/sonar-with-env analyze secrets --stdin < path/to/file > /dev/null 2>&1
+```
+
+Die installierten globalen Sonar-Hooks `UserPromptSubmit` und
+`PostToolUse/apply_patch` prüfen ausschließlich deterministisch Secrets; letzterer
+wählt die tatsächlich bearbeiteten Dateien aus. Diese Hooks und ihre
+Scanner-Kindprozesse verwenden den direkten Starter **ohne RTK**. Interaktive
+und vom Agenten gestartete Shellbefehle behalten RTK wie hier gezeigt; der
+bestehende unabhängige RTK-Hook `PreToolUse/Bash` bleibt wirksam. Globale
+Sonar-Registrierungen nicht in die Projektkonfiguration kopieren. Bestehende
+Git-Secrets-Prüfungen bleiben wirksam.
+
+Nach einer sauberen Secrets-Prüfung darf die Entwicklung ohne erfolgreichen
+Vortex-, STANDARD- oder DEEP-Lauf fortgesetzt werden. Aggregiertes `sonar
+analyze`, Vortex-/agentische Analyse, kostenpflichtige Remediation oder
+Advanced-Security/SCA nicht automatisch aufrufen. Nur verfügbare Free-Funktionen
+gehören zu diesem lokalen Verfahren.
+
+Den eigenen Schlüssel jedes Repositorys aus `.sonar-config.json`
+(`project.projectKey`) oder `sonar-project.properties` (`sonar.projectKey`)
+ermitteln, nachdem die ausgewählte Binding-Datei geprüft wurde. Existieren beide
+Bindings, müssen sie übereinstimmen. Bei fehlendem oder mehrdeutigem Binding vor
+projektspezifischen Abfragen nach dem Schlüssel fragen; eigenständige
+Secrets-Scans bleiben möglich. Niemals einen globalen Standard, den Schlüssel
+eines Nachbar-Repositorys oder eines Advisory-/nativen Zielprojekts verwenden.
+Das aktuelle Parent-Binding lautet `Easton97-Jens_ModSecurity-conector`;
+ausdrücklich übergeben:
+
+```sh
+rtk bypass /usr/local/bin/sonar-with-env remote project
+rtk bypass /usr/local/bin/sonar-with-env list projects
+rtk bypass /usr/local/bin/sonar-with-env list issues -p Easton97-Jens_ModSecurity-conector
+rtk bypass /usr/local/bin/sonar-with-env quality-gate status -p Easton97-Jens_ModSecurity-conector
+```
+
+Verfügbare Free-Lesezugriffe umfassen Projektbestand, Issues, Quality Gate,
+Metriken, Coverage und Duplikation. Für die letzten drei unterstützte lesende
+`api get`-Operationen mit demselben ausdrücklichen Schlüssel im Projektparameter
+der API verwenden; vor Auswahl von Endpunkt und Parametern aktuelle Hilfe und
+ausgewiesene Fähigkeiten des Starters prüfen. Hilfe oder Fähigkeitsausgabe
+allein belegt weder erfolgreichen Scan noch Authentifizierung.
+
+Cloud-Ergebnisse beschreiben die **zuletzt in der Cloud analysierte Revision**,
+nicht ungeprüfte lokale Änderungen. Eine lokale Secrets-Prüfung belegt nur das
+Secrets-Ergebnis des geprüften Inhalts; sie ist keine vollständige
+Codequalitätsanalyse. Bestehende CI-SonarScanner-Analysen, Quellumfang und
+unabhängige Projekte, unterstützte Analyzermodi, CI-verwaltete Authentifizierung
+und Gate-Warteprüfungen innerhalb der Free-Grenzen erhalten. CI behält ihren
+eigenen Ausführungskontext. Unabhängig anwendbare PR-Quality-Gates benötigen
+weiterhin ein abschließend bestandenes Ergebnis für die **aktuelle PR-Head-SHA**;
+veraltete, ausstehende, gescheiterte oder unzugängliche Ergebnisse sind kein
+Erfolg. Gates, Tests, Coverage-Schwellen, Regeln oder Ausschlüsse nicht zum
+Erreichen eines Erfolgs abschwächen.
+
+Die bereitgestellte Installationsabnahme vom 2026-11-07 dokumentiert Exit 0 der
+Scanner-Kindprozesse für Prompt- und Apply-Patch-Prüfungen; die Exitstatus der
+Hook-Handler-Prozesse sind unbekannt. Dies ist frühere Evidence und keine frische
+Abnahme automatischer Ereignisse für diesen Checkout oder diese Sitzung.
+Manuelle Scanner- oder Handler-Aufrufe belegen kein neues automatisches Ereignis;
+dafür ist aktuelle Ereignis-/Sitzungsevidence erforderlich.
+
+## Historische revisionsgebundene Analyseaufzeichnung
+
+Alles Folgende bleibt historische Evidence und Anleitung für die jeweils
+genannten Revisionen, einschließlich Toolversionen, Architektur,
+Workflowbeschreibungen und früher als aktuell bezeichneter Statusaussagen. Es
+ersetzt weder das aktuelle lokale Free-Verfahren oben noch belegt es den
+Runtime-, CI- oder Gate-Status des aktuellen Checkouts. Vor Verwendung älterer
+Befehle oder Versionsaussagen aktuelle Quellen, Konfiguration und CI prüfen.
+Historische Ergebnisse bleiben unverändert.
+
 Am veröffentlichten Parent `011cb197` schloss [Lauf 40392396874](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/40392396874) SDK-Vorbereitung und alle zwölf nativen Build-/Capture-/Index-/CTU-/Taint-Analysen ab: insgesamt 611 Compilation Units, keine partiellen Units und 100 % Indexierung je Ziel. Vor Einzeltriage bestanden drei native Gates, neun scheiterten. Zwanzig von 22 Workflows bestanden; die breiten C++17/20/23-Gates scheiterten. Die Quellprüfung bestätigte zwölf Python-Security-Issues und 39 native Issue-Instanzen als False Positives; alle 36 Main-/Advisory-Python-Instanzen und 39 nativen Instanzen sind einzeln als False Positive aufgelöst und frisch zurückgelesen. Ursprüngliche Job-Ergebnisse bleiben unverändert. Diese Analyse liegt vor dem endlichen Abschlusscommit und ist keine Abnahme des finalen Heads. Siehe [zentralen Status](pr-382-merge-readiness.de.md).
 
 Framework-Revision `03da9353561bf632a1f7bfc71b0a2671ec7aa257` bestand alle zwölf CI-Workflows und Sonar und ist Ready; kein Framework-Merge wurde durchgeführt. Parent behält Framework-Gitlink `99a7985c1be92a2297b1b59208f64df6768f2cbf`; MRTS bleibt unverändert. Broker-PR #422 ist bereits benutzerautorisiert bei `8ae707d72f1a8acb25d239e55e28a73cbc7522b1` integriert; kein weiterer Master-Merge ist autorisiert. Geschützter manueller Lauf, Connector-E2E-Erweiterung und historische I12-Kampagnen wurden nicht ausgeführt.
@@ -312,11 +404,13 @@ Beim Hinzufügen von Tests oder Fixture-Verzeichnissen die Klassifikationsmuster
 prüfen, ohne CFamily-Dateien in den Test-Scope zu verschieben. Die
 Sonar-Konfigurationsvalidierung des Repositorys sowie die bilingualen
 Dokumentations-/Linkprüfungen über den erforderlichen lokalen Ausführungswrapper
-ausführen; tatsächliche Ergebnisse im Change Record festhalten:
+ausführen; tatsächliche Ergebnisse im Change Record festhalten. Die aktuelle
+Sonar-Konfigurationsprüfung gehört dem Framework; den im aktuellen
+CI-Workflow verdrahteten Einstiegspunkt verwenden. Es gibt hierfür keinen
+zusätzlichen, aus dieser Anleitung abzuleitenden Parent-Make-Target:
+
 
 ```sh
-rtk bypass .venv/bin/python ci/checks/analysis/check-sonar-scope.py --json
-rtk bypass .venv/bin/python -m unittest -v tests.test_sonar_scope
 rtk make check-bilingual-docs
 rtk make check-doc-links
 ```
