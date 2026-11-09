@@ -54,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_framework=d14937ce8fe7a534bb755cffa6597e62eadbb126
+          expected_framework=0628e358623088d5ece2cb32d8746cdf1f1656b2
           declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           test "$declared_framework" = "$expected_framework"
@@ -80,9 +80,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@d14937ce8fe7a534bb755cffa6597e62eadbb126
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@0628e358623088d5ece2cb32d8746cdf1f1656b2
         with:
-          framework-revision: d14937ce8fe7a534bb755cffa6597e62eadbb126
+          framework-revision: 0628e358623088d5ece2cb32d8746cdf1f1656b2
       - name: Validate Parent analysis scope
         run: |
           set -eu

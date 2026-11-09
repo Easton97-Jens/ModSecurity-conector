@@ -19,6 +19,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-haproxy/haproxy-structure@d14937ce8fe7a534bb755cffa6597e62eadbb126
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-haproxy/haproxy-structure@0628e358623088d5ece2cb32d8746cdf1f1656b2
         with:
-          framework-revision: d14937ce8fe7a534bb755cffa6597e62eadbb126
+          framework-revision: 0628e358623088d5ece2cb32d8746cdf1f1656b2
