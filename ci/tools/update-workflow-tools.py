@@ -549,6 +549,37 @@ def workflow_source_paths(root: Path) -> list[Path]:
     return WorkflowInventory(root).source_paths()
 
 
+PRIVATE_SONAR_WORKFLOW = ".github/workflows/sonarqube.yml"
+PRIVATE_SONAR_REFERENCE = (
+    "Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@"
+    "9ae8ecc4f686e9cc70413e5494bc098a24eb18d7"
+)
+PRIVATE_SONAR_UPSTREAM_NAME = "SonarSource/sonarqube-scan-action"
+PRIVATE_SONAR_UPSTREAM_SHA = "4d1dc0c91ee400dcf8a6dddf2f705ac36542e304"
+PRIVATE_SONAR_UPSTREAM_VERSION = "v8.4.0"
+
+
+def private_sonar_step() -> dict[str, Any]:
+    """Parent-owned fixed data; no Framework executable import is required."""
+    includes = "${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0"
+    return {
+        "name": "Analyze exact revision and await Quality Gate", "id": "scan",
+        "uses": PRIVATE_SONAR_REFERENCE,
+        "env": {"SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}"},
+        "with": {
+            "scannerVersion": "8.2.0.6438", "owner-mode": "parent-cpp${{ matrix.cpp }}",
+            "upstream-action": PRIVATE_SONAR_UPSTREAM_NAME + "@" + PRIVATE_SONAR_UPSTREAM_SHA,
+            "args": "-Dsonar.projectKey=${{ matrix.project }} "
+                    "-Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }} "
+                    "-Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }} "
+                    "-Dsonar.working.directory=${{ runner.temp }}/sonar-work "
+                    f"-Dsonar.cfamily.customCIncludes={includes} "
+                    f"-Dsonar.cfamily.customCppIncludes={includes} "
+                    "-Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=600",
+        },
+    }
+
+
 def workflow_uses_values(text: str, description: str) -> set[str]:
     """Return scalar YAML ``uses`` values without treating comments as uses.
 
@@ -566,9 +597,25 @@ def workflow_uses_values(text: str, description: str) -> set[str]:
         raise UpdateError(f"{description} is malformed: {exc}") from exc
 
     values: set[str] = set()
+    private_roles = 0
 
     def visit(value: Any) -> None:
+        nonlocal private_roles
         if isinstance(value, dict):
+            reference = value.get("uses")
+            if isinstance(reference, str) and reference.startswith(
+                FRAMEWORK_REPOSITORY + "/.github/actions/sonar-private"
+            ):
+                if description != "workflow " + PRIVATE_SONAR_WORKFLOW or value != private_sonar_step():
+                    raise UpdateError("private Sonar call differs from its complete frozen Parent contract")
+                private_roles += 1
+                if private_roles != 1:
+                    raise UpdateError("private Sonar role must be unique")
+                values.add(reference)
+                values.add(value["with"]["upstream-action"])
+                return
+            if "upstream-action" in value:
+                raise UpdateError("upstream-action is permitted only in the exact frozen Sonar step")
             for key, nested in value.items():
                 if key == "uses" and isinstance(nested, str):
                     values.add(nested)
@@ -626,6 +673,10 @@ def managed_workflow_action_name(
             )
         return None
     if name == FRAMEWORK_REPOSITORY:
+        if suffix == "/.github/actions/sonar-private":
+            if value != PRIVATE_SONAR_REFERENCE or description != "workflow " + PRIVATE_SONAR_WORKFLOW:
+                raise UpdateError("private Sonar reference or workflow differs from its frozen role")
+            return None
         if not (suffix.startswith("/.github/actions/connector-ci/")
                 or suffix == "/.github/actions/connector-context"
                 or suffix.startswith("/.github/workflows/connector-")):
@@ -1787,6 +1838,27 @@ def validate_action_reference_comments(
             )
 
 
+def validate_private_sonar_update(text: str, relative: Path, name: str,
+                                  changes: dict[str, Any]) -> None:
+    """Preserve the current user contract before any updater write."""
+    if "/.github/actions/sonar-private" not in text and "upstream-action" not in text:
+        return
+    values = workflow_uses_values(text, "workflow " + relative.as_posix())
+    if (PRIVATE_SONAR_REFERENCE in values and name == PRIVATE_SONAR_UPSTREAM_NAME
+            and (changes.get("immutable_commit") != PRIVATE_SONAR_UPSTREAM_SHA
+                 or changes.get("version") != PRIVATE_SONAR_UPSTREAM_VERSION)):
+        raise UpdateError("frozen Sonar upstream requires a separate reviewed contract change")
+
+
+def validate_private_sonar_candidate(root: Path, candidate: dict[str, Any]) -> None:
+    changes = candidate["actions"].get(PRIVATE_SONAR_UPSTREAM_NAME)
+    if changes is not None:
+        relative = Path(PRIVATE_SONAR_WORKFLOW)
+        path = resolve_regular_file(root, relative)
+        validate_private_sonar_update(path.read_text(encoding="utf-8"), relative,
+                                      PRIVATE_SONAR_UPSTREAM_NAME, changes)
+
+
 def update_action_references_in_workflow(
     path: Path,
     relative: Path,
@@ -1799,6 +1871,7 @@ def update_action_references_in_workflow(
     """Validate and replace one Action's approved references in one workflow."""
 
     text = path.read_text(encoding="utf-8")
+    validate_private_sonar_update(text, relative, name, changes)
     validate_action_reference_comments(
         text, relative, name, accepted_comment, source_reference
     )
@@ -1819,6 +1892,7 @@ def update_action_references_in_workflow(
 def update_workflow_references(
     root: Path, lock: dict[str, Any], candidate: dict[str, Any]
 ) -> None:
+    validate_private_sonar_candidate(root, candidate)
     for name, changes in sorted(candidate["actions"].items()):
         baseline = lock_record(lock, "actions", name)
         accepted_comment, source_reference, reference = action_reference_patterns(
@@ -1870,6 +1944,7 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
     lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
     validate_candidate_shape(candidate, lock, lock_digest)
+    validate_private_sonar_candidate(root, candidate)
     primary_before = {
         path: resolve_regular_file(root, Path(path)).read_bytes()
         for path in ALLOWED_UPDATE_PATHS

@@ -1100,7 +1100,7 @@ def _inline_caller_source(root: Path, revision: str, object_root: Path | None = 
     def git(*arguments: str) -> bytes:
         try:
             return subprocess.run(
-                ["git", "--no-replace-objects", "-c", "core.hooksPath=/dev/null", "-C", str(framework), *arguments],
+                ["git", "--no-replace-objects", "-C", str(framework), *arguments],
                 check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30,
             ).stdout
         except (OSError, subprocess.SubprocessError) as error:
@@ -1142,6 +1142,100 @@ def _render_inline_caller(spec: FrameworkShaProjectionSpec, text: str,
     return projected(new_sha)
 
 
+PRIVATE_SONAR_REFERENCE = (
+    "Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@"
+    "9ae8ecc4f686e9cc70413e5494bc098a24eb18d7"
+)
+
+
+def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str, str]:
+    """Validate one exact data block without importing Framework executables.
+
+    This source remains in the protected five-source Parent closure. The frozen
+    diagnostic role is distinct from the Framework integration revision.
+    """
+    if ("/.github/actions/sonar-private" not in text
+            and not (relative_path == ".github/workflows/sonarqube.yml"
+                     and "      - name: Analyze exact revision and await Quality Gate\n" in text)):
+        return text, ""
+    if relative_path != ".github/workflows/sonarqube.yml":
+        raise SyncError("private Sonar role must be unique in the fixed Parent workflow")
+    block = """      - name: Analyze exact revision and await Quality Gate
+        id: scan
+        uses: """ + PRIVATE_SONAR_REFERENCE + """
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scannerVersion: 8.2.0.6438
+          owner-mode: parent-cpp${{ matrix.cpp }}
+          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+          args: >-
+            -Dsonar.projectKey=${{ matrix.project }}
+            -Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+            -Dsonar.working.directory=${{ runner.temp }}/sonar-work
+            -Dsonar.cfamily.customCIncludes=${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0
+            -Dsonar.cfamily.customCppIncludes=${{ steps.native-context.outputs.includes }},/usr/include,/usr/include/apache2,/usr/include/apr-1.0
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=600
+"""
+    pattern = re.compile(r"(?m)^      - name: Analyze exact revision and await Quality Gate\n(?:(?!      - ).*\n)*")
+    matches = list(pattern.finditer(text))
+    legacy_block = block.replace(
+        "        uses: " + PRIVATE_SONAR_REFERENCE + "\n",
+        "        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+    ).replace(
+        "          owner-mode: parent-cpp${{ matrix.cpp }}\n"
+        "          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+        "",
+    )
+    legacy_report = r"""            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
+              sed -n '/^\(ceTaskId\|dashboardUrl\|projectKey\)=/p' "$RUNNER_TEMP/sonar-work/report-task.txt"
+            else
+              echo 'No server report published / Kein Serverreport veröffentlicht'
+            fi
+"""
+    summary_prefix = """      - name: Report the actual analysis outcome
+        if: always()
+        env:
+          CPP_STANDARD: ${{ matrix.cpp }}
+          SONAR_PROJECT: ${{ matrix.project }}
+          ADVISORY: ${{ matrix.advisory }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          ANALYZED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          {
+            echo "### Full Parent Sonar scan / Vollständiger Parent-Sonar-Scan: C++$CPP_STANDARD"
+            echo "Project / Projekt: $SONAR_PROJECT"
+            echo "Revision: $ANALYZED_SHA"
+            echo "Advisory / Unverbindlich: $ADVISORY"
+            echo "Scanner and gate / Scanner und Gate: $SCAN_OUTCOME"
+"""
+    summary_suffix = '          } >> "$GITHUB_STEP_SUMMARY"\n'
+    legacy_summary = summary_prefix + legacy_report + summary_suffix
+    # Only this immutable legacy data contract may cross into the private role.
+    # Keep the public summary and every surrounding trusted-base byte intact.
+    if len(matches) == 1 and matches[0].group() == legacy_block:
+        if (text.count(legacy_block + legacy_summary) != 1
+                or text.count(legacy_report) != 1 or text.count("report-task.txt") != 2
+                or "/.github/actions/sonar-private" in text):
+            raise SyncError("legacy Sonar report differs from its complete reviewed data contract")
+        text = text.replace(legacy_block, block, 1).replace(legacy_report, "", 1)
+        matches = list(pattern.finditer(text))
+    if len(matches) != 1 or matches[0].group() != block:
+        raise SyncError("private Sonar call differs from its complete reviewed data contract")
+    if (text.count(PRIVATE_SONAR_REFERENCE) != 1
+            or text.count("/.github/actions/sonar-private") != 1):
+        raise SyncError("extra private Sonar role is forbidden")
+    if "report-task.txt" in text:
+        raise SyncError("private Sonar workflow must not read the legacy report-task file")
+    marker = "__fixed_private_sonar_step__\n"
+    if marker in text:
+        raise SyncError("private Sonar projection marker collision")
+    return text.replace(block, marker, 1), block
+
+
 def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
                                old_sha: str, new_sha: str) -> str:
     """Project exact remote references, context inputs and registered early gates.
@@ -1151,6 +1245,7 @@ def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
     a no-op, so a stale, symbolic or independently changed pin fails closed.
     Historical proof identities and upstream NGINX/tool pins are not matched.
     """
+    text, frozen_sonar_block = _private_sonar_projection_source(spec.relative_path, text)
     uses = re.compile(
         r"(?m)^(?P<prefix>[ \t]*(?:-[ \t]+)?uses:[ \t]+"
         r"Easton97-Jens/ModSecurity-test-Framework/\.github/"
@@ -1174,6 +1269,8 @@ def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
         if len(matches) != expected or any(match["sha"] != old_sha for match in matches):
             raise SyncError("Framework workflow pin differs from fixed trusted identity: " + spec.relative_path)
         text = pattern.sub(lambda match: match["prefix"] + new_sha + match["suffix"], text)
+    if frozen_sonar_block:
+        text = text.replace("__fixed_private_sonar_step__\n", frozen_sonar_block, 1)
     return text
 
 

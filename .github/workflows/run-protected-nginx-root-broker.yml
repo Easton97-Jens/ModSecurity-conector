@@ -1,6 +1,6 @@
 # Generated from Framework; edit the canonical source and regenerate.
 # framework-caller-source: .github/workflows/connector-protected-nginx-root-broker-caller.yml
-# framework-caller-revision: 0628e358623088d5ece2cb32d8746cdf1f1656b2
+# framework-caller-revision: 15f2e2e7923247987093ce7aec35a37039ed3ea3
 # framework-caller-source-sha256: 11ee98f070a5a4c088e0c10466c0e867869f1769e5832bacf6bf2c5986a2cb3c
 name: Protected NGINX Root Broker Lifecycle
 

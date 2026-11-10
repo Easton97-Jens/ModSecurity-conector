@@ -54,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_framework=0628e358623088d5ece2cb32d8746cdf1f1656b2
+          expected_framework=15f2e2e7923247987093ce7aec35a37039ed3ea3
           declared_framework=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
           actual_framework=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
           test "$declared_framework" = "$expected_framework"
@@ -80,9 +80,9 @@ jobs:
           EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
       - name: Validate the pinned Framework and explicit connector context
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@0628e358623088d5ece2cb32d8746cdf1f1656b2
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-context@15f2e2e7923247987093ce7aec35a37039ed3ea3
         with:
-          framework-revision: 0628e358623088d5ece2cb32d8746cdf1f1656b2
+          framework-revision: 15f2e2e7923247987093ce7aec35a37039ed3ea3
       - name: Validate Parent analysis scope
         run: |
           set -eu
@@ -120,11 +120,13 @@ jobs:
           printf 'includes=%s\n' "$includes" >> "$GITHUB_OUTPUT"
       - name: Analyze exact revision and await Quality Gate
         id: scan
-        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@9ae8ecc4f686e9cc70413e5494bc098a24eb18d7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scannerVersion: 8.2.0.6438
+          owner-mode: parent-cpp${{ matrix.cpp }}
+          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
           args: >-
             -Dsonar.projectKey=${{ matrix.project }}
             -Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}
@@ -150,9 +152,4 @@ jobs:
             echo "Revision: $ANALYZED_SHA"
             echo "Advisory / Unverbindlich: $ADVISORY"
             echo "Scanner and gate / Scanner und Gate: $SCAN_OUTCOME"
-            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
-              sed -n '/^\(ceTaskId\|dashboardUrl\|projectKey\)=/p' "$RUNNER_TEMP/sonar-work/report-task.txt"
-            else
-              echo 'No server report published / Kein Serverreport veröffentlicht'
-            fi
           } >> "$GITHUB_STEP_SUMMARY"
