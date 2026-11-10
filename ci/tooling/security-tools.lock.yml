@@ -32,8 +32,8 @@ pinned_actions:
     commit_sha: 9000827ccba6bdab643e8b6fd33ac0654aef8333
     upstream: https://github.com/actions/download-artifact
   github/codeql-action:
-    version: v4.39.1
-    commit_sha: 9b3254085494b55a0f7c4c2b3d2d52cc712ce370
+    version: v4.39.3
+    commit_sha: 33d7b85da1a04171e211befe2c739303b9a4c066
     upstream: https://github.com/github/codeql-action
   google/osv-scanner-action:
     version: v2.7.0
@@ -44,8 +44,8 @@ pinned_actions:
     commit_sha: fa7117db83c52d787ae5a89f350999701505d78e
     upstream: https://github.com/ossf/scorecard-action
   SonarSource/sonarqube-scan-action:
-    version: v8.4.0
-    commit_sha: 4d1dc0c91ee400dcf8a6dddf2f705ac36542e304
+    version: v8.4.1
+    commit_sha: e805d875275f728fac1885b413934be6d7c63f65
     upstream: https://github.com/SonarSource/sonarqube-scan-action
 
 tools:
@@ -61,11 +61,11 @@ tools:
     purpose: GitHub Actions syntax, expression, and ShellCheck integration.
     permissions: contents:read
   zizmor:
-    version: v1.31.1
-    release_commit: effdb35fa7868863f11655db256d9008922fa427
+    version: v1.32.0
+    release_commit: 21bd300700d43d9ba04b0c1fce72a89391ac80b4
     asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
-    url: https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz
-    sha256: d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99
+    url: https://github.com/zizmorcore/zizmor/releases/download/v1.32.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b
     executable: zizmor
     upstream: https://github.com/zizmorcore/zizmor
     license: MIT
