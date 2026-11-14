@@ -42,7 +42,7 @@ Der C-Callback liefert Text. Neuere C-Listen geloggter IDs ordnen diese keiner v
 
 ## Ausgeführte Befehle
 
-`rtk make build-nginx FRAMEWORK_ROOT=<Framework task worktree> ...`: erster nativer Build bestanden, NGINX1.31.8 und passende gecachte libModSecurity3.0.17; spätere Quellkorrekturen benötigen frische Build-Verifikation. `rtk bypass env ... python -m unittest ...test_nginx_response_body_limit`: bestanden. Parserprüfungen bestanden4 Methoden/28 Szenarien. Ausgewählte Secrets-Scans bestanden mit0 über `rtk bypass /usr/local/bin/sonar-with-env analyze secrets --stdin`. Vollständige Befehle und Belege unter `/var/tmp/codex/ModSecurity-conector/runs/20261114-fzipi-review`.
+`rtk make build-nginx FRAMEWORK_ROOT=<Framework task worktree> ...`: erster nativer Build bestanden, NGINX1.31.8 und passende gecachte libModSecurity3.0.17; spätere Quellkorrekturen benötigen frische Build-Verifikation. `rtk bypass env ... python -m unittest ...test_nginx_response_body_limit`: bestanden. Integrierte gezielte Tests bestanden52 Methoden; die echte native Collector-/P4-Kette bestand weitere14 Methoden und Intervention-Ownership-Prüfungen4. Die Parserabdeckung umfasst28 Szenarien und eine echte Engine3.0.14-Intervention. Vollständige native C17-Kompilierung, Common-Helper-Smoke und zweisprachige Dokumentations-/Linkprüfungen bestanden. Das alte native Limitprädikat wurde mit fehlendem Log erfolgreich kompiliert und reproduzierte Exit10; das korrigierte Prädikat besteht. Altcode-Kontrollen zu verworfenen Body-/Steuerketten, Parser, Zählern/Safe-Sink und Lifecycle reproduzierten die früheren Verhaltensfehler. Ausgewählte Secrets-Scans bestanden mit0 über `rtk bypass /usr/local/bin/sonar-with-env analyze secrets --stdin`. Vollständige Befehle und Belege unter `/var/tmp/codex/ModSecurity-conector/runs/20261114-fzipi-review`.
 
 ## Security-Auswirkung
 
@@ -66,5 +66,4 @@ Keine vollständige Connector-/historische I12-Matrix, Produktionsbereitstellung
 
 ## Finaler Diff- und Review-Status
 
-Die unabhängige Quellprüfung fand Lücken bei EOS-Validierung, abgelöstem Transaktionsumfang und Event-Allokationsdiagnose; alle drei Quellkorrekturen sind umgesetzt. Vollständige native C17-Kompilierung mit Warnings-as-Errors, Common-Helper-Smoke, zweisprachige Dokumentations-/Linkprüfungen und Whitespace bestanden. Branch `fix/nginx-fzipi-review`; der Quellcommit für native Validierung eines sauberen Checkouts wird vorbereitet. Noch kein Push/PR/Merge. Tatsächliche Runtime- und Auslieferungsfakten werden vor Auslieferung abgeglichen.
-
+Die unabhängige Quellprüfung fand Lücken bei EOS-Validierung, abgelöstem Transaktionsumfang und Event-Allokationsdiagnose; alle drei Quellkorrekturen sind umgesetzt. Vollständige native C17-Kompilierung mit Warnings-as-Errors, Common-Helper-Smoke, zweisprachige Dokumentations-/Linkprüfungen und Whitespace bestanden. Branch `fix/nginx-fzipi-review`; Quellcommit `02ca6440` liegt für native Validierung eines sauberen Checkouts vor. Noch kein Push/PR/Merge. Tatsächliche Runtime- und Auslieferungsfakten werden vor Auslieferung abgeglichen.

@@ -42,7 +42,7 @@ The C callback supplies text. Newer C logged-ID lists omit causal disruptive-rul
 
 ## Commands executed
 
-`rtk make build-nginx FRAMEWORK_ROOT=<Framework task worktree> ...`: passed first native build, NGINX1.31.8 and matching cached libModSecurity3.0.17; later source corrections require fresh build verification. `rtk bypass env ... python -m unittest ...test_nginx_response_body_limit`: passed. Focused parser tests passed4 methods/28 scenarios. Actual selected-file Secrets scans passed0 via `rtk bypass /usr/local/bin/sonar-with-env analyze secrets --stdin`. Full commands and receipts retained under `/var/tmp/codex/ModSecurity-conector/runs/20261114-fzipi-review`.
+`rtk make build-nginx FRAMEWORK_ROOT=<Framework task worktree> ...`: passed first native build, NGINX1.31.8 and matching cached libModSecurity3.0.17; later source corrections require fresh build verification. `rtk bypass env ... python -m unittest ...test_nginx_response_body_limit`: passed. Integrated focused tests passed52 methods; the actual native collector/P4 chain passed14 further methods and intervention-ownership checks passed4. Parser coverage includes28 scenarios and a real Engine3.0.14 intervention. C17 full native compilation, Common helper smoke and bilingual/documentation-link checks passed. The previous native-limit predicate with a missing log compiled successfully and reproduced exit10; the corrected predicate passes. Replaced-body/control, parser, counter/Safe-sink and lifecycle old-code controls reproduced the prior behavioral failures. Actual selected-file Secrets scans passed0 via `rtk bypass /usr/local/bin/sonar-with-env analyze secrets --stdin`. Full commands and receipts retained under `/var/tmp/codex/ModSecurity-conector/runs/20261114-fzipi-review`.
 
 ## Security impact
 
@@ -66,5 +66,4 @@ No all-connector or historical I12 matrix, production deployment, H2/H3 qualific
 
 ## Final diff and review status
 
-Independent source review found EOS-validation, superseded-scope and event-allocation diagnostic gaps; all three source corrections are applied. Full native C17 compile with warnings-as-errors, Common helper smoke, bilingual docs/link checks and whitespace passed. Branch `fix/nginx-fzipi-review`; source commit is being prepared for clean-checkout native validation. No push/PR/merge yet. Final observed runtime and delivery facts will be reconciled before delivery.
-
+Independent source review found EOS-validation, superseded-scope and event-allocation diagnostic gaps; all three source corrections are applied. Full native C17 compile with warnings-as-errors, Common helper smoke, bilingual docs/link checks and whitespace passed. Branch `fix/nginx-fzipi-review`; source commit `02ca6440` exists for clean-checkout native validation. No push/PR/merge yet. Final observed runtime and delivery facts will be reconciled before delivery.
