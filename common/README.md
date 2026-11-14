@@ -9,6 +9,9 @@
 counts at `UINT64_MAX` without adding a delivery limit. Request counters and
 host allocation/storage limits retain their checked resource semantics.
 
+Common source consumers must rebuild with this header change; the existing
+JSON event byte fields already support `uint64_t`.
+
 `msconnector_transaction_contract_supersede_response` retires only a healthy,
 uncommitted direct P1/P2 owner after the host transfers response policy. It
 preserves phase masks and the allow decision; it never claims P3/P4 execution.

@@ -10,6 +10,9 @@
 Request-Zähler und Host-Allokations-/Speicherlimits behalten ihre geprüfte
 Ressourcensemantik.
 
+Common-Quellnutzer müssen mit der Header-Änderung neu bauen; die vorhandenen
+JSON-Event-Bytefelder unterstützen bereits `uint64_t`.
+
 `msconnector_transaction_contract_supersede_response` beendet ausschließlich
 einen gesunden, noch nicht committeten direkten P1/P2-Besitzer nach der
 Response-Konfigurationsübergabe durch den Host. Phasenmasken und Allow-Entscheidung
