@@ -146,18 +146,25 @@ PassthroughEngine nur für Protobuf/Unit-Entwicklung und lehnt eine Laufzeit ab
 config. Der normale Build erfordert lokale libmodsecurity-Header und -Bibliotheken
 Pfade und verknüpft dann Common Runtime mit der ausführbaren Datei ext_proc.
 
-Der Dienst verwendet die konservative Antwort-Commit-Grenze: nur eine erfolgreiche
-Antwortheader `CONTINUE` send markiert eine Antwort als festgeschrieben. Für eine disruptive
-Entscheidung später gefunden:
+Der Dienst verwendet die konservative Response-Commit-Grenze: Erst das
+erfolgreiche Senden von Response-Header-`CONTINUE` markiert die Response als
+committet. Für eine echte Regelintervention nach gesundem P4-Abschluss gilt:
 
 - `off` bewahrt die native Interventionsbehandlung ohne zusätzliche Late-Policy;
-- `safe` zeichnet ein echtes Common-Host-Ergebnis `log_only` auf
-  und setzen die Antwort mit ihrem ursprünglichen sichtbaren Status fort;
+- `safe` zeichnet ein echtes Common-Host-Ergebnis `log_only` auf und setzt
+  die Response mit ihrem ursprünglichen sichtbaren Status fort; ausschließlich
+  optionales Ereignislogging betreffende Fehler werden ohne Änderung dieses
+  Ergebnisses diagnostiziert;
 - `strict` wird beim Start der Common Runtime für das Profil
   `envoy-ext-proc` abgewiesen. Dessen unveränderliche Capability
   `strict_post_commit_action` ist null, bis eine deterministische
   Post-Commit-Hostaktion bewiesen ist; es wird kein Traffic bedient und keine
   späte Entscheidung stillschweigend herabgestuft.
+
+Natives Reject und Engine-/API-/Verarbeitungs-/Auditfehler bleiben Fehler,
+keine Safe-Regelereignisse; natives Audit und Cleanup bleiben erforderlich.
+Die genaue Grenze optionaler Ereignisse steht im
+[gemeinsamen Transaktionsvertrag](../../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse).
 
 Der Adapter verwendet nach dem Response-Commit absichtlich weder
 `ImmediateResponse` noch einen gRPC-Fehler als HTTP-Reset-Ersatz. Ein

@@ -138,16 +138,22 @@ config. The normal build requires local libmodsecurity headers and library
 paths, then links Common Runtime into the ext_proc executable.
 
 The service uses the conservative response-commit boundary: only a successful
-response-header `CONTINUE` send marks a response as committed. For a disruptive
-decision found later:
+response-header `CONTINUE` send marks a response as committed. For a genuine
+rule intervention after healthy P4 completion:
 
 - `off` preserves native intervention handling without the additional late policy;
 - `safe` records a real Common host outcome `log_only` and
-  continue with the original visible response status;
+  continues with the original visible response status; failure confined to
+  optional event logging is diagnosed without changing that result;
 - `strict` is rejected at Common Runtime startup for the `envoy-ext-proc`
   profile. Its immutable `strict_post_commit_action` capability is zero until
   a deterministic post-commit host action is proven; no traffic is served and
   no late decision is silently downgraded.
+
+Native Reject and engine/API/processing/audit failures remain errors, not Safe
+rule events; native audit and cleanup stay required. See the
+[shared transaction contract](../../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events)
+for the precise optional-event boundary.
 
 The adapter intentionally does not use `ImmediateResponse` or a gRPC error as
 an HTTP-reset surrogate after response commitment. A canceled gRPC context and

@@ -60,8 +60,12 @@ impliziert.
 Das UDS-Protokoll lehnt unbekannte Engine-Aktionen ab, statt sie als
 HTTP-Ablehnung umzudeuten. Es meldet ein disruptives Ergebnis erst nach einem
 erfolgreichen tatsächlichen `ResponseWriter`-Schreibvorgang. Nach dem
-Response-Commit ist ein disruptives Phase-4-Ergebnis bewusst `log_only`; es
-erzeugt keinen geänderten Status, Reset oder Client-Abbruch-Anspruch.
+Response-Commit ist eine echte Regelintervention nach gesundem Phase-4-Abschluss
+`log_only`; sie erzeugt keinen geänderten Status, Reset oder Client-Abbruch-
+Anspruch. Natives Reject, technische Fehler sowie API-/Auditfehler sind ausgeschlossen.
+Ausschließlich optionales spätes Safe-Ereignislogging betreffende Fehler
+brechen die Response nicht ab und ersetzen natives Audit/Cleanup nicht;
+siehe den [gemeinsamen Transaktionsvertrag](../../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse).
 
 ## UDS-Cancellation-, Timeout- und Cleanup-Grenze
 

@@ -36,7 +36,7 @@ abgeschlossen wurde.
 <code>msconnector_transaction_contract</code> ist der kanonische Metadaten-only-
 Datensatz. Er enthält eine begrenzte Transaktions-ID, Connector-ID,
 Host-/Hostinstanz-ID, aktuelle/letzte Phase, Request- und Response-Metadaten,
-Bodyzähler und -limits, Engineentscheidung, Regel-ID, Hostaktion, Safe-/Strict-
+Bodyzähler, Engineentscheidung, Regel-ID, Hostaktion, Safe-/Strict-
 Modus, Fehlerklasse, Zeitstempel, Response-Commit-Status und Cleanupstatus. Er
 enthält weder Bodyzeiger noch Payload; Chunks werden nur für ihren Callback
 geborgt.
@@ -96,10 +96,12 @@ Chunk nur für den Common-Aufruf. Wo sein Host Body-Daten weiterleiten kann,
 leitet er den begrenzten Chunk nach erfolgreichem Append sofort weiter; weder
 Common noch Adapter halten einen callbackübergreifenden vollständigen Body.
 Der erste erfolgreiche Next-Stage-Write oder Host-Commit ist die monotone
-P4-Commit-Grenze. Ein EOS-only-Ergebnis nach dieser Grenze ist spät: Safe
-zeichnet <code>log_only</code> auf; ein zugelassenes Strict-Profil darf einen
-tatsächlichen, hostbewiesenen Abort verwenden, aber keinen Ersatz-HTTP-Status
-erfinden.
+P4-Commit-Grenze. Ein EOS-only-Ergebnis nach dieser Grenze ist spät. Bei einer
+gesunden, abgeschlossenen P4-Regelintervention zeichnet Safe
+<code>log_only</code> auf; ein zugelassenes Strict-Profil verwendet seinen
+tatsächlichen, hostbewiesenen Abort auch bei ausgefallenem Ereignissink.
+Natives Reject und technische Fehler qualifizieren sich nicht für Safe-log-only;
+kein Pfad darf einen Ersatz-HTTP-Status erfinden.
 
 Runtime-gestützte Adapter verwenden vor der Bedienung von Traffic ein
 explizites Strict-Zulassungsgate. Eine Runtime mit
@@ -110,9 +112,10 @@ Dies ist ein Konfigurationsfehler beim Start und kein später
 quellenbelegte Hostaktion gesetzt; ein direkter Adapter ohne Common Runtime
 muss dieselbe Bedingung an seiner eigenen Startgrenze erzwingen.
 
-Headeraggregate sind auf 256 Felder und 65536 Bytes begrenzt. Bodylimits müssen
-ungleich null sein. Die Response-Companion-Registry besitzt 64 feste Slots und
-eine monotone TTL (30 Sekunden bei den bereitgestellten requestorientierten
+Headeraggregate sind auf 256 Felder und 65536 Bytes begrenzt. Native
+Enginekonfiguration besitzt Body-Inspektionslimits und deren Aktionen;
+unabhängige Ressourcenkontrollen bleiben geprüft. Die Response-Companion-Registry
+besitzt 64 feste Slots und eine monotone TTL (30 Sekunden bei den bereitgestellten requestorientierten
 Adaptern). Sie erzeugt beim Handoff ein zufälliges opaques Handle, erlaubt
 atomar genau einen Claim und entfernt den Eintrag bei Ablauf, Cancel, Release
 oder Shutdown. Ein fehlendes, abgelaufenes, fehlerhaftes oder wiederverwendetes
@@ -120,12 +123,12 @@ Handle liefert dem Peer denselben begrenzten Korrelationsfehler; die
 Implementierung verrät nicht, welche Bedingung zutraf. Event-JSONL bleibt
 metadaten-only und hat ein separates 16384-Byte-Limit.
 
-Eine exakte P2-Bodylimit-Ablehnung ist ein kanonisches Deny ohne Regel-ID: Sie
-verwendet HTTP 413, erzeugt die begrenzte
-<code>MSCONN_EVENT_BODY_LIMIT</code>-Eventidentität, trägt keinen Redirect und
-terminalisiert die Transaktion. Die Hostaktion muss dieselbe
-HTTP-413-Ablehnung sein; eine Regelkorrelation aus einer früheren Phase darf
-nicht geerbt werden.
+Eine exakte native P2-Bodylimit-Ablehnung ist ein kanonisches Deny ohne
+Regel-ID: Sie erhält den tatsächlichen nativen Status, etwa 403 oder 413,
+erzeugt die begrenzte <code>MSCONN_EVENT_BODY_LIMIT</code>-Eventidentität,
+trägt keinen Redirect und terminalisiert die Transaktion. Vor dem Commit
+behält das Host-Deny diesen Status; eine Regelkorrelation aus einer früheren
+Phase darf nicht geerbt werden.
 
 Ein Live-Handoff zeichnet <code>handed_off</code> auf, bis der vertrauenswürdige
 Observer die Transaktion atomar für P3 claimt; erst dann dürfen companion-only
@@ -204,8 +207,9 @@ Sie erzeugt keine P3/P4. Abgebrochene, abgelehnte und technisch fehlgeschlagene
 terminale Transaktionen behalten ihre Ursache und dieselbe Cleanup-Ownership.
 Das allgemeine `finish` verlangt weiterhin alle vier Phasen (Maske `15`).
 Dieser begrenzte Autorisierungsvertrag qualifiziert weder einen
-Response-Companion noch einen unbegrenzten Requeststream. Das Layout der
-Common-Struktur bleibt unverändert.
+Response-Companion noch einen unbegrenzten Requeststream. Nutzer müssen mit
+passenden [Common-/Runtime-Headern](../README.de.md#response-beobachtungen-und-regelmetadaten)
+neu bauen.
 
 ## Einheitliche Entscheidungen
 
@@ -215,17 +219,31 @@ Common-Struktur bleibt unverändert.
 | Block | deny | <code>rule_block</code> | erforderlich | fail closed | terminal, dann Cleanup |
 | Redirect | redirect | <code>rule_redirect</code> | erforderlich | fail closed | terminal, dann Cleanup |
 | Rate limit | rate-limit | <code>rule_rate_limit</code> | erforderlich | fail closed | terminal, dann Cleanup |
-| Log-only / Safe | log-only | <code>log_only</code> | optional | fail open | normaler oder terminaler Cleanup |
+| Explizites Log-only / validierte späte Safe-P4-Regel | log-only mit unverändertem sichtbarem Status | <code>log_only</code> | für die späte Safe-Regel erforderlich | optionaler Ereignisfehler bleibt Warnung; echte Fehler bleiben terminal | natives Audit und Cleanup bleiben erforderlich |
 | Enforce / Strict | Runtime-gestützter Adapter: Start ohne bewiesene Post-Commit-Hostaktion ablehnen; andernfalls vor Commit deny und nur die bewiesene Post-Commit-Aktion verwenden | <code>enforce</code>; die Startablehnung hat kein Transaktions-Event | erforderlich | fail closed | terminal, dann Cleanup |
-| Engine timeout oder unavailable | deny in Strict vor Commit, sonst log-only | <code>engine_timeout</code> / <code>engine_unavailable</code> | keine | abhängig von Modus/Commit | terminal, dann Cleanup |
-| Invalid engine response | deny in Strict vor Commit, sonst log-only | <code>invalid_engine_response</code> | keine | abhängig von Modus/Commit | terminal, dann Cleanup |
-| Body- oder Ressourcenlimit | konfigurierte begrenzte Ablehnung vor unsicherem Forwarding (bei Bodylimit normalerweise HTTP 413) | <code>body_limit</code> | keine | fail closed | terminal, dann Cleanup |
-| Connector/protocol/Frühcleanupfehler | deny in Strict vor Commit, sonst log-only | <code>connector_error</code> / <code>protocol_error</code> | keine | abhängig von Modus/Commit | terminal, dann Cleanup |
+| Engine timeout oder unavailable | deny vor Commit; I/O nach Commit stoppen | <code>engine_timeout</code> / <code>engine_unavailable</code> | keine | fail closed / I/O-Stopp in jedem Modus | terminal, dann Cleanup |
+| Invalid engine response | deny vor Commit; I/O nach Commit stoppen | <code>invalid_engine_response</code> | keine | fail closed / I/O-Stopp in jedem Modus | terminal, dann Cleanup |
+| Natives Body-Limit-Reject | nativen Status vor Commit erhalten; I/O nach Commit stoppen | <code>body_limit</code> | keine | fail closed in jedem Modus | terminal, dann Cleanup |
+| Hostressourcen-/Connector-/Protokoll-/Frühcleanupfehler | deny vor Commit; I/O nach Commit stoppen | <code>connector_error</code> / <code>protocol_error</code> | keine | fail closed / I/O-Stopp in jedem Modus | terminal, dann Cleanup |
 | Client cancel / upstream disconnect | betroffene Verbindung oder Stream abbrechen | <code>client_cancel</code> / <code>upstream_disconnect</code> | keine | stop I/O | terminal, dann Cleanup |
 
 Eine disruptive Regelentscheidung ohne begrenzte Regel-ID wird zu
 <code>invalid_engine_response</code>, niemals zu Allow. Ein Host nach Commit
 darf keinen neuen Status erfinden oder Safe still zu Enforcement hochstufen.
+
+## Optionale späte Safe-Regelereignisse
+
+Nur eine gesunde, erfolgreich abgeschlossene P4 mit committeter Response und
+einer validierten, ursächlich zugeordneten disruptiven Regelentscheidung
+qualifiziert sich. Natives Reject, Engine-/API-/Verarbeitungsfehler, frühere
+verpflichtende Ereignisfehler und native Auditfehler qualifizieren sich nie.
+Fehler am Sink, kurze Schreibvorgänge, Serialisierung oder ausschließlich für
+dieses optionale Ereignis nötige Allokationen werden als Warnung diagnostiziert;
+sie brechen die Response nicht ab und erzeugen keinen dauerhaften
+Verarbeitungsfehler. Nativer Audit-Abschluss und Cleanup laufen weiterhin.
+Der unterstützte Strict-Abbruch nach Commit bleibt auch bei ausgefallenem
+Ereignissink erforderlich. Ein fehlendes Ereignis belegt weder erfolgreiches
+Logging noch natives Audit.
 
 ## Normalisierung nativer Interventionen
 
@@ -303,7 +321,8 @@ Stream-Reset-Primitive: Ein statusloses <code>drop</code> oder
 <code>connection_abort</code> wird daher als tatsächlich ausgeführtes
 fail-closed HTTP-Deny aufgezeichnet und als HTTP 503 zurückgegeben, niemals
 als Reset behauptet oder still zu HTTP 200 umgewandelt. Nach dem Commit gilt
-weiterhin die kanonische Safe-/log-only-Regel für späte Ergebnisse.
+die kanonische Safe-/log-only-Regel nur für gültige P4-Regelinterventionen;
+natives Reject und technische Fehler bleiben Fehler.
 
 lighttpd Stock unterscheidet sich von diesen request-only Protokollen: Das
 ausgewählte `stock-lighttpd-sidecar` ist der Traffic-Eigentümer. Es akzeptiert
@@ -348,7 +367,7 @@ Transaktion zu rekonstruieren oder still zurückzufallen.
 
 ## Sicherheits- und Validierungsgrenze
 
-- Header-, Body-, Registry- und Eventlimits schlagen fehl, statt unbeschränkten Zustand zu behalten.
+- Native Inspektionspolicy und unabhängige Header-, Speicher-, Registry- und Ereignis-Ressourcenkontrollen bleiben wirksam; die obige Ausnahme für optionale späte Safe-Ereignisse fügt keine Body-Größenpolicy hinzu.
 - Event-JSONL enthält ausschließlich Zähler und begrenzte Metadaten, niemals Body-Payloads.
 - Event-JSONL und der zugehörige Integrity-Hash ersetzen eine nichtleere
   wörtliche Query durch `?<redacted>`, während die rohe URI für die WAF-

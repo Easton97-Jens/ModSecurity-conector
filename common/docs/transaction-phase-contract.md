@@ -34,8 +34,8 @@ decision is P1 only when P1 actually began and completed.
 
 <code>msconnector_transaction_contract</code> is the canonical metadata-only
 record. It contains a bounded transaction ID, connector ID, host/host-instance
-ID, current/last phase, request and response metadata, body counters and
-limits, engine decision, rule ID, host action, Safe/Strict mode, error class,
+ID, current/last phase, request and response metadata, body counters,
+engine decision, rule ID, host action, Safe/Strict mode, error class,
 timestamps, response-commit state, and cleanup state. It contains no body
 pointer or payload; chunks are borrowed only for their callback.
 
@@ -90,9 +90,11 @@ the Common call. Where its host can forward body data, it forwards the bounded
 chunk immediately after the successful append; neither Common nor the adapter
 keeps a cross-callback full body. The first successful next-stage write or host
 commit is the monotonic P4 commitment boundary. An EOS-only result after that
-boundary is late: Safe records <code>log_only</code>; an admitted Strict
-profile may use an actual, host-proven abort, but must not fabricate a
-replacement HTTP status.
+boundary is late. For a healthy, completed P4 rule intervention, Safe records
+<code>log_only</code>; an admitted Strict profile uses its actual, host-proven
+abort even if the event sink fails. Native Reject and technical failures do
+not qualify for Safe log-only handling; no path may fabricate a replacement
+HTTP status.
 
 Runtime-backed adapters apply an explicit Strict admission gate before serving
 traffic. A <code>phase4_mode=strict</code> runtime rejects a selected profile
@@ -102,20 +104,21 @@ The capability is set only for a source-backed host action; a direct adapter
 that does not use the Common Runtime must enforce the same condition at its own
 startup boundary.
 
-Header aggregates are capped at 256 fields and 65536 bytes. Body limits must
-be nonzero. The response-companion registry has 64 fixed slots and a monotonic
-TTL (30 seconds by the supplied request-only adapters). It creates a random
+Header aggregates are capped at 256 fields and 65536 bytes. Native engine
+configuration owns body inspection limits and actions; independent resource
+controls remain checked. The response-companion registry has 64 fixed slots
+and a monotonic TTL (30 seconds by the supplied request-only adapters). It creates a random
 opaque handle at handoff, atomically permits exactly one claim, and removes an
 entry on expiry, cancel, release, or shutdown. A missing, expired, malformed,
 or replayed handle yields the same bounded correlation failure to the peer;
 the implementation does not disclose which condition matched. Event JSONL
 remains metadata-only and has a separate 16384-byte limit.
 
-An exact P2 body-limit rejection is a canonical, rule-ID-free deny: it uses
-HTTP 413, emits the bounded <code>MSCONN_EVENT_BODY_LIMIT</code> event identity,
-carries no redirect, and terminalizes the transaction. The host action must be
-the same HTTP 413 deny; an earlier phase's rule correlation must not be
-inherited.
+An exact native P2 body-limit rejection is a canonical, rule-ID-free deny:
+it preserves the actual native status, such as 403 or 413, emits the bounded
+<code>MSCONN_EVENT_BODY_LIMIT</code> event identity, carries no redirect and
+terminalizes the transaction. Before commitment the host deny retains that
+status; an earlier phase's rule correlation must not be inherited.
 
 A live handoff records <code>handed_off</code> until the trusted observer
 atomically claims it for P3; only then can companion-only P3/P4 advance the
@@ -185,7 +188,8 @@ handoff. It does not synthesize P3/P4. Cancelled, denied, and failed terminal
 transactions retain their terminal cause and use the same cleanup ownership.
 Generic `finish` still requires all four phases (mask `15`). This finite
 authorization contract does not qualify a response companion or an unlimited
-request stream. The Common structure layout is unchanged.
+request stream. Consumers must rebuild against the matching
+[Common/Runtime headers](../README.md#response-observations-and-rule-metadata).
 
 ## Uniform decisions
 
@@ -195,17 +199,29 @@ request stream. The Common structure layout is unchanged.
 | Block | deny | <code>rule_block</code> | required | fail closed | terminal then cleanup |
 | Redirect | redirect | <code>rule_redirect</code> | required | fail closed | terminal then cleanup |
 | Rate limit | rate-limit | <code>rule_rate_limit</code> | required | fail closed | terminal then cleanup |
-| Log-only / Safe | log-only | <code>log_only</code> | optional | fail open | normal or terminal cleanup |
+| Explicit log-only / validated late Safe P4 rule | log-only with visible status unchanged | <code>log_only</code> | required for the late Safe rule | optional event failure is warning-only; real failures remain terminal | native audit and cleanup remain required |
 | Enforce / Strict | runtime-backed adapter: reject startup without a proven post-commit host action; otherwise deny pre-commit and use only the proven post-commit action | <code>enforce</code>; startup rejection has no transaction event | required | fail closed | terminal then cleanup |
-| Engine timeout or unavailable | deny in Strict before commit, otherwise log-only | <code>engine_timeout</code> / <code>engine_unavailable</code> | none | mode/commit dependent | terminal then cleanup |
-| Invalid engine response | deny in Strict before commit, otherwise log-only | <code>invalid_engine_response</code> | none | mode/commit dependent | terminal then cleanup |
-| Body or resource limit | configured bounded rejection before unsafe forwarding (normally HTTP 413 for a body limit) | <code>body_limit</code> | none | fail closed | terminal then cleanup |
-| Connector/protocol/early-cleanup error | deny in Strict before commit, otherwise log-only | <code>connector_error</code> / <code>protocol_error</code> | none | mode/commit dependent | terminal then cleanup |
+| Engine timeout or unavailable | deny before commit; stop I/O after commit | <code>engine_timeout</code> / <code>engine_unavailable</code> | none | fail closed / stop I/O in every mode | terminal then cleanup |
+| Invalid engine response | deny before commit; stop I/O after commit | <code>invalid_engine_response</code> | none | fail closed / stop I/O in every mode | terminal then cleanup |
+| Native body-limit Reject | retain native status before commit; stop I/O after commit | <code>body_limit</code> | none | fail closed in every mode | terminal then cleanup |
+| Host-resource/connector/protocol/early-cleanup error | deny before commit; stop I/O after commit | <code>connector_error</code> / <code>protocol_error</code> | none | fail closed / stop I/O in every mode | terminal then cleanup |
 | Client cancel / upstream disconnect | abort affected connection or stream | <code>client_cancel</code> / <code>upstream_disconnect</code> | none | stop I/O | terminal then cleanup |
 
 A disruptive rule decision without a bounded rule ID becomes
 <code>invalid_engine_response</code>, never Allow. A post-commit host must not
 invent a new status or silently upgrade Safe to enforcement.
+
+## Optional late Safe rule events
+
+Only a healthy, successfully completed P4 with a committed response and a
+validated, causally correlated disruptive rule decision qualifies. Native
+Reject, engine/API/processing errors, prior mandatory event errors and native
+audit failures never qualify. Failure of this optional event's sink, short
+write, serialization or event-only allocation is diagnosed as a warning; it
+does not abort the response or create a persistent processing error. Native
+audit completion and cleanup still run. Strict's supported post-commit abort
+remains required even when its event sink fails. A missing event is not proof
+of successful logging or native audit.
 
 ## Native intervention normalization
 
@@ -276,7 +292,8 @@ observer has a demonstrated stream-reset primitive through its host adapter:
 a statusless <code>drop</code> or <code>connection_abort</code> is therefore
 recorded as the actual fail-closed HTTP deny and returned as HTTP 503, never
 reported as a reset or silently converted to HTTP 200. After commitment, the
-canonical Safe/log-only late-outcome rule remains in force.
+canonical Safe/log-only late-outcome rule applies only to valid P4 rule
+interventions; native Reject and technical failures remain failures.
 
 Stock lighttpd is different from those request-only protocols: the selected
 `stock-lighttpd-sidecar` is the traffic owner. It accepts only explicitly
@@ -319,7 +336,7 @@ transaction or silently falling back.
 
 ## Safety and validation boundary
 
-- Header, body, registry, and event limits fail rather than retain unbounded state.
+- Native inspection policy and independent header, storage, registry and event resource guards remain enforced; the optional late Safe event exception above adds no body-size policy.
 - Event JSONL contains counters and bounded metadata only, never body payloads.
 - Event JSONL and its corresponding integrity hash redact a non-empty literal
   query as `?<redacted>` while preserving the raw URI for WAF processing.

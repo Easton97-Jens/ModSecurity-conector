@@ -623,8 +623,10 @@ int msconnector_transaction_contract_record_body(msconnector_transaction_contrac
         return contract->active_phase < 0 ? MSCONNECTOR_TRANSACTION_TRANSITION_LATE_PHASE :
             MSCONNECTOR_TRANSACTION_TRANSITION_PHASE_ACTIVE;
     }
-    if (!increment_size(response_direction ? &contract->response_body_bytes :
-            &contract->request_body_bytes, bytes)) {
+    if (response_direction) {
+        contract->response_body_bytes = msconnector_transaction_counter_add(
+            contract->response_body_bytes, bytes);
+    } else if (!increment_size(&contract->request_body_bytes, bytes)) {
         (void)msconnector_transaction_contract_fail(contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, contract->phase_started_at_ms);
         return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
@@ -1067,6 +1069,26 @@ static int contract_has_request_authorization_scope(
     return contract->direct_phase_mask ==
         (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2) &&
         contract->companion_phase_mask == 0U;
+}
+
+int msconnector_transaction_contract_supersede_response(
+    msconnector_transaction_contract *contract, uint64_t now_ms) {
+    if (!contract_mutable(contract) ||
+        contract->direct_phase_mask != MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL ||
+        contract->companion_phase_mask != 0U || contract->active_phase >= 0 ||
+        contract->completed_phase_mask !=
+            (MSCONNECTOR_TRANSACTION_PHASE_MASK_P1 | MSCONNECTOR_TRANSACTION_PHASE_MASK_P2) ||
+        contract->response_committed ||
+        contract->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+        contract->engine_decision != MSCONNECTOR_TRANSACTION_DECISION_ALLOW) {
+        return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+    }
+    /* This owner has no response after the host's explicit policy transfer.
+     * TERMINAL permits its real audit/cleanup epilogue without pretending
+     * that response inspection or a disruptive engine action occurred. */
+    contract->status = MSCONNECTOR_TRANSACTION_STATUS_TERMINAL;
+    contract->completed_at_ms = contract_timestamp(contract, now_ms);
+    return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
 }
 
 int msconnector_transaction_contract_finish_request_authorization(

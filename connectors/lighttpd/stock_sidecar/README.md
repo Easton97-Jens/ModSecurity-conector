@@ -36,15 +36,17 @@ bounds and never enter P3; only the following final response enters P3. A
 `101` upgrade remains rejected.
 Chunked transfer encoding, upgrades, TE, Trailer, Proxy-Connection, unknown
 Connection tokens, conflicting lengths, malformed start lines, and oversized
-headers or bodies fail closed.
+headers fail closed.
 
-The configured Common header/body/event limits remain authoritative. Request
-parsing is bounded by its declared limit. Response handling uses one fixed
-bounded chunk at a time rather than a complete response copy; those bytes never
-enter event JSONL. A declared request or response body above the configured
-bound returns the configured body-limit response (normally 413), records the
-typed `body_limit` terminal state, and does not silently release the request or
-response.
+Body inspection limits and their actions belong to libModSecurity. A declared
+`Content-Length` alone does not create a second cumulative Common body limit
+or an automatic 413 response. Request ingestion uses private spooling before
+upstream replay; response handling uses one fixed bounded chunk at a time
+instead of a complete response copy. Independent header/event, chunk/frame,
+memory, disk-admission and timeout controls remain active; body bytes never
+enter event JSONL. Native Reject retains its actual status and typed
+`body_limit` cause; a technical resource failure remains a separate error.
+See the [body-limit ownership contract](../../../docs/phase4-mode-budget.md).
 
 ## Failure and cleanup semantics
 
@@ -60,10 +62,14 @@ cannot reach the client, it records a connection abort instead.
 The sidecar maps and writes response headers before the body. It then reads one
 bounded response chunk, appends that chunk once to Common/libModSecurity, and
 writes it to the client before reading another chunk. It calls the P4 finish
-operation exactly once at response EOS. A disruptive P4 result can therefore
-be late: after a committed prefix Safe records `log_only` and continues;
-Strict shuts down the client connection rather than attempting a retroactive
-HTTP deny or redirect. The Runtime marks response commitment only after
+operation exactly once at response EOS. A genuine P4 rule intervention can
+therefore be late: after a committed prefix and healthy P4 completion, Safe
+records `log_only` and continues even if only its optional event logging fails;
+native audit and cleanup remain required. Native Reject and technical failures
+are excluded. Strict shuts down the client connection even when its event sink
+fails, rather than attempting a retroactive HTTP deny or redirect. The
+[shared transaction contract](../../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events)
+defines this narrow exception. The Runtime marks response commitment only after
 response headers were actually written, and records body start only after bytes
 were sent.
 
@@ -87,8 +93,8 @@ make -C connectors/lighttpd self-test-lighttpd-stock-sidecar
 
 The self-test compiles/runs the real C sidecar on loopback with a fake private
 upstream. It covers P1–P4 allow/block paths, multi-chunk P2/P4, response EOS,
-body/header limits, unsafe framing, timeout, client cancel, bounded
-parallelism, connection reuse, and non-reading-client deadline cleanup. It is
+native inspection limits, header/resource guards, unsafe framing, timeout,
+client cancel, bounded parallelism, connection reuse, and non-reading-client deadline cleanup. It is
 sidecar component evidence, not a claim that an unmodified Stock lighttpd
 process has native body hooks.
 

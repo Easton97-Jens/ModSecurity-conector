@@ -8,6 +8,7 @@
 #include "msconnector/limits.h"
 #include "msconnector/memory.h"
 #include "msconnector/response_helpers.h"
+#include "msconnector/transaction_contract.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -111,7 +112,7 @@ typedef struct response_companion_session_state {
     int has_decision;
     int outcome_recorded;
     int precommit_terminal_outcome;
-    size_t response_body_bytes;
+    uint64_t response_body_bytes;
 } response_companion_session_state;
 
 static void response_companion_reset_session_state(
@@ -1729,19 +1730,18 @@ static int response_companion_handle_body(
     msconnector_error_init(&error);
     result = state->response_headers && state->committed && !state->response_eos &&
         frame->payload_size <= MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK &&
-        frame->payload_size <= SIZE_MAX - state->response_body_bytes &&
         response_companion_backend_append_response_body_chunk(worker->transport,
             &state->session, frame->payload, frame->payload_size, &error);
     if (!result && error.code == MSCONNECTOR_ERROR_NONE) {
         msconnector_error_set(&error, frame->payload_size >
-            MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK ||
-            frame->payload_size > SIZE_MAX - state->response_body_bytes ?
+            MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK ?
                 MSCONNECTOR_ERROR_PROTOCOL : MSCONNECTOR_ERROR_PHASE_SEQUENCE,
             "response companion response body operation is invalid",
             "response_companion_transport");
     }
     if (result) {
-        state->response_body_bytes += frame->payload_size;
+        state->response_body_bytes = msconnector_transaction_counter_add(
+            state->response_body_bytes, frame->payload_size);
     }
     if (!result) {
         response_companion_fail_session(worker->transport, state,

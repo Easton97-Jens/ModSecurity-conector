@@ -49,6 +49,68 @@ Nicht implementiert:
   kanonische historische Evidence und kein finaler Nachweis für den aktuellen
   Connector oder Harness.
 
+## Verhalten bei Redirects, Audit-Abschluss und Response-Ereignissen
+
+Native Transaktionen gehören dem erzeugenden Request, seiner Konfiguration und
+seinem Pool. Gewöhnliche interne Redirects verwenden eine gesunde Transaktion
+nur bei gleichen wirksamen Regeln und Connector-Einstellungen wieder. Eine
+Location mit lokalen Regeln oder anderen Einstellungen erhält eine eigene
+Transaktion; `modsecurity off` deaktiviert die Prüfung am Ziel. Jede erzeugte
+Transaktion besitzt genau einen nativen Audit-Versuch vor dem Cleanup, auch wenn
+ein späterer Redirect ihren Kontext verdeckt. Ein versuchter Audit-Write wird
+nach einem nativen Fehler weder wiederholt noch als erfolgreich bezeichnet.
+
+Ein WAF-Block in einer Request-Phase erfasst Ziel und Status des konfigurierten
+lokalen `error_page`. Nur der passende interne Fehlerseitenablauf darf die
+blockierte Transaktion verwenden, ohne den erhaltenen auslösenden Header erneut
+zu prüfen. Ein allgemeiner interner Redirect oder das Flag `error_page` erteilt
+keine Ausnahme. Die ursprüngliche native Audit-Transaktion behält ihren
+Blockstatus, auch wenn die konfigurierte Seite den Client-Status ändert.
+
+Nach dem Response-Commit liefert `safe` bei einer späten Phase-4-Regelintervention
+die Antwort mit unverändertem sichtbarem Status weiter. Fehler ausschließlich
+bei optionaler Event-Serialisierung, Event-Metadaten-Allokation, Write oder
+Short-Write werden diagnostiziert, ohne einen Transaktionsfehler festzuschreiben
+oder das Connection-Error-Flag zu setzen. Reine Append-/Abschlussbeobachtungen
+sind ebenfalls nur warnend. `strict` bricht bei einer späten Regelintervention
+auch bei ausgefallenem Event-Sink ab. Engine-Verarbeitung, Body-Puffer-Allokation,
+Dateilesen, ungültige Eingaben und native Limitfehler bleiben terminal; kein
+Modus sendet nach dem Commit eine zweite HTTP-Antwort.
+
+Response-Beobachtungszähler einschließlich des gemeinsamen Response-Byte-Vertrags
+verwenden bei `UINT64_MAX` sättigende `uint64_t`-Arithmetik. Sie beschreiben die
+an die Engine übergebenen Bytes; behaltene Bytes werden separat ausgewiesen.
+Sättigung erzeugt kein Prüf- oder Auslieferungslimit. Request-Limits und
+Host-Puffer-/Dateiprüfungen bleiben unabhängig. Dateidaten werden in begrenzten
+Chunks verarbeitet, ohne die gesamte Dateilänge auf `size_t` zu verengen.
+
+Nach einer ersetzten Antwort werden ursprüngliche Body-Puffer verbraucht. Nur
+separate Steuerpuffer geben Flush/Sync und den zum Request passenden Abschluss
+weiter; ursprüngliche leere Datenlinks werden nicht weitergereicht. Wiederholte
+Callbacks senden den Abschluss nicht doppelt. NULL-Callbacks leeren ausstehende
+nachgelagerte Ausgabe; ein leerer Replacement-Callback ohne gepufferte Arbeit
+kehrt folgenlos zurück.
+
+Natives Response-Limit-`Reject` wird an der validierten Append-Grenze vor der
+EOS-Regelauswertung anhand der disruptiven 403 ohne Regel-ID erkannt. Englische
+Logprosa ist dafür unerheblich. Unerwartete Append-Interventionen und echte
+Enginefehler bleiben Fehler. `ProcessPartial` bleibt nichtfatal.
+
+Doppelte `modsecurity_phase4_mode`-Direktiven im selben Kontext werden abgewiesen.
+Untergeordnete Kontexte dürfen `off`, `safe` oder `strict` erben oder überschreiben.
+
+Regel-IDs stammen ausschließlich aus dem vollständigen geordneten
+libModSecurity-Metadatensatz einschließlich Hex-Escapes und optionalem
+Error-Log-Tail. Fehlende, fehlerhafte oder mehrdeutige Datensätze lassen die ID
+unbekannt; freier Match-Text liefert keine Ersatz-ID. Benötigt eine Entscheidung
+Korrelation, führt eine unbekannte ID zum geschlossenen Fehlerpfad. Der
+unterstützte C-Callback liefert Text; neuere Listen geloggter Regel-IDs ordnen
+diese keiner verursachenden disruptiven Regel zu und dienen nicht zum Raten.
+
+Gezielte kompilierte Tests und native Host-Beobachtungen werden getrennt in
+[CR-20261114-nginx-fzipi-review](../../reports/audits/change-records/CR-20261114-nginx-fzipi-review.de.md)
+erfasst. Sie stufen weder andere Protokolle noch die historische Gesamtmatrix hoch.
+
 ## HTTP/3-Authority und inspizierter Host
 
 Der Adapter behandelt [Upstream-Issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401),

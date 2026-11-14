@@ -204,6 +204,11 @@ int msc_apache_contract_record_intervention_decision(msc_t *msr)
         return msc_apache_contract_fail(msr,
             MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT);
     }
+    if (msr->intervention.retained_rule_id[0] != '\0') {
+        kind = apache_intervention_decision_kind(msr->last_intervention_status);
+        return msc_apache_contract_record_decision(msr, kind,
+            msr->intervention.retained_rule_id);
+    }
     rule_id[0] = '\0';
     if (msconnector_rule_id_extract_from_message(msr->last_intervention_log,
             rule_id, sizeof(rule_id)) <= 0) {
@@ -437,6 +442,7 @@ static int apache_record_failure(msc_t *msr, request_rec *r,
             cause = msr->contract.error_class;
         }
         msr->last_intervention_log = "";
+        msr->intervention.retained_rule_id[0] = '\0';
         msr->last_intervention_status = HTTP_INTERNAL_SERVER_ERROR;
         msr->last_intervention_body_limit = 0;
         msr->phase4_intervention = 0;
@@ -457,6 +463,7 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
     int body_limit;
     int redirect;
     int default_block_status;
+    char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U] = {0};
 
     if (r->per_dir_config != NULL) {
         config = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
@@ -464,6 +471,10 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
     }
     default_block_status = config == NULL ? MSCONNECTOR_DEFAULT_BLOCK_STATUS
         : config->common_config.default_block_status;
+    if (intervention->disruptive != 1) {
+        return apache_record_failure(msr, r,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+    }
     common_intervention = msconnector_intervention_make(
         intervention->disruptive, intervention->status, intervention->url,
         intervention->log);
@@ -471,11 +482,38 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
         msr->native_event_phase, &common_intervention);
     status = msconnector_intervention_normalize_status(intervention->url,
             intervention->status, default_block_status);
-    log = apr_pstrdup(r->pool, intervention->log == NULL
-        ? "(no log message was specified)" : intervention->log);
-    if (log == NULL) {
+    if (msconnector_rule_id_extract_from_message(intervention->log,
+            rule_id, sizeof(rule_id)) < 0 && msr->response.body_append_active) {
         return apache_record_failure(msr, r,
-            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+    }
+    common_intervention.redirect_url = intervention->url;
+    body_limit = body_limit ||
+        msconnector_intervention_is_response_body_limit_rejection(
+            msr->native_event_phase, &common_intervention, rule_id,
+            msr->response.body_append_active, msr->response.body_eos_seen);
+    if (msr->native_event_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        msr->response.body_append_active && !body_limit) {
+        return apache_record_failure(msr, r,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+    }
+    memcpy(msr->intervention.retained_rule_id, rule_id, sizeof(rule_id));
+    /* A genuine late Safe EOS rule needs only bounded validated metadata.
+     * The Engine retains its native audit record independently. */
+    if (config != NULL &&
+        config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE &&
+        msr->native_event_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        msr->response_body_processed && !msr->response.body_append_active &&
+        (msr->response.committed || r->bytes_sent > 0) &&
+        rule_id[0] != '\0' && !body_limit) {
+        log = "";
+    } else {
+        log = apr_pstrdup(r->pool, intervention->log == NULL
+            ? "(no log message was specified)" : intervention->log);
+        if (log == NULL) {
+            return apache_record_failure(msr, r,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+        }
     }
     redirect = msconnector_intervention_has_redirect_url(intervention->url) &&
         status >= HTTP_MULTIPLE_CHOICES && status < HTTP_BAD_REQUEST;
@@ -490,9 +528,7 @@ static int apache_store_native_intervention(msc_t *msr, request_rec *r,
     }
     msr->last_intervention_status = status;
     msr->last_intervention_log = log;
-    msr->last_intervention_body_limit = body_limit ||
-        msconnector_intervention_is_response_body_limit_rejection(
-            msr->native_event_phase, &common_intervention);
+    msr->last_intervention_body_limit = body_limit;
     if (intervention->disruptive) {
         msr->phase4_intervention = 1;
     }

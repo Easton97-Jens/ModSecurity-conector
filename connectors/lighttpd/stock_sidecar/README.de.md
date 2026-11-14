@@ -40,16 +40,18 @@ Grenzen weitergeleitet und treten nicht in P3 ein; nur die folgende finale
 Response tritt in P3 ein. Ein `101`-Upgrade bleibt abgelehnt.
 Chunked Transfer-Encoding, Upgrades, TE, Trailer, Proxy-Connection, unbekannte
 Connection-Tokens, widersprüchliche Längen, fehlerhafte Startzeilen sowie zu
-große Header oder Bodies schlagen fail-closed fehl.
+große Header schlagen fail-closed fehl.
 
-Die konfigurierten Common-Header-, Body- und Event-Limits bleiben maßgeblich.
-Das Request-Parsen ist durch sein deklariertes Limit begrenzt. Die
-Response-Verarbeitung verwendet jeweils genau einen festen begrenzten Chunk
-statt einer vollständigen Response-Kopie; ihre Bytes erscheinen niemals in
-Event-JSONL. Ein deklarierter Request- oder Response-Body über dem
-konfigurierten Limit liefert die konfigurierte Body-Limit-Antwort
-(normalerweise 413), erfasst den typisierten terminalen Zustand `body_limit`
-und gibt Request oder Response nicht stillschweigend frei.
+Body-Inspektionslimits und deren Aktionen gehören libModSecurity. Ein
+deklarierter `Content-Length` erzeugt allein weder ein zweites kumulatives
+Common-Bodylimit noch eine automatische 413-Antwort. Die Request-Eingabe nutzt
+private Dateipufferung vor dem Upstream-Replay; die Response-Verarbeitung
+verwendet jeweils einen festen begrenzten Chunk statt einer vollständigen
+Response-Kopie. Unabhängige Header-/Ereignis-, Chunk-/Frame-, Speicher-,
+Disk-Zulassungs- und Timeoutkontrollen bleiben aktiv; Bodybytes erscheinen nie
+in Event-JSONL. Natives Reject erhält tatsächlichen Status und typisierte
+Ursache `body_limit`; ein technischer Ressourcenfehler bleibt ein eigener Fehler.
+Siehe den [Vertrag zur Body-Limit-Eigentümerschaft](../../../docs/phase4-mode-budget.de.md).
 
 ## Fehler- und Cleanup-Semantik
 
@@ -67,10 +69,15 @@ Der Sidecar bildet Response-Header ab und schreibt sie vor dem Body. Danach
 liest er jeweils einen begrenzten Response-Chunk, hängt ihn genau einmal an
 Common/libModSecurity an und schreibt ihn an den Client, bevor der nächste
 Chunk gelesen wird. Bei Response-EOS ruft er die P4-Finish-Operation genau
-einmal auf. Ein disruptives P4-Ergebnis kann daher spät sein: Nach einem
-committed Präfix erfasst Safe `log_only` und setzt fort; Strict beendet die
-Client-Verbindung, statt einen nachträglichen HTTP-Deny oder -Redirect zu
-versuchen. Die Runtime markiert den Response-Commit erst, nachdem die
+einmal auf. Eine echte P4-Regelintervention kann daher spät sein: Nach einem
+committeten Präfix und gesundem P4-Abschluss erfasst Safe `log_only` und setzt
+auch dann fort, wenn ausschließlich ihr optionales Ereignislogging fehlschlägt;
+natives Audit und Cleanup bleiben erforderlich. Natives Reject und technische
+Fehler sind ausgeschlossen. Strict beendet die Client-Verbindung auch bei
+ausgefallenem Ereignissink, statt einen nachträglichen HTTP-Deny oder -Redirect
+zu versuchen. Der
+[gemeinsame Transaktionsvertrag](../../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse)
+definiert diese enge Ausnahme. Die Runtime markiert den Response-Commit erst, nachdem die
 Response-Header tatsächlich geschrieben wurden, und den Body-Start erst nach
 gesendeten Bytes.
 
@@ -95,8 +102,8 @@ make -C connectors/lighttpd self-test-lighttpd-stock-sidecar
 
 Der Selbsttest kompiliert und führt den echten C-Sidecar auf Loopback mit einem
 falschen privaten Upstream aus. Er deckt P1–P4-Allow/Block-Pfade,
-mehrteilige P2/P4, Response-EOS, Body-/Header-Limits, unsicheres Framing,
-Timeout, Client-Cancel, begrenzte Parallelität, Connection-Reuse und
+mehrteilige P2/P4, Response-EOS, native Inspektionslimits,
+Header-/Ressourcenkontrollen, unsicheres Framing, Timeout, Client-Cancel, begrenzte Parallelität, Connection-Reuse und
 Deadline-Cleanup bei nicht lesenden Clients ab. Er ist Sidecar-Komponenten-
 Evidence und keine Behauptung, dass ein unveränderter Stock-lighttpd-Prozess
 native Body-Hooks besitzt.

@@ -14,9 +14,13 @@ Legacy-SPOP-Server sie aufruft.
 Der Produktbuild `make -C connectors/haproxy build-modsecurity-binding` erzeugt
 `libhaproxy-modsecurity-binding.a`. Er baut kein Testprogramm mehr und verlinkt
 nicht mehr das Common-Testergebnismodell. Compile-/Link-Proben für die
-SDK-Kompatibilität bleiben im Produktbuild; eine fehlende optionale Rule-ID-API
-verwendet die unterstützte Baseline, ohne die erforderliche API-Prüfung
-abzuschwächen.
+SDK-Kompatibilität bleiben im Produktbuild, einschließlich der
+Verfügbarkeitsprobe für die optionale Liste geloggter IDs. Diese Liste benennt
+nicht die ursächlich disruptive Regel; weder ihr erster noch ihr letzter
+Eintrag ist maßgeblich. Disruptive Regelkorrelation verwendet ausschließlich
+validierte Metadaten des tatsächlichen Interventionsdatensatzes. Fehlende oder
+mehrdeutige Metadaten dürfen einen Block nicht in Allow umwandeln; erforderliche
+Baseline-API-Prüfungen bleiben unverändert.
 
 Eingebettete Starter-, Binding- und SPOP-Regressionsdefinitionen gehören nun zum
 gepinnten Framework unter `connector_native_tests/connectors/haproxy/src/`.

@@ -938,15 +938,17 @@ func (state *streamState) validateBodyOrder(direction Direction) error {
 }
 
 func (state *streamState) bodyLimitDecision(direction Direction, bodyLength int) Decision {
-	if bodyLength > state.config.MaxBodyChunkBytes {
+	if bodyLength < 0 || bodyLength > state.config.MaxBodyChunkBytes {
 		return Decision{Action: ActionDeny, Status: 500}
+	}
+	if direction == DirectionResponse {
+		if state.summary.ResponseBodyBytes < 0 {
+			return Decision{Action: ActionDeny, Status: 500}
+		}
+		return allowDecision()
 	}
 	current := state.summary.RequestBodyBytes
 	chunks := state.summary.RequestBodyChunks
-	if direction == DirectionResponse {
-		current = state.summary.ResponseBodyBytes
-		chunks = state.summary.ResponseBodyChunks
-	}
 	if chunks == math.MaxUint64 {
 		return Decision{Action: ActionDeny, Status: 500}
 	}
@@ -984,11 +986,17 @@ func (state *streamState) recordBodyProgress(direction Direction, bodyLength int
 		state.requestDone = endOfStream
 		return
 	}
-	next, ok := cumulativeBodyBytes(state.summary.ResponseBodyBytes, bodyLength)
-	if !ok {
+	if state.summary.ResponseBodyBytes < 0 || bodyLength < 0 {
 		return
 	}
-	state.summary.ResponseBodyChunks++
+	next, ok := cumulativeBodyBytes(state.summary.ResponseBodyBytes, bodyLength)
+	if !ok {
+		next = math.MaxInt64
+	}
+	// Response observations must not impose a cumulative delivery limit.
+	if state.summary.ResponseBodyChunks < math.MaxUint64 {
+		state.summary.ResponseBodyChunks++
+	}
 	state.summary.ResponseBodyBytes = next
 	state.responseDone = endOfStream
 }
