@@ -42,9 +42,14 @@ Den vorhandenen transaktionalen Synchronisierer mit dem exakten Git-common.sh-Bl
 | `rtk make check-bilingual-docs` | Nach 15 Minuten CPU-Arbeit in wiederholter Ignore-Pfadabfrage beendet; Exit 2 nach Abbruch, kein PASS. |
 | `rtk bypass env CONNECTOR_REVISION=5672c5ff562495ddbc47a1932b1641e0073746f5 .venv/bin/python -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/check_bilingual.py` | Exit 0, `bilingual docs ok`; alle vorhandenen Regeln/Auswahlen des vollständigen Prüfers erhalten, mit gleichwertigem indiziertem Ignore-Pfadprädikat. Kein Prüferquelltext geändert. |
 | `rtk bypass env CONNECTOR_ROOT=/root/git/ModSecurity-conector TEST_ROOT=/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework FRAMEWORK_ROOT=/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework PYTHONPATH=/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework:/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/connector_suite .venv/bin/python -B ci/tools/new-change-record.py check` | Exit 0; Change-Record-Strukturvertrag bestanden. |
-| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit-Hook verweigerte den gestagten Gitlink: `No exact operator V2 admission for selected Gitlink`. Kein Commit oder PR erstellt. |
+| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit-Hook verweigerte den gestagten Gitlink: `No exact operator V2 admission for selected Gitlink`. In diesem ersten Versuch kein Commit erstellt. |
+| `rtk bypass python3 -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/operator_admission.py install --expected-plan-sha256 4da207519ebc4839396b5ea98de19b6db3b4bc5f747e98e0a4ca6ae1822dd362` | Exit 0; vom Nutzer autorisierte exakte Indexfreigabe nach vollständigen Quellen-/geschützten nativen Prüfungen installiert; bestehende Einträge und ausführbare Guards erhalten. |
+| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Folgeversuch mit Exit 0 durch den normalen Hook; erster 30-Dateien-Commit `82472f02170c34183998780f8ab77b90a7c8a299`. |
+| `rtk bypass .venv/bin/python -I ci/tools/read-framework-revisions.py --parent-sha 82472f02170c34183998780f8ab77b90a7c8a299` | Exit 0; committete Framework-/MRTS-Pins stimmen mit den materialisierten Checkouts überein. |
 
 Auch die Prüfung der gestagten Veröffentlichung `--verify-primary --staged` endete mit Exit 0 und `FRAMEWORK_PRIMARY_VERIFIED`. Anfängliche Einrichtungsfehler wurden mit expliziter Framework-Umgebung/Importpfaden, `.venv/bin/python` für PyYAML und dem aufgabeneigenen erlaubten `RUNNER_TEMP` behoben. Keine Pakete installiert.
+
+Der erste große Quellenbatch lief in eine Zeitüberschreitung (Exit 1); sein gesamter Inhalt wurde vor Ausgabe der vollständigen Nachweise erfolgreich in kleineren vollständigen Blob-Batches erneut geprüft. Zwei große Git-Blobs wurden tatsächlich über ganze Dateien geprüft; keine Quellbytes ausgelassen. Die Prüfung mit verkürzter Parent-SHA wurde abgewiesen (Exit 1); der obige Aufruf mit vollen 40 Zeichen bestand.
 
 ## Security-Auswirkung
 
@@ -56,9 +61,9 @@ Es wurde keine Runtime-Evidence erhoben oder beansprucht.
 
 ## Bekannte Einschränkungen
 
-Aktuelle Auslieferungssperre: Der installierte Sonar-Hook verlangt eine operatorseitige exakte Gitlink-Freigabe für diesen Worktree, ausgewählten Commit und Index. Keine passende Freigabe vorhanden; separate Secrets-Scans der gestagten Parent-Blobs und geänderten Framework-Blobs endeten beide mit Exit 0. Erfolgreiche Scans erteilen keine Hook-Autorisierung.
+Behobene Auslieferungssperre: Der Nutzer erlaubte ausdrücklich die exakte Operator-Freigabe für Gitlink/Index. Vollständige Quellenprüfungen für Framework 2514 reguläre/9 Alias-Blobs und MRTS 431 reguläre/41 Alias-Blobs bestanden; geschützte native und Parent-Index-Prüfungen bestanden vor Veröffentlichung des Registry-Eintrags. Bestehende Einträge und ausführbare Guards blieben erhalten. Der normale Commit-Hook bestand anschließend.
 
-Ignorierte `CLAUDE.md` ist nur lokal verfügbar. Die Übergabe nennt bewusst ihre Basis vor dem Commit; späteren HEAD/PR-Stand aus Git/GitHub ermitteln. Die lokale Validierungsumgebung belegt keine Bereitschaft gepinnter Werkzeugketten oder gehosteter Laufzeiten. Das gewöhnliche zweisprachige Target wurde nach 15 Minuten beendet; der gesamte vorhandene Prüfer bestand mit dem gleichwertigen indizierten Ignore-Adapter, während das ursprüngliche Nichtbestehen oben erhalten bleibt.
+Ignorierte `CLAUDE.md` ist nur lokal verfügbar. Die Übergabe nennt bewusst ihre ursprüngliche Basis und den zuletzt beobachteten Commit; späteren HEAD/PR-Stand aus Git/GitHub ermitteln. Die lokale Validierungsumgebung belegt keine Bereitschaft gepinnter Werkzeugketten oder gehosteter Laufzeiten. Das gewöhnliche zweisprachige Target wurde nach 15 Minuten beendet; der gesamte vorhandene Prüfer bestand mit dem gleichwertigen indizierten Ignore-Adapter, während das ursprüngliche Nichtbestehen oben erhalten bleibt.
 
 ## Verbleibende Risiken
 
@@ -70,4 +75,4 @@ Keine Produkt-Builds, `quick-check`, `test`, gehosteten Laufzeit-/Konfigurations
 
 ## Finaler Diff- und Review-Status
 
-Generierte Projektions-Diffs und Dokumentationsumfang wurden geprüft. Commit/Push/Draft-PR-Erstellung sind autorisiert; dieser Vor-Commit-Bericht behauptet deren Abschluss nicht. Keine master-Integration oder Schreibaktion in verschachtelten Repositorys autorisiert.
+Der erste geprüfte 30-Pfade-Stand wurde als `82472f02170c34183998780f8ab77b90a7c8a299` durch den ursprünglichen Hook committet. Die exakte Prüfung der committeten Framework-/MRTS-Pins bestand. Diese Dokumentationsaktualisierung erfasst die behobene Freigabesperre vor Push/Draft-PR-Veröffentlichung; spätere Auslieferung aus Git/GitHub ermitteln. Keine master-Integration oder Schreibaktion in verschachtelten Repositorys erfolgte.

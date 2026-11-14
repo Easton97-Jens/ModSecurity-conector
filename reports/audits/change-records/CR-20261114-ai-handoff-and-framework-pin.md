@@ -42,9 +42,14 @@ Use the existing transactional synchronizer with the exact Git common.sh blob as
 | `rtk make check-bilingual-docs` | Stopped after 15 minutes CPU-bound in repeated ignored-path lookup; exit 2 after termination, not a PASS. |
 | `rtk bypass env CONNECTOR_REVISION=5672c5ff562495ddbc47a1932b1641e0073746f5 .venv/bin/python -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/check_bilingual.py` | Exit 0, `bilingual docs ok`; all existing full-checker rules/discovery retained, with an equivalent indexed ignored-path predicate. No checker source changed. |
 | `rtk bypass env CONNECTOR_ROOT=/root/git/ModSecurity-conector TEST_ROOT=/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework FRAMEWORK_ROOT=/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework PYTHONPATH=/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework:/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/connector_suite .venv/bin/python -B ci/tools/new-change-record.py check` | Exit 0; Change Record structure contract passed. |
-| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit hook denied the staged Gitlink: `No exact operator V2 admission for selected Gitlink`. No commit or PR created. |
+| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit hook denied the staged Gitlink: `No exact operator V2 admission for selected Gitlink`. No commit created in that initial attempt. |
+| `rtk bypass python3 -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/operator_admission.py install --expected-plan-sha256 4da207519ebc4839396b5ea98de19b6db3b4bc5f747e98e0a4ca6ae1822dd362` | Exit 0; user-authorized exact-index admission installed after full-source/protected-native checks; existing entries and executable guards preserved. |
+| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Subsequent attempt exit 0 through the normal hook; initial 30-file commit `82472f02170c34183998780f8ab77b90a7c8a299`. |
+| `rtk bypass .venv/bin/python -I ci/tools/read-framework-revisions.py --parent-sha 82472f02170c34183998780f8ab77b90a7c8a299` | Exit 0; committed Framework/MRTS pins agree with the materialized checkouts. |
 
 The staged `--verify-primary --staged` publication check also exited 0 with `FRAMEWORK_PRIMARY_VERIFIED`. Initial setup failures were resolved by supplying the explicit Framework environment/import paths, using `.venv/bin/python` for PyYAML and selecting the task-owned allowed `RUNNER_TEMP`. No packages were installed.
+
+The first large source batch timed out (exit 1); its entire scope was successfully rescanned in smaller whole-blob batches before final complete proofs were emitted. Two large Git blobs used actual whole-path scans; no source bytes were omitted. The abbreviated Parent-SHA check was rejected (exit 1); the full 40-character invocation above passed.
 
 ## Security impact
 
@@ -56,9 +61,9 @@ No runtime evidence was collected or claimed.
 
 ## Known limitations
 
-Current delivery blocker: the installed Sonar hook requires an operator-owned exact Gitlink admission for this worktree, selected commit and index. No matching admission exists; separate Parent staged-blob and Framework changed-blob Secrets scans both exited 0. Hook authorization is not inferred from successful scans.
+Resolved delivery blocker: the user explicitly approved the exact operator Gitlink/index admission. Full-source proofs for Framework 2514 regular/9 alias blobs and MRTS 431 regular/41 alias blobs passed; the protected native and Parent index checks passed before registry publication. Existing entries and executable guards were preserved. The normal commit hook subsequently passed.
 
-Ignored `CLAUDE.md` is local-only. The handoff deliberately identifies its precommit base; resolve later HEAD/PR state from Git/GitHub. The local validation environment does not establish pinned-toolchain or hosted-runtime readiness. The ordinary bilingual target was terminated after 15 minutes; the full existing checker passed through the equivalent indexed-ignore adapter, with the original non-pass retained above.
+Ignored `CLAUDE.md` is local-only. The handoff deliberately identifies its original base and last observed commit; resolve later HEAD/PR state from Git/GitHub. The local validation environment does not establish pinned-toolchain or hosted-runtime readiness. The ordinary bilingual target was terminated after 15 minutes; the full existing checker passed through the equivalent indexed-ignore adapter, with the original non-pass retained above.
 
 ## Remaining risks
 
@@ -70,4 +75,4 @@ No product builds, `quick-check`, `test`, hosted runtime/config probes, complete
 
 ## Final diff and review status
 
-Generated projection diffs and documentation scope were reviewed. Commit/push/Draft-PR creation are authorized; this precommit record does not claim they already happened. No master integration or nested-repository write is authorized.
+The initial reviewed30-path state was committed as `82472f02170c34183998780f8ab77b90a7c8a299` through the original hook. The exact committed Framework/MRTS check passed. This documentation refresh records the resolved admission before push/Draft-PR publication; inspect Git/GitHub for later delivery state. No master integration or nested-repository writes occurred.

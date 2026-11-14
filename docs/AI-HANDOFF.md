@@ -5,8 +5,8 @@
 ## Snapshot and goal
 
 - Date: **2026-11-14 (Europe/Berlin)**; checkout: `/root/git/ModSecurity-conector`.
-- Branch: `codex/ai-handoff-and-framework-pin-20261114`; Parent HEAD **before the initial PR commit**: `5672c5ff562495ddbc47a1932b1641e0073746f5`. This document records that precommit snapshot; resolve the later HEAD, index and PR status from Git/GitHub.
-- **Conversation context:** first prepare a documentation-only Claude Code handoff, then create a PR including the other existing changes. The second request authorizes the task-branch commit/push/PR and inclusion of the Framework pin. It does not authorize a merge. No earlier product-task conversation or test transcript is available here.
+- Branch: `codex/ai-handoff-and-framework-pin-20261114`; original Parent base: `5672c5ff562495ddbc47a1932b1641e0073746f5`; last observed commit before this documentation refresh: `82472f02170c34183998780f8ab77b90a7c8a299`. Resolve the resulting later HEAD, index and PR status from Git/GitHub.
+- **Conversation context:** first prepare a documentation-only Claude Code handoff, then create a PR including the other existing changes. The second request authorizes the task-branch commit/push/PR and inclusion of the Framework pin. It does not authorize a merge. The user subsequently approved the exact operator Gitlink/index admission; that admission is now installed. No earlier product-task conversation or test transcript is available here.
 - **Verified facts:** local diffs and native command definitions were inspected. Fresh remote reads confirmed Parent `master` at the base above and Framework `master` at `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1`.
 - **Assumption:** Claude Code resumes in this checkout, where ignored local instructions remain available. Reconcile this snapshot before relying on it.
 
@@ -20,7 +20,7 @@
 
 ## Changes selected for the PR
 
-The initial handoff task began with no staged changes or non-ignored new files. The following table records the precommit selection; after commit, these paths are no longer uncommitted changes. Inspect both `git diff` and `git diff --cached` before further staging.
+The initial 30-path selection below was committed in `82472f02170c34183998780f8ab77b90a7c8a299`. The worktree was clean afterward; this refresh changes only the handoff pair and Change Record pair, selected for a documentation-only follow-up commit. Recheck staged, unstaged and new files before further work.
 
 | Path | Origin / PR content |
 | --- | --- |
@@ -44,7 +44,7 @@ Framework is internally clean on `master`; the selected commit is its already-pu
 
 ## Executed checks and limitations
 
-**Current delivery blocker:** the installed Sonar pre-commit hook requires an operator-owned exact Gitlink admission for this worktree, Framework commit and index. That admission is absent. All 30 paths remain staged; no commit, push or PR exists. Separate Secrets scans of 29 staged Parent blobs and 11 changed Framework blobs exited 0; those scans do not grant admission.
+**Resolved delivery blocker:** after explicit user approval, one operator-owned admission was installed for the exact initial worktree/index/Gitlink. Complete Secrets proofs cover all 2514 Framework regular blobs and 9 Git-only aliases, plus all 431 MRTS regular blobs and 41 aliases; all completed scans passed. The normal Git hook then created `82472f02170c34183998780f8ab77b90a7c8a299`. No push or PR had occurred at this documentation checkpoint; inspect GitHub for later delivery state.
 
 | Command or procedure | Observed result |
 | --- | --- |
@@ -57,9 +57,14 @@ Framework is internally clean on `master`; the selected commit is its already-pu
 | `rtk make check-bilingual-docs` | Stopped after 15 minutes CPU-bound in repeated ignored-path lookup; exit 2 after termination, not a PASS. |
 | `rtk bypass env CONNECTOR_REVISION=5672c5ff562495ddbc47a1932b1641e0073746f5 .venv/bin/python -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/check_bilingual.py` | Exit 0, `bilingual docs ok`; all existing full-checker rules/discovery retained, with an equivalent indexed ignored-path predicate. No checker source changed. |
 | Native Change Record archive check | Exit 0; structural contract passed. |
-| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit hook denied the staged Gitlink: `No exact operator V2 admission for selected Gitlink`. No commit or PR created. |
+| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit hook denied the staged Gitlink: `No exact operator V2 admission for selected Gitlink`. No commit created in that initial attempt. |
+| `rtk bypass python3 -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/operator_admission.py install --expected-plan-sha256 4da207519ebc4839396b5ea98de19b6db3b4bc5f747e98e0a4ca6ae1822dd362` | Exit 0; user-authorized exact-index admission installed after full-source/protected-native checks; existing entries and executable guards preserved. |
+| `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Subsequent attempt exit 0 through the normal hook; initial 30-file commit `82472f02170c34183998780f8ab77b90a7c8a299`. |
+| `rtk bypass .venv/bin/python -I ci/tools/read-framework-revisions.py --parent-sha 82472f02170c34183998780f8ab77b90a7c8a299` | Exit 0; committed Framework/MRTS pins agree with the materialized checkouts. |
 
 The first scaffold attempts lacked the explicit Framework environment/import path; the successful native invocation supplied both. System-Python candidate verification lacked `yaml`; using the repository `.venv/bin/python` passed. The first synchronizer invocation rejected an input outside its allowed temporary root; selecting the task-owned `RUNNER_TEMP` passed without relaxing path checks.
+
+The first large source batch timed out (exit 1); its entire scope was successfully rescanned in smaller whole-blob batches before final complete proofs were emitted. Two large Git blobs used actual whole-path scans; no source bytes were omitted. The abbreviated Parent-SHA check was rejected (exit 1); the full 40-character invocation above passed.
 
 **Not run:** product builds, `quick-check`, `test`, host/config/runtime probes, CI or Cloud Quality Gates. Current-head CI/review status must be read after push; no older result qualifies the new commit.
 
@@ -78,6 +83,6 @@ References below are not executed product-test results. Run from the Parent root
 ## Next steps
 
 1. Read `AGENTS.md`, applicable directory instructions and this handoff; reconcile branch/HEAD, staged/unstaged files, Framework and MRTS identities.
-2. Obtain explicit operator authorization for the exact Gitlink admission, then commit/push only the selected paths and open a Draft PR with the recorded local check results and limitations. Read back the committed lock/gitlink, actual PR head and CI status; merge needs separate authorization.
+2. Inspect the task branch's existing PR and current-head checks; publish/open a Draft PR only if missing. Retain the recorded local results and limitations. Merge requires separate authorization.
 3. Choose the next concrete product objective. Inspect affected source and select only relevant checks; do not restart archived I12/matrix campaigns without an explicit request.
 4. Record actual results and remaining gaps in both handoff versions before the next Codex/Claude Code switch. Preserve the ignored local `CLAUDE.md` separately when moving workspaces.
