@@ -87,8 +87,9 @@ Chunks verarbeitet, ohne die gesamte Dateilänge auf `size_t` zu verengen.
 Nach einer ersetzten Antwort werden ursprüngliche Body-Puffer verbraucht. Nur
 separate Steuerpuffer geben Flush/Sync und den zum Request passenden Abschluss
 weiter; ursprüngliche leere Datenlinks werden nicht weitergereicht. Wiederholte
-Callbacks senden den Abschluss nicht doppelt; NULL-Callbacks leeren weiterhin
-den nachgelagerten Ablauf.
+Callbacks senden den Abschluss nicht doppelt. NULL-Callbacks leeren ausstehende
+nachgelagerte Ausgabe; ein leerer Replacement-Callback ohne gepufferte Arbeit
+kehrt folgenlos zurück.
 
 Natives Response-Limit-`Reject` wird an der validierten Append-Grenze vor der
 EOS-Regelauswertung anhand der disruptiven 403 ohne Regel-ID erkannt. Englische

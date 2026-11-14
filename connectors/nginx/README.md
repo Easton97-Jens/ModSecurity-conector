@@ -83,7 +83,8 @@ narrowing a whole file length to `size_t`.
 When a response has been replaced, original body buffers are consumed. Only
 separate control buffers carry flush/sync and request-appropriate termination
 downstream; original empty data links are not forwarded. Repeated callbacks
-cannot send the termination twice, and NULL callbacks still drain downstream.
+cannot send the termination twice. NULL callbacks drain pending downstream
+output; an empty replacement callback with no buffered work returns harmlessly.
 
 Native response-limit `Reject` is recognized at the validated append boundary,
 before EOS rule evaluation, using the rule-free disruptive 403 shape. It does

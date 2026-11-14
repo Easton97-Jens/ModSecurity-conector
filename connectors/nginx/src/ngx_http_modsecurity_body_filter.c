@@ -515,8 +515,14 @@ ngx_http_modsecurity_discard_replaced_response_body(ngx_http_request_t *r,
             ctx->replacement_body_terminal_sent = 1;
         }
     }
-    /* NULL also drains already-buffered downstream output. No caller-owned
-     * links or payload pointers are retained in this module's control chain. */
+    /* Consuming a data-only callback creates no downstream output. NGINX's
+     * writer rejects a manufactured empty callback when nothing is pending.
+     * Existing filter/connection buffering still needs a NULL drain. The
+     * same no-pending rule applies to NULL callbacks in this replacement-only
+     * path; ordinary body-filter callbacks keep their original dispatch. */
+    if (out == NULL && !r->buffered && !r->connection->buffered) {
+        return NGX_OK;
+    }
     return ngx_http_next_body_filter(r, out);
 }
 
@@ -762,14 +768,14 @@ ngx_http_modsecurity_prepare_response_body_filter(ngx_http_request_t *r,
     if (error_status != NGX_OK) {
         return error_status;
     }
-    if (in == NULL) {
-        return NGX_DECLINED;
-    }
     if (ctx->response_replaced) {
-        /* The replaced response needs control-only forwarding, with its own
-         * completion and buffer ownership, instead of the original links. */
+        /* Include NULL callbacks: the replacement path decides whether any
+         * downstream filter/connection buffering actually needs draining. */
         *context = ctx;
         return NGX_DONE;
+    }
+    if (in == NULL) {
+        return NGX_DECLINED;
     }
     if (ctx->intervention_triggered || ctx->phase4_processed) {
         return NGX_DECLINED;
