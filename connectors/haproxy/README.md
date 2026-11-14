@@ -364,9 +364,15 @@ The native filter writes bounded Common JSONL metadata for disruptive native
 decisions and technical causes. It excludes body bytes, headers, URI and native
 log text. Ordinary Allow produces no invented decision event. A mutex protects
 the configured stream; serialization, `fputs`, `ferror`, `fflush` and `fclose`
-are checked, the first sink error is sticky, and subsequent requests fail closed
-on that sink failure. A failed native decision write retains its observed phase
-and any earlier technical cause. Closing consumes the owned stream once.
+are checked. The first mandatory sink error is sticky, and subsequent requests
+fail closed on that failure. Only a healthy, completed, committed late Safe P4
+rule event has the [optional-event exception](../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events):
+its sink, serialization or event-only allocation failure is a warning and does
+not abort the response or add a persistent processing error. Native Reject,
+engine/API/audit failures and prior mandatory sink errors remain terminal;
+Strict's supported abort remains required even if its event write fails.
+A failed mandatory native decision write retains its observed phase and any
+earlier technical cause. Closing consumes the owned stream once.
 Successful flushing proves stream acceptance, not durable storage or client
 transport. Native filter deinitialization can alert on close failure but cannot
 set a process exit status through its void callback.

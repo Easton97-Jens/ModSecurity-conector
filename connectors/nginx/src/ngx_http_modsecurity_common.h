@@ -197,15 +197,28 @@ ngx_http_modsecurity_header_metrics(ngx_list_t *headers,
 }
 
 
+typedef struct ngx_http_modsecurity_conf_s ngx_http_modsecurity_conf_t;
+
 typedef struct {
     ngx_http_request_t *r;
+    /* Retain the allocation/policy owner and its pool-valid cleanup metadata
+     * across location changes, even after NGINX clears r->pool. */
+    struct {
+        ngx_pool_t *pool;
+        const ngx_http_modsecurity_conf_t *conf;
+        const char *cleanup_method;
+        const char *cleanup_uri;
+    } lifetime;
+    /* Captured destination and status pair jointly identify the one original
+     * block response that may traverse a configured internal error page. */
+    struct {
+        ngx_str_t target;
+        ngx_int_t status;
+        ngx_int_t response_status;
+    } error_page;
     Transaction *modsec_transaction;
     msconnector_transaction_contract contract;
     unsigned contract_initialized:1;
-    /* Request-pool strings remain alive while pool cleanup callbacks run,
-     * even after NGINX clears r->pool. Never allocate from that cleared pool. */
-    const char *cleanup_method;
-    const char *cleanup_uri;
     ModSecurityIntervention *delayed_intervention;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -227,6 +240,7 @@ typedef struct {
     /* Native audit-log completion is distinct from the one-attempt marker.
      * Re-entry must preserve a failed result without invoking the engine twice. */
     unsigned native_logging_failed:1;
+    unsigned request_policy_superseded:1;
     unsigned intervention_triggered:1;
     /* Set only after the redirect helper installs a connector-owned Location.
      * A pre-existing upstream Location must not be mistaken for a ModSecurity
@@ -271,13 +285,15 @@ typedef struct {
     ModSecurityIntervention pending_request_intervention;
     unsigned native_response_body_limit_rejection:1;
     unsigned native_response_body_eos:1;
-    size_t response_body_append_calls;
+    unsigned native_response_body_append_active:1;
+    unsigned replacement_body_terminal_sent:1;
+    uint64_t response_body_append_calls;
     /* Bounded inspection accounting has one lifetime and no payload ownership.
      * Keep the established member names and order for the native helpers. */
     struct {
         size_t request_body_bytes_seen;
-        size_t response_body_bytes_seen;
-        size_t response_body_bytes_inspected;
+        uint64_t response_body_bytes_seen;
+        uint64_t response_body_bytes_inspected;
         size_t request_header_count;
         size_t request_header_bytes;
         size_t response_header_count;
@@ -416,10 +432,14 @@ ngx_http_modsecurity_rule_load_stats(const ngx_http_modsecurity_main_conf_t *mmc
 }
 
 
-typedef struct {
+struct ngx_http_modsecurity_conf_s {
     void                      *pool;
     /* RulesSet or Rules */
     void                      *rules_set;
+    /* Equal inherited policies share this identity even though native
+     * RulesSet instances are separately merged for each location. */
+    const void                *rules_identity;
+    unsigned                   rules_configured:1;
 
     ngx_flag_t                 enable;
     ngx_flag_t                 use_error_log;
@@ -437,7 +457,7 @@ typedef struct {
     ngx_uint_t                 engine_call_budget_ms;
     ngx_open_file_t           *phase4_log_file;
     ngx_str_t                  phase4_log_path;
-} ngx_http_modsecurity_conf_t;
+};
 
 
 typedef ngx_int_t (*ngx_http_modsecurity_resolv_header_pt)(ngx_http_request_t *r, ngx_str_t name, off_t offset);
@@ -456,6 +476,8 @@ int ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_htt
 ngx_int_t ngx_http_modsecurity_capture_request_body_intervention(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_create_ctx(ngx_http_request_t *r);
 ngx_http_modsecurity_ctx_t *ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r);
+ngx_int_t ngx_http_modsecurity_prepare_location(ngx_http_request_t *r,
+    const ngx_http_modsecurity_conf_t *mcf);
 char *ngx_str_to_char(ngx_str_t a, ngx_pool_t *p);
 int ngx_http_modsecurity_contract_begin(ngx_http_modsecurity_ctx_t *ctx,
     enum msconnector_phase phase);
@@ -500,12 +522,18 @@ ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
         value = ngx_str_to_char(r->method_name, r->pool);
         if (value != (char *)-1 && value != NULL) {
             metadata.method = value;
+        } else if (r->connection != NULL) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "modsecurity optional event method metadata allocation failed");
         }
     }
     if (r->unparsed_uri.len > 0U) {
         value = ngx_str_to_char(r->unparsed_uri, r->pool);
         if (value != (char *)-1 && value != NULL) {
             metadata.uri = value;
+        } else if (r->connection != NULL) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "modsecurity optional event uri metadata allocation failed");
         }
     }
     if (r->headers_in.content_type != NULL &&
@@ -513,6 +541,9 @@ ngx_http_modsecurity_event_request_metadata(ngx_http_request_t *r)
         value = ngx_str_to_char(r->headers_in.content_type->value, r->pool);
         if (value != (char *)-1 && value != NULL) {
             metadata.content_type = value;
+        } else if (r->connection != NULL) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "modsecurity optional event content_type metadata allocation failed");
         }
     }
 
@@ -612,8 +643,9 @@ ngx_http_modsecurity_write_event_jsonl(
     return 1;
 }
 
-/* Phase 3/4 evidence writes are enforcement-relevant: unlike request-event
- * logging, serialization, write, and short-write failures must propagate. */
+/* Diagnose Phase 3/4 serialization and write failures without mutating the
+ * transaction. Each caller owns whether its event is enforcement-relevant or
+ * optional; late Safe rule events and native-call observations are optional. */
 static ngx_inline ngx_int_t
 ngx_http_modsecurity_write_phase_event_jsonl(
     ngx_http_request_t *r, const ngx_http_modsecurity_conf_t *mcf,
@@ -684,6 +716,8 @@ void ngx_http_modsecurity_log(void *log, const void* data);
 void ngx_http_modsecurity_log_rule_match_event(ngx_http_request_t *r,
     enum msconnector_phase phase, const char *rule_id);
 ngx_int_t ngx_http_modsecurity_log_handler(ngx_http_request_t *r);
+ngx_int_t ngx_http_modsecurity_log_context(ngx_http_modsecurity_ctx_t *ctx);
+ngx_int_t ngx_http_modsecurity_log_request_contexts(ngx_http_request_t *r);
 
 /* ngx_http_modsecurity_access.c */
 ngx_int_t ngx_http_modsecurity_access_handler(ngx_http_request_t *r);

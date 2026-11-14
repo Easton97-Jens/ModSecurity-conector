@@ -47,6 +47,64 @@ Not implemented:
   post-suppression Memcheck artifact below is pre-hardening, noncanonical
   historical evidence, not final proof of the current connector or harness.
 
+## Redirect, audit and response-event behavior
+
+Native transactions are owned by the creating request, configuration and pool.
+Ordinary internal redirects reuse a healthy transaction only when the effective
+rules and connector settings agree. A location with local rules or different
+settings receives its own transaction; `modsecurity off` disables inspection in
+the destination. Every created transaction owns one native audit attempt before
+cleanup, including transactions hidden by a later redirect. An attempted audit
+write is never retried or claimed to have succeeded after a native failure.
+
+A request-phase WAF block records the configured local `error_page` destination
+and status. Only the matching internal error-page route can reuse that blocked
+transaction without running the preserved hostile header through the rules
+again. A generic internal redirect or `error_page` flag grants no exemption.
+The original native audit transaction retains its block status even when the
+configured page changes the client response status.
+
+After response commit, a late Phase-4 rule intervention in `safe` continues the
+response with the visible status unchanged. Failure of its optional event
+serialization, event-only metadata allocation, write or short write is diagnosed
+without sealing a transaction error or setting the connection error flag.
+Pure append/completion observation events are also warning-only. `strict` still
+aborts for a late rule intervention when the event sink fails. Engine processing,
+body-buffer allocation, file-read, malformed-input and native limit failures
+remain terminal; no mode sends a second HTTP response after commit.
+
+Response observation counters, including the Common response-byte contract,
+use saturating `uint64_t` arithmetic at `UINT64_MAX`. They describe bytes supplied
+to the Engine, with retained bytes reported separately. Saturation never creates
+an inspection or delivery limit; request limits and host buffer/file checks
+remain independent. File-backed data is streamed in bounded chunks without
+narrowing a whole file length to `size_t`.
+
+When a response has been replaced, original body buffers are consumed. Only
+separate control buffers carry flush/sync and request-appropriate termination
+downstream; original empty data links are not forwarded. Repeated callbacks
+cannot send the termination twice. NULL callbacks drain pending downstream
+output; an empty replacement callback with no buffered work returns harmlessly.
+
+Native response-limit `Reject` is recognized at the validated append boundary,
+before EOS rule evaluation, using the rule-free disruptive 403 shape. It does
+not depend on English log prose. Unexpected append interventions and actual
+Engine errors remain failures. `ProcessPartial` remains nonfatal.
+
+Duplicate `modsecurity_phase4_mode` directives in one context are rejected.
+Children may inherit or explicitly override `off`, `safe` or `strict`.
+
+Rule IDs are extracted only from the complete ordered libModSecurity metadata
+record, including its hexadecimal escapes and optional error-log tail. Missing,
+malformed or ambiguous records leave the ID unknown; free matched text never
+supplies a substitute ID. Where a decision requires correlation, an unknown ID
+fails closed. The supported C callback exposes text; newer logged-rule-ID lists
+lack causal disruptive-rule attribution and are not used to guess the ID.
+
+Focused compiled tests and native host observations are recorded separately in
+[CR-20261114-nginx-fzipi-review](../../reports/audits/change-records/CR-20261114-nginx-fzipi-review.md).
+They do not promote other protocols or the full historical matrix.
+
 ## HTTP/3 authority and inspected Host
 
 The adapter addresses [upstream issue #401](https://github.com/owasp-modsecurity/ModSecurity-nginx/issues/401)
@@ -328,7 +386,9 @@ identify one administrator-defined host/campaign process; a separate case ID
 on the same keepalive connection requires a separate NGINX process run.
 Invalid provenance retains the existing call-site semantics: the request
 metadata writer logs a warning and reports no successful write, while the
-enforcement-relevant P3/P4 writer returns `NGX_ERROR`.
+P3/P4 writer returns `NGX_ERROR`. The caller diagnoses optional P4
+observation and late Safe event failures and continues; enforcement/control
+failures retain their terminal semantics.
 
 `modsecurity_engine_call_budget_ms` accepts decimal milliseconds in `http`,
 `server`, and `location`. Children inherit the parent value; default `0`

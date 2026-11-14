@@ -2,6 +2,10 @@
 
 **Language:** English | [Deutsch](nginx.de.md)
 
+Internal redirect ownership, exactly-once native audit attempts, targeted WAF
+error pages, optional late Safe events and saturating response observations are
+described in the [connector behavior contract](../../connectors/nginx/README.md#redirect-audit-and-response-event-behavior).
+
 ## Overview
 
 NGINX uses the selected <code>native-nginx-http-module</code> route. The

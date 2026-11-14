@@ -226,6 +226,15 @@ static int msc_envoy_ext_proc_finish_body(
         return msc_envoy_ext_proc_fail(transaction, runtime_error.code,
             error, error_len);
     }
+    /* The bridge decision has no native body-limit discriminator. Do not
+     * turn a valid response Reject into the late Safe rule path in Go. The
+     * caller must receive a typed engine failure before it can emit Continue.
+     * process_body marks every response range committed before native append,
+     * including empty EOS; a genuine append-time Reject is therefore late. */
+    if (response_direction && msconnector_decision_is_body_limit(&native_decision)) {
+        return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+            error, error_len);
+    }
     *finished = 1;
     transaction->terminal = native_decision.disruptive != 0;
     msc_envoy_ext_proc_remember_disruptive_decision(transaction, &native_decision);

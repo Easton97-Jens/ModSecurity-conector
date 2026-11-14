@@ -212,8 +212,12 @@ The selected scope does not assert gzip/br, HTTP/2, or every file/zero-copy
 output route. The current harness does not execute streaming P4 traffic, and
 there is no real-client proof of a visible safe result, a precommit deny,
 first-byte delivery, or a strict connection abort. The source path records a
-safe disruptive outcome as `log_only`. Off preserves native handling without
-the additional late policy. The patched ABI defines `PLUGIN_BODY_HOOK_ABORT`,
+late Safe rule intervention after healthy P4 completion as `log_only`.
+Native Reject and technical/API/audit failures are excluded; optional event
+logging failure alone does not abort the response or replace native
+audit/cleanup. The [shared transaction contract](../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events)
+defines that exception. Off preserves native handling without the additional
+late policy. The patched ABI defines `PLUGIN_BODY_HOOK_ABORT`,
 but the current committed-Strict branch logs `NOT EXECUTED` and returns
 `PLUGIN_BODY_HOOK_CONTINUE`; it does not establish a transport abort. The shared
 runtime rejects Strict at adapter activation because this profile does not

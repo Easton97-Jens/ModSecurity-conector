@@ -448,6 +448,50 @@ ngx_http_modsecurity_process_redirect_intervention(ngx_http_request_t *r,
     return intervention->status;
 }
 
+/* Capture the exact configured local error-page destination before core
+ * changes locations. A later error_page flag alone never authorizes bypass. */
+static void
+ngx_http_modsecurity_capture_error_page(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, ngx_int_t status)
+{
+    ngx_http_core_loc_conf_t *clcf;
+    ngx_http_err_page_t *pages;
+    ngx_str_t target;
+    const u_char *args;
+
+    if (ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+        (ctx->native_event_phase != MSCONNECTOR_PHASE_REQUEST_HEADERS &&
+         ctx->native_event_phase != MSCONNECTOR_PHASE_REQUEST_BODY) ||
+        (ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_BLOCK &&
+         ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT)) {
+        return;
+    }
+    clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+    if (clcf == NULL || clcf->error_pages == NULL) {
+        return;
+    }
+    pages = clcf->error_pages->elts;
+    for (ngx_uint_t index = 0; index < clcf->error_pages->nelts; ++index) {
+        if (pages[index].status != status) {
+            continue;
+        }
+        if (ngx_http_complex_value(r, &pages[index].value, &target) != NGX_OK ||
+            target.len == 0U || target.data == NULL ||
+            (target.data[0] != '/' && target.data[0] != '@')) {
+            return;
+        }
+        args = ngx_strlchr(target.data, target.data + target.len, '?');
+        if (args != NULL) {
+            target.len = (size_t)(args - target.data);
+        }
+        ctx->error_page.target = target;
+        ctx->error_page.status = status;
+        ctx->error_page.response_status = pages[index].overwrite >= 0
+            ? pages[index].overwrite : status;
+        return;
+    }
+}
+
 static int
 ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
     ngx_http_modsecurity_ctx_t *ctx, const ModSecurityIntervention *intervention,
@@ -456,6 +500,7 @@ ngx_http_modsecurity_process_status_intervention(ngx_http_request_t *r,
     /* Preserve the intervention status in the audit log when an NGINX
      * error-page redirect changes the later response lifecycle. */
     msc_update_status_code(ctx->modsec_transaction, intervention->status);
+    ngx_http_modsecurity_capture_error_page(r, ctx, intervention->status);
 
     if (early_log) {
         dd("intervention -- calling log handler manually with code: %d",
@@ -644,11 +689,14 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
     ctx->native_response_body_limit_rejection =
         ngx_http_modsecurity_is_response_body_limit_rejection(
             ctx->native_event_phase, &common_intervention,
-            ctx->last_intervention_rule_id) != 0;
+            ctx->last_intervention_rule_id,
+            ctx->native_response_body_append_active &&
+                ctx->contract.last_completed_phase != MSCONNECTOR_PHASE_RESPONSE_BODY,
+            ctx->native_response_body_eos) != 0;
 
     /* Response rules are evaluated by process_response_body at Engine EOS.
      * Do not turn an unexpected append-time rule into a fabricated completed
-     * Safe intervention. Only the exact native limit failure is valid here. */
+     * Safe intervention. Only a validated append-boundary limit is valid here. */
     if (ctx->native_event_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         ctx->contract.last_completed_phase != MSCONNECTOR_PHASE_RESPONSE_BODY &&
         !ctx->native_response_body_limit_rejection) {
@@ -710,7 +758,7 @@ ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
     const char *event_name;
 
     if (r == NULL || r->connection == NULL || ctx == NULL) return NGX_ERROR;
-    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    mcf = ctx->lifetime.conf;
     if (mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
     switch (cause) {
@@ -732,7 +780,13 @@ ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
         event_name = "connector_error";
         break;
     }
-    metadata = ngx_http_modsecurity_event_request_metadata(r);
+    if (r->pool != NULL) {
+        metadata = ngx_http_modsecurity_event_request_metadata(r);
+    } else {
+        metadata.method = ctx->lifetime.cleanup_method;
+        metadata.uri = ctx->lifetime.cleanup_uri;
+        metadata.content_type = "";
+    }
     msconnector_event_init(&event);
     event.meta.message_id = message_id;
     event.meta.level = msconnector_event_default_level(message_id);
@@ -768,7 +822,7 @@ ngx_http_modsecurity_snapshot_cleanup_metadata(ngx_http_modsecurity_ctx_t *ctx)
 {
     ngx_http_request_t *r = ctx->r;
     ngx_str_t values[2];
-    const char **outputs[2] = { &ctx->cleanup_method, &ctx->cleanup_uri };
+    const char **outputs[2] = { &ctx->lifetime.cleanup_method, &ctx->lifetime.cleanup_uri };
     const char *value;
 
     if (r == NULL || r->pool == NULL) return NGX_ERROR;
@@ -800,7 +854,7 @@ ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
     if (r == NULL || r->connection == NULL) {
         return;
     }
-    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    mcf = ctx->lifetime.conf;
     if (mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
         return;
@@ -816,8 +870,8 @@ ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
     event.meta.integration_mode = "native-nginx-http-module";
     event.meta.transaction_id = ctx->event_transaction_id.len > 0U
         ? (const char *)ctx->event_transaction_id.data : "";
-    event.request.method = ctx->cleanup_method;
-    event.request.uri = ctx->cleanup_uri;
+    event.request.method = ctx->lifetime.cleanup_method;
+    event.request.uri = ctx->lifetime.cleanup_uri;
     if (ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
         "cleanup") != NGX_OK) {
         /* Cleanup has already completed; its void host hook cannot replace
@@ -840,6 +894,12 @@ ngx_http_modsecurity_cleanup(void *data)
 
     if (ctx == NULL) {
         return;
+    }
+
+    /* Every created native transaction owns one audit attempt, even if a
+     * redirect replaced its module context or the log phase was skipped. */
+    if (ctx->modsec_transaction != NULL) {
+        (void)ngx_http_modsecurity_log_context(ctx);
     }
 
     observed_contract = ctx->contract_initialized;
@@ -891,12 +951,14 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         return NULL;
     }
     ctx->r = r;
+    ctx->lifetime.pool = r->pool;
     if (ngx_http_modsecurity_snapshot_cleanup_metadata(ctx) != NGX_OK) {
         return NULL;
     }
 
     mmcf = ngx_http_get_module_main_conf(r, ngx_http_modsecurity_module);
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    ctx->lifetime.conf = mcf;
 
     dd("creating transaction with the following rules: '%p' -- ms: '%p'", mcf->rules_set, mmcf->modsec);
 
@@ -967,10 +1029,10 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     if (ctx->event_transaction_id.len > 0U) {
         ctx->modsec_transaction = msc_new_transaction_with_id(mmcf->modsec,
             mcf->rules_set, (char *) ctx->event_transaction_id.data,
-            r);
+            ctx);
     } else {
         ctx->modsec_transaction = msc_new_transaction(mmcf->modsec,
-            mcf->rules_set, r);
+            mcf->rules_set, ctx);
     }
 
     if (ctx->modsec_transaction == NULL) {
@@ -1016,25 +1078,145 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
     return ctx;
 }
 
-ngx_inline ngx_http_modsecurity_ctx_t *
+static int
+ngx_http_modsecurity_same_policy(const ngx_http_modsecurity_conf_t *left,
+    const ngx_http_modsecurity_conf_t *right)
+{
+    return left != NULL && right != NULL &&
+        left->rules_identity == right->rules_identity &&
+        left->enable == right->enable &&
+        left->use_error_log == right->use_error_log &&
+        left->transaction_id == right->transaction_id &&
+        left->phase4_mode == right->phase4_mode &&
+        left->phase4_log_file == right->phase4_log_file &&
+        left->engine_call_budget_ms == right->engine_call_budget_ms
+#if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
+        && left->sanity_checks_enabled == right->sanity_checks_enabled
+#endif
+        ;
+}
+
+static int
+ngx_http_modsecurity_is_block_error_page(const ngx_http_request_t *r,
+    const ngx_http_modsecurity_ctx_t *ctx)
+{
+    const ngx_http_core_loc_conf_t *clcf;
+    ngx_str_t target;
+
+    if (!r->internal || ctx->r != r || !ctx->intervention_triggered ||
+        ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+        ctx->error_page.target.len == 0U ||
+        ctx->error_page.response_status != (ngx_int_t)r->err_status ||
+        ctx->error_page.status != ctx->last_intervention_status ||
+        (ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_BLOCK &&
+         ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT)) {
+        return 0;
+    }
+    target = r->uri;
+    if (ctx->error_page.target.data[0] == '@') {
+        clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+        if (clcf == NULL || !clcf->named) {
+            return 0;
+        }
+        target = clcf->name;
+    }
+    return target.len == ctx->error_page.target.len &&
+        ngx_strncmp(target.data, ctx->error_page.target.data, target.len) == 0;
+}
+
+/* A changed or disabled target owns no response phases of the source
+ * policy. Retire that finite scope explicitly before selecting its new owner. */
+ngx_int_t
+ngx_http_modsecurity_prepare_location(ngx_http_request_t *r,
+    const ngx_http_modsecurity_conf_t *mcf)
+{
+    ngx_http_modsecurity_ctx_t *ctx;
+
+    if (r == NULL || r->pool == NULL) {
+        return NGX_ERROR;
+    }
+    for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
+        if (cln->handler != &ngx_http_modsecurity_cleanup || cln->data == NULL) {
+            continue;
+        }
+        ctx = cln->data;
+        if (ctx->r != r || ctx->modsec_transaction == NULL ||
+            ctx->request_policy_superseded || ctx->intervention_triggered ||
+            ctx->logged || ctx->request_error_status != 0 ||
+            ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+            ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_ALLOW ||
+            ngx_http_modsecurity_same_policy(ctx->lifetime.conf, mcf)) {
+            continue;
+        }
+        if (msconnector_transaction_contract_supersede_response(&ctx->contract, 0U) !=
+            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
+            return NGX_ERROR;
+        }
+        ctx->request_policy_superseded = 1;
+    }
+    return NGX_OK;
+}
+
+ngx_http_modsecurity_ctx_t *
 ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r)
 {
     ngx_http_modsecurity_ctx_t *ctx;
+    const ngx_http_modsecurity_conf_t *mcf;
+
+    if (r == NULL || r->pool == NULL) {
+        return NULL;
+    }
+    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    if (mcf == NULL || mcf->enable != 1) {
+        return NULL;
+    }
     ctx = ngx_http_get_module_ctx(r, ngx_http_modsecurity_module);
-    if (ctx == NULL) {
-        /*
-         * refer <nginx>/src/http/modules/ngx_http_realip_module.c
-         * if module context was reset, the original address
-         * can still be found in the cleanup handler
-         */
-        for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
-            if (cln->handler == &ngx_http_modsecurity_cleanup) {
-                ctx = cln->data;
-                break;
-            }
+    if (ctx != NULL && ctx->r == r && ctx->modsec_transaction != NULL &&
+        !ctx->request_policy_superseded &&
+        (ngx_http_modsecurity_same_policy(ctx->lifetime.conf, mcf) ||
+         ngx_http_modsecurity_is_block_error_page(r, ctx))) {
+        return ctx;
+    }
+    for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
+        if (cln->handler != &ngx_http_modsecurity_cleanup || cln->data == NULL) {
+            continue;
+        }
+        ctx = cln->data;
+        /* Subrequests may share this pool; they never inherit another
+         * request's transaction or error-page exemption. */
+        if (ctx->r == r && ctx->modsec_transaction != NULL &&
+            ((!ctx->intervention_triggered && !ctx->logged &&
+              !ctx->request_policy_superseded && ctx->request_error_status == 0 &&
+              ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+              ctx->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_ALLOW &&
+              ngx_http_modsecurity_same_policy(ctx->lifetime.conf, mcf)) ||
+             ngx_http_modsecurity_is_block_error_page(r, ctx))) {
+            ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module)
+            return ctx;
         }
     }
-    return ctx;
+    return NULL;
+}
+
+ngx_int_t
+ngx_http_modsecurity_log_request_contexts(ngx_http_request_t *r)
+{
+    ngx_int_t result = NGX_OK;
+    ngx_http_modsecurity_ctx_t *ctx;
+
+    if (r == NULL || r->pool == NULL) {
+        return NGX_ERROR;
+    }
+    for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
+        if (cln->handler != &ngx_http_modsecurity_cleanup || cln->data == NULL) {
+            continue;
+        }
+        ctx = cln->data;
+        if (ctx->r == r && ngx_http_modsecurity_log_context(ctx) != NGX_OK) {
+            result = NGX_ERROR;
+        }
+    }
+    return result;
 }
 
 char *
@@ -1064,6 +1246,7 @@ ngx_conf_set_rules(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         dd("Failed to load the rules: '%s' - reason: '%s'", rules, error);
         return strdup(error);
     }
+    mcf->rules_configured = 1;
 
     mmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_modsecurity_module);
     mmcf->rules_inline += res;
@@ -1099,6 +1282,7 @@ ngx_conf_set_rules_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         dd("Failed to load the rules from: '%s' - reason: '%s'", rules_set, error);
         return strdup(error);
     }
+    mcf->rules_configured = 1;
 
     mmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_modsecurity_module);
     mmcf->rules_file += res;
@@ -1159,6 +1343,9 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
+    if (mcf->phase4_mode != NGX_CONF_UNSET_UINT) {
+        return "is duplicate";
+    }
     const ngx_str_t *value = cf->args->elts;
     const char *mode = ngx_str_to_char(value[1], cf->pool);
     enum msconnector_phase4_mode parsed;
@@ -1530,6 +1717,7 @@ ngx_http_modsecurity_create_conf(ngx_conf_t *cf)
     msconnector_config_init(&conf->common_config);
     conf->enable = NGX_CONF_UNSET;
     conf->rules_set = msc_create_rules_set();
+    conf->rules_identity = conf;
     conf->pool = cf->pool;
     conf->transaction_id = NGX_CONF_UNSET_PTR;
     conf->use_error_log = NGX_CONF_UNSET;
@@ -1622,6 +1810,9 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (rules < 0) {
         return strdup(error);
+    }
+    if (!c->rules_configured) {
+        c->rules_identity = p->rules_identity;
     }
 
 #if defined(MODSECURITY_DDEBUG) && (MODSECURITY_DDEBUG)

@@ -388,10 +388,18 @@ Der native Filter schreibt begrenzte Common-JSONL-Metadaten für disruptive nati
 Entscheidungen und technische Ursachen. Bodybytes, Header, URI und nativer
 Logtext sind ausgeschlossen. Normales Allow erzeugt kein erfundenes
 Entscheidungsevent. Ein Mutex schützt den konfigurierten Stream; Serialisierung,
-`fputs`, `ferror`, `fflush` und `fclose` werden geprüft, der erste Sinkfehler bleibt
-erhalten und nachfolgende Requests schlagen bei diesem Sinkfehler fail-closed
-fehl. Ein fehlgeschlagener nativer Entscheidungsschreibvorgang erhält seine
-beobachtete Phase und eine frühere technische Ursache. Close verbraucht den
+`fputs`, `ferror`, `fflush` und `fclose` werden geprüft. Der erste verpflichtende
+Sinkfehler bleibt erhalten; nachfolgende Requests schlagen bei diesem Fehler
+fail-closed fehl. Nur ein gesundes, abgeschlossenes und bereits committetes
+spätes Safe-P4-Regelereignis besitzt die
+[Ausnahme für optionale Ereignisse](../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse):
+Sink-, Serialisierungs- oder reine Ereignisallokationsfehler bleiben Warnungen,
+brechen die Response nicht ab und erzeugen keinen dauerhaften Verarbeitungsfehler.
+Natives Reject, Engine-/API-/Auditfehler und frühere verpflichtende Sinkfehler
+bleiben terminal; der unterstützte Strict-Abbruch bleibt auch bei
+fehlgeschlagenem Ereignisschreiben erforderlich. Ein fehlgeschlagener
+verpflichtender nativer Entscheidungsschreibvorgang erhält seine beobachtete
+Phase und eine frühere technische Ursache. Close verbraucht den
 eigenen Stream einmal. Erfolgreiches Flush belegt die Streamannahme, keine
 dauerhafte Speicherung oder Clientzustellung. Die native Filter-Deinitialisierung
 kann einen Close-Fehler melden, aber über ihren void-Callback keinen

@@ -146,23 +146,33 @@ PassthroughEngine nur für Protobuf/Unit-Entwicklung und lehnt eine Laufzeit ab
 config. Der normale Build erfordert lokale libmodsecurity-Header und -Bibliotheken
 Pfade und verknüpft dann Common Runtime mit der ausführbaren Datei ext_proc.
 
-Der Dienst verwendet die konservative Antwort-Commit-Grenze: nur eine erfolgreiche
-Antwortheader `CONTINUE` send markiert eine Antwort als festgeschrieben. Für eine disruptive
-Entscheidung später gefunden:
+Der Dienst verwendet die konservative Response-Commit-Grenze: Erst das
+erfolgreiche Senden von Response-Header-`CONTINUE` markiert die Response als
+committet. Für eine echte Regelintervention nach gesundem P4-Abschluss gilt:
 
 - `off` bewahrt die native Interventionsbehandlung ohne zusätzliche Late-Policy;
-- `safe` zeichnet ein echtes Common-Host-Ergebnis `log_only` auf
-  und setzen die Antwort mit ihrem ursprünglichen sichtbaren Status fort;
-- `strict` sendet eine späte ImmediateResponse über den angehefteten nativen
-  Envoy-Local-Reply-Pfad. Das ausgewählte Profil lässt diese Aktion zu; der
-  erfolgreiche Send wird als `strict_immediate_response_sent` getrennt vom
-  Downstream-Resetnachweis erfasst.
+- `safe` zeichnet ein echtes Common-Host-Ergebnis `log_only` auf und setzt die
+  Response mit ihrem ursprünglichen sichtbaren Status fort. Ausschließlich
+  optionales Ereignislogging betreffende Fehler werden ohne Änderung dieses
+  Ergebnisses diagnostiziert;
+- `strict` übermittelt eine ext_proc-`ImmediateResponse` über Envoys nativen
+  Local-Reply-Pfad. Das ausgewählte Profil `envoy-ext-proc` deklariert
+  `strict_post_commit_action=1`; die Common Runtime verweigert Strict für ein
+  ausgewähltes Profil mit `strict_post_commit_action=0`.
 
-Der angeheftete Host setzt bei diesem Local Reply einen bereits committeten
-HTTP-Stream zurück. Der Framework-H2-Adapter muss den exakten Targetreset und
-gesunden gleichzeitigen Peer/Folgezugriff unabhängig beobachten. Ein gRPC-Fehler
-ist kein HTTP-Reset-Ersatz. Ein
-abgebrochener gRPC-Kontext und ein beobachteter gRPC-Peer-EOF werden als
+`strict_immediate_response_requested` und `strict_immediate_response_sent`
+dokumentieren die angeforderte Aktion und einen erfolgreichen gRPC-Sendevorgang.
+Ein nachgelagerter Stream-Reset erfordert unabhängige Host-/Wire-Evidence für
+den ausgewählten Envoy-Build und das Protokoll, einschließlich exaktem Target
+und gesundem gleichzeitigem Peer/Folgezugriff. Ein erfolgreicher Sendevorgang
+ist keine Beobachtung eines Downstream-Resets.
+
+Natives Reject und Engine-/API-/Verarbeitungs-/Auditfehler bleiben Fehler,
+keine Safe-Regelereignisse; natives Audit und Cleanup bleiben erforderlich.
+Die genaue Grenze optionaler Ereignisse steht im
+[gemeinsamen Transaktionsvertrag](../../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse).
+
+Ein abgebrochener gRPC-Kontext und ein beobachteter gRPC-Peer-EOF werden als
 `grpc_context_canceled_unattributed` beziehungsweise `grpc_peer_eof` erfasst;
 keines dieser Labels darf als Downstream- oder Upstream-Reset interpretiert
 werden.

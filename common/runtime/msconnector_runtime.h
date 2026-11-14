@@ -79,18 +79,22 @@ typedef struct msconnector_runtime_response_companion_session {
  * bytes_retained is the SDK-owned prefix and does not prove evaluation.
  * bytes_inspected remains zero (unknown/unproven): the C API cannot establish
  * whether retained bytes were inspected, even after successful P2/EOS.
- * Zero is not proof that inspection was disabled. For responses,
+ * Zero is not proof that inspection was disabled. Request arithmetic remains
+ * bounded by SIZE_MAX and the configured request safety controls. Response
+ * observations saturate at UINT64_MAX without imposing a delivery limit.
+ * For responses,
  * bytes_inspected means bytes offered to the native engine; it does not expose
  * the engine-owned ProcessPartial inspection prefix.
  */
 typedef struct msconnector_runtime_body_progress {
-    size_t bytes_seen;
-    size_t bytes_inspected;
+    uint64_t bytes_seen;
+    uint64_t bytes_inspected;
     int truncated;
     int finished;
     msconnector_body_limit_outcome limit_outcome;
-    /* Appended to preserve the offsets of existing progress fields. */
-    size_t bytes_retained;
+    /* Retained native request prefix; it remains independent of response
+     * observation counters and never owns payload storage. */
+    uint64_t bytes_retained;
 } msconnector_runtime_body_progress;
 
 /* A bounded, payload-free copy of the Common-owned transaction state. */

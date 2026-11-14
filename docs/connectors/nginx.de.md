@@ -2,6 +2,10 @@
 
 **Sprache:** [English](nginx.md) | Deutsch
 
+Kontextbesitz bei internen Redirects, genau einmal versuchte native Audits,
+gezielte WAF-Fehlerseiten, optionale späte Safe-Events und sättigende
+Response-Beobachtungen beschreibt der [Verhaltensvertrag des Connectors](../../connectors/nginx/README.de.md#verhalten-bei-redirects-audit-abschluss-und-response-ereignissen).
+
 ## Überblick
 
 NGINX verwendet den ausgewählten Pfad <code>native-nginx-http-module</code>.

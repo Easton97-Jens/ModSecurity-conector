@@ -3,30 +3,25 @@
 
 #include "msconnector/intervention.h"
 #include <stddef.h>
-#include <string.h>
 
-/* libModSecurity's native SecResponseBodyLimitAction Reject intervention is
- * rule-ID-free. Recognize only its exact observed signature; all other
- * interventions must retain the ordinary rule-ID validation contract.
- * The log is a valid Engine-owned NUL-terminated string. Compare at most
- * sizeof(expected) bytes, including the terminator, to reject suffixes. */
+/* The supported libModSecurity appendResponseBody contract evaluates no
+ * response rules: its only new disruptive result is native limit Reject.
+ * The caller drains earlier phases, enters this boundary only after a valid
+ * append result, and clears it before EOS rule evaluation. Require the native
+ * rule-free 403 shape as well; unexpected interventions remain engine errors.
+ * Free-text log content is deliberately not part of the classification. */
 static inline int
 ngx_http_modsecurity_is_response_body_limit_rejection(
     enum msconnector_phase phase,
     const msconnector_intervention *intervention,
-    const char *rule_id)
+    const char *rule_id, int append_active, int body_eos)
 {
-    static const char expected[] =
-        "Response body limit is marked to reject the request";
-
-    return intervention != NULL &&
+    return append_active && !body_eos && intervention != NULL &&
         phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
         intervention->disruptive == 1 &&
         intervention->status == 403 &&
         intervention->redirect_url == NULL &&
-        (rule_id == NULL || rule_id[0] == '\0') &&
-        intervention->log_message != NULL &&
-        strncmp(intervention->log_message, expected, sizeof(expected)) == 0;
+        (rule_id == NULL || rule_id[0] == '\0');
 }
 
 #endif

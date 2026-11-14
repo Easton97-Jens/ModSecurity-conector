@@ -138,23 +138,32 @@ config. The normal build requires local libmodsecurity headers and library
 paths, then links Common Runtime into the ext_proc executable.
 
 The service uses the conservative response-commit boundary: only a successful
-response-header `CONTINUE` send marks a response as committed. For a disruptive
-decision found later:
+response-header `CONTINUE` send marks a response as committed. For a genuine
+rule intervention after healthy P4 completion:
 
 - `off` preserves native intervention handling without the additional late policy;
-- `safe` records a real Common host outcome `log_only` and
-  continue with the original visible response status;
-- `strict` sends a late ImmediateResponse through the pinned Envoy local-reply
-  path. The selected profile admits this action; successful send is recorded as
-  `strict_immediate_response_sent`, separately from downstream reset evidence.
+- `safe` records a real Common host outcome `log_only` and continues with the
+  original visible response status. Failure confined to optional event logging
+  is diagnosed without changing that result;
+- `strict` submits an ext_proc `ImmediateResponse` through Envoy's native
+  local-reply path. The selected `envoy-ext-proc` profile declares
+  `strict_post_commit_action=1`; Common Runtime rejects Strict for a selected
+  profile with `strict_post_commit_action=0`.
 
-The pinned host resets an already-committed HTTP stream on that local reply.
-The Framework H2 adapter must independently observe the exact target reset and
-healthy simultaneous peer/follow-up. A gRPC error is not an HTTP-reset surrogate.
-A canceled gRPC context and
-an observed gRPC peer EOF are recorded respectively as
-`grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can be
-treated as a downstream client reset or an upstream reset.
+`strict_immediate_response_requested` and `strict_immediate_response_sent`
+record the requested action and a successful gRPC send. Establishing a
+downstream stream reset requires independent host/wire evidence for the selected
+Envoy build and protocol, including the exact target and healthy simultaneous
+peer/follow-up. A successful send is not a downstream reset observation.
+
+Native Reject and engine/API/processing/audit failures remain errors, not Safe
+rule events; native audit and cleanup stay required. See the
+[shared transaction contract](../../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events)
+for the precise optional-event boundary.
+
+A canceled gRPC context and an observed gRPC peer EOF are recorded respectively
+as `grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can
+be treated as a downstream client reset or an upstream reset.
 
 The active-stream cap is aggregate resource containment, not an idle deadline:
 a valid but silent admitted stream retains one bounded slot until Envoy sends a
