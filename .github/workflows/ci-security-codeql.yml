@@ -122,11 +122,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: actions
           build-mode: none
-      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
 
   envoy-go:
     needs: trusted-go-version
@@ -145,14 +145,14 @@ jobs:
           cache-dependency-path: |
             connectors/envoy/ext_proc/go.mod
             connectors/envoy/ext_proc/go.sum
-      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: go
           build-mode: manual
       - name: Build Envoy Go module
         working-directory: connectors/envoy/ext_proc
         run: go build ./...
-      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
 
   traefik-go:
     needs: trusted-go-version
@@ -205,7 +205,7 @@ jobs:
             --connector-root "$connector_root" \
             --connector-revision "$connector_revision" \
             --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
-      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: go
           build-mode: manual
@@ -214,7 +214,7 @@ jobs:
         run: go build ./...
       - name: Execute inventoried Traefik parser and cancellation security regressions
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --module connectors/traefik/native_middleware
-      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
 
   bounded-c-cpp:
     runs-on: ubuntu-26.04
@@ -264,10 +264,10 @@ jobs:
             --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
       - name: Execute inventoried Common parser and memory security regressions
         run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group common
-      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: c-cpp
           build-mode: manual
       - name: Build bounded C17 common helper scope
         run: make build-codeql-common-scope
-      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

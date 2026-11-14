@@ -57,4 +57,15 @@ Hosted-Analysen am endgültigen Head und die vollständige Regression mit 92 Hos
 
 ## Finaler Diff- und Review-Status
 
+Die Wartungsabstimmung vom 2026-11-14 erhält alle aktuellen Master-Toolupdates
+und wählt den geprüften Sonar-v8.4.1-Upstream über die unveränderte private
+Diagnose-Action. Der native Publisher rekonstruiert den exakt bekannten
+vorherigen privaten v8.4.0-Schritt ausschließlich aus vertrauenswürdigen
+Git-Basis-Blobs; Arbeitskopie-Aufrufer müssen bereits den aktuellen Vertrag
+erfüllen. Unbekannte oder veränderte Blöcke, doppelte Rollen und Verletzungen
+des früheren Reportvertrags bleiben abgewiesen. Die echte Git-Fixture-Regression
+gehört zum Framework. Native Synchronisierung, fokussierte Ergebnisse und die
+spätere Gitlink-Zulassung belegt der koordinierende Auftrag getrennt; dieser
+Hinweis behauptet weder ein Hosted-Analyseergebnis noch ein Laufzeitergebnis.
+
 Der fokussierte Workflow-Diff entfernt ausschließlich die falschen Branch-Zuordnungsargumente. Die Dokumentation beschreibt den daraus entstehenden Kontextvertrag. Abschlussbericht und PR-Beschreibungen müssen tatsächliche Lieferung, Validierung und verbleibende Blocker abgleichen; dieser Record behauptet nicht, dass das SonarCloud-Nullziel erreicht ist.

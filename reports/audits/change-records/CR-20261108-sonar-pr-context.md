@@ -57,4 +57,14 @@ Final-head hosted analyses and the full regression with 92 host executions, 237 
 
 ## Final diff and review status
 
+Maintenance reconciliation on 2026-11-14 preserves all current master tool
+updates and selects the reviewed Sonar v8.4.1 upstream through the unchanged
+private diagnostic action. The native publisher reconstructs the exact known
+previous private v8.4.0 step only from trusted Git base blobs; working callers
+must already satisfy the current contract. Unknown or altered blocks, duplicate
+roles and legacy report violations remain denied. Framework owns the genuine
+Git-fixture regression. Native synchronization, focused results and eventual
+gitlink admission remain separately evidenced by the coordinating task; no
+hosted analysis or runtime result is claimed by this note.
+
 The focused workflow diff removes only the incorrect branch-routing arguments. Documentation records the resulting context contract. The final report and PR descriptions must reconcile actual delivery, validation and remaining blockers; this record does not assert the SonarCloud zero goal is achieved.

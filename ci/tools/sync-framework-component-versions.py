@@ -1091,7 +1091,8 @@ def _render_framework_sha_projection_targets(
             source = _inline_caller_source(root, framework_sha, framework_object_root)
             replacement_text = _render_inline_caller(spec, text, old_sha, framework_sha, source)
         else:
-            replacement_text = _render_framework_workflow(spec, text, old_sha, framework_sha)
+            replacement_text = _render_framework_workflow(
+                spec, text, old_sha, framework_sha, trusted_base=originals is not None)
         rendered.append(RenderedTarget(target, data, replacement_text.encode("utf-8"), target_mode))
     return rendered
 
@@ -1152,7 +1153,22 @@ PRIVATE_SONAR_REFERENCE = (
 )
 
 
-def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str, str]:
+PRIVATE_SONAR_UPSTREAM = "SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1"
+PREVIOUS_PRIVATE_SONAR_UPSTREAM = "SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0"
+
+
+def _upgrade_previous_private_sonar_step(text: str, block: str, pattern: re.Pattern,
+                                        trusted_base: bool) -> str:
+    """Normalize only the complete known prior step in immutable base data."""
+    previous = block.replace(PRIVATE_SONAR_UPSTREAM, PREVIOUS_PRIVATE_SONAR_UPSTREAM)
+    matches = list(pattern.finditer(text))
+    if trusted_base and len(matches) == 1 and matches[0].group() == previous:
+        return text.replace(previous, block, 1)
+    return text
+
+
+def _private_sonar_projection_source(relative_path: str, text: str, *,
+                                     trusted_base: bool = False) -> tuple[str, str]:
     """Validate one exact data block without importing Framework executables.
 
     This source remains in the protected five-source Parent closure. The frozen
@@ -1172,7 +1188,7 @@ def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str
         with:
           scannerVersion: 8.2.0.6438
           owner-mode: parent-cpp${{ matrix.cpp }}
-          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+          upstream-action: """ + PRIVATE_SONAR_UPSTREAM + """
           args: >-
             -Dsonar.projectKey=${{ matrix.project }}
             -Dsonar.cfamily.reportingCppStandardOverride=c++${{ matrix.cpp }}
@@ -1184,13 +1200,14 @@ def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str
             -Dsonar.qualitygate.timeout=600
 """
     pattern = re.compile(r"(?m)^ {6}- name: Analyze exact revision and await Quality Gate\n(?:(?! {6}- ).*\n)*")
+    text = _upgrade_previous_private_sonar_step(text, block, pattern, trusted_base)
     matches = list(pattern.finditer(text))
     legacy_block = block.replace(
         "        uses: " + PRIVATE_SONAR_REFERENCE + "\n",
-        "        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+        "        uses: " + PRIVATE_SONAR_UPSTREAM + "\n",
     ).replace(
         "          owner-mode: parent-cpp${{ matrix.cpp }}\n"
-        "          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+        "          upstream-action: " + PRIVATE_SONAR_UPSTREAM + "\n",
         "",
     )
     legacy_report = r"""            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
@@ -1241,7 +1258,8 @@ def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str
 
 
 def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
-                               old_sha: str, new_sha: str) -> str:
+                               old_sha: str, new_sha: str, *,
+                               trusted_base: bool = False) -> str:
     """Project exact remote references, context inputs and registered early gates.
 
     Fixed file/count registries prevent discovery from expanding publication
@@ -1249,7 +1267,8 @@ def _render_framework_workflow(spec: FrameworkShaProjectionSpec, text: str,
     a no-op, so a stale, symbolic or independently changed pin fails closed.
     Historical proof identities and upstream NGINX/tool pins are not matched.
     """
-    text, frozen_sonar_block = _private_sonar_projection_source(spec.relative_path, text)
+    text, frozen_sonar_block = _private_sonar_projection_source(
+        spec.relative_path, text, trusted_base=trusted_base)
     uses = re.compile(
         r"(?m)^(?P<prefix>[ \t]*(?:-[ \t]+)?uses:[ \t]+"
         r"Easton97-Jens/ModSecurity-test-Framework/\.github/"

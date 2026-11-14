@@ -57,14 +57,14 @@ bestehende Connector-Consumer kein paralleles Lock-Schema benötigen.
 | Action | Version | Unveränderlicher Commit |
 | --- | --- | --- |
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `SonarSource/sonarqube-scan-action` | `v8.4.0` | `4d1dc0c91ee400dcf8a6dddf2f705ac36542e304` |
+| `SonarSource/sonarqube-scan-action` | `v8.4.1` | `e805d875275f728fac1885b413934be6d7c63f65` |
 | `actions/create-github-app-token` | `v3.3.0` | `64ab729a6294000f5aa4a4bc0b73d1f32bc45510` |
 | `actions/download-artifact` | `v8.0.2` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
 | `actions/github-script` | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` |
 | `actions/setup-go` | `v7.0.0` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` |
 | `actions/setup-python` | `v7.1.0` | `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0` |
 | `actions/upload-artifact` | `v7.0.2` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
-| `github/codeql-action` | `v4.39.1` | `9b3254085494b55a0f7c4c2b3d2d52cc712ce370` |
+| `github/codeql-action` | `v4.39.3` | `33d7b85da1a04171e211befe2c739303b9a4c066` |
 | `google/osv-scanner-action` | `v2.7.0` | `b1d267aea5211fa648d9d442fa64b90dbdcbdd36` |
 | `ossf/scorecard-action` | `v2.5.0` | `fa7117db83c52d787ae5a89f350999701505d78e` |
 
