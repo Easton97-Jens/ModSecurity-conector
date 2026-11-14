@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: read
       statuses: write
-    uses: Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-trusted-lighttpd-namespace.yml@2cc331d8bc4c86592afd7219ddeaba1e60dc0ced
+    uses: Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-trusted-lighttpd-namespace.yml@939d1718b7548a36ff7a550080ed8b811aad8a98
     with:
       target: ${{ inputs.target }}
       on_demand: ${{ inputs.on_demand }}

@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@2cc331d8bc4c86592afd7219ddeaba1e60dc0ced
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@939d1718b7548a36ff7a550080ed8b811aad8a98
         with:
-          framework-revision: 2cc331d8bc4c86592afd7219ddeaba1e60dc0ced
+          framework-revision: 939d1718b7548a36ff7a550080ed8b811aad8a98
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@2cc331d8bc4c86592afd7219ddeaba1e60dc0ced
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@939d1718b7548a36ff7a550080ed8b811aad8a98
         with:
-          framework-revision: 2cc331d8bc4c86592afd7219ddeaba1e60dc0ced
+          framework-revision: 939d1718b7548a36ff7a550080ed8b811aad8a98
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@2cc331d8bc4c86592afd7219ddeaba1e60dc0ced
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@939d1718b7548a36ff7a550080ed8b811aad8a98
         with:
-          framework-revision: 2cc331d8bc4c86592afd7219ddeaba1e60dc0ced
+          framework-revision: 939d1718b7548a36ff7a550080ed8b811aad8a98
