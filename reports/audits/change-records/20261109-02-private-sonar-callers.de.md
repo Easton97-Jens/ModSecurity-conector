@@ -11,6 +11,10 @@ Der native Publisher rekonstruiert auch den exakten bisherigen direkten Sonar-Sc
 
 Alle 13 aktuellen Projektionsmethoden bestanden ohne Fehler oder Skips, einschließlich der zwei ergänzten Migrationsregressionen mit echten Git-Basen und Prüfungen von Arbeitsbaum und Index. Parent-Python 3.14.4 prüfte außerdem die tatsächliche Kandidatenrekonstruktion gegen die committete Basis `b3d1864983f0bfb1c9c9838ccd3916be80c2799a`. Dies ist eine Prüfung der Kandidatenquelle; die korrigierte geschützte Zulassung und die Prüfung des passenden committeten Paares bleiben erforderlich.
 
+## Nachtrag zur Quellqualität
+
+Die gehostete Analyse von Parent `a247a5c78bb21d5eee04b10c0f310c1917ec6a74` meldete acht Quellqualitätsbefunde im nativen Publisher und Security-Tools-Updater. Der Nachtrag ersetzt wiederholte Literale durch Parent-eigene Konstanten, schreibt dieselben zwei Regex-Folgen aus sechs ASCII-Leerzeichen als `{6}` und lagert bestehende Mapping-/Referenzerfassung sowie Suffixprüfungen aus. Die Prüfungen für feste Rolle, Legacy-Zusammenfassung, Unveränderlichkeit, Umfang und Schreibzugriffe sowie Mapping-Durchlaufreihenfolge und erfasste Referenzen bleiben erhalten. Gezielte Validierung und gehostete Bestätigung des exakten Heads werden getrennt geführt; frühere Testergebnisse gelten für ihre dokumentierten Revisionen.
+
 ## Identität
 
 | Feld | Wert |

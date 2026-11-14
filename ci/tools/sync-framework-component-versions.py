@@ -404,6 +404,10 @@ TARGET_REGISTRY = (
 # comes only from the workflow's already-validated official Framework commit,
 # never from candidate common.sh data. Its closed scope prevents the generic
 # synchronizer from gaining ownership of unrelated runtime or NGINX pins.
+PRIVATE_SONAR_WORKFLOW = ".github/workflows/sonarqube.yml"
+PRIVATE_SONAR_SUFFIX = "/.github/actions/sonar-private"
+
+
 FRAMEWORK_SHA_PROJECTION_TARGETS = (
     FrameworkShaProjectionSpec(LOCK_RELATIVE_PATH, "project-versions-lock"),
     FrameworkShaProjectionSpec(".github/workflows/ci-findings-regressions.yml", "framework-workflow", 1, 1),
@@ -417,7 +421,7 @@ FRAMEWORK_SHA_PROJECTION_TARGETS = (
     FrameworkShaProjectionSpec(".github/workflows/run-protected-nginx-root-broker.yml", "framework-inline-caller"),
     FrameworkShaProjectionSpec(".github/workflows/run-trusted-lighttpd-namespace-dispatch.yml", "framework-workflow", 1, 0),
     FrameworkShaProjectionSpec(".github/workflows/sonar-native-security.yml", "framework-workflow", 2, 2, gate_count=2),
-    FrameworkShaProjectionSpec(".github/workflows/sonarqube.yml", "framework-workflow", 1, 1, gate_count=1),
+    FrameworkShaProjectionSpec(PRIVATE_SONAR_WORKFLOW, "framework-workflow", 1, 1, gate_count=1),
     FrameworkShaProjectionSpec(".github/workflows/test-apache.yml", "framework-workflow", 2, 2),
     FrameworkShaProjectionSpec(".github/workflows/test-common.yml", "framework-workflow", 1, 1),
     FrameworkShaProjectionSpec(".github/workflows/test-connectors-with-crs-no-mrts.yml", "framework-workflow", 2, 2),
@@ -1154,11 +1158,11 @@ def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str
     This source remains in the protected five-source Parent closure. The frozen
     diagnostic role is distinct from the Framework integration revision.
     """
-    if ("/.github/actions/sonar-private" not in text
-            and not (relative_path == ".github/workflows/sonarqube.yml"
+    if (PRIVATE_SONAR_SUFFIX not in text
+            and not (relative_path == PRIVATE_SONAR_WORKFLOW
                      and "      - name: Analyze exact revision and await Quality Gate\n" in text)):
         return text, ""
-    if relative_path != ".github/workflows/sonarqube.yml":
+    if relative_path != PRIVATE_SONAR_WORKFLOW:
         raise SyncError("private Sonar role must be unique in the fixed Parent workflow")
     block = """      - name: Analyze exact revision and await Quality Gate
         id: scan
@@ -1179,7 +1183,7 @@ def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600
 """
-    pattern = re.compile(r"(?m)^      - name: Analyze exact revision and await Quality Gate\n(?:(?!      - ).*\n)*")
+    pattern = re.compile(r"(?m)^ {6}- name: Analyze exact revision and await Quality Gate\n(?:(?! {6}- ).*\n)*")
     matches = list(pattern.finditer(text))
     legacy_block = block.replace(
         "        uses: " + PRIVATE_SONAR_REFERENCE + "\n",
@@ -1219,14 +1223,14 @@ def _private_sonar_projection_source(relative_path: str, text: str) -> tuple[str
     if len(matches) == 1 and matches[0].group() == legacy_block:
         if (text.count(legacy_block + legacy_summary) != 1
                 or text.count(legacy_report) != 1 or text.count("report-task.txt") != 2
-                or "/.github/actions/sonar-private" in text):
+                or PRIVATE_SONAR_SUFFIX in text):
             raise SyncError("legacy Sonar report differs from its complete reviewed data contract")
         text = text.replace(legacy_block, block, 1).replace(legacy_report, "", 1)
         matches = list(pattern.finditer(text))
     if len(matches) != 1 or matches[0].group() != block:
         raise SyncError("private Sonar call differs from its complete reviewed data contract")
     if (text.count(PRIVATE_SONAR_REFERENCE) != 1
-            or text.count("/.github/actions/sonar-private") != 1):
+            or text.count(PRIVATE_SONAR_SUFFIX) != 1):
         raise SyncError("extra private Sonar role is forbidden")
     if "report-task.txt" in text:
         raise SyncError("private Sonar workflow must not read the legacy report-task file")

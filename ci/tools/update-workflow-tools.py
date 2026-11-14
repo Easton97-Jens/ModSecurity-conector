@@ -550,6 +550,8 @@ def workflow_source_paths(root: Path) -> list[Path]:
 
 
 PRIVATE_SONAR_WORKFLOW = ".github/workflows/sonarqube.yml"
+PRIVATE_SONAR_SUFFIX = "/.github/actions/sonar-private"
+WORKFLOW_DESCRIPTION_PREFIX = "workflow "
 PRIVATE_SONAR_REFERENCE = (
     "Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@"
     "9ae8ecc4f686e9cc70413e5494bc098a24eb18d7"
@@ -580,6 +582,29 @@ def private_sonar_step() -> dict[str, Any]:
     }
 
 
+def _collect_mapping_uses(
+    value: dict[str, Any], description: str, values: set[str], private_roles: int
+) -> int | None:
+    """Validate one mapping before traversal; collect only an exact private step."""
+    reference = value.get("uses")
+    if isinstance(reference, str) and reference.startswith(
+        FRAMEWORK_REPOSITORY + PRIVATE_SONAR_SUFFIX
+    ):
+        if description != WORKFLOW_DESCRIPTION_PREFIX + PRIVATE_SONAR_WORKFLOW or value != private_sonar_step():
+            raise UpdateError("private Sonar call differs from its complete frozen Parent contract")
+        private_roles += 1
+        if private_roles != 1:
+            raise UpdateError("private Sonar role must be unique")
+        values.add(reference)
+        values.add(value["with"]["upstream-action"])
+        return private_roles
+    if "upstream-action" in value:
+        raise UpdateError("upstream-action is permitted only in the exact frozen Sonar step")
+    if isinstance(reference, str):
+        values.add(reference)
+    return None
+
+
 def workflow_uses_values(text: str, description: str) -> set[str]:
     """Return scalar YAML ``uses`` values without treating comments as uses.
 
@@ -602,23 +627,11 @@ def workflow_uses_values(text: str, description: str) -> set[str]:
     def visit(value: Any) -> None:
         nonlocal private_roles
         if isinstance(value, dict):
-            reference = value.get("uses")
-            if isinstance(reference, str) and reference.startswith(
-                FRAMEWORK_REPOSITORY + "/.github/actions/sonar-private"
-            ):
-                if description != "workflow " + PRIVATE_SONAR_WORKFLOW or value != private_sonar_step():
-                    raise UpdateError("private Sonar call differs from its complete frozen Parent contract")
-                private_roles += 1
-                if private_roles != 1:
-                    raise UpdateError("private Sonar role must be unique")
-                values.add(reference)
-                values.add(value["with"]["upstream-action"])
+            roles = _collect_mapping_uses(value, description, values, private_roles)
+            if roles is not None:
+                private_roles = roles
                 return
-            if "upstream-action" in value:
-                raise UpdateError("upstream-action is permitted only in the exact frozen Sonar step")
-            for key, nested in value.items():
-                if key == "uses" and isinstance(nested, str):
-                    values.add(nested)
+            for nested in value.values():
                 visit(nested)
         elif isinstance(value, list):
             for nested in value:
@@ -626,6 +639,20 @@ def workflow_uses_values(text: str, description: str) -> set[str]:
 
     visit(document)
     return values
+
+
+def _validate_framework_workflow_suffix(
+    value: str, suffix: str, description: str
+) -> None:
+    """Keep the frozen private role separate from ordinary Framework targets."""
+    if suffix == PRIVATE_SONAR_SUFFIX:
+        if value != PRIVATE_SONAR_REFERENCE or description != WORKFLOW_DESCRIPTION_PREFIX + PRIVATE_SONAR_WORKFLOW:
+            raise UpdateError("private Sonar reference or workflow differs from its frozen role")
+        return
+    if not (suffix.startswith("/.github/actions/connector-ci/")
+            or suffix == "/.github/actions/connector-context"
+            or suffix.startswith("/.github/workflows/connector-")):
+        raise UpdateError(f"{description} uses an unsupported Framework target: {value!r}")
 
 
 def managed_workflow_action_name(
@@ -673,14 +700,7 @@ def managed_workflow_action_name(
             )
         return None
     if name == FRAMEWORK_REPOSITORY:
-        if suffix == "/.github/actions/sonar-private":
-            if value != PRIVATE_SONAR_REFERENCE or description != "workflow " + PRIVATE_SONAR_WORKFLOW:
-                raise UpdateError("private Sonar reference or workflow differs from its frozen role")
-            return None
-        if not (suffix.startswith("/.github/actions/connector-ci/")
-                or suffix == "/.github/actions/connector-context"
-                or suffix.startswith("/.github/workflows/connector-")):
-            raise UpdateError(f"{description} uses an unsupported Framework target: {value!r}")
+        _validate_framework_workflow_suffix(value, suffix, description)
         # Framework integration identity belongs to the gitlink projector,
         # never this security-tools updater. Exact generated-blob verification
         # below preserves these references byte for byte during publication.
@@ -1841,9 +1861,9 @@ def validate_action_reference_comments(
 def validate_private_sonar_update(text: str, relative: Path, name: str,
                                   changes: dict[str, Any]) -> None:
     """Preserve the current user contract before any updater write."""
-    if "/.github/actions/sonar-private" not in text and "upstream-action" not in text:
+    if PRIVATE_SONAR_SUFFIX not in text and "upstream-action" not in text:
         return
-    values = workflow_uses_values(text, "workflow " + relative.as_posix())
+    values = workflow_uses_values(text, WORKFLOW_DESCRIPTION_PREFIX + relative.as_posix())
     if (PRIVATE_SONAR_REFERENCE in values and name == PRIVATE_SONAR_UPSTREAM_NAME
             and (changes.get("immutable_commit") != PRIVATE_SONAR_UPSTREAM_SHA
                  or changes.get("version") != PRIVATE_SONAR_UPSTREAM_VERSION)):

@@ -11,6 +11,10 @@ The native publisher also reconstructs the exact previous direct Sonar step into
 
 All 13 current projection methods passed without failures, errors or skips, including the two added migration regressions with genuine Git bases and both working-tree and staged checks. Parent Python 3.14.4 also verified the actual candidate reconstruction against committed base `b3d1864983f0bfb1c9c9838ccd3916be80c2799a`. This is candidate source validation; the corrected protected admission and matching committed-pair validation remain required.
 
+## Source-quality follow-up
+
+Hosted analysis of Parent `a247a5c78bb21d5eee04b10c0f310c1917ec6a74` reported eight source-quality findings in the native publisher and security-tools updater. The follow-up replaces repeated literals with Parent-owned constants, writes the same two six-ASCII-space regex runs as `{6}`, and extracts existing mapping/reference collection and suffix validation. The frozen-role, legacy-summary, immutability, scope and write guards, mapping traversal order and collected references remain unchanged. Focused validation and exact-head hosted confirmation are tracked separately; earlier test results describe their recorded revisions.
+
 ## Identity
 
 | Field | Value |
