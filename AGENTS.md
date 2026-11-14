@@ -10,6 +10,12 @@ This file governs Codex work started from the Parent repository:
 
 Keep this file concise. Detailed operational rules live in `.codex/context/` and are loaded only when their domain applies.
 
+## AI handoff
+
+- At the start of a task, read `docs/AI-HANDOFF.md`.
+- Reconcile the handoff with the current repository state before relying on it.
+- Update the handoff before switching between Codex and Claude Code. Keep permanent project rules here and the changing work state in the handoff.
+
 ## Product authority
 
 For current product facts, route identity, commands, build/test behavior, configuration semantics, and runtime claims, prefer the current checkout in this order:
