@@ -2,6 +2,30 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
+## Response-Beobachtungen und Regelmetadaten
+
+`msconnector_transaction_contract.response_body_bytes` ist eine sättigende
+`uint64_t`-Beobachtung. `msconnector_transaction_counter_add` erhält bei
+`UINT64_MAX` monotone Zähler ohne zusätzliches Auslieferungslimit.
+Request-Zähler und Host-Allokations-/Speicherlimits behalten ihre geprüfte
+Ressourcensemantik.
+
+`msconnector_transaction_contract_supersede_response` beendet ausschließlich
+einen gesunden, noch nicht committeten direkten P1/P2-Besitzer nach der
+Response-Konfigurationsübergabe durch den Host. Phasenmasken und Allow-Entscheidung
+bleiben erhalten; P3/P4-Ausführung wird nicht behauptet. Normaler Abschluss und
+Cleanup bleiben bei unvollständigen Besitzern streng.
+
+`msconnector_rule_id_extract_from_message` akzeptiert den vollständigen
+geordneten nativen Engine-Metadatensatz und dessen `\xHH`-Escapes. Fehlende,
+fehlerhafte oder mehrdeutige Datensätze leeren die Ausgabe; bloße
+`id`-/`[id]`-Ausschnitte in Match-Daten sind keine Metadaten. Aufrufer müssen bei
+unbekannter Korrelation die disruptive Entscheidung bewahren; der native
+NGINX-Vertrag verwendet den geschlossenen Fehlerpfad. Die neuere C-Liste
+geloggter IDs besitzt kein Attribut für die verursachende disruptive Regel;
+ihr erstes oder letztes Element ist daher kein sicherer Ersatz.
+
+
 ## Zweck und Grenze
 
 \`common/\` enthält wiederverwendbare connector-neutrale Contracts und Helfer,

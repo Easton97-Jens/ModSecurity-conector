@@ -34,6 +34,17 @@ typedef atomic_flag msconnector_atomic_flag;
 #define MSCONNECTOR_TRANSACTION_CANONICAL_ID_SIZE 64U
 #define MSCONNECTOR_TRANSACTION_CORRELATION_CAPACITY 64U
 
+/* Observation only: exhausting the counter must not impose a body limit.
+ * Keep the full uint64_t event range, then retain its saturated lower bound.
+ * uintmax_t checks the incoming host size before its narrowing conversion. */
+static inline uint64_t
+msconnector_transaction_counter_add(uint64_t current, size_t amount) {
+    if ((uintmax_t)amount > UINT64_MAX - current) {
+        return UINT64_MAX;
+    }
+    return current + (uint64_t)amount;
+}
+
 #define MSCONNECTOR_TRANSACTION_PHASE_P1 MSCONNECTOR_PHASE_REQUEST_HEADERS
 #define MSCONNECTOR_TRANSACTION_PHASE_P2 MSCONNECTOR_PHASE_REQUEST_BODY
 #define MSCONNECTOR_TRANSACTION_PHASE_P3 MSCONNECTOR_PHASE_RESPONSE_HEADERS
@@ -176,7 +187,7 @@ typedef struct msconnector_transaction_contract {
         char response_content_type[MSCONNECTOR_TRANSACTION_CONTRACT_CONTENT_TYPE_SIZE];
         size_t response_header_count;
         size_t response_header_bytes;
-        size_t response_body_bytes;
+        uint64_t response_body_bytes;
         int response_status;
         int response_committed;
     };
@@ -322,6 +333,11 @@ int msconnector_transaction_contract_claim_response_companion(
 int msconnector_transaction_contract_fail(msconnector_transaction_contract *contract,
     msconnector_transaction_error_class error_class,
     uint64_t now_ms);
+/* Retire a healthy native P1/P2 owner when the host transfers the request
+ * to another location policy. P3/P4 remain unexecuted; no engine decision,
+ * host action, rule ID or error is synthesized. Ordinary finish stays strict. */
+int msconnector_transaction_contract_supersede_response(
+    msconnector_transaction_contract *contract, uint64_t now_ms);
 /* Finish a predeclared finite request-authorization scope (direct P1/P2,
  * no response companion). Does not synthesize P3/P4 or relax finish(). */
 int msconnector_transaction_contract_finish_request_authorization(
