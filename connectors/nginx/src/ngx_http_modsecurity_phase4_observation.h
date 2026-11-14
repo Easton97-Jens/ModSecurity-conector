@@ -13,6 +13,25 @@ typedef struct {
     uint64_t append_calls;
 } ngx_http_modsecurity_phase4_counters;
 
+/* This validates native/transaction state independently of optional event
+ * formatting or I/O. A failed invariant remains a processing failure even
+ * when no event sink is configured. */
+static inline int
+ngx_http_modsecurity_phase4_counters_valid(int native_result,
+    const msconnector_transaction_contract *contract,
+    const ngx_http_modsecurity_phase4_counters *counters)
+{
+    return contract != NULL && counters != NULL && native_result == 1 &&
+        contract->active_phase == -1 &&
+        contract->last_completed_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        (contract->completed_phase_mask &
+            MSCONNECTOR_TRANSACTION_PHASE_MASK_P4) != 0U &&
+        counters->retained <= counters->supplied &&
+        counters->supplied <= counters->seen &&
+        (counters->append_calls != 0 || (counters->seen == 0 &&
+            counters->supplied == 0 && counters->retained == 0));
+}
+
 /* Caller supplies actual native/API counters and a completed Common contract,
  * never fixture expectations. Event/reason storage remains caller-owned.
  * Common bytes_inspected retains its meaning: bytes supplied to the Engine;
@@ -26,16 +45,8 @@ ngx_http_modsecurity_phase4_observation(msconnector_event *event,
 {
     int length;
     if (event == NULL || reason == NULL || reason_size == 0 ||
-        contract == NULL || counters == NULL || native_result != 1 ||
-        contract->active_phase != -1 ||
-        contract->last_completed_phase != MSCONNECTOR_PHASE_RESPONSE_BODY ||
-        (contract->completed_phase_mask &
-            MSCONNECTOR_TRANSACTION_PHASE_MASK_P4) == 0U ||
-        counters->retained > counters->supplied ||
-        counters->supplied > counters->seen || counters->seen > INT64_MAX ||
-        counters->append_calls > INT64_MAX ||
-        (counters->append_calls == 0 && (counters->seen != 0 ||
-            counters->supplied != 0 || counters->retained != 0))) {
+        !ngx_http_modsecurity_phase4_counters_valid(native_result, contract,
+            counters)) {
         return 0;
     }
     length = snprintf(reason, reason_size,

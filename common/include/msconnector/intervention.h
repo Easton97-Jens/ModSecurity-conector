@@ -44,10 +44,16 @@ int msconnector_intervention_is_request_body_limit_rejection(
     enum msconnector_phase phase,
     const msconnector_intervention *intervention);
 
-/* Exact native P4 Reject signature; no connector response size policy. */
+/* Supported native response appends do not evaluate response rules. A native
+ * Reject is therefore identifiable only at that explicit append boundary,
+ * before EOS, with its rule-ID-free disruptive 403 shape. Log prose is not
+ * part of this contract. Other interventions retain normal rule validation. */
 int msconnector_intervention_is_response_body_limit_rejection(
     enum msconnector_phase phase,
-    const msconnector_intervention *intervention);
+    const msconnector_intervention *intervention,
+    const char *rule_id,
+    int response_append_active,
+    int response_body_eos);
 
 /* Map one disruptive native intervention onto the canonical host status.
  * Redirects retain a valid 3xx status or use 302; status-only interventions

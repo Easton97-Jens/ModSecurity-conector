@@ -48,7 +48,12 @@ wählen kein Inspektionspräfix und keine Limitaktion.
 
 Bei Requests bedeutet `bytes_inspected=0` unbekannt/unbelegt; gespeicherte Bytes
 belegen keine Inspektion. Bei Responses zählt es der Engine angebotene Bytes,
-nicht das native ProcessPartial-Präfix. Der Append-Rückgabewert 0 ist operationsspezifisch und darf bei gültigem
+nicht das native ProcessPartial-Präfix. Response-Beobachtungen verwenden
+`uint64_t` und sättigen bei `UINT64_MAX`; sie erzeugen auf 32-Bit-Hosts keine
+zusätzliche `SIZE_MAX`- oder etwa 4-GiB-Auslieferungsgrenze, auch nicht für
+nicht inspizierte Responses. Native Chunk-Längen bleiben `size_t`;
+Request-Arithmetik, Pointer-/Dateiprüfungen und Ressourcenkontrollen bleiben
+geprüft. Der Append-Rückgabewert 0 ist operationsspezifisch und darf bei gültigem
 nativem ProcessPartial nicht als Allokations- oder Dateifehler gemeldet werden.
 Natives Request-Reject kann während Append HTTP 403 liefern; ein anderer nativer
 Pfad kann 413 liefern. Der Connector erhält das tatsächliche Ergebnis bis EOS.
@@ -85,9 +90,16 @@ Request-No-files-Limits ausdrücklich; Helper liefern keine impliziten Defaults.
 HAProxy-Samples nutzen `req.body_size` und `http_version=req.ver`; unvollständige
 oder widersprüchliche Samples scheitern vor Enginezulassung. Unbekanntes/chunked
 Framing und ungerahmtes HTTP/2 bleiben auf dieser Sampleroute nicht unterstützt;
-natives HTX bietet Streaming. Apache erhält natives Response-Reject bei Append
-einschließlich vorherigem FLUSH-/Body-Commit und hält die zurückgewiesene Brigade
-unter Safe-log_only zurück.
+natives HTX bietet Streaming. Apache erhält natives Response-Reject bei Append.
+Der unterstützte API-Vertrag verlangt für dessen Klassifizierung ein akzeptiertes P4-Append vor EOS, `disruptive=1`,
+Status 403, eine rohe NULL-Redirect-URL und keine Regel-ID; Logprosa ist kein
+Signal. `ProcessPartial`, eine Regelintervention bei EOS und ein Enginefehler
+bleiben getrennt. Nach vorherigem FLUSH-/Body-Commit versiegelt Apache die
+Ausgabe und bricht in jedem Modus einschließlich Safe ab; nativer Status und
+erste Ursache bleiben erhalten, ohne eine zweite HTTP-Antwort zu behaupten.
+Nur eine gesunde, abgeschlossene und bereits committete P4-Regelintervention
+qualifiziert sich für die Ausnahme optionaler Ereignisse im
+[gemeinsamen Transaktionsvertrag](../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse).
 
 Builds und Komponentencontracts belegen keine vollständige gehostete
 HTTP/1–HTTP/3-, Buffer-Ownership- oder Late-Abort-Abnahme. Die

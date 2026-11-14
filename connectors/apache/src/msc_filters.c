@@ -554,7 +554,7 @@ static const char *apache_intervention_content_type(const request_rec *r,
     return apache_response_content_type(r);
 }
 
-static apr_size_t apache_intervention_body_bytes_seen(const msc_t *msr,
+static uint64_t apache_intervention_body_bytes_seen(const msc_t *msr,
     enum msconnector_phase phase)
 {
     if (phase == MSCONNECTOR_PHASE_REQUEST_BODY)
@@ -568,7 +568,7 @@ static apr_size_t apache_intervention_body_bytes_seen(const msc_t *msr,
     return 0U;
 }
 
-static apr_size_t apache_intervention_body_bytes_inspected(const msc_t *msr,
+static uint64_t apache_intervention_body_bytes_inspected(const msc_t *msr,
     enum msconnector_phase phase)
 {
     if (phase == MSCONNECTOR_PHASE_REQUEST_BODY)
@@ -621,7 +621,9 @@ static void apache_intervention_set_http(msconnector_event *event,
 static msconnector_error_code apache_event_sink_result(msc_t *msr,
     request_rec *r, msconnector_error_code code, int mandatory)
 {
-    if (msr == NULL)
+    /* A late Safe rule event is optional observability. Its sink failure
+     * must not poison later callbacks or prevent the native audit epilogue. */
+    if (msr == NULL || mandatory < 0)
     {
         return code;
     }
@@ -719,6 +721,7 @@ static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_
     const msc_conf_t *conf;
     msconnector_event event;
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH];
+    int mandatory;
 
     if (msr == NULL || r == NULL || input == NULL ||
         r->per_dir_config == NULL)
@@ -733,10 +736,17 @@ static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_
         return MSCONNECTOR_ERROR_NONE;
     }
 
+    mandatory = input->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        input->response_already_committed &&
+        strcmp(input->actual, "log_only") == 0 &&
+        conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE &&
+        !msr->last_intervention_body_limit &&
+        !msr->intervention.mandatory_event_failed &&
+        msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE ? -1 : 1;
     if (msr->intervention.event_sink_error != MSCONNECTOR_ERROR_NONE)
     {
         return apache_event_sink_result(msr, r,
-            msr->intervention.event_sink_error, 1);
+            msr->intervention.event_sink_error, mandatory);
     }
     if (msr->intervention.terminal_event_attempted)
     {
@@ -745,8 +755,13 @@ static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_
     msr->intervention.terminal_event_attempted = 1;
 
     rule_id[0] = '\0';
-    (void)msconnector_rule_id_extract_from_message(msr->last_intervention_log,
-        rule_id, sizeof(rule_id));
+    if (msr->intervention.retained_rule_id[0] != '\0') {
+        (void)apr_cpystrn(rule_id, msr->intervention.retained_rule_id,
+            sizeof(rule_id));
+    } else {
+        (void)msconnector_rule_id_extract_from_message(msr->last_intervention_log,
+            rule_id, sizeof(rule_id));
+    }
 
     msconnector_event_init(&event);
     event.meta.message_id = apache_intervention_message_id(input);
@@ -802,7 +817,7 @@ static msconnector_error_code apache_log_intervention_event(msc_t *msr, request_
         msr->response_body_truncated;
 
     return apache_intervention_write_event(msr, r,
-        conf->common_config.phase4_log_path, &event, 1);
+        conf->common_config.phase4_log_path, &event, mandatory);
 }
 
 
@@ -966,7 +981,10 @@ msconnector_error_code apache_log_rule_match_event(msc_t *msr, request_rec *r,
         ? msr->request_body_bytes_inspected : 0U;
 
     return apache_intervention_write_event(msr, r,
-        conf->common_config.phase4_log_path, &event, 0);
+        conf->common_config.phase4_log_path, &event,
+        phase == MSCONNECTOR_PHASE_RESPONSE_BODY && msr->response.committed &&
+        conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE &&
+        msr->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE ? -1 : 0);
 }
 
 
@@ -1007,6 +1025,40 @@ static msconnector_error_code apache_phase3_log_event(msc_t *msr, request_rec *r
 }
 
 
+static apr_status_t apache_phase4_capture_append_intervention(msc_t *msr)
+{
+    int intervention;
+
+    if (msr->response_intervention_pending)
+    {
+        return APR_SUCCESS;
+    }
+    msr->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    msr->native_event_phase_active = 1;
+    msr->response.body_append_active = 1;
+    intervention = process_intervention(msr->t, msr->r);
+    msr->response.body_append_active = 0;
+    msr->native_event_phase_active = 0;
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+    {
+        return APR_EGENERAL;
+    }
+    if (intervention != N_INTERVENTION_STATUS &&
+        !msr->last_intervention_body_limit)
+    {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+        return APR_EGENERAL;
+    }
+    if (intervention != N_INTERVENTION_STATUS)
+    {
+        msr->pending_response_intervention = msr->intervention;
+        msr->response_intervention_pending = 1;
+    }
+    return APR_SUCCESS;
+}
+
+
 static apr_status_t apache_phase4_append_bucket(msc_t *msr,
     const msc_conf_t *conf, apr_bucket *bucket)
 {
@@ -1040,15 +1092,14 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
         /* Borrow every complete bucket; engine configuration owns inspection
          * policy. These counters only protect arithmetic and lifecycle state. */
         if (data == NULL ||
-            msr->response_body_bytes_inspected > msr->response_body_bytes_seen ||
-            len > SIZE_MAX - msr->response_body_bytes_seen ||
-            len > SIZE_MAX - msr->response_body_bytes_inspected)
+            msr->response_body_bytes_inspected > msr->response_body_bytes_seen)
         {
             (void)msc_apache_contract_fail(msr,
                 MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
             return APR_EGENERAL;
         }
-        msr->response_body_bytes_seen += len;
+        msr->response_body_bytes_seen = msconnector_transaction_counter_add(
+            msr->response_body_bytes_seen, len);
         if (!msc_apache_contract_record_body(msr, 1, len))
         {
             return APR_EGENERAL;
@@ -1061,24 +1112,9 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
                 MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
             return APR_EGENERAL;
         }
-        msr->response_body_bytes_inspected += len;
-        if (!msr->response_intervention_pending)
-        {
-            int intervention;
-            msr->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
-            msr->native_event_phase_active = 1;
-            intervention = process_intervention(msr->t, msr->r);
-            msr->native_event_phase_active = 0;
-            if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
-            {
-                return APR_EGENERAL;
-            }
-            if (intervention != N_INTERVENTION_STATUS)
-            {
-                msr->pending_response_intervention = msr->intervention;
-                msr->response_intervention_pending = 1;
-            }
-        }
+        msr->response_body_bytes_inspected = msconnector_transaction_counter_add(
+            msr->response_body_bytes_inspected, len);
+        return apache_phase4_capture_append_intervention(msr);
     }
 
     return APR_SUCCESS;
@@ -2236,11 +2272,15 @@ static apr_status_t apache_phase4_handle_intervention(msc_t *msr,
     actual = apache_phase4_actual_action(action, wanted);
     if (action == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY)
     {
-        if (apache_phase4_log_event(msr, r, wanted, actual,
-                "response_committed_safe") != MSCONNECTOR_ERROR_NONE)
-        {
-            return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");
+        if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+            msr->last_intervention_body_limit) {
+            return apache_phase4_fail_closed(msr, f, bb_in,
+                "native response processing failure");
         }
+        /* The writer diagnoses optional sink errors without changing the
+         * decision, contract, connection or native logging state. */
+        (void)apache_phase4_log_event(msr, r, wanted, actual,
+            "response_committed_safe");
         return APR_SUCCESS;
     }
     if (action == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION)

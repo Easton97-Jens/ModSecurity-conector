@@ -46,7 +46,11 @@ technical failures, rather than selecting an inspection prefix or limit action.
 
 For requests, `bytes_inspected=0` means unknown/unproven; retained bytes do not
 prove inspection. For responses it counts bytes offered to the engine, not the
-native ProcessPartial prefix. An append return value of 0 is operation-specific and must not be
+native ProcessPartial prefix. Response observations use `uint64_t` and saturate
+at `UINT64_MAX`; they add no `SIZE_MAX` or approximately 4-GiB delivery ceiling
+on 32-bit hosts, including uninspected responses. Native chunk lengths remain
+`size_t`; request arithmetic, pointer/file checks and resource controls remain
+checked. An append return value of 0 is operation-specific and must not be
 misreported as allocation or file failure when native ProcessPartial permits it.
 Native Request Reject may report HTTP 403 during append, whereas another native
 path may report 413; the connector preserves the actual result through EOS.
@@ -82,8 +86,15 @@ request no-files limit; helpers supply no implicit defaults. HAProxy samples use
 `req.body_size` and `http_version=req.ver`; incomplete or contradictory samples
 fail before engine admission. Unknown/chunked framing and unframed HTTP/2 remain
 unsupported on that sample route; native HTX provides streaming. Apache preserves
-native response Reject at append, including prior FLUSH/body commitment, and
-withholds the rejected brigade under Safe log_only.
+native response Reject at append. Under the supported API contract, its
+classification requires an accepted P4 append before EOS, `disruptive=1`,
+status 403, a raw NULL redirect URL and no rule ID; log prose is not a signal.
+`ProcessPartial`, a rule intervention at EOS and an engine error remain distinct.
+After prior FLUSH/body commitment Apache seals the output and aborts in every
+mode, including Safe; it retains the native status and first cause without
+claiming a second HTTP response. Only a healthy, completed, committed P4 rule
+intervention qualifies for the optional-event exception in the
+[shared transaction contract](../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events).
 
 Builds and component contracts do not establish complete hosted HTTP/1–HTTP/3,
 buffer-ownership or late-abort acceptance. See the

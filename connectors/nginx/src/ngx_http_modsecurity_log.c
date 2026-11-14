@@ -95,15 +95,15 @@ ngx_http_modsecurity_log(void *log, const void* data)
         return;
     }
     msg = (const char *) data;
-    r = (ngx_http_request_t *)log;
+    ctx = (const ngx_http_modsecurity_ctx_t *)log;
+    r = ctx->r;
     if (r == NULL || r->connection == NULL || r->connection->log == NULL) {
         return;
     }
-    mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
+    mcf = ctx->lifetime.conf;
     if (mcf == NULL) {
         return;
     }
-    ctx = ngx_http_modsecurity_get_module_ctx(r);
     rule_id[0] = '\0';
     if (ctx != NULL && ctx->native_event_phase_active &&
         (ctx->native_event_phase == MSCONNECTOR_PHASE_REQUEST_HEADERS ||
@@ -141,20 +141,18 @@ ngx_http_modsecurity_logging_failure(ngx_http_request_t *r,
 }
 
 ngx_int_t
-ngx_http_modsecurity_log_handler(ngx_http_request_t *r)
+ngx_http_modsecurity_log_context(ngx_http_modsecurity_ctx_t *ctx)
 {
     ngx_http_modsecurity_pcre_pool_snapshot_t old_pool;
-    ngx_http_modsecurity_ctx_t *ctx;
+    ngx_http_request_t *r;
     int result;
     int contract_valid = 1;
 
-    if (r == NULL || r->connection == NULL) {
+    if (ctx == NULL || ctx->r == NULL || ctx->r->connection == NULL ||
+        ctx->lifetime.pool == NULL) {
         return NGX_ERROR;
     }
-    ctx = ngx_http_modsecurity_get_module_ctx(r);
-    if (ctx == NULL) {
-        return NGX_OK;
-    }
+    r = ctx->r;
     if (ctx->logged) {
         return ctx->native_logging_failed ? NGX_ERROR : NGX_OK;
     }
@@ -179,7 +177,7 @@ ngx_http_modsecurity_log_handler(ngx_http_request_t *r)
 
     /* Still allow the native audit epilogue to record a prior phase failure.
      * Its success cannot repair a failed canonical completion. */
-    old_pool = ngx_http_modsecurity_pcre_malloc_init(r->pool);
+    old_pool = ngx_http_modsecurity_pcre_malloc_init(ctx->lifetime.pool);
     result = msc_process_logging(ctx->modsec_transaction);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
     if (!msconnector_native_phase_succeeded(result)) {
@@ -192,4 +190,12 @@ ngx_http_modsecurity_log_handler(ngx_http_request_t *r)
     }
     ctx->native_logging_failed = 0;
     return NGX_OK;
+}
+
+/* Audit every owner from this request, including transactions superseded by
+ * a different target policy. Cleanup independently provides the fallback. */
+ngx_int_t
+ngx_http_modsecurity_log_handler(ngx_http_request_t *r)
+{
+    return ngx_http_modsecurity_log_request_contexts(r);
 }

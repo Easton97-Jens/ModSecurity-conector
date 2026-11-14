@@ -117,7 +117,7 @@ struct haproxy_modsecurity_htx_filter_context {
         char http_version[4];
         int headers_seen;
         int finished;
-        size_t payload_bytes_seen;
+        uint64_t payload_bytes_seen;
     } request;
     struct {
         int headers_seen;
@@ -125,7 +125,7 @@ struct haproxy_modsecurity_htx_filter_context {
         int headers_committed;
         int body_started;
         int finished;
-        size_t payload_bytes_seen;
+        uint64_t payload_bytes_seen;
         char handle[HAPROXY_MODSECURITY_HTX_RESPONSE_HANDLE_LENGTH + 1U];
         int handle_present;
     } response;
@@ -588,6 +588,85 @@ static int haproxy_modsecurity_htx_event_sink_failed(
     return failed;
 }
 
+/* Only a genuine late Safe rule event is optional. Use a local sink error
+ * so this diagnostic cannot poison the transaction or later requests. */
+static int haproxy_modsecurity_htx_write_optional_late_event(
+    struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    struct haproxy_modsecurity_htx_filter_config *config = ctx->config;
+    msconnector_event event;
+    msconnector_error error;
+    char line[8192];
+    char rule_id[32];
+    int ok;
+
+    if (!config->events_lock_initialized ||
+        pthread_mutex_lock(&config->events_lock) != 0) {
+        ha_warning("modsecurity-htx: optional late Safe event lock failed\n");
+        return 0;
+    }
+    /* A diagnostic must never bypass or clear a prior mandatory failure. */
+    if (config->events_error.code != MSCONNECTOR_ERROR_NONE ||
+        config->events_file == NULL || ferror(config->events_file)) {
+        if (config->events_error.code == MSCONNECTOR_ERROR_NONE) {
+            msconnector_error_set(&config->events_error, MSCONNECTOR_ERROR_IO,
+                "event stream already failed", "haproxy-htx");
+        }
+        (void)pthread_mutex_unlock(&config->events_lock);
+        (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision->phase);
+        return 0;
+    }
+    msconnector_error_init(&error);
+    haproxy_modsecurity_htx_prepare_event(ctx, decision, &event, rule_id,
+        sizeof(rule_id));
+    ok = msconnector_event_write_jsonl_stream(&event, config->events_file,
+        line, sizeof(line), &error);
+    if (!ok) {
+        ha_warning("modsecurity-htx: optional late Safe event failed; code=%s\n",
+            msconnector_error_code_name(error.code));
+        /* The stream was clean under this lock before this optional write.
+         * Clear only its new stdio indicator so recovery stays possible. */
+        if (ferror(config->events_file)) { clearerr(config->events_file); }
+    }
+    (void)pthread_mutex_unlock(&config->events_lock);
+    return ok;
+}
+
+static int haproxy_modsecurity_htx_is_optional_late_event(
+    const struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    const struct haproxy_modsecurity_htx_filter_config *config = ctx->config;
+
+    return decision != NULL && decision->phase == 4 && decision->disruptive &&
+        !decision->body_limit &&
+        decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE &&
+        (ctx->response.headers_committed || ctx->response.body_started) &&
+        !ctx->lifecycle.fail_closed &&
+        ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE;
+}
+
+static void haproxy_modsecurity_htx_record_event_failure(
+    struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        if (decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            ctx->lifecycle.error = *decision;
+        } else {
+            ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+            ctx->lifecycle.error.phase = decision->phase;
+            ctx->lifecycle.error.status = 503;
+            ctx->lifecycle.error.disruptive = 1;
+            (void)snprintf(ctx->lifecycle.error.action,
+                sizeof(ctx->lifecycle.error.action), "deny");
+        }
+    }
+    (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0);
+}
+
 static int haproxy_modsecurity_htx_write_event(
     struct haproxy_modsecurity_htx_filter_context *ctx,
     const haproxy_modsecurity_decision *decision)
@@ -598,6 +677,9 @@ static int haproxy_modsecurity_htx_write_event(
     char rule_id[32];
     int ok;
     if (config == NULL || config->events_path == NULL) { return 1; }
+    if (haproxy_modsecurity_htx_is_optional_late_event(ctx, decision)) {
+        return haproxy_modsecurity_htx_write_optional_late_event(ctx, decision);
+    }
     if (haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0)) { return 0; }
     if (decision == NULL) { return 0; }
     if (!decision->disruptive &&
@@ -622,19 +704,7 @@ static int haproxy_modsecurity_htx_write_event(
         line, sizeof(line), &config->events_error);
     (void)pthread_mutex_unlock(&config->events_lock);
     if (!ok) {
-        if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-            if (decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-                ctx->lifecycle.error = *decision;
-            } else {
-                ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
-                ctx->lifecycle.error.phase = decision->phase;
-                ctx->lifecycle.error.status = 503;
-                ctx->lifecycle.error.disruptive = 1;
-                (void)snprintf(ctx->lifecycle.error.action,
-                    sizeof(ctx->lifecycle.error.action), "deny");
-            }
-        }
-        (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0);
+        haproxy_modsecurity_htx_record_event_failure(ctx, decision);
     }
     return ok;
 }
@@ -1115,12 +1185,14 @@ static int haproxy_modsecurity_htx_begin_request(
 static int haproxy_modsecurity_htx_append_data(
     struct haproxy_modsecurity_htx_filter_context *ctx, struct ist value,
     haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
-    size_t *body_bytes_seen)
+    uint64_t *body_bytes_seen)
 {
     haproxy_modsecurity_decision decision;
 
     /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
-    if (value.len > UINT_MAX || *body_bytes_seen > SIZE_MAX - value.len) {
+    if (value.len > UINT_MAX ||
+        (append_body_chunk == &haproxy_modsecurity_transaction_append_request_body_chunk &&
+         *body_bytes_seen > (uint64_t)SIZE_MAX - value.len)) {
         ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
         ctx->lifecycle.error.body_limit = 0;
         ctx->lifecycle.error.phase = haproxy_modsecurity_htx_error_phase(ctx);
@@ -1131,14 +1203,15 @@ static int haproxy_modsecurity_htx_append_data(
         ctx->lifecycle.error = decision;
         return -1;
     }
-    *body_bytes_seen += value.len;
+    *body_bytes_seen = msconnector_transaction_counter_add(
+        *body_bytes_seen, value.len);
     return 0;
 }
 
 static int haproxy_modsecurity_htx_append_payload(
     struct filter *filter, const struct http_msg *msg, unsigned int offset, unsigned int len,
     haproxy_modsecurity_htx_append_body_chunk append_body_chunk,
-    size_t *body_bytes_seen)
+    uint64_t *body_bytes_seen)
 {
     struct haproxy_modsecurity_htx_filter_context *ctx = filter->ctx;
     struct htx *htx;
@@ -2118,6 +2191,16 @@ static int haproxy_modsecurity_htx_finish_response(
         ctx->lifecycle.error = decision;
         haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
             "response body eos");
+        unregister_data_filter(s, msg->chn, filter);
+        return -1;
+    }
+    /* Native Reject and real processing failures are never Safe rule-only
+     * downgrades, regardless of the optional event sink's availability. */
+    if (decision.body_limit ||
+        decision.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        ctx->lifecycle.error = decision;
+        haproxy_modsecurity_htx_fail_closed_postcommit(s, ctx,
+            "native response body failure");
         unregister_data_filter(s, msg->chn, filter);
         return -1;
     }

@@ -21,6 +21,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1499,7 +1500,7 @@ static int sidecar_write_allow_receipt(
         "\"observed_phase_sequence\":[\"P1\",\"P2\",\"P3\",\"P4\"],"
         "\"transaction_id_sha256\":\"%s\","
         "\"receipt_binding_sha256\":\"%s\","
-        "\"request_body_bytes\":%zu,\"response_body_bytes\":%zu,"
+        "\"request_body_bytes\":%" PRIu64 ",\"response_body_bytes\":%" PRIu64 ","
         "\"engine_decision\":\"allow\",\"actual_host_action\":\"allow\","
         "\"original_http_status\":%d,\"visible_http_status\":%d,"
         "\"response_committed\":true,\"cleanup_status\":\"complete\","
@@ -1565,8 +1566,8 @@ static int sidecar_write_non_allow_receipt(
         "\"observed_phase_sequence\":%s,\"last_completed_phase\":\"%s\","
         "\"transaction_id_sha256\":\"%s\","
         "\"receipt_binding_sha256\":\"%s\","
-        "\"request_body_bytes\":%zu,\"request_body_truncated\":%s,"
-        "\"response_body_bytes\":%zu,\"response_body_truncated\":%s,"
+        "\"request_body_bytes\":%" PRIu64 ",\"request_body_truncated\":%s,"
+        "\"response_body_bytes\":%" PRIu64 ",\"response_body_truncated\":%s,"
         "\"engine_decision\":\"%s\",\"contract_action\":\"%s\","
         "\"error_class\":\"%s\",\"mode\":\"%s\","
         "\"original_http_status\":%d,\"response_committed\":%s,"

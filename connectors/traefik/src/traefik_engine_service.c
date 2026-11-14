@@ -1138,6 +1138,15 @@ static int traefik_engine_handle_response_eos(traefik_engine_session *session,
         *result_code = traefik_engine_result_for_runtime_error(&error);
         return -1;
     }
+    /* The wire result has no native body-limit discriminator. Sending this
+     * as an ordinary deny would let a committed Safe response acknowledge it
+     * as log-only. Keep native Reject on the typed engine-failure path before
+     * serialization; genuine EOS rules retain their normal rule outcome. */
+    if (msconnector_decision_is_body_limit(decision) &&
+        (session->response_headers_sent || session->response_body_started)) {
+        *result_code = TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME;
+        return -1;
+    }
     session->response_eos = 1;
     traefik_engine_record_decision(session, decision);
     return 1;

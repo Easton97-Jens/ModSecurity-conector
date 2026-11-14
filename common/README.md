@@ -2,6 +2,33 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
+## Response observations and rule metadata
+
+`msconnector_transaction_contract.response_body_bytes` is a saturating
+`uint64_t` observation. `msconnector_transaction_counter_add` preserves monotonic
+counts at `UINT64_MAX` without adding a delivery limit. Request counters and
+host allocation/storage limits retain their checked resource semantics.
+
+Common source and binary consumers must rebuild against matching headers:
+`msconnector_runtime_body_progress.bytes_seen`, `bytes_inspected` and
+`bytes_retained` are also `uint64_t`. Existing JSON event byte fields already
+support `uint64_t`. Native chunk-length APIs still use `size_t`; request
+`SIZE_MAX` guards and allocation/storage checks remain active.
+
+`msconnector_transaction_contract_supersede_response` retires only a healthy,
+uncommitted direct P1/P2 owner after the host transfers response policy. It
+preserves phase masks and the allow decision; it never claims P3/P4 execution.
+Normal finish and cleanup remain strict for incomplete owners.
+
+`msconnector_rule_id_extract_from_message` accepts the complete ordered native
+Engine metadata record and its `\xHH` escapes. It clears the output for absent,
+malformed or ambiguous records; bare `id`/`[id]` snippets in matched data are not
+metadata. Callers must preserve the disruptive decision when correlation is
+unknown; the native NGINX contract fails closed. The newer C logged-ID list has
+no causal disruptive-rule attribute, so its first or last element is not a safe
+substitute.
+
+
 ## Purpose and boundary
 
 \`common/\` holds reusable, connector-neutral contracts and helpers shared by
