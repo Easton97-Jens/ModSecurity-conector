@@ -15,6 +15,28 @@ Alle 13 aktuellen Projektionsmethoden bestanden ohne Fehler oder Skips, einschli
 
 Die gehostete Analyse von Parent `a247a5c78bb21d5eee04b10c0f310c1917ec6a74` meldete acht Quellqualitätsbefunde im nativen Publisher und Security-Tools-Updater. Der Nachtrag ersetzt wiederholte Literale durch Parent-eigene Konstanten, schreibt dieselben zwei Regex-Folgen aus sechs ASCII-Leerzeichen als `{6}` und lagert bestehende Mapping-/Referenzerfassung sowie Suffixprüfungen aus. Die Prüfungen für feste Rolle, Legacy-Zusammenfassung, Unveränderlichkeit, Umfang und Schreibzugriffe sowie Mapping-Durchlaufreihenfolge und erfasste Referenzen bleiben erhalten. Gezielte Validierung und gehostete Bestätigung des exakten Heads werden getrennt geführt; frühere Testergebnisse gelten für ihre dokumentierten Revisionen.
 
+## Korrektur der Parser-Closure im lesenden Kandidatenprüfer
+
+Die native Kandidatenprüfung vom 2026-11-14 reproduzierte einen Importfehler,
+als der bereits committete Framework-Parser seinen Diagnosevertrag anforderte.
+Der getrennte lesende Prüfer lädt nun ausschließlich diesen Parser und seinen
+angeforderten Begleiter aus demselben committeten Parent-Gitlink in private
+Speicher-Namespaces. Eine exakte Host-Abhängigkeitsliste und drei erlaubte
+Diagnoseexporte lehnen ungeprüfte Imports ab; Checkout-Dateien, Kandidaten-Python,
+Paketinitialisierer und umgebende Framework-Module liefern keine Closure.
+Tatsächliche ältere Parser benötigen keinen nicht vorhandenen Begleiter. Der
+geschützte native Publisher behält seine ausschließlich Parent-eigene ausführbare
+Closure; die feste Diagnoseaktion bleibt unverändert. Die erste Korrektur
+bestand alle 40 kanonischen Prüfermethoden ohne Fehlschläge, Fehler oder Skips.
+Ihre begleiterfreie Loader-Fixture ist ausdrücklich minimal; getrennte Prüfungen
+luden die tatsächlichen historischen Parser `62b411` und `31531f` aus
+unveränderlichem Git und expandierten deren tatsächliche Workflow-Daten ohne
+Begleiter. Die ursprüngliche Parent-Python-3.14-Kandidatenprüfung von `15f2e2`
+nach `476ada7` endete anschließend mit Exit 0. Diese Ergebnisse gelten für lokale
+Quellsnapshots; weitere Quellsnapshots behalten getrennte Wiederholungsbelege.
+Der Modulname des Helpers ist nun eine einzelne lokale Konstante. Die Prüfung
+des endgültigen committeten Paars, gehostete Analyse und Laufzeitabnahme stehen aus.
+
 ## Identität
 
 | Feld | Wert |

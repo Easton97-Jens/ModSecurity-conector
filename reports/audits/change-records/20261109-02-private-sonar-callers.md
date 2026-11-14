@@ -15,6 +15,27 @@ All 13 current projection methods passed without failures, errors or skips, incl
 
 Hosted analysis of Parent `a247a5c78bb21d5eee04b10c0f310c1917ec6a74` reported eight source-quality findings in the native publisher and security-tools updater. The follow-up replaces repeated literals with Parent-owned constants, writes the same two six-ASCII-space regex runs as `{6}`, and extracts existing mapping/reference collection and suffix validation. The frozen-role, legacy-summary, immutability, scope and write guards, mapping traversal order and collected references remain unchanged. Focused validation and exact-head hosted confirmation are tracked separately; earlier test results describe their recorded revisions.
 
+## Read-only candidate parser closure correction
+
+The 2026-11-14 native candidate check reproduced an import error when the
+already committed Framework parser requested its diagnostic contract companion.
+The separate read-only verifier now loads only that parser and its demanded
+companion from the same committed Parent gitlink, in private in-memory namespaces.
+An exact host dependency map and three permitted diagnostic exports reject
+unreviewed imports; checkout files, candidate Python, package initializers and
+ambient Framework modules cannot supply the closure. Genuine older parsers do
+not require a nonexistent companion. The protected native publisher retains its
+Parent-only executable closure and the frozen diagnostic action is unchanged.
+The initial correction passed all 40 canonical verifier methods without failures,
+errors or skips. Its companion-free loader fixture is explicitly minimal;
+separate checks loaded the genuine historical `62b411` and `31531f` parsers from
+immutable Git and expanded their actual workflow data without a companion.
+The original Parent Python 3.14 candidate check from `15f2e2` to `476ada7` then
+returned exit 0. These are local source-snapshot results; follow-up source
+snapshots retain separate rerun evidence. The helper's module name is now a
+single local constant. Final committed-pair validation, hosted analysis and
+runtime acceptance remain pending.
+
 ## Identity
 
 | Field | Value |
