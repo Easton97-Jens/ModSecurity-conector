@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@15f2e2e7923247987093ce7aec35a37039ed3ea3
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@f13af5450c1f945044ba4dcd945be1d8187e9c57
         with:
-          framework-revision: 15f2e2e7923247987093ce7aec35a37039ed3ea3
+          framework-revision: f13af5450c1f945044ba4dcd945be1d8187e9c57
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@15f2e2e7923247987093ce7aec35a37039ed3ea3
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@f13af5450c1f945044ba4dcd945be1d8187e9c57
         with:
-          framework-revision: 15f2e2e7923247987093ce7aec35a37039ed3ea3
+          framework-revision: f13af5450c1f945044ba4dcd945be1d8187e9c57
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@15f2e2e7923247987093ce7aec35a37039ed3ea3
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@f13af5450c1f945044ba4dcd945be1d8187e9c57
         with:
-          framework-revision: 15f2e2e7923247987093ce7aec35a37039ed3ea3
+          framework-revision: f13af5450c1f945044ba4dcd945be1d8187e9c57
