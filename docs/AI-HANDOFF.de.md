@@ -4,8 +4,8 @@
 
 ## Stand und Ziel
 
-- Datum: **2026-11-14 (Europe/Berlin)**; Checkout: `/root/git/ModSecurity-conector`.
-- Branch: `codex/ai-handoff-and-framework-pin-20261114`; ursprüngliche Parent-Basis: `5672c5ff562495ddbc47a1932b1641e0073746f5`; zuletzt beobachteter Commit vor dieser Dokumentationsaktualisierung: `82472f02170c34183998780f8ab77b90a7c8a299`. Späteren HEAD, Index und PR-Status aus Git/GitHub ermitteln.
+- Datum: **2026-11-14 (Europe/Berlin)**; Checkout: Repository-Root (`$CONNECTOR_ROOT`).
+- Branch: `codex/ai-handoff-and-framework-pin-20261114`; ursprüngliche Parent-Basis: `5672c5ff562495ddbc47a1932b1641e0073746f5`; zuletzt beobachteter Commit vor dieser Dokumentationsaktualisierung: `9bb05b578275d918f095e2a3a977e59a3e3ea405`. Späteren HEAD, Index und PR-Status aus Git/GitHub ermitteln.
 - **Gesprächskontext:** Zunächst eine rein dokumentarische Claude-Code-Übergabe vorbereiten, danach einen PR einschließlich der anderen vorhandenen Änderungen erstellen. Der zweite Auftrag erlaubt Task-Branch-Commit/Push/PR und die Aufnahme des Framework-Pins, keinen Merge. Der Nutzer erlaubte anschließend die exakte Operator-Freigabe für Gitlink/Index; diese ist jetzt installiert. Frühere Produktgespräche oder Testprotokolle liegen hier nicht vor.
 - **Belegte Fakten:** Lokale Diffs und native Befehlsdefinitionen wurden untersucht. Frische Remote-Abfragen bestätigten Parent-`master` bei der obigen Basis und Framework-`master` bei `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1`.
 - **Annahme:** Claude Code setzt in diesem Checkout fort, wo ignorierte lokale Anweisungen verfügbar bleiben. Diesen Stand vor Verwendung abgleichen.
@@ -44,7 +44,7 @@ Framework ist auf `master` intern sauber; ausgewählt ist dessen bereits veröff
 
 ## Ausgeführte Prüfungen und Grenzen
 
-**Behobene Auslieferungssperre:** Nach ausdrücklicher Nutzerfreigabe wurde eine operatorseitige Freigabe für den exakten ursprünglichen Worktree/Index/Gitlink installiert. Vollständige Secrets-Nachweise erfassen alle 2514 regulären Framework-Blobs und 9 reinen Git-Aliasse sowie alle 431 regulären MRTS-Blobs und 41 Aliasse; alle abgeschlossenen Scans bestanden. Der normale Git-Hook erzeugte danach `82472f02170c34183998780f8ab77b90a7c8a299`. An diesem Dokumentationsstand waren Push und PR noch nicht erfolgt; spätere Auslieferung aus GitHub ermitteln.
+**Behobene Auslieferungssperre:** Nach ausdrücklicher Nutzerfreigabe wurde eine operatorseitige Freigabe für den exakten ursprünglichen Worktree/Index/Gitlink installiert. Vollständige Secrets-Nachweise erfassen alle 2514 regulären Framework-Blobs und 9 reinen Git-Aliasse sowie alle 431 regulären MRTS-Blobs und 41 Aliasse; alle abgeschlossenen Scans bestanden. Der normale Git-Hook erzeugte danach `82472f02170c34183998780f8ab77b90a7c8a299`. [Draft-PR #449](https://github.com/Easton97-Jens/ModSecurity-conector/pull/449) ist offen; zuletzt beobachteter HEAD war `9bb05b578275d918f095e2a3a977e59a3e3ea405`. Dieser Folgecommit korrigiert den CI-Pfadkonventionsfehler; Checks des aktuellen HEAD nach dem Push erneut abfragen.
 
 | Befehl oder Vorgehen | Beobachtetes Ergebnis |
 | --- | --- |
@@ -57,12 +57,15 @@ Framework ist auf `master` intern sauber; ausgewählt ist dessen bereits veröff
 | `rtk make check-bilingual-docs` | Nach 15 Minuten CPU-Arbeit in wiederholter Ignore-Pfadabfrage beendet; Exit 2 nach Abbruch, kein PASS. |
 | `rtk bypass env CONNECTOR_REVISION=5672c5ff562495ddbc47a1932b1641e0073746f5 .venv/bin/python -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/check_bilingual.py` | Exit 0, `bilingual docs ok`; alle vorhandenen Regeln/Auswahlen des vollständigen Prüfers erhalten, mit gleichwertigem indiziertem Ignore-Pfadprädikat. Kein Prüferquelltext geändert. |
 | Native Change-Record-Archivprüfung | Exit 0; Strukturvertrag bestanden. |
+| `rtk make check-variable-documentation` | Zunächst Exit 2; nach Pfadkorrektur über Repository-Variable Exit 0, 109 Referenzen. |
 | `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit-Hook verweigerte den gestagten Gitlink: `No exact operator V2 admission for selected Gitlink`. In diesem ersten Versuch kein Commit erstellt. |
 | `rtk bypass python3 -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/operator_admission.py install --expected-plan-sha256 4da207519ebc4839396b5ea98de19b6db3b4bc5f747e98e0a4ca6ae1822dd362` | Exit 0; vom Nutzer autorisierte exakte Indexfreigabe nach vollständigen Quellen-/geschützten nativen Prüfungen installiert; bestehende Einträge und ausführbare Guards erhalten. |
 | `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Folgeversuch mit Exit 0 durch den normalen Hook; erster 30-Dateien-Commit `82472f02170c34183998780f8ab77b90a7c8a299`. |
 | `rtk bypass .venv/bin/python -I ci/tools/read-framework-revisions.py --parent-sha 82472f02170c34183998780f8ab77b90a7c8a299` | Exit 0; committete Framework-/MRTS-Pins stimmen mit den materialisierten Checkouts überein. |
 
 Den ersten Vorlagenaufrufen fehlten explizite Framework-Umgebung/Importpfade; der erfolgreiche native Aufruf setzte beides. Der Kandidatenprüfung mit System-Python fehlte `yaml`; mit der Repository-`.venv/bin/python` bestand sie. Der erste Synchronisiereraufruf verweigerte eine Eingabe außerhalb seines erlaubten temporären Wurzelverzeichnisses; mit dem aufgabeneigenen `RUNNER_TEMP` bestand er ohne Lockerung der Pfadprüfungen.
+
+Gehostete CI bei `9bb05b578275d918f095e2a3a977e59a3e3ea405` fand das maschinenspezifische Checkout-Literal der Übergabe in [test-apache](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/43584116251). `rtk make check-variable-documentation` reproduzierte lokal Exit 2; der Ersatz durch `$CONNECTOR_ROOT` in beiden Übergaben ergab Exit 0 (109 Referenzen). Gehostetes `make check-bilingual-docs` bestand an diesem historischen HEAD. Frische CI für den späteren Korrekturcommit gesondert abfragen.
 
 Der erste große Quellenbatch lief in eine Zeitüberschreitung (Exit 1); sein gesamter Inhalt wurde vor Ausgabe der vollständigen Nachweise erfolgreich in kleineren vollständigen Blob-Batches erneut geprüft. Zwei große Git-Blobs wurden tatsächlich über ganze Dateien geprüft; keine Quellbytes ausgelassen. Die Prüfung mit verkürzter Parent-SHA wurde abgewiesen (Exit 1); der obige Aufruf mit vollen 40 Zeichen bestand.
 

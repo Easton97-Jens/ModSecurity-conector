@@ -51,6 +51,8 @@ Auch die Prüfung der gestagten Veröffentlichung `--verify-primary --staged` en
 
 Der erste große Quellenbatch lief in eine Zeitüberschreitung (Exit 1); sein gesamter Inhalt wurde vor Ausgabe der vollständigen Nachweise erfolgreich in kleineren vollständigen Blob-Batches erneut geprüft. Zwei große Git-Blobs wurden tatsächlich über ganze Dateien geprüft; keine Quellbytes ausgelassen. Die Prüfung mit verkürzter Parent-SHA wurde abgewiesen (Exit 1); der obige Aufruf mit vollen 40 Zeichen bestand.
 
+Gehostete CI bei `9bb05b578275d918f095e2a3a977e59a3e3ea405` fand das maschinenspezifische Checkout-Literal der Übergabe in [test-apache](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/43584116251). `rtk make check-variable-documentation` reproduzierte lokal Exit 2; der Ersatz durch `$CONNECTOR_ROOT` in beiden Übergaben ergab Exit 0 (109 Referenzen). Gehostetes `make check-bilingual-docs` bestand an diesem historischen HEAD. Frische CI für den späteren Korrekturcommit gesondert abfragen.
+
 ## Security-Auswirkung
 
 Keine Authentifizierung, Autorisierung, Laufzeit-Sicherheitsstandards oder CI-Gates abgeschwächt. Lokale `.claude`-, `.rtk`- und `.aws`-Pfade ignorieren; keine Inhalte dieser Verzeichnisse oder Zugangsdatenablagen ausgewählt. Generierte Workflows ändern nur die exakte Framework-Revision. Secrets-Scanning ist kein Codequalitäts- oder Laufzeitnachweis.
@@ -75,4 +77,4 @@ Keine Produkt-Builds, `quick-check`, `test`, gehosteten Laufzeit-/Konfigurations
 
 ## Finaler Diff- und Review-Status
 
-Der erste geprüfte 30-Pfade-Stand wurde als `82472f02170c34183998780f8ab77b90a7c8a299` durch den ursprünglichen Hook committet. Die exakte Prüfung der committeten Framework-/MRTS-Pins bestand. Diese Dokumentationsaktualisierung erfasst die behobene Freigabesperre vor Push/Draft-PR-Veröffentlichung; spätere Auslieferung aus Git/GitHub ermitteln. Keine master-Integration oder Schreibaktion in verschachtelten Repositorys erfolgte.
+Der erste geprüfte 30-Pfade-Stand wurde als `82472f02170c34183998780f8ab77b90a7c8a299` durch den ursprünglichen Hook committet. Die exakte Prüfung der committeten Framework-/MRTS-Pins bestand. [Draft-PR #449](https://github.com/Easton97-Jens/ModSecurity-conector/pull/449) ist offen. Dieser Folgecommit korrigiert den bei `9bb05b578275d918f095e2a3a977e59a3e3ea405` beobachteten Pfadkonventionsfehler; späteren Korrektur-HEAD und abgeschlossene Checks aus Git/GitHub ermitteln. Keine master-Integration oder Schreibaktion in verschachtelten Repositorys erfolgte.

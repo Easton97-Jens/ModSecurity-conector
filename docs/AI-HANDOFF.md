@@ -4,8 +4,8 @@
 
 ## Snapshot and goal
 
-- Date: **2026-11-14 (Europe/Berlin)**; checkout: `/root/git/ModSecurity-conector`.
-- Branch: `codex/ai-handoff-and-framework-pin-20261114`; original Parent base: `5672c5ff562495ddbc47a1932b1641e0073746f5`; last observed commit before this documentation refresh: `82472f02170c34183998780f8ab77b90a7c8a299`. Resolve the resulting later HEAD, index and PR status from Git/GitHub.
+- Date: **2026-11-14 (Europe/Berlin)**; checkout: repository root (`$CONNECTOR_ROOT`).
+- Branch: `codex/ai-handoff-and-framework-pin-20261114`; original Parent base: `5672c5ff562495ddbc47a1932b1641e0073746f5`; last observed commit before this documentation refresh: `9bb05b578275d918f095e2a3a977e59a3e3ea405`. Resolve the resulting later HEAD, index and PR status from Git/GitHub.
 - **Conversation context:** first prepare a documentation-only Claude Code handoff, then create a PR including the other existing changes. The second request authorizes the task-branch commit/push/PR and inclusion of the Framework pin. It does not authorize a merge. The user subsequently approved the exact operator Gitlink/index admission; that admission is now installed. No earlier product-task conversation or test transcript is available here.
 - **Verified facts:** local diffs and native command definitions were inspected. Fresh remote reads confirmed Parent `master` at the base above and Framework `master` at `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1`.
 - **Assumption:** Claude Code resumes in this checkout, where ignored local instructions remain available. Reconcile this snapshot before relying on it.
@@ -44,7 +44,7 @@ Framework is internally clean on `master`; the selected commit is its already-pu
 
 ## Executed checks and limitations
 
-**Resolved delivery blocker:** after explicit user approval, one operator-owned admission was installed for the exact initial worktree/index/Gitlink. Complete Secrets proofs cover all 2514 Framework regular blobs and 9 Git-only aliases, plus all 431 MRTS regular blobs and 41 aliases; all completed scans passed. The normal Git hook then created `82472f02170c34183998780f8ab77b90a7c8a299`. No push or PR had occurred at this documentation checkpoint; inspect GitHub for later delivery state.
+**Resolved delivery blocker:** after explicit user approval, one operator-owned admission was installed for the exact initial worktree/index/Gitlink. Complete Secrets proofs cover all 2514 Framework regular blobs and 9 Git-only aliases, plus all 431 MRTS regular blobs and 41 aliases; all completed scans passed. The normal Git hook then created `82472f02170c34183998780f8ab77b90a7c8a299`. [Draft PR #449](https://github.com/Easton97-Jens/ModSecurity-conector/pull/449) is open; last observed head was `9bb05b578275d918f095e2a3a977e59a3e3ea405`. This follow-up corrects the CI path-convention failure; re-read current-head checks after push.
 
 | Command or procedure | Observed result |
 | --- | --- |
@@ -57,12 +57,15 @@ Framework is internally clean on `master`; the selected commit is its already-pu
 | `rtk make check-bilingual-docs` | Stopped after 15 minutes CPU-bound in repeated ignored-path lookup; exit 2 after termination, not a PASS. |
 | `rtk bypass env CONNECTOR_REVISION=5672c5ff562495ddbc47a1932b1641e0073746f5 .venv/bin/python -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/check_bilingual.py` | Exit 0, `bilingual docs ok`; all existing full-checker rules/discovery retained, with an equivalent indexed ignored-path predicate. No checker source changed. |
 | Native Change Record archive check | Exit 0; structural contract passed. |
+| `rtk make check-variable-documentation` | Initial exit 2; after repository-variable path correction exit 0, 109 references. |
 | `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Exit 1; pre-commit hook denied the staged Gitlink: `No exact operator V2 admission for selected Gitlink`. No commit created in that initial attempt. |
 | `rtk bypass python3 -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/operator_admission.py install --expected-plan-sha256 4da207519ebc4839396b5ea98de19b6db3b4bc5f747e98e0a4ca6ae1822dd362` | Exit 0; user-authorized exact-index admission installed after full-source/protected-native checks; existing entries and executable guards preserved. |
 | `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Subsequent attempt exit 0 through the normal hook; initial 30-file commit `82472f02170c34183998780f8ab77b90a7c8a299`. |
 | `rtk bypass .venv/bin/python -I ci/tools/read-framework-revisions.py --parent-sha 82472f02170c34183998780f8ab77b90a7c8a299` | Exit 0; committed Framework/MRTS pins agree with the materialized checkouts. |
 
 The first scaffold attempts lacked the explicit Framework environment/import path; the successful native invocation supplied both. System-Python candidate verification lacked `yaml`; using the repository `.venv/bin/python` passed. The first synchronizer invocation rejected an input outside its allowed temporary root; selecting the task-owned `RUNNER_TEMP` passed without relaxing path checks.
+
+Hosted CI at `9bb05b578275d918f095e2a3a977e59a3e3ea405` exposed the handoff's machine-specific checkout literal in [test-apache](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/43584116251). `rtk make check-variable-documentation` reproduced exit 2 locally; replacing the checkout literal with `$CONNECTOR_ROOT` in both handoffs produced exit 0 (109 references). Hosted `make check-bilingual-docs` passed at that historical head. Fresh CI must be read for the later remediation commit.
 
 The first large source batch timed out (exit 1); its entire scope was successfully rescanned in smaller whole-blob batches before final complete proofs were emitted. Two large Git blobs used actual whole-path scans; no source bytes were omitted. The abbreviated Parent-SHA check was rejected (exit 1); the full 40-character invocation above passed.
 

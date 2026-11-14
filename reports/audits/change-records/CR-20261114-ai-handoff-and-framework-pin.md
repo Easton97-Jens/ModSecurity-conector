@@ -51,6 +51,8 @@ The staged `--verify-primary --staged` publication check also exited 0 with `FRA
 
 The first large source batch timed out (exit 1); its entire scope was successfully rescanned in smaller whole-blob batches before final complete proofs were emitted. Two large Git blobs used actual whole-path scans; no source bytes were omitted. The abbreviated Parent-SHA check was rejected (exit 1); the full 40-character invocation above passed.
 
+Hosted CI at `9bb05b578275d918f095e2a3a977e59a3e3ea405` exposed the handoff's machine-specific checkout literal in [test-apache](https://github.com/Easton97-Jens/ModSecurity-conector/actions/runs/43584116251). `rtk make check-variable-documentation` reproduced exit 2 locally; replacing the checkout literal with `$CONNECTOR_ROOT` in both handoffs produced exit 0 (109 references). Hosted `make check-bilingual-docs` passed at that historical head. Fresh CI must be read for the later remediation commit.
+
 ## Security impact
 
 No authentication, authorization, runtime security defaults or CI gates were weakened. Ignore local `.claude`, `.rtk` and `.aws` paths; no contents of those directories or credential stores were selected. Generated workflows change only the exact Framework revision. Secrets scanning is not code-quality or runtime evidence.
@@ -75,4 +77,4 @@ No product builds, `quick-check`, `test`, hosted runtime/config probes, complete
 
 ## Final diff and review status
 
-The initial reviewed30-path state was committed as `82472f02170c34183998780f8ab77b90a7c8a299` through the original hook. The exact committed Framework/MRTS check passed. This documentation refresh records the resolved admission before push/Draft-PR publication; inspect Git/GitHub for later delivery state. No master integration or nested-repository writes occurred.
+The initial reviewed30-path state was committed as `82472f02170c34183998780f8ab77b90a7c8a299` through the original hook. The exact committed Framework/MRTS check passed. [Draft PR #449](https://github.com/Easton97-Jens/ModSecurity-conector/pull/449) is open. This follow-up corrects the path-convention failure observed at `9bb05b578275d918f095e2a3a977e59a3e3ea405`; inspect Git/GitHub for the later remediation head and terminal checks. No master integration or nested-repository writes occurred.
