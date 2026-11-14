@@ -49,3 +49,6 @@ tmp/
 Thumbs.db
 CLAUDE.md
 RTK.md
+.claude
+.rtk
+.aws
