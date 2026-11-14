@@ -36,6 +36,15 @@ snapshots retain separate rerun evidence. The helper's module name is now a
 single local constant. Final committed-pair validation, hosted analysis and
 runtime acceptance remain pending.
 
+The exact-head analysis of Parent `6cf4f42e` reported `python:S3776` for this
+loader (cognitive complexity 18, threshold 15). Its ordered diagnostic-export
+condition and error now live in one dedicated validator, called immediately
+after the same lazy companion load. Source acquisition, allowed imports,
+namespace handling and candidate-data boundaries are unchanged. Reversing this
+extraction reconstructs the complete preceding source byte for byte. All 40
+verifier methods passed again without failures, errors or skips; the new hosted
+analysis must still confirm closure of the finding.
+
 ## Identity
 
 | Field | Value |

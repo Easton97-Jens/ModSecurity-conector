@@ -37,6 +37,16 @@ Quellsnapshots; weitere Quellsnapshots behalten getrennte Wiederholungsbelege.
 Der Modulname des Helpers ist nun eine einzelne lokale Konstante. Die Prüfung
 des endgültigen committeten Paars, gehostete Analyse und Laufzeitabnahme stehen aus.
 
+Die Analyse des exakten Parent-Heads `6cf4f42e` meldete für diesen Loader
+`python:S3776` (kognitive Komplexität 18, Grenzwert 15). Seine geordnete
+Diagnoseexport-Bedingung und Fehlermeldung liegen nun in einem eigenen Prüfer,
+der unmittelbar nach demselben verzögerten Laden des Begleiters aufgerufen wird.
+Quellbezug, erlaubte Imports, Namespace-Behandlung und Kandidatendatengrenzen
+bleiben unverändert. Das Rückgängigmachen dieser Auslagerung rekonstruiert den
+vollständigen vorherigen Quelltext bytegenau. Alle 40 Prüfermethoden bestanden
+erneut ohne Fehlschläge, Fehler oder Skips; die neue gehostete Analyse muss die
+Erledigung des Befunds weiterhin bestätigen.
+
 ## Identität
 
 | Feld | Wert |

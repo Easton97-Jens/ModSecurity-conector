@@ -566,6 +566,13 @@ def _framework_blob(framework: Path, revision: str, relative: str) -> str:
         raise ContractError(f"pinned Framework source is not UTF-8: {relative}") from error
 
 
+def _validate_trusted_diagnostics_exports(module: ModuleType) -> None:
+    if (not isinstance(getattr(module, "ACTION_PATH", None), str)
+            or not isinstance(getattr(module, "REFERENCE", None), str)
+            or not callable(getattr(module, "scanner_step", None))):
+        raise ContractError("invalid trusted Framework diagnostics exports")
+
+
 def _trusted_workflow_parser(framework: Path, revision: str) -> dict:
     """Load the committed parser and only its demanded same-commit companion."""
     import __future__ as host_future
@@ -593,10 +600,7 @@ def _trusted_workflow_parser(framework: Path, revision: str) -> dict:
                     or not set(fromlist) <= diagnostic_exports):
                 raise ContractError("unsupported trusted Framework import")
             module = load_module(diagnostics_module)
-            if (not isinstance(getattr(module, "ACTION_PATH", None), str)
-                    or not isinstance(getattr(module, "REFERENCE", None), str)
-                    or not callable(getattr(module, "scanner_step", None))):
-                raise ContractError("invalid trusted Framework diagnostics exports")
+            _validate_trusted_diagnostics_exports(module)
             return module
         if name not in host_modules:
             raise ContractError("unsupported trusted Framework import")
