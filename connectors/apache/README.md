@@ -208,10 +208,15 @@ forwarding seals the Phase-4 gate because a body prefix might already be
 visible. P4 finishes exactly once on EOS; duplicate terminal output is
 rejected.
 
-Off preserves native intervention handling. `log_only` in safe mode preserves
-an already-forwarded prefix. Strict
-uses `abort_connection` after a disruptive EOS result, rather than attempting
-to replace emitted bytes. Because P4 rule evaluation occurs at EOS, this
+Off preserves native intervention handling. For a genuine rule intervention
+after healthy P4 completion, `log_only` in Safe preserves an already-forwarded
+prefix even if only optional event logging fails; native audit and cleanup
+still run. Strict uses `abort_connection` after a disruptive rule EOS result
+even when its event sink fails, rather than attempting to replace emitted
+bytes. Native response-limit Reject after commitment instead seals output and
+aborts in every mode, retaining the native status and first cause; it is never
+a Safe rule-only event. See the
+[shared transaction contract](../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events). Because P4 rule evaluation occurs at EOS, this
 progressive path does not claim a reliable pre-commit P4 HTTP deny or redirect;
 P3 is the response-header decision point before commitment.
 

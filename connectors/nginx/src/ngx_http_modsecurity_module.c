@@ -457,7 +457,7 @@ ngx_http_modsecurity_capture_error_page(ngx_http_request_t *r,
     ngx_http_core_loc_conf_t *clcf;
     ngx_http_err_page_t *pages;
     ngx_str_t target;
-    u_char *args;
+    const u_char *args;
 
     if (ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
         (ctx->native_event_phase != MSCONNECTOR_PHASE_REQUEST_HEADERS &&
@@ -472,7 +472,7 @@ ngx_http_modsecurity_capture_error_page(ngx_http_request_t *r,
     }
     pages = clcf->error_pages->elts;
     for (ngx_uint_t index = 0; index < clcf->error_pages->nelts; ++index) {
-        if ((ngx_int_t)pages[index].status != status) {
+        if (pages[index].status != status) {
             continue;
         }
         if (ngx_http_complex_value(r, &pages[index].value, &target) != NGX_OK ||
@@ -484,9 +484,9 @@ ngx_http_modsecurity_capture_error_page(ngx_http_request_t *r,
         if (args != NULL) {
             target.len = (size_t)(args - target.data);
         }
-        ctx->error_page_target = target;
-        ctx->error_page_status = status;
-        ctx->error_page_response_status = pages[index].overwrite >= 0
+        ctx->error_page.target = target;
+        ctx->error_page.status = status;
+        ctx->error_page.response_status = pages[index].overwrite >= 0
             ? pages[index].overwrite : status;
         return;
     }
@@ -758,7 +758,7 @@ ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
     const char *event_name;
 
     if (r == NULL || r->connection == NULL || ctx == NULL) return NGX_ERROR;
-    mcf = ctx->conf;
+    mcf = ctx->lifetime.conf;
     if (mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
     switch (cause) {
@@ -783,8 +783,8 @@ ngx_http_modsecurity_log_technical_failure(ngx_http_request_t *r,
     if (r->pool != NULL) {
         metadata = ngx_http_modsecurity_event_request_metadata(r);
     } else {
-        metadata.method = ctx->cleanup_method;
-        metadata.uri = ctx->cleanup_uri;
+        metadata.method = ctx->lifetime.cleanup_method;
+        metadata.uri = ctx->lifetime.cleanup_uri;
         metadata.content_type = "";
     }
     msconnector_event_init(&event);
@@ -822,7 +822,7 @@ ngx_http_modsecurity_snapshot_cleanup_metadata(ngx_http_modsecurity_ctx_t *ctx)
 {
     ngx_http_request_t *r = ctx->r;
     ngx_str_t values[2];
-    const char **outputs[2] = { &ctx->cleanup_method, &ctx->cleanup_uri };
+    const char **outputs[2] = { &ctx->lifetime.cleanup_method, &ctx->lifetime.cleanup_uri };
     const char *value;
 
     if (r == NULL || r->pool == NULL) return NGX_ERROR;
@@ -854,7 +854,7 @@ ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
     if (r == NULL || r->connection == NULL) {
         return;
     }
-    mcf = ctx->conf;
+    mcf = ctx->lifetime.conf;
     if (mcf == NULL || mcf->phase4_log_file == NULL ||
         mcf->phase4_log_file->fd == NGX_INVALID_FILE) {
         return;
@@ -870,8 +870,8 @@ ngx_http_modsecurity_cleanup_log_event(ngx_http_modsecurity_ctx_t *ctx,
     event.meta.integration_mode = "native-nginx-http-module";
     event.meta.transaction_id = ctx->event_transaction_id.len > 0U
         ? (const char *)ctx->event_transaction_id.data : "";
-    event.request.method = ctx->cleanup_method;
-    event.request.uri = ctx->cleanup_uri;
+    event.request.method = ctx->lifetime.cleanup_method;
+    event.request.uri = ctx->lifetime.cleanup_uri;
     if (ngx_http_modsecurity_write_phase_event_jsonl(r, mcf, &event,
         "cleanup") != NGX_OK) {
         /* Cleanup has already completed; its void host hook cannot replace
@@ -951,14 +951,14 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
         return NULL;
     }
     ctx->r = r;
-    ctx->pool = r->pool;
+    ctx->lifetime.pool = r->pool;
     if (ngx_http_modsecurity_snapshot_cleanup_metadata(ctx) != NGX_OK) {
         return NULL;
     }
 
     mmcf = ngx_http_get_module_main_conf(r, ngx_http_modsecurity_module);
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
-    ctx->conf = mcf;
+    ctx->lifetime.conf = mcf;
 
     dd("creating transaction with the following rules: '%p' -- ms: '%p'", mcf->rules_set, mmcf->modsec);
 
@@ -1097,31 +1097,31 @@ ngx_http_modsecurity_same_policy(const ngx_http_modsecurity_conf_t *left,
 }
 
 static int
-ngx_http_modsecurity_is_block_error_page(ngx_http_request_t *r,
+ngx_http_modsecurity_is_block_error_page(const ngx_http_request_t *r,
     const ngx_http_modsecurity_ctx_t *ctx)
 {
-    ngx_http_core_loc_conf_t *clcf;
+    const ngx_http_core_loc_conf_t *clcf;
     ngx_str_t target;
 
     if (!r->internal || ctx->r != r || !ctx->intervention_triggered ||
         ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
-        ctx->error_page_target.len == 0U ||
-        ctx->error_page_response_status != (ngx_int_t)r->err_status ||
-        ctx->error_page_status != ctx->last_intervention_status ||
+        ctx->error_page.target.len == 0U ||
+        ctx->error_page.response_status != (ngx_int_t)r->err_status ||
+        ctx->error_page.status != ctx->last_intervention_status ||
         (ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_BLOCK &&
          ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT)) {
         return 0;
     }
     target = r->uri;
-    if (ctx->error_page_target.data[0] == '@') {
+    if (ctx->error_page.target.data[0] == '@') {
         clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
         if (clcf == NULL || !clcf->named) {
             return 0;
         }
         target = clcf->name;
     }
-    return target.len == ctx->error_page_target.len &&
-        ngx_strncmp(target.data, ctx->error_page_target.data, target.len) == 0;
+    return target.len == ctx->error_page.target.len &&
+        ngx_strncmp(target.data, ctx->error_page.target.data, target.len) == 0;
 }
 
 /* A changed or disabled target owns no response phases of the source
@@ -1136,7 +1136,7 @@ ngx_http_modsecurity_prepare_location(ngx_http_request_t *r,
         return NGX_ERROR;
     }
     for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
-        if (cln->handler != ngx_http_modsecurity_cleanup || cln->data == NULL) {
+        if (cln->handler != &ngx_http_modsecurity_cleanup || cln->data == NULL) {
             continue;
         }
         ctx = cln->data;
@@ -1145,7 +1145,7 @@ ngx_http_modsecurity_prepare_location(ngx_http_request_t *r,
             ctx->logged || ctx->request_error_status != 0 ||
             ctx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
             ctx->contract.engine_decision != MSCONNECTOR_TRANSACTION_DECISION_ALLOW ||
-            ngx_http_modsecurity_same_policy(ctx->conf, mcf)) {
+            ngx_http_modsecurity_same_policy(ctx->lifetime.conf, mcf)) {
             continue;
         }
         if (msconnector_transaction_contract_supersede_response(&ctx->contract, 0U) !=
@@ -1173,12 +1173,12 @@ ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r)
     ctx = ngx_http_get_module_ctx(r, ngx_http_modsecurity_module);
     if (ctx != NULL && ctx->r == r && ctx->modsec_transaction != NULL &&
         !ctx->request_policy_superseded &&
-        (ngx_http_modsecurity_same_policy(ctx->conf, mcf) ||
+        (ngx_http_modsecurity_same_policy(ctx->lifetime.conf, mcf) ||
          ngx_http_modsecurity_is_block_error_page(r, ctx))) {
         return ctx;
     }
     for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
-        if (cln->handler != ngx_http_modsecurity_cleanup || cln->data == NULL) {
+        if (cln->handler != &ngx_http_modsecurity_cleanup || cln->data == NULL) {
             continue;
         }
         ctx = cln->data;
@@ -1189,9 +1189,9 @@ ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r)
               !ctx->request_policy_superseded && ctx->request_error_status == 0 &&
               ctx->contract.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
               ctx->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_ALLOW &&
-              ngx_http_modsecurity_same_policy(ctx->conf, mcf)) ||
+              ngx_http_modsecurity_same_policy(ctx->lifetime.conf, mcf)) ||
              ngx_http_modsecurity_is_block_error_page(r, ctx))) {
-            ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module);
+            ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module)
             return ctx;
         }
     }
@@ -1208,7 +1208,7 @@ ngx_http_modsecurity_log_request_contexts(ngx_http_request_t *r)
         return NGX_ERROR;
     }
     for (ngx_pool_cleanup_t *cln = r->pool->cleanup; cln; cln = cln->next) {
-        if (cln->handler != ngx_http_modsecurity_cleanup || cln->data == NULL) {
+        if (cln->handler != &ngx_http_modsecurity_cleanup || cln->data == NULL) {
             continue;
         }
         ctx = cln->data;

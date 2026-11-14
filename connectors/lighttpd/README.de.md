@@ -231,8 +231,12 @@ Der ausgewählte Umfang beansprucht weder gzip/br noch HTTP/2 oder jeden
 Datei-/Zero-Copy-Ausgabepfad. Der aktuelle Harness führt keinen Streaming-P4-
 Traffic aus; es gibt keinen Real-Client-Nachweis für ein sichtbares Safe-Ergebnis,
 ein Pre-Commit-Deny, First-Byte-Auslieferung oder einen strikten
-Verbindungsabbruch. Der Quellpfad zeichnet ein disruptives Ergebnis im Safe-Modus
-als `log_only` auf. Off bewahrt die native Behandlung ohne zusätzliche
+Verbindungsabbruch. Der Quellpfad zeichnet eine späte Safe-Regelintervention
+nach gesundem P4-Abschluss als `log_only` auf. Natives Reject, technische Fehler
+sowie API-/Auditfehler sind ausgeschlossen; ein Fehler ausschließlich beim optionalen
+Ereignislogging bricht die Response nicht ab und ersetzt natives Audit/Cleanup
+nicht. Der [gemeinsame Transaktionsvertrag](../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse)
+definiert diese Ausnahme. Off bewahrt die native Behandlung ohne zusätzliche
 Late-Policy. Die gepatchte ABI definiert `PLUGIN_BODY_HOOK_ABORT`, aber der
 aktuelle Strict-Zweig nach dem Commit protokolliert `NOT EXECUTED` und gibt
 `PLUGIN_BODY_HOOK_CONTINUE` zurück; dies belegt keinen Transportabbruch. Die

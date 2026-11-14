@@ -13,8 +13,12 @@ because the legacy SPOP server calls them.
 The product build `make -C connectors/haproxy build-modsecurity-binding` creates
 `libhaproxy-modsecurity-binding.a`. It no longer builds a test executable or
 links the Common test-result model. SDK compatibility compile/link probes stay
-in the product build; an unavailable optional Rule-ID API uses the supported
-baseline rather than weakening the required API check.
+in the product build, including the optional logged-ID-list availability probe.
+That list does not identify the causally disruptive rule; neither its first
+nor its last entry is authoritative. Disruptive rule correlation uses only
+validated metadata from the actual intervention record. Missing or ambiguous
+metadata cannot turn a block into Allow; required baseline API checks remain
+unchanged.
 
 Embedded starter, binding and SPOP regression definitions now belong to the
 pinned Framework under `connector_native_tests/connectors/haproxy/src/`.

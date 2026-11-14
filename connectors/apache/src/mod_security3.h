@@ -37,6 +37,7 @@
 
 #include "msc_filters.h"
 #include "msconnector/config.h"
+#include "msconnector/rule_id.h"
 #include "msconnector/error.h"
 #include "msconnector/phase.h"
 #include "msconnector/rule_load_stats.h"
@@ -108,8 +109,8 @@ typedef struct
 
 typedef struct
 {
-    apr_size_t body_bytes_seen;
-    apr_size_t body_bytes_inspected;
+    uint64_t body_bytes_seen;
+    uint64_t body_bytes_inspected;
     apr_size_t brigade_bucket_count;
     int body_truncated;
     int headers_seen;
@@ -124,6 +125,8 @@ typedef struct
     int body_processed;
     /* Native failure finalization can finish P4 before a host EOS bucket. */
     int body_eos_seen;
+    /* Set only while collecting a successful native response append. */
+    int body_append_active;
     int phase4_intervention;
     int phase4_strict_abort;
 } msc_response_state;
@@ -132,6 +135,7 @@ typedef struct
 {
     int last_status;
     const char *last_log;
+    char retained_rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     const char *transaction_id;
     enum msconnector_phase native_event_phase;
     int native_event_phase_active;

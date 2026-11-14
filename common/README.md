@@ -9,8 +9,11 @@
 counts at `UINT64_MAX` without adding a delivery limit. Request counters and
 host allocation/storage limits retain their checked resource semantics.
 
-Common source consumers must rebuild with this header change; the existing
-JSON event byte fields already support `uint64_t`.
+Common source and binary consumers must rebuild against matching headers:
+`msconnector_runtime_body_progress.bytes_seen`, `bytes_inspected` and
+`bytes_retained` are also `uint64_t`. Existing JSON event byte fields already
+support `uint64_t`. Native chunk-length APIs still use `size_t`; request
+`SIZE_MAX` guards and allocation/storage checks remain active.
 
 `msconnector_transaction_contract_supersede_response` retires only a healthy,
 uncommitted direct P1/P2 owner after the host transfers response policy. It

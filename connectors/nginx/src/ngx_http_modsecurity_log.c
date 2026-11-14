@@ -100,7 +100,7 @@ ngx_http_modsecurity_log(void *log, const void* data)
     if (r == NULL || r->connection == NULL || r->connection->log == NULL) {
         return;
     }
-    mcf = ctx->conf;
+    mcf = ctx->lifetime.conf;
     if (mcf == NULL) {
         return;
     }
@@ -149,7 +149,7 @@ ngx_http_modsecurity_log_context(ngx_http_modsecurity_ctx_t *ctx)
     int contract_valid = 1;
 
     if (ctx == NULL || ctx->r == NULL || ctx->r->connection == NULL ||
-        ctx->pool == NULL) {
+        ctx->lifetime.pool == NULL) {
         return NGX_ERROR;
     }
     r = ctx->r;
@@ -177,7 +177,7 @@ ngx_http_modsecurity_log_context(ngx_http_modsecurity_ctx_t *ctx)
 
     /* Still allow the native audit epilogue to record a prior phase failure.
      * Its success cannot repair a failed canonical completion. */
-    old_pool = ngx_http_modsecurity_pcre_malloc_init(ctx->pool);
+    old_pool = ngx_http_modsecurity_pcre_malloc_init(ctx->lifetime.pool);
     result = msc_process_logging(ctx->modsec_transaction);
     ngx_http_modsecurity_pcre_malloc_done(old_pool);
     if (!msconnector_native_phase_succeeded(result)) {

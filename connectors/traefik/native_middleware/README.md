@@ -52,9 +52,12 @@ contract and is not implied by this package.
 
 The UDS protocol rejects unknown engine actions instead of relabelling them as
 an HTTP denial. It reports a disruptive outcome only after the actual
-`ResponseWriter` write succeeds. After response commitment a disruptive Phase
-4 result is deliberately `log_only`; it does not synthesize a changed status,
-reset, or client-abort claim.
+`ResponseWriter` write succeeds. After response commitment a genuine rule
+intervention following healthy Phase-4 completion is `log_only`; it does not
+synthesize a changed status, reset or client-abort claim. Native Reject and
+technical/API/audit errors are excluded. Failure confined to optional late
+Safe event logging does not abort the response or replace native audit/cleanup;
+see the [shared transaction contract](../../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events).
 
 ## UDS cancellation, timeout, and cleanup boundary
 

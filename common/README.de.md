@@ -10,8 +10,11 @@
 Request-Zähler und Host-Allokations-/Speicherlimits behalten ihre geprüfte
 Ressourcensemantik.
 
-Common-Quellnutzer müssen mit der Header-Änderung neu bauen; die vorhandenen
-JSON-Event-Bytefelder unterstützen bereits `uint64_t`.
+Common-Quell- und Binärnutzer müssen mit passenden Headern neu bauen:
+`msconnector_runtime_body_progress.bytes_seen`, `bytes_inspected` und
+`bytes_retained` sind ebenfalls `uint64_t`. Vorhandene JSON-Event-Bytefelder
+unterstützen bereits `uint64_t`. Native Chunk-Längen-APIs verwenden weiter
+`size_t`; Request-`SIZE_MAX`-Guards und Allokations-/Speicherprüfungen bleiben aktiv.
 
 `msconnector_transaction_contract_supersede_response` beendet ausschließlich
 einen gesunden, noch nicht committeten direkten P1/P2-Besitzer nach der

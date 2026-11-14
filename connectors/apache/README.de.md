@@ -216,10 +216,16 @@ nach progressivem Forwarding versiegelt das Phase-4-Gate, weil ein Body-Präfix
 bereits sichtbar sein kann. P4 wird genau einmal bei EOS abgeschlossen;
 doppelte terminale Ausgabe wird abgewiesen.
 
-Off bewahrt die native Interventionsbehandlung. `log_only` im Safe-Modus
-erhält ein bereits weitergereichtes Präfix.
-Strict verwendet `abort_connection` nach einem disruptiven EOS-Ergebnis,
-statt emittierte Bytes zu ersetzen. Weil die P4-Regelauswertung bei EOS
+Off bewahrt die native Interventionsbehandlung. Bei einer echten
+Regelintervention nach gesundem P4-Abschluss erhält `log_only` im Safe-Modus
+ein bereits weitergereichtes Präfix auch bei Fehlern ausschließlich im
+optionalen Ereignislogging; natives Audit und Cleanup laufen weiter.
+Strict verwendet `abort_connection` nach einem disruptiven Regel-EOS-Ergebnis
+auch bei ausgefallenem Ereignissink, statt emittierte Bytes zu ersetzen.
+Natives Response-Limit-Reject nach Commit versiegelt dagegen die Ausgabe und
+bricht in jedem Modus ab; nativer Status und erste Ursache bleiben erhalten.
+Es ist niemals ein Safe-Regelereignis. Siehe den
+[gemeinsamen Transaktionsvertrag](../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse). Weil die P4-Regelauswertung bei EOS
 erfolgt, behauptet dieser progressive Pfad keinen verlässlichen P4-HTTP-Deny
 oder Redirect vor Commit; P3 ist der Entscheidungspunkt für Response-Header
 vor dem Commit.

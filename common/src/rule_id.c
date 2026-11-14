@@ -144,12 +144,11 @@ static int parse_metadata(const char *cursor, const char **rule_id,
         !next_field(&cursor, "ref", 0, 0)) {
         return 0;
     }
-    if (*cursor == ' ') {
-        if (!next_field(&cursor, "hostname", 0, 0) ||
-            !next_field(&cursor, "uri", 0, 0) ||
-            !next_field(&cursor, "unique_id", 0, 0)) {
-            return 0;
-        }
+    if (*cursor == ' ' &&
+        (!next_field(&cursor, "hostname", 0, 0) ||
+         !next_field(&cursor, "uri", 0, 0) ||
+         !next_field(&cursor, "unique_id", 0, 0))) {
+        return 0;
     }
     return *cursor == '\0';
 }

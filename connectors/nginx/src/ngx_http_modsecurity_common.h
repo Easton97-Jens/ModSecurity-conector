@@ -201,20 +201,24 @@ typedef struct ngx_http_modsecurity_conf_s ngx_http_modsecurity_conf_t;
 
 typedef struct {
     ngx_http_request_t *r;
-    /* Native transactions retain their request, policy and allocation owner
-     * across location changes and even after NGINX clears r->pool. */
-    ngx_pool_t *pool;
-    const ngx_http_modsecurity_conf_t *conf;
-    ngx_str_t error_page_target;
-    ngx_int_t error_page_status;
-    ngx_int_t error_page_response_status;
+    /* Retain the allocation/policy owner and its pool-valid cleanup metadata
+     * across location changes, even after NGINX clears r->pool. */
+    struct {
+        ngx_pool_t *pool;
+        const ngx_http_modsecurity_conf_t *conf;
+        const char *cleanup_method;
+        const char *cleanup_uri;
+    } lifetime;
+    /* Captured destination and status pair jointly identify the one original
+     * block response that may traverse a configured internal error page. */
+    struct {
+        ngx_str_t target;
+        ngx_int_t status;
+        ngx_int_t response_status;
+    } error_page;
     Transaction *modsec_transaction;
     msconnector_transaction_contract contract;
     unsigned contract_initialized:1;
-    /* Request-pool strings remain alive while pool cleanup callbacks run,
-     * even after NGINX clears r->pool. Never allocate from that cleared pool. */
-    const char *cleanup_method;
-    const char *cleanup_uri;
     ModSecurityIntervention *delayed_intervention;
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)

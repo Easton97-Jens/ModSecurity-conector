@@ -220,6 +220,10 @@ struct msconnector_runtime_transaction {
         int finish_attempted;
         msconnector_error_code finish_error;
         int finished;
+        /* Set only by a validated late Safe P4 rule event. A failed optional
+         * event is diagnosed once and never becomes a sticky processing error. */
+        int optional_safe_rule;
+        msconnector_error_code optional_event_error;
     } completion;
 };
 
@@ -234,6 +238,12 @@ typedef struct msconnector_runtime_host_action {
     const char *transport_result;
     int connection_aborted;
 } msconnector_runtime_host_action;
+
+enum {
+    RUNTIME_EVENT_WRITE_FAILED = 0,
+    RUNTIME_EVENT_WRITTEN = 1,
+    RUNTIME_EVENT_DROPPED = 2
+};
 
 static void set_text_error(char *error, size_t error_len, const char *message) {
     if (error != NULL && error_len > 0U) {
@@ -1149,6 +1159,7 @@ static int native_decision(
     const msconnector_runtime *runtime,
     msconnector_native_transaction *native,
     enum msconnector_phase phase,
+    int response_append_active,
     msconnector_decision *decision,
     msconnector_error *error) {
     ModSecurityIntervention intervention;
@@ -1169,14 +1180,27 @@ static int native_decision(
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "invalid native intervention result", "msc_intervention");
     }
-    disruptive = intervention_result == 1 && intervention.disruptive != 0;
+    if (intervention.disruptive != 0 && intervention.disruptive != 1) {
+        msc_intervention_cleanup(&intervention);
+        return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+            "invalid native disruptive intervention flag", "msc_intervention");
+    }
+    disruptive = intervention_result == 1 && intervention.disruptive == 1;
     body_limit = native_is_request_body_limit_rejection(phase, &intervention);
-    common_intervention = msconnector_intervention_make(intervention.disruptive,
-        intervention.status, intervention.url, intervention.log);
-    response_limit = msconnector_intervention_is_response_body_limit_rejection(phase,
-        &common_intervention);
     if (disruptive) {
+        /* Correlate a real rule before classifying the supported append-only
+         * native limit. Log wording is not a limit signal. */
         native_capture_rule_id(native, &intervention);
+        common_intervention = msconnector_intervention_make(intervention.disruptive,
+            intervention.status, intervention.url, intervention.log);
+        response_limit = msconnector_intervention_is_response_body_limit_rejection(phase,
+            &common_intervention, native->rule_id, response_append_active,
+            phase == MSCONNECTOR_PHASE_RESPONSE_BODY && !response_append_active);
+        if (response_append_active && !response_limit) {
+            msc_intervention_cleanup(&intervention);
+            return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
+                "unexpected disruptive response append intervention", "msc_intervention");
+        }
         int intervention_status = msconnector_intervention_normalize_status(
             intervention.url, intervention.status,
             runtime->config.default_block_status);
@@ -1244,7 +1268,7 @@ static int native_process_connection(
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request hostname mapping failed", "libmodsecurity");
     }
-    return native_decision(runtime, native, MSCONNECTOR_PHASE_URI, decision, error);
+    return native_decision(runtime, native, MSCONNECTOR_PHASE_URI, 0, decision, error);
 }
 
 static int native_process_request_headers(
@@ -1268,7 +1292,7 @@ static int native_process_request_headers(
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "request header processing failed", "libmodsecurity");
     }
-    return native_decision(runtime, native, MSCONNECTOR_PHASE_REQUEST_HEADERS, decision, error);
+    return native_decision(runtime, native, MSCONNECTOR_PHASE_REQUEST_HEADERS, 0, decision, error);
 }
 
 static int native_append_request_body(
@@ -1289,7 +1313,7 @@ static int native_append_request_body(
     }
     native->request_partial_observed |= appended == 0;
     if (!native->request_decision_pending) {
-        if (!native_decision(runtime, native, MSCONNECTOR_PHASE_REQUEST_BODY,
+        if (!native_decision(runtime, native, MSCONNECTOR_PHASE_REQUEST_BODY, 0,
                 &native->pending_request_decision, error)) return 0;
         native->request_decision_pending = native->pending_request_decision.disruptive != 0;
     }
@@ -1312,8 +1336,7 @@ static int native_finish_request_body(
         *decision = native->pending_request_decision;
         return 1;
     }
-    return native_decision(runtime, native, MSCONNECTOR_PHASE_REQUEST_BODY,
-        decision, error);
+    return native_decision(runtime, native, MSCONNECTOR_PHASE_REQUEST_BODY, 0, decision, error);
 }
 
 static int native_process_request_body(
@@ -1349,7 +1372,7 @@ static int native_process_response_headers(
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response header processing failed", "libmodsecurity");
     }
-    return native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_HEADERS, decision, error);
+    return native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_HEADERS, 0, decision, error);
 }
 
 static int native_append_response_body(
@@ -1360,8 +1383,10 @@ static int native_append_response_body(
     msconnector_error *error) {
     msconnector_native_transaction *native = native_transaction;
     const msconnector_runtime *runtime = userdata;
-    if (size > 0U &&
-        !msconnector_native_body_append_can_continue(
+    if (size == 0U) {
+        return 1;
+    }
+    if (!msconnector_native_body_append_can_continue(
             msc_append_response_body(native->transaction, data, size))) {
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
             "response body append failed", "libmodsecurity");
@@ -1370,7 +1395,7 @@ static int native_append_response_body(
      * Preserve that native result before subsequent chunks/phase processing
      * alter the engine intervention; continue offering every borrowed chunk. */
     if (!native->response_decision_pending) {
-        if (!native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_BODY,
+        if (!native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_BODY, 1,
                 &native->pending_response_decision, error)) {
             return 0;
         }
@@ -1395,8 +1420,7 @@ static int native_finish_response_body(
         *decision = native->pending_response_decision;
         return 1;
     }
-    return native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_BODY,
-        decision, error);
+    return native_decision(runtime, native, MSCONNECTOR_PHASE_RESPONSE_BODY, 0, decision, error);
 }
 
 static int native_process_response_body(
@@ -1861,7 +1885,8 @@ static void populate_event_response_state(
         event->flags.body_truncated;
     event->flags.response_started = transaction->response_headers_sent ||
         transaction->response_body_started;
-    event->flags.response_committed = transaction->response_headers_sent;
+    event->flags.response_committed = transaction->response_headers_sent ||
+        transaction->response_body_started;
     event->flags.headers_sent = transaction->response_headers_sent;
     event->flags.body_started = transaction->response_body_started;
     if (transaction->response_original_status != 0) {
@@ -1887,6 +1912,53 @@ static void populate_event_host_action(
     event->flags.connection_aborted = host_action->connection_aborted != 0;
     event->protocol.stream_reset = host_action->actual_action ==
         MSCONNECTOR_DECISION_ACTION_STREAM_RESET;
+}
+
+/* A positive mode flag alone never makes an event optional. Keep the
+ * completed native P4 and matching canonical rule decision as the authority,
+ * including during later audit/cleanup bookkeeping. */
+static int optional_safe_rule_context(
+    const msconnector_runtime_transaction *transaction) {
+    const msconnector_transaction_contract *contract;
+
+    if (transaction == NULL || transaction->runtime == NULL) return 0;
+    contract = &transaction->contract;
+    return transaction->runtime->config.phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE &&
+        contract->mode == MSCONNECTOR_TRANSACTION_MODE_SAFE &&
+        transaction->event_write_failed == MSCONNECTOR_ERROR_NONE &&
+        (transaction->response_headers_sent || transaction->response_body_started) &&
+        contract->response_committed && transaction->response_body.finished &&
+        transaction->response_headers_processed && transaction->native_body_limit_status == 0 &&
+        contract->active_phase == -1 &&
+        contract->last_completed_phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        (contract->completed_phase_mask & MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL) ==
+            MSCONNECTOR_TRANSACTION_PHASE_MASK_ALL &&
+        contract->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        transaction->completion.finish_error == MSCONNECTOR_ERROR_NONE &&
+        (contract->engine_decision == MSCONNECTOR_TRANSACTION_DECISION_BLOCK ||
+         contract->engine_decision == MSCONNECTOR_TRANSACTION_DECISION_REDIRECT ||
+         contract->engine_decision == MSCONNECTOR_TRANSACTION_DECISION_RATE_LIMIT ||
+         contract->engine_decision == MSCONNECTOR_TRANSACTION_DECISION_ENFORCE) &&
+        msconnector_rule_id_validate(contract->rule_id);
+}
+
+static int optional_safe_rule_decision(
+    const msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision) {
+    return optional_safe_rule_context(transaction) && decision != NULL &&
+        decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY &&
+        decision->status == MSCONNECTOR_STATUS_BLOCKED &&
+        decision->body_limit == 0 && decision->disruptive == 1 &&
+        decision->intervention.disruptive == 1 &&
+        (decision->kind == MSCONNECTOR_DECISION_KIND_DENY ||
+         decision->kind == MSCONNECTOR_DECISION_KIND_REDIRECT ||
+         decision->kind == MSCONNECTOR_DECISION_KIND_DROP ||
+         decision->kind == MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT) &&
+        bounded_c_string(decision->rule_id, sizeof(transaction->contract.rule_id), 1) &&
+        msconnector_rule_id_validate(decision->rule_id) &&
+        strcmp(decision->rule_id, transaction->contract.rule_id) == 0 &&
+        msconnector_transaction_decision_kind_from_engine(decision) ==
+            transaction->contract.engine_decision;
 }
 
 static int write_event_jsonl(
@@ -1947,15 +2019,27 @@ static int write_event_jsonl(
 static int write_transaction_event_jsonl(
     msconnector_runtime_transaction *transaction,
     const msconnector_event *event,
+    int optional,
     msconnector_error *error) {
     msconnector_error write_error;
 
     if (transaction->event_write_failed != MSCONNECTOR_ERROR_NONE) {
         return replay_event_write_failure(transaction, error);
     }
+    if (optional && transaction->completion.optional_event_error != MSCONNECTOR_ERROR_NONE) {
+        return RUNTIME_EVENT_DROPPED;
+    }
     msconnector_error_init(&write_error);
     if (write_event_jsonl(transaction->runtime, event, &write_error)) {
-        return 1;
+        return RUNTIME_EVENT_WRITTEN;
+    }
+    if (optional && (write_error.code == MSCONNECTOR_ERROR_IO ||
+            write_error.code == MSCONNECTOR_ERROR_EVENT_TOO_LARGE)) {
+        transaction->completion.optional_event_error = write_error.code;
+        (void)fprintf(stderr, "msconnector warning: optional late Safe event log failed: %s\n",
+            msconnector_error_default_message(write_error.code));
+        if (error != NULL) msconnector_error_init(error);
+        return RUNTIME_EVENT_DROPPED;
     }
     transaction->event_write_failed = write_error.code == MSCONNECTOR_ERROR_NONE
         ? MSCONNECTOR_ERROR_INTERNAL : write_error.code;
@@ -1967,8 +2051,10 @@ static int emit_integrity_chained_event_locked(
     msconnector_runtime_transaction *transaction,
     msconnector_event *event,
     const char *sequence_failure_message,
+    int optional,
     msconnector_error *error) {
     msconnector_runtime *runtime = transaction->runtime;
+    int written;
 
     if (msconnector_flow_guard_next_sequence(&transaction->flow,
             &event->integrity.sequence) != MSCONNECTOR_FLOW_GUARD_OK) {
@@ -1978,10 +2064,10 @@ static int emit_integrity_chained_event_locked(
     event->integrity.previous_hash = runtime->previous_event_hash;
     event->integrity.event_hash = msconnector_integrity_event_hash(
         event, event->integrity.previous_hash);
-    if (!write_transaction_event_jsonl(transaction, event, error)) {
-        return 0;
-    }
-    runtime->previous_event_hash = event->integrity.event_hash;
+    written = write_transaction_event_jsonl(transaction, event, optional, error);
+    if (written == RUNTIME_EVENT_WRITE_FAILED) return 0;
+    if (written == RUNTIME_EVENT_WRITTEN)
+        runtime->previous_event_hash = event->integrity.event_hash;
     return 1;
 }
 
@@ -1994,6 +2080,7 @@ static int emit_decision_event(
     msconnector_event event;
     char timestamp[RUNTIME_TIMESTAMP_SIZE];
     int success = 1;
+    int optional;
 
     if (transaction == NULL || decision == NULL) {
         return runtime_error(error, MSCONNECTOR_ERROR_INTERNAL,
@@ -2003,6 +2090,16 @@ static int emit_decision_event(
         return replay_event_write_failure(transaction, error);
     }
     runtime = transaction->runtime;
+    optional = optional_safe_rule_decision(transaction, decision) &&
+        (host_action == NULL ||
+         (host_action->actual_action == MSCONNECTOR_DECISION_ACTION_LOG_ONLY &&
+          !host_action->connection_aborted && host_action->transport_result != NULL &&
+          (strcmp(host_action->transport_result, "log_only") == 0 ||
+           strcmp(host_action->transport_result, "completed") == 0 ||
+           strcmp(host_action->transport_result, "http_status") == 0 ||
+           strcmp(host_action->transport_result, "not_observable") == 0)));
+    if (optional) transaction->completion.optional_safe_rule = 1;
+    else if (host_action != NULL) transaction->completion.optional_safe_rule = 0;
     if (runtime->event_file == NULL) {
         return 1;
     }
@@ -2040,13 +2137,14 @@ static int emit_decision_event(
     event.request.client_ip = transaction->metadata.request_client_ip;
     populate_event_body(&event, transaction, decision);
     populate_event_response_state(&event, transaction);
-    if (decision->late_intervention) {
+    if (decision->late_intervention || optional) {
+        event.flags.late_intervention = 1;
         event.flags.late_intervention_mode = phase4_mode_name(
             runtime->config.phase4_mode);
     }
     populate_event_host_action(&event, host_action);
     success = emit_integrity_chained_event_locked(
-        transaction, &event, "event sequence failed", error);
+        transaction, &event, "event sequence failed", optional, error);
     runtime_operation_unlock(runtime);
     return success;
 }
@@ -2198,7 +2296,7 @@ static int emit_contract_terminal_event(
 
     runtime_operation_lock(runtime);
     success = emit_integrity_chained_event_locked(
-        transaction, &event, "terminal event sequence failed", error);
+        transaction, &event, "terminal event sequence failed", 0, error);
     if (success) {
         transaction->terminal_event_emitted = 1;
     }
@@ -2275,10 +2373,15 @@ static int emit_cleanup_event(msconnector_runtime_transaction *transaction,
     event.integrity.previous_hash = runtime->previous_event_hash;
     event.integrity.event_hash = msconnector_integrity_event_hash(&event,
         event.integrity.previous_hash);
-    success = write_transaction_event_jsonl(transaction, &event, error);
-    if (success) runtime->previous_event_hash = event.integrity.event_hash;
+    success = write_transaction_event_jsonl(transaction, &event,
+        transaction->completion.optional_safe_rule &&
+            transaction->completion.finished && !transaction->native_started &&
+            transaction->contract.cleanup_complete && optional_safe_rule_context(transaction),
+        error);
+    if (success == RUNTIME_EVENT_WRITTEN)
+        runtime->previous_event_hash = event.integrity.event_hash;
     runtime_operation_unlock(runtime);
-    return success;
+    return success != RUNTIME_EVENT_WRITE_FAILED;
 }
 
 static int mark_flow(
@@ -2752,7 +2855,9 @@ int msconnector_runtime_transaction_append_request_body_chunk(
         return contract_error(error, MSCONNECTOR_TRANSACTION_TRANSITION_LATE_PHASE,
             "request body append is outside P2");
     }
-    if (size > SIZE_MAX - transaction->request_body.bytes_seen ||
+    if (transaction->request_body.bytes_seen > SIZE_MAX ||
+        transaction->request_body.bytes_inspected > SIZE_MAX ||
+        size > SIZE_MAX - transaction->request_body.bytes_seen ||
         size > SIZE_MAX - transaction->request_body.bytes_inspected) {
         if (msconnector_transaction_contract_fail(&transaction->contract,
                 MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, transaction_now_ms()) ==
@@ -3050,18 +3155,8 @@ static int append_response_body_chunk_internal(
     }
     /* Borrowed response chunks reach the engine in full. These counters
      * describe delivery, not the engine's inspected prefix. */
-    if (size > SIZE_MAX - transaction->response_body.bytes_seen ||
-        size > SIZE_MAX - transaction->response_body.bytes_inspected) {
-        if (msconnector_transaction_contract_fail(&transaction->contract,
-                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, transaction_now_ms()) ==
-            MSCONNECTOR_TRANSACTION_TRANSITION_OK) {
-            transaction->contract.error_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
-        }
-        transaction->request_blocked = 1;
-        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
-            "response body accounting overflow", "runtime");
-    }
-    transaction->response_body.bytes_seen += size;
+    transaction->response_body.bytes_seen = msconnector_transaction_counter_add(
+        transaction->response_body.bytes_seen, size);
     if (append_size > 0U &&
         !begin_or_resume_streaming_body_phase(transaction,
             MSCONNECTOR_PHASE_RESPONSE_BODY, companion, error)) {
@@ -3079,7 +3174,8 @@ static int append_response_body_chunk_internal(
     }
     if (append_size > 0U && runtime->config.enable == MSCONNECTOR_BOOL_ON &&
         !transaction->request_blocked) {
-        transaction->response_body.bytes_inspected += append_size;
+        transaction->response_body.bytes_inspected = msconnector_transaction_counter_add(
+            transaction->response_body.bytes_inspected, append_size);
     }
     return 1;
 }
@@ -3365,6 +3461,27 @@ int msconnector_runtime_transaction_record_host_action(
          strcmp(transport_result, "http_status") != 0)) {
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "a request body-limit decision requires the native HTTP status and deny action", "runtime");
+    }
+    /* A native response Reject is terminal even when Safe permits late rules
+     * to remain log-only. Once committed, only an observed transport stop can
+     * enforce it; a replacement status would misrepresent the visible stream. */
+    if (msconnector_decision_is_body_limit(decision) &&
+        decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY) {
+        const int denied = !transaction->contract.response_committed &&
+            actual_action == MSCONNECTOR_DECISION_ACTION_DENY &&
+            visible_http_status == decision->http_status && !connection_aborted &&
+            strcmp(transport_result, "http_status") == 0;
+        const int stopped = transaction->contract.response_committed &&
+            (((actual_action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
+               actual_action == MSCONNECTOR_DECISION_ACTION_DROP) && connection_aborted &&
+              strcmp(transport_result, "connection_aborted") == 0) ||
+             (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
+              !connection_aborted && strcmp(transport_result, "stream_reset") == 0));
+        if (!denied && !stopped) {
+            return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+                "a response body-limit decision requires native denial or an observed transport stop",
+                "runtime");
+        }
     }
     host_action.actual_action = actual_action;
     host_action.visible_http_status = visible_http_status;

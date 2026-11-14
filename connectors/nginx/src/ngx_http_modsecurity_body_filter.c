@@ -74,7 +74,7 @@ static ngx_int_t ngx_http_modsecurity_append_response_body_buffer(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
     const ngx_http_modsecurity_conf_t *mcf, const ngx_buf_t *buffer);
 static ngx_int_t ngx_http_modsecurity_prepare_response_body_filter(
-    ngx_http_request_t *r, ngx_chain_t *in,
+    ngx_http_request_t *r, const ngx_chain_t *in,
     ngx_http_modsecurity_ctx_t **context);
 static ngx_int_t ngx_http_modsecurity_append_response_chain_buffer(
     ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
@@ -206,7 +206,7 @@ ngx_http_modsecurity_phase4_observation_event(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_modsecurity_phase4_log_native_append(ngx_http_request_t *r,
-    ngx_http_modsecurity_ctx_t *ctx, int native_result, size_t bytes,
+    const ngx_http_modsecurity_ctx_t *ctx, int native_result, size_t bytes,
     size_t retained)
 {
     const ngx_http_modsecurity_conf_t *mcf;
@@ -750,7 +750,7 @@ ngx_http_modsecurity_run_response_header_sanity_checks(
 
 static ngx_int_t
 ngx_http_modsecurity_prepare_response_body_filter(ngx_http_request_t *r,
-    ngx_chain_t *in, ngx_http_modsecurity_ctx_t **context)
+    const ngx_chain_t *in, ngx_http_modsecurity_ctx_t **context)
 {
     ngx_http_modsecurity_ctx_t *ctx;
     ngx_int_t error_status;
