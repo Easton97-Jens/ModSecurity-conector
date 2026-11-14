@@ -1531,6 +1531,30 @@ static apr_status_t apache_phase4_abort_response_connection(ap_filter_t *f)
         return APR_EGENERAL;
     }
 
+    if (r->proto_num == HTTP_VERSION(2, 0) && f->next != NULL &&
+        r->connection->output_filters != NULL && !r->connection->aborted)
+    {
+        apr_bucket_brigade *terminal = apr_brigade_create(r->pool,
+            r->connection->bucket_alloc);
+
+        /* A secondary HTTP/2 conn_rec is not the physical connection.
+         * Marking it aborted alone strands mod_http2's output beam without
+         * a terminal signal. Its native error bucket maps to RST_STREAM,
+         * preserving the concurrently active streams on that session.
+         * Send only this internally constructed metadata through the native
+         * secondary connection filters: the sealed request guard must keep
+         * rejecting all producer output, including forged error buckets.
+         * Pass it before setting aborted; never append EOS to certify the
+         * already committed response as successfully complete. */
+        APR_BRIGADE_INSERT_TAIL(terminal, ap_bucket_error_create(
+            HTTP_INTERNAL_SERVER_ERROR, NULL, r->pool,
+            r->connection->bucket_alloc));
+        APR_BRIGADE_INSERT_TAIL(terminal,
+            apr_bucket_flush_create(r->connection->bucket_alloc));
+        (void)ap_pass_brigade(r->connection->output_filters, terminal);
+        apr_brigade_destroy(terminal);
+    }
+
     /* Apache can reset the request output filter chain while it processes an
      * error bucket. Mark the connection terminal after that one error has
      * been passed so a producer that ignores our returned failure cannot send

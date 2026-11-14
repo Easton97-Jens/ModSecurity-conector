@@ -240,22 +240,24 @@ own language contracts; this is static analysis, not a native compiler build.
 | `c++20` | `Easton97-Jens_ModSecurity-conector_cpp20_advisory` | Full-Parent advisory result. |
 | `c++23` | `Easton97-Jens_ModSecurity-conector_cpp23_advisory` | Full-Parent advisory result. |
 
-The two public advisory projects were manually created in `easton97-jens` and
-verified unbound to a DevOps repository, with Automatic Analysis already false.
-They use their own `master` analysis branch explicitly, avoiding automatic PR
-routing. They cannot replace the canonical project's PR result. Their relevant
-quality-profile keys and `Sonar way` Quality Gate match the canonical project;
-no rules, profiles or thresholds were weakened. C++20/23 support is not as
-complete as C++17 support; retain analyzer limitations and failures visibly.
+All three projects derive their branch or PR context from the actual GitHub
+event. A `master` push analyzes that branch; a pull request analyzes its own PR
+context at the checked-out head SHA. The workflow does not override that routing
+with `sonar.branch.*` or `sonar.pullrequest.*` properties. Separate project keys,
+source scope, quality profiles and gates remain unchanged. A missing PR context
+is missing evidence, even when an issue query for that PR returns zero results.
+C++20/23 support is not as complete as C++17 support; retain analyzer limitations
+and failures visibly.
 
 Only the two higher-standard jobs use `continue-on-error: true` through the
 fixed matrix; `fail-fast: false` preserves all runs. Every scanner still waits
 for its real server-side gate. The bilingual job summary records the actual
 scanner/gate outcome, revision, project and Compute Engine task link, including
-failures. Advisory projects hold the latest serialized snapshot per standard;
-retain each task/analysis ID and exact SHA when comparing PRs. The authoritative
-project alone retains normal PR decoration. The superseded evaluator-only
-compiler jobs are removed.
+failures. Retain each project's own PR context, task/analysis ID and exact SHA
+when comparing results. PR decoration is separate from analysis-context evidence.
+When qualification requires all standards, each gate must pass independently;
+an allowed advisory job failure is not a passing gate. The superseded evaluator-
+only compiler jobs are removed.
 
 ## CI, tests, and coverage
 

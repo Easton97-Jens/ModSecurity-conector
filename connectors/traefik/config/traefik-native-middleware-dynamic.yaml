@@ -17,5 +17,6 @@ http:
           requestBodyIdleTimeoutMillis: 1000
           maxResponseChunkBytes: 32768
           transactionIDHeader: X-Request-Id
+          phase4Mode: safe
           engineMode: uds
           engineSocketPath: /run/traefik-msconnector/engine.sock

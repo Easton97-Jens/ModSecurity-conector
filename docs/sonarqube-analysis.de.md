@@ -264,13 +264,13 @@ und kein nativer Compiler-Build.
 | `c++20` | `Easton97-Jens_ModSecurity-conector_cpp20_advisory` | Unverbindliches vollständiges Parent-Ergebnis. |
 | `c++23` | `Easton97-Jens_ModSecurity-conector_cpp23_advisory` | Unverbindliches vollständiges Parent-Ergebnis. |
 
-Die beiden öffentlichen Advisory-Projekte wurden in `easton97-jens` manuell
-angelegt und als ohne DevOps-Repository-Bindung sowie mit bereits deaktivierter
-Automatic Analysis bestätigt. Sie verwenden explizit ihren eigenen
-Analysebranch `master` und vermeiden automatische PR-Zuordnung. Sie können das
-PR-Ergebnis des kanonischen Projekts nicht ersetzen. Ihre relevanten
-Quality-Profile-Keys und das `Sonar way` Quality Gate stimmen mit dem kanonischen
-Projekt überein; Regeln, Profile oder Schwellen wurden nicht abgeschwächt.
+Alle drei Projekte leiten ihren Branch- oder PR-Kontext aus dem tatsächlichen
+GitHub-Ereignis ab. Ein `master`-Push analysiert diesen Branch; ein Pull Request
+analysiert seinen eigenen PR-Kontext am ausgecheckten Head-SHA. Der Workflow
+überschreibt diese Zuordnung nicht mit Eigenschaften `sonar.branch.*` oder
+`sonar.pullrequest.*`. Getrennte Projektschlüssel, Analyseumfang, Quality-Profile
+und Gates bleiben unverändert. Ein fehlender PR-Kontext bedeutet fehlende
+Nachweise, auch wenn eine Befundabfrage für diesen PR null Ergebnisse liefert.
 C++20/23 werden weniger vollständig als C++17 unterstützt; Analyzer-Grenzen und
 Fehler bleiben sichtbar.
 
@@ -278,11 +278,12 @@ Nur die beiden höheren Standards verwenden über die feste Matrix
 `continue-on-error: true`; `fail-fast: false` erhält alle Läufe. Jeder Scanner
 wartet weiterhin auf sein echtes serverseitiges Gate. Die bilinguale
 Jobzusammenfassung protokolliert tatsächliches Scanner-/Gate-Ergebnis, Revision,
-Projekt und Compute-Engine-Task-Link einschließlich Fehlern. Advisory-Projekte
-enthalten den letzten serialisierten Snapshot je Standard; beim Vergleich von
-PRs jede Task-/Analyse-ID und den exakten SHA aufbewahren. Nur das maßgebliche
-Projekt behält normale PR-Dekoration. Die ersetzten reinen Evaluator-Compiler-
-Jobs sind entfernt.
+Projekt und Compute-Engine-Task-Link einschließlich Fehlern. Beim Vergleich die
+jeweils eigenen PR-Kontexte, Task-/Analyse-IDs und exakten SHAs aufbewahren.
+PR-Dekoration ist vom Nachweis des Analysekontexts getrennt. Verlangt die
+Qualifikation alle Standards, muss jedes Gate unabhängig bestehen; ein erlaubter
+Advisory-Jobfehler ist kein bestandenes Gate. Die ersetzten reinen Evaluator-
+Compiler-Jobs sind entfernt.
 
 ## CI, Tests und Coverage
 

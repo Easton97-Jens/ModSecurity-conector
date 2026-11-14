@@ -144,13 +144,14 @@ decision found later:
 - `off` preserves native intervention handling without the additional late policy;
 - `safe` records a real Common host outcome `log_only` and
   continue with the original visible response status;
-- `strict` is rejected at Common Runtime startup for the `envoy-ext-proc`
-  profile. Its immutable `strict_post_commit_action` capability is zero until
-  a deterministic post-commit host action is proven; no traffic is served and
-  no late decision is silently downgraded.
+- `strict` sends a late ImmediateResponse through the pinned Envoy local-reply
+  path. The selected profile admits this action; successful send is recorded as
+  `strict_immediate_response_sent`, separately from downstream reset evidence.
 
-The adapter intentionally does not use `ImmediateResponse` or a gRPC error as
-an HTTP-reset surrogate after response commitment. A canceled gRPC context and
+The pinned host resets an already-committed HTTP stream on that local reply.
+The Framework H2 adapter must independently observe the exact target reset and
+healthy simultaneous peer/follow-up. A gRPC error is not an HTTP-reset surrogate.
+A canceled gRPC context and
 an observed gRPC peer EOF are recorded respectively as
 `grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can be
 treated as a downstream client reset or an upstream reset.
@@ -194,9 +195,8 @@ integrity, security labels, or user-namespace mapping.
 
 ## Remaining promotion boundary
 
-The service does not claim a deterministic post-commit reset or a client-byte
-observation. A late P4 rule is recorded as host-confirmed `log_only` in Safe.
-Strict is a deliberate startup rejection until a deterministic Envoy host
-action is demonstrated; it is not an `ImmediateResponse`, a gRPC error, or a
-claimed reset. Canonical collector validation of the raw Common JSONL remains
-a promotion boundary.
+The service records message delivery rather than a client-byte observation.
+A late P4 rule is recorded as host-confirmed `log_only` in Safe. Strict sends
+the native late ImmediateResponse; separate client/access/completion evidence
+is required to qualify its actual reset. Canonical validation of the raw Common
+JSONL and the selected profile's independent host run remain promotion boundaries.

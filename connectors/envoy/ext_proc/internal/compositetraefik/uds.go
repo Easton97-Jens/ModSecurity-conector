@@ -57,7 +57,8 @@ const (
 	// the upstream response has committed. The outer plugin must forward the
 	// already committed bytes, then report an actualLogOnly outcome. Processing
 	// failures and inspection-limit errors never use this flag.
-	resultFlagPostCommitLogOnly byte = 2
+	resultFlagPostCommitLogOnly     byte = 2
+	resultFlagPostCommitStrictAbort byte = 4
 )
 
 var errMSC2 = errors.New("invalid MSC2 frame")
@@ -174,6 +175,8 @@ func (s *UDS) handle(conn net.Conn) {
 		if err != nil {
 			if isTimeout(err) {
 				cleanupReason = "timeout"
+			} else if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				cleanupReason = "companion_transport_closed"
 			}
 			return
 		}
@@ -229,6 +232,9 @@ func (s *udsSession) dispatch(ctx context.Context, op byte, p []byte) (wireResul
 	}
 	s.applyResponseDecision(op, d)
 	if s.responseCommitted && (op == opResponseChunk || op == opResponseEOS) && d.Action != processor.ActionAllow {
+		if s.response.StrictLateAction() {
+			return wireResult{flags: resultFlagPostCommitStrictAbort}, false
+		}
 		return wireResult{flags: resultFlagPostCommitLogOnly}, false
 	}
 	return decisionResult(d), false
@@ -377,12 +383,18 @@ func (s *udsSession) validOutcomeShape(p []byte) bool {
 	case 2:
 		return s.p3Action != processor.ActionAllow && s.p3Action == processor.ActionRedirect
 	default:
+		if p[0] == 4 {
+			return s.p4Disruptive && s.response.StrictLateAction()
+		}
 		return p[0] != 3 || s.p4Disruptive
 	}
 }
 
 func (s *udsSession) outcomeStateAllows(action byte) bool {
 	if s.responseCommitted {
+		if action == 4 {
+			return s.p4Disruptive && s.response.StrictLateAction()
+		}
 		return s.responseEOS && action != 1 && action != 2
 	}
 	return action == 1 || action == 2
@@ -450,6 +462,11 @@ func (s *udsSession) recordOutcome(ctx context.Context, p []byte) error {
 		action = processor.AppliedActionRedirect
 	case 3:
 		action = processor.AppliedActionLogOnly
+	case 4:
+		if !s.response.StrictLateAction() {
+			return errMSC2
+		}
+		return s.response.RecordLateAbortRequested(ctx, "strict_stream_abort_requested", status)
 	default:
 		return errMSC2
 	}
@@ -474,7 +491,7 @@ func (s *udsSession) outcomeStatusMatches(action byte, status int) bool {
 	// upstream response status. Actions 1/2 confirm the replacement response
 	// selected from the P3 Common decision, which may intentionally differ.
 	switch action {
-	case 0, 1, 2, 3:
+	case 0, 1, 2, 3, 4:
 		return status == s.expectedOutcomeStatus
 	default:
 		return false
@@ -511,7 +528,7 @@ func (s *udsSession) writeResult(ctx context.Context, op byte, r wireResult) err
 	_ = ctx
 	if r.flags != 0 {
 		requestTerminal := op == opClaim && r.flags == resultFlagRequestTerminal
-		postCommitLogOnly := (op == opResponseChunk || op == opResponseEOS) && r.flags == resultFlagPostCommitLogOnly
+		postCommitLogOnly := (op == opResponseChunk || op == opResponseEOS) && (r.flags == resultFlagPostCommitLogOnly || r.flags == resultFlagPostCommitStrictAbort)
 		if (!requestTerminal && !postCommitLogOnly) || r.decision != decisionAllow || r.status != 0 || r.redirect != "" {
 			return errMSC2
 		}

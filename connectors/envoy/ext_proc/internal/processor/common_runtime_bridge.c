@@ -652,6 +652,12 @@ int msc_envoy_ext_proc_transaction_observed_close(
         result = msconnector_runtime_transaction_fail(transaction->transaction,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &runtime_error);
         break;
+    case MSC_ENVOY_EXT_PROC_CLOSE_COMPANION_TRANSPORT:
+        /* The paired protocol peer closed without response EOS. This proves
+         * transport termination, not which downstream endpoint caused it. */
+        result = msconnector_runtime_transaction_fail(transaction->transaction,
+            MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL, &runtime_error);
+        break;
     default:
         return msc_envoy_ext_proc_fail(transaction, MSCONNECTOR_ERROR_INTERNAL,
             error, error_len);

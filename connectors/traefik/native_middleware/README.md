@@ -28,7 +28,7 @@ declaration.
   bounded first chunk;
 - keeps only metadata and byte/chunk counters in `Summary`, never a complete
   request or response body;
-- treats a disruptive result after response commitment as `log_only`; it does
+- in the default Safe mode, treats a disruptive result after response commitment as `log_only`; it does
   not synthesize a changed status, reset, or client-abort claim.
 
 The engine shape is fail-closed by default: an omitted `engineMode` selects
@@ -53,7 +53,7 @@ contract and is not implied by this package.
 The UDS protocol rejects unknown engine actions instead of relabelling them as
 an HTTP denial. It reports a disruptive outcome only after the actual
 `ResponseWriter` write succeeds. After response commitment a disruptive Phase
-4 result is deliberately `log_only`; it does not synthesize a changed status,
+4 result in Safe mode is deliberately `log_only`; it does not synthesize a changed status,
 reset, or client-abort claim.
 
 ## UDS cancellation, timeout, and cleanup boundary
@@ -71,8 +71,8 @@ exchange already discarded the connection.
 Before a response is committed, the middleware turns an engine-exchange error
 into its closed HTTP 500 path. A canceled host request may already have lost
 its response channel, so the connector does not invent a client-visible
-status or an upstream-reset event. After commitment it retains the documented
-log-only/unchanged-response limit rather than claiming a retroactive rewrite.
+status or an upstream-reset event. After commitment, engine-exchange errors abort the incomplete host stream;
+a disruptive decision follows the selected Safe or Strict policy below.
 A fresh request opens a new UDS session and keeps normal allow/block semantics.
 
 ## Local source checks
@@ -121,3 +121,17 @@ plugin loading in the pinned host. It does not reuse these checked-in reference
 files or a shared engine socket. An operator deployment must still stage the
 module under the local-plugin workspace used by its installed Traefik release.
 The probe is not deployment or capability-promotion evidence.
+
+## Opt-in Strict late response policy
+
+`phase4Mode` accepts `safe` (the default) or `strict`; unknown values fail
+configuration. Safe retains the existing committed-response `log_only`
+acknowledgement. Strict marks the response incomplete, closes the transaction
+UDS connection and escapes through `http.ErrAbortHandler` when a disruptive
+Phase 4 decision arrives after commitment. The native `net/http` host owns the
+resulting transport abort. The middleware records `strict_abort_requested` in
+its close summary; it does not acknowledge a fabricated completed abort to
+Common. A host qualification must independently observe the protocol reset,
+rule/transaction mapping, native cleanup and concurrent stream isolation.
+The explicit Framework native H2 acceptance runner exercises the real Yaegi
+plugin over verified TLS with a held peer and same-connection follow-up.

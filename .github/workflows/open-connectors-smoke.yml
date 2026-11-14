@@ -24,6 +24,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/open-connectors-smoke/open-connectors-smoke@31531f74cfe26c2a40d4bb5f6eaae4c0920127e1
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/open-connectors-smoke/open-connectors-smoke@f13af5450c1f945044ba4dcd945be1d8187e9c57
         with:
-          framework-revision: 31531f74cfe26c2a40d4bb5f6eaae4c0920127e1
+          framework-revision: f13af5450c1f945044ba4dcd945be1d8187e9c57

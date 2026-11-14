@@ -18,6 +18,7 @@ http:
           maxResponseChunkBytes: 32768
           transactionIDHeader: X-Request-Id
           # UDS selects the persistent rule-evaluating service, not passthrough.
+          phase4Mode: safe
           engineMode: uds
           # This absolute socket path must be private to trusted processes.
           engineSocketPath: /run/traefik-msconnector/engine.sock
