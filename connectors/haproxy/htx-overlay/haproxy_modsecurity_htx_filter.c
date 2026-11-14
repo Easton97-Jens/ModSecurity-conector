@@ -633,6 +633,40 @@ static int haproxy_modsecurity_htx_write_optional_late_event(
     return ok;
 }
 
+static int haproxy_modsecurity_htx_is_optional_late_event(
+    const struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    const struct haproxy_modsecurity_htx_filter_config *config = ctx->config;
+
+    return decision != NULL && decision->phase == 4 && decision->disruptive &&
+        !decision->body_limit &&
+        decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
+        config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE &&
+        (ctx->response.headers_committed || ctx->response.body_started) &&
+        !ctx->lifecycle.fail_closed &&
+        ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE;
+}
+
+static void haproxy_modsecurity_htx_record_event_failure(
+    struct haproxy_modsecurity_htx_filter_context *ctx,
+    const haproxy_modsecurity_decision *decision)
+{
+    if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+        if (decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+            ctx->lifecycle.error = *decision;
+        } else {
+            ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
+            ctx->lifecycle.error.phase = decision->phase;
+            ctx->lifecycle.error.status = 503;
+            ctx->lifecycle.error.disruptive = 1;
+            (void)snprintf(ctx->lifecycle.error.action,
+                sizeof(ctx->lifecycle.error.action), "deny");
+        }
+    }
+    (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0);
+}
+
 static int haproxy_modsecurity_htx_write_event(
     struct haproxy_modsecurity_htx_filter_context *ctx,
     const haproxy_modsecurity_decision *decision)
@@ -643,13 +677,7 @@ static int haproxy_modsecurity_htx_write_event(
     char rule_id[32];
     int ok;
     if (config == NULL || config->events_path == NULL) { return 1; }
-    if (decision != NULL && decision->phase == 4 && decision->disruptive &&
-        !decision->body_limit &&
-        decision->error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE &&
-        config->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_SAFE &&
-        (ctx->response.headers_committed || ctx->response.body_started) &&
-        !ctx->lifecycle.fail_closed &&
-        ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
+    if (haproxy_modsecurity_htx_is_optional_late_event(ctx, decision)) {
         return haproxy_modsecurity_htx_write_optional_late_event(ctx, decision);
     }
     if (haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0)) { return 0; }
@@ -676,19 +704,7 @@ static int haproxy_modsecurity_htx_write_event(
         line, sizeof(line), &config->events_error);
     (void)pthread_mutex_unlock(&config->events_lock);
     if (!ok) {
-        if (ctx->lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-            if (decision->error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) {
-                ctx->lifecycle.error = *decision;
-            } else {
-                ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
-                ctx->lifecycle.error.phase = decision->phase;
-                ctx->lifecycle.error.status = 503;
-                ctx->lifecycle.error.disruptive = 1;
-                (void)snprintf(ctx->lifecycle.error.action,
-                    sizeof(ctx->lifecycle.error.action), "deny");
-            }
-        }
-        (void)haproxy_modsecurity_htx_event_sink_failed(ctx, decision ? decision->phase : 0);
+        haproxy_modsecurity_htx_record_event_failure(ctx, decision);
     }
     return ok;
 }
@@ -1175,7 +1191,7 @@ static int haproxy_modsecurity_htx_append_data(
 
     /* `value.ptr` is borrowed from HAProxy's current HTX buffer. */
     if (value.len > UINT_MAX ||
-        (append_body_chunk == haproxy_modsecurity_transaction_append_request_body_chunk &&
+        (append_body_chunk == &haproxy_modsecurity_transaction_append_request_body_chunk &&
          *body_bytes_seen > (uint64_t)SIZE_MAX - value.len)) {
         ctx->lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR;
         ctx->lifecycle.error.body_limit = 0;

@@ -1155,6 +1155,19 @@ static void native_capture_rule_id(
     }
 }
 
+/* Validate the unnormalized C API result before any rule/limit mapping. */
+static const char *native_intervention_validation_error(
+    int intervention_result,
+    const ModSecurityIntervention *intervention) {
+    if (intervention_result != 0 && intervention_result != 1) {
+        return "invalid native intervention result";
+    }
+    if (intervention->disruptive != 0 && intervention->disruptive != 1) {
+        return "invalid native disruptive intervention flag";
+    }
+    return NULL;
+}
+
 static int native_decision(
     const msconnector_runtime *runtime,
     msconnector_native_transaction *native,
@@ -1168,6 +1181,7 @@ static int native_decision(
     int disruptive;
     int body_limit;
     int response_limit;
+    const char *validation_error;
 
     memset(&intervention, 0, sizeof(intervention));
     intervention.status = 200;
@@ -1175,15 +1189,11 @@ static int native_decision(
     native->reason[0] = '\0';
     native->redirect_url[0] = '\0';
     intervention_result = msc_intervention(native->transaction, &intervention);
-    if (intervention_result != 0 && intervention_result != 1) {
+    validation_error = native_intervention_validation_error(intervention_result, &intervention);
+    if (validation_error != NULL) {
         msc_intervention_cleanup(&intervention);
         return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
-            "invalid native intervention result", "msc_intervention");
-    }
-    if (intervention.disruptive != 0 && intervention.disruptive != 1) {
-        msc_intervention_cleanup(&intervention);
-        return runtime_error(error, MSCONNECTOR_ERROR_MODSECURITY_FAILURE,
-            "invalid native disruptive intervention flag", "msc_intervention");
+            validation_error, "msc_intervention");
     }
     disruptive = intervention_result == 1 && intervention.disruptive == 1;
     body_limit = native_is_request_body_limit_rejection(phase, &intervention);
@@ -3390,6 +3400,48 @@ void msconnector_runtime_transaction_set_response_commit_state(
     }
 }
 
+/* Native body-limit outcomes have stricter host evidence than ordinary rules.
+ * Call after the generic metadata/action validation so transport text is safe. */
+static int validate_body_limit_host_action(
+    const msconnector_runtime_transaction *transaction,
+    const msconnector_decision *decision,
+    msconnector_decision_action actual_action,
+    int visible_http_status,
+    const char *transport_result,
+    int connection_aborted,
+    msconnector_error *error) {
+    if (msconnector_decision_is_body_limit(decision) &&
+        decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
+        (actual_action != MSCONNECTOR_DECISION_ACTION_DENY ||
+         visible_http_status != decision->http_status || connection_aborted ||
+         strcmp(transport_result, "http_status") != 0)) {
+        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+            "a request body-limit decision requires the native HTTP status and deny action", "runtime");
+    }
+    /* A native response Reject is terminal even when Safe permits late rules
+     * to remain log-only. Once committed, only an observed transport stop can
+     * enforce it; a replacement status would misrepresent the visible stream. */
+    if (msconnector_decision_is_body_limit(decision) &&
+        decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY) {
+        const int denied = !transaction->contract.response_committed &&
+            actual_action == MSCONNECTOR_DECISION_ACTION_DENY &&
+            visible_http_status == decision->http_status && !connection_aborted &&
+            strcmp(transport_result, "http_status") == 0;
+        const int stopped = transaction->contract.response_committed &&
+            (((actual_action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
+               actual_action == MSCONNECTOR_DECISION_ACTION_DROP) && connection_aborted &&
+              strcmp(transport_result, "connection_aborted") == 0) ||
+             (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
+              !connection_aborted && strcmp(transport_result, "stream_reset") == 0));
+        if (!denied && !stopped) {
+            return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
+                "a response body-limit decision requires native denial or an observed transport stop",
+                "runtime");
+        }
+    }
+    return 1;
+}
+
 int msconnector_runtime_transaction_record_host_action(
     msconnector_runtime_transaction *transaction,
     const msconnector_decision *decision,
@@ -3454,34 +3506,9 @@ int msconnector_runtime_transaction_record_host_action(
         return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
             "transport_result=stream_reset requires a stream-reset action", "runtime");
     }
-    if (msconnector_decision_is_body_limit(decision) &&
-        decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY &&
-        (actual_action != MSCONNECTOR_DECISION_ACTION_DENY ||
-         visible_http_status != decision->http_status || connection_aborted ||
-         strcmp(transport_result, "http_status") != 0)) {
-        return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
-            "a request body-limit decision requires the native HTTP status and deny action", "runtime");
-    }
-    /* A native response Reject is terminal even when Safe permits late rules
-     * to remain log-only. Once committed, only an observed transport stop can
-     * enforce it; a replacement status would misrepresent the visible stream. */
-    if (msconnector_decision_is_body_limit(decision) &&
-        decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY) {
-        const int denied = !transaction->contract.response_committed &&
-            actual_action == MSCONNECTOR_DECISION_ACTION_DENY &&
-            visible_http_status == decision->http_status && !connection_aborted &&
-            strcmp(transport_result, "http_status") == 0;
-        const int stopped = transaction->contract.response_committed &&
-            (((actual_action == MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION ||
-               actual_action == MSCONNECTOR_DECISION_ACTION_DROP) && connection_aborted &&
-              strcmp(transport_result, "connection_aborted") == 0) ||
-             (actual_action == MSCONNECTOR_DECISION_ACTION_STREAM_RESET &&
-              !connection_aborted && strcmp(transport_result, "stream_reset") == 0));
-        if (!denied && !stopped) {
-            return runtime_error(error, MSCONNECTOR_ERROR_HOST_API_FAILURE,
-                "a response body-limit decision requires native denial or an observed transport stop",
-                "runtime");
-        }
+    if (!validate_body_limit_host_action(transaction, decision, actual_action,
+            visible_http_status, transport_result, connection_aborted, error)) {
+        return 0;
     }
     host_action.actual_action = actual_action;
     host_action.visible_http_status = visible_http_status;

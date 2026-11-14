@@ -1025,6 +1025,40 @@ static msconnector_error_code apache_phase3_log_event(msc_t *msr, request_rec *r
 }
 
 
+static apr_status_t apache_phase4_capture_append_intervention(msc_t *msr)
+{
+    int intervention;
+
+    if (msr->response_intervention_pending)
+    {
+        return APR_SUCCESS;
+    }
+    msr->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    msr->native_event_phase_active = 1;
+    msr->response.body_append_active = 1;
+    intervention = process_intervention(msr->t, msr->r);
+    msr->response.body_append_active = 0;
+    msr->native_event_phase_active = 0;
+    if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
+    {
+        return APR_EGENERAL;
+    }
+    if (intervention != N_INTERVENTION_STATUS &&
+        !msr->last_intervention_body_limit)
+    {
+        (void)msc_apache_contract_fail(msr,
+            MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+        return APR_EGENERAL;
+    }
+    if (intervention != N_INTERVENTION_STATUS)
+    {
+        msr->pending_response_intervention = msr->intervention;
+        msr->response_intervention_pending = 1;
+    }
+    return APR_SUCCESS;
+}
+
+
 static apr_status_t apache_phase4_append_bucket(msc_t *msr,
     const msc_conf_t *conf, apr_bucket *bucket)
 {
@@ -1080,32 +1114,7 @@ static apr_status_t apache_phase4_append_bucket(msc_t *msr,
         }
         msr->response_body_bytes_inspected = msconnector_transaction_counter_add(
             msr->response_body_bytes_inspected, len);
-        if (!msr->response_intervention_pending)
-        {
-            int intervention;
-            msr->native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
-            msr->native_event_phase_active = 1;
-            msr->response.body_append_active = 1;
-            intervention = process_intervention(msr->t, msr->r);
-            msr->response.body_append_active = 0;
-            msr->native_event_phase_active = 0;
-            if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE)
-            {
-                return APR_EGENERAL;
-            }
-            if (intervention != N_INTERVENTION_STATUS &&
-                !msr->last_intervention_body_limit)
-            {
-                (void)msc_apache_contract_fail(msr,
-                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
-                return APR_EGENERAL;
-            }
-            if (intervention != N_INTERVENTION_STATUS)
-            {
-                msr->pending_response_intervention = msr->intervention;
-                msr->response_intervention_pending = 1;
-            }
-        }
+        return apache_phase4_capture_append_intervention(msr);
     }
 
     return APR_SUCCESS;
