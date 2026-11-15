@@ -286,47 +286,8 @@ jobs:
             exit 1
           fi
 
-          nested_gitlink_sha() {
-            nested_entry="$1"
-            nested_label="$2"
-            nested_count="$(printf '%s\n' "$nested_entry" | awk 'NF { count += 1 } END { print count + 0 }')"
-            if [ "$nested_count" != "1" ]; then
-              echo "$nested_label Framework tree does not contain exactly one nested submodule entry at $ALLOWED_NESTED_GITLINK_PATH." >&2
-              return 1
-            fi
-            nested_mode="$(printf '%s\n' "$nested_entry" | awk 'NF { print $1 }')"
-            nested_type="$(printf '%s\n' "$nested_entry" | awk 'NF { print $2 }')"
-            nested_sha="$(printf '%s\n' "$nested_entry" | awk 'NF { print $3 }')"
-            nested_path="$(printf '%s\n' "$nested_entry" | awk 'NF { print $4 }')"
-            if [ "$nested_mode" != "160000" ] || [ "$nested_type" != "commit" ] || [ "$nested_path" != "$ALLOWED_NESTED_GITLINK_PATH" ]; then
-              echo "$nested_label Framework entry is not the expected nested MRTS gitlink: $nested_entry" >&2
-              return 1
-            fi
-            if ! printf '%s\n' "$nested_sha" | grep -Eq '^[0-9a-f]{40}$'; then
-              echo "$nested_label MRTS gitlink is not a full SHA-1: $nested_sha" >&2
-              return 1
-            fi
-            printf '%s\n' "$nested_sha"
-          }
-
-          current_nested_entry="$(git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" ls-tree "$CURRENT_GITLINK_SHA" -- "$ALLOWED_NESTED_GITLINK_PATH")"
-          candidate_nested_entry="$(git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" ls-tree "$CANDIDATE_SHA" -- "$ALLOWED_NESTED_GITLINK_PATH")"
-          current_nested_sha="$(nested_gitlink_sha "$current_nested_entry" current)"
-          candidate_nested_sha="$(nested_gitlink_sha "$candidate_nested_entry" candidate)"
-
-          if [ "$candidate_nested_sha" != "$current_nested_sha" ]; then
-            nested_verify_repo="$(mktemp -d "$RUNNER_TEMP/mrts-lineage.XXXXXX")"
-            git -c core.hooksPath=/dev/null init --bare "$nested_verify_repo"
-            git -c protocol.file.allow=never -c core.hooksPath=/dev/null -C "$nested_verify_repo" fetch --no-tags "$ALLOWED_NESTED_SUBMODULE_URL" "$current_nested_sha"
-            git -c protocol.file.allow=never -c core.hooksPath=/dev/null -C "$nested_verify_repo" fetch --no-tags "$ALLOWED_NESTED_SUBMODULE_URL" "$candidate_nested_sha"
-            git -c core.hooksPath=/dev/null -C "$nested_verify_repo" cat-file -e "$current_nested_sha^{commit}"
-            git -c core.hooksPath=/dev/null -C "$nested_verify_repo" cat-file -e "$candidate_nested_sha^{commit}"
-            if ! git -c core.hooksPath=/dev/null -C "$nested_verify_repo" merge-base --is-ancestor "$current_nested_sha" "$candidate_nested_sha"; then
-              echo "Candidate MRTS gitlink is not a descendant of the reviewed current MRTS gitlink." >&2
-              exit 1
-            fi
-          fi
-
+          # Framework owns its nested MRTS selection. Parent validates the
+          # Framework lineage only and never fetches nested commit objects.
           git -c core.hooksPath=/dev/null -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
 
       - name: Validate exact candidate Git state
@@ -346,6 +307,14 @@ jobs:
       - name: Validate Framework component-pin data contract
         run: |
           set -euo pipefail
+          # Project the Framework-owned nested pin as data, without making
+          # an independent MRTS release or ancestry decision in Parent.
+          candidate_mrts_sha="$(python3 -I -c '
+          import runpy, sys
+          from pathlib import Path
+          read = runpy.run_path("ci/lib/framework_revision_pins.py")["read_framework_mrts_gitlink"]
+          print(read(Path(sys.argv[1]), sys.argv[2]))
+          ' "$SUBMODULE_PATH" "$CANDIDATE_SHA")"
           framework_common="$(mktemp "$RUNNER_TEMP/framework-common.XXXXXX")"
           cleanup_framework_common() {
             rm -f -- "$framework_common"
@@ -358,12 +327,14 @@ jobs:
             --validate \
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
-            --framework-sha "$CANDIDATE_SHA"
+            --framework-sha "$CANDIDATE_SHA" \
+            --mrts-sha "$candidate_mrts_sha"
           python3 -I ci/tools/verify-framework-candidate-contract.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
+            --expected-candidate-mrts-sha "$candidate_mrts_sha" \
             --expected-parent-framework-sha "$CURRENT_GITLINK_SHA"
 
       - name: Create private read-only candidate guard
@@ -385,7 +356,12 @@ jobs:
           sudo -n groupadd --system modsecurity-validator
           sudo -n useradd --system --no-create-home --shell /usr/sbin/nologin \
             --gid modsecurity-validator modsecurity-validator
-          sandbox_prepare_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
+          sandbox_prepare_output="$(sudo -n python3 -I ci/run-trusted-framework.py \
+            --tool readonly-prepare \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --connector-revision "$EXPECTED_PARENT_HEAD" \
+            --source-reader-uid "$(id -u)" --source-reader-gid "$(id -g)" \
+            --trusted-framework-object -- \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
             --write-root "$VALIDATION_WRITE_ROOT" \
@@ -425,7 +401,12 @@ jobs:
           sudo -n chown root:modsecurity-validator "$namespace_parent"
           sudo -n chmod 0750 "$namespace_parent"
           namespace_status=0
-          namespace_output="$(sudo -n python3 ci/tools/run-readonly-submodule-validation-namespace.py \
+          namespace_output="$(sudo -n python3 -I ci/run-trusted-framework.py \
+            --tool readonly-namespace \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --connector-revision "$EXPECTED_PARENT_HEAD" \
+            --source-reader-uid "$(id -u)" --source-reader-gid "$(id -g)" \
+            --trusted-framework-object -- \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
             --write-root "$VALIDATION_WRITE_ROOT" \
@@ -452,7 +433,12 @@ jobs:
           VALIDATION_WRITE_ROOT: ${{ steps.create-readonly-candidate-sandbox-guard.outputs.write_root }}
         run: |
           set -euo pipefail
-          verification_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
+          verification_output="$(sudo -n python3 -I ci/run-trusted-framework.py \
+            --tool readonly-prepare \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --connector-revision "$EXPECTED_PARENT_HEAD" \
+            --source-reader-uid "$(id -u)" --source-reader-gid "$(id -g)" \
+            --trusted-framework-object -- \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
             --write-root "$VALIDATION_WRITE_ROOT" \
@@ -497,7 +483,12 @@ jobs:
           VALIDATION_WRITE_ROOT: ${{ steps.create-readonly-candidate-sandbox-guard.outputs.write_root }}
         run: |
           set -euo pipefail
-          cleanup_output="$(sudo -n python3 ci/tools/prepare-readonly-submodule-validation-sandbox.py \
+          cleanup_output="$(sudo -n python3 -I ci/run-trusted-framework.py \
+            --tool readonly-prepare \
+            --connector-root "$GITHUB_WORKSPACE" \
+            --connector-revision "$EXPECTED_PARENT_HEAD" \
+            --source-reader-uid "$(id -u)" --source-reader-gid "$(id -g)" \
+            --trusted-framework-object -- \
             --cleanup \
             --source-root "$GITHUB_WORKSPACE" \
             --framework-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
@@ -1072,6 +1063,14 @@ jobs:
             echo "Candidate is not a descendant of the current reviewed Framework gitlink." >&2
             exit 1
           fi
+          # Independently derive the nested projection from the same exact
+          # Framework object in this publisher; no MRTS repository is needed.
+          candidate_mrts_sha="$(python3 -I -c '
+          import runpy, sys
+          from pathlib import Path
+          read = runpy.run_path("ci/lib/framework_revision_pins.py")["read_framework_mrts_gitlink"]
+          print(read(Path(sys.argv[1]), sys.argv[2]))
+          ' "$SUBMODULE_PATH" "$CANDIDATE_SHA")"
           framework_common="$(mktemp "$RUNNER_TEMP/framework-common.XXXXXX")"
           cleanup_framework_common() {
             rm -f -- "$framework_common"
@@ -1092,22 +1091,26 @@ jobs:
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
+            --expected-candidate-mrts-sha "$candidate_mrts_sha" \
             --expected-parent-framework-sha "$MASTER_OLD_SHA"
           python3 ci/tools/sync-framework-component-versions.py \
             --sync \
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
-            --framework-sha "$CANDIDATE_SHA"
+            --framework-sha "$CANDIDATE_SHA" \
+            --mrts-sha "$candidate_mrts_sha"
           python3 ci/tools/sync-framework-component-versions.py \
             --check \
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
-            --framework-sha "$CANDIDATE_SHA"
+            --framework-sha "$CANDIDATE_SHA" \
+            --mrts-sha "$candidate_mrts_sha"
           python3 -I ci/tools/verify-framework-candidate-contract.py \
             --repo-root "$GITHUB_WORKSPACE" \
             --candidate-sha "$CANDIDATE_SHA" \
             --framework-common "$framework_common" \
             --candidate-framework-root "$GITHUB_WORKSPACE/$SUBMODULE_PATH" \
+            --expected-candidate-mrts-sha "$candidate_mrts_sha" \
             --expected-parent-framework-sha "$CANDIDATE_SHA"
           python3 scripts/generate_compiler_guides.py
           # Reconstruct exact product-primary bytes from trusted master.
@@ -1116,7 +1119,8 @@ jobs:
             --base "$MASTER_HEAD" \
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
-            --framework-sha "$CANDIDATE_SHA"
+            --framework-sha "$CANDIDATE_SHA" \
+            --mrts-sha "$candidate_mrts_sha"
           git -c core.hooksPath=/dev/null add -- \
             connectors/envoy/config/envoy-ext-proc-versions.env \
             connectors/lighttpd/lighttpd-version.contract \
@@ -1171,7 +1175,8 @@ jobs:
             --staged \
             --repo-root "$GITHUB_WORKSPACE" \
             --framework-common "$framework_common" \
-            --framework-sha "$CANDIDATE_SHA"
+            --framework-sha "$CANDIDATE_SHA" \
+            --mrts-sha "$candidate_mrts_sha"
 
           changed_paths="$(
             git diff \
@@ -1271,6 +1276,7 @@ jobs:
           - Proposed Framework gitlink: $CANDIDATE_SHA
           - Validation: the isolated read-only quick check passed.
           - Component pins: synchronized from the candidate's statically parsed ci/lib/common.sh and rechecked before staging.
+          - MRTS: nested pin projected from the exact Framework commit; no independent Parent MRTS ancestry or release check.
           - Changed paths: Framework gitlink and registered Parent product component-pin contracts; test/provisioning/broker sources remain Framework-owned.
           - Merge: no automatic merge.
           EOF

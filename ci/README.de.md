@@ -35,6 +35,14 @@ nach der Synchronisierung unabhängig vom aktiven Framework-Checkout und
 `FRAMEWORK_REVISION`. Kandidaten-Python wird nicht importiert; inkompatible
 NGINX-Übergaben schlagen weiterhin fehl.
 
+Der Updater wählt einen exakten Nachfolgecommit des Frameworks. Das Framework
+verantwortet seine verschachtelte MRTS-Revision; Parent trifft keine eigene
+MRTS-Release- oder Abstammungsentscheidung und lädt MRTS niemals herunter. Der
+vorhandene Gitlink-Leser leitet `mrts_sha` aus genau diesem Framework-Commit ab
+und übergibt den Wert explizit an Vertragsprüfer und Synchronisierung, damit der
+Revisions-Lock konsistent bleibt. Allowlist-Prüfungen für verschachtelte Topologie
+und URLs bleiben aktiv; ein initialisierter MRTS-Checkout ist nicht erforderlich.
+
 ## Auswahl und Evidence
 
 Das Framework-Inventar bewahrt 100 Standardfälle / 80 Ausführungen und die
