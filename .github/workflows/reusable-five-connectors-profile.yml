@@ -29,9 +29,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@452f7fc7ca1d9c44c9e768cef565f52882a40e2d
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile@95f228936efe17fda24f21323ad87cd698940b48
         with:
-          framework-revision: 452f7fc7ca1d9c44c9e768cef565f52882a40e2d
+          framework-revision: 95f228936efe17fda24f21323ad87cd698940b48
           caller-inputs: ${{ toJSON(inputs) }}
   no-crs:
     permissions:
@@ -68,9 +68,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@452f7fc7ca1d9c44c9e768cef565f52882a40e2d
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/no-crs@95f228936efe17fda24f21323ad87cd698940b48
         with:
-          framework-revision: 452f7fc7ca1d9c44c9e768cef565f52882a40e2d
+          framework-revision: 95f228936efe17fda24f21323ad87cd698940b48
           caller-matrix: ${{ toJSON(matrix) }}
   aggregate:
     permissions:
@@ -94,6 +94,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@452f7fc7ca1d9c44c9e768cef565f52882a40e2d
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/reusable-five-connectors-profile/aggregate@95f228936efe17fda24f21323ad87cd698940b48
         with:
-          framework-revision: 452f7fc7ca1d9c44c9e768cef565f52882a40e2d
+          framework-revision: 95f228936efe17fda24f21323ad87cd698940b48
