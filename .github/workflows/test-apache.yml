@@ -21,9 +21,9 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-apache/apache-autotools-bootstrap@f13af5450c1f945044ba4dcd945be1d8187e9c57
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-apache/apache-autotools-bootstrap@452f7fc7ca1d9c44c9e768cef565f52882a40e2d
         with:
-          framework-revision: f13af5450c1f945044ba4dcd945be1d8187e9c57
+          framework-revision: 452f7fc7ca1d9c44c9e768cef565f52882a40e2d
   apache-structure:
     permissions:
       contents: read
@@ -36,6 +36,6 @@ jobs:
       - name: Execute pinned Framework test orchestration
         id: framework-ci
         if: ${{ always() }}
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-apache/apache-structure@f13af5450c1f945044ba4dcd945be1d8187e9c57
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/connector-ci/test-apache/apache-structure@452f7fc7ca1d9c44c9e768cef565f52882a40e2d
         with:
-          framework-revision: f13af5450c1f945044ba4dcd945be1d8187e9c57
+          framework-revision: 452f7fc7ca1d9c44c9e768cef565f52882a40e2d
