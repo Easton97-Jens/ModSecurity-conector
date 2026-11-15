@@ -131,6 +131,15 @@ the subsequent `make` path are required.
 
 ## Test Ownership And Runtime Claims
 
+The Framework's separate `apache_h2_acceptance.py` adapter registers eight
+opt-in TLS/H2 scenarios outside the 100 standard cases. It joins actual client
+streams, native H2 session tags, rule/transaction witnesses and request-pool
+cleanup while a peer remains active. The H2 terminal branch sends a native
+error/FLUSH brigade to mod_http2 before sealing its secondary `conn_rec`;
+that flag refers to the affected stream rather than the physical TLS session.
+Strict/reset qualification requires the actual target RST and healthy
+peer/follow-up. The corresponding H1 connection-close path is preserved.
+
 Executable Apache connector tests are maintained in the framework module, not
 under `connectors/apache/tests`. The local connector test folder was removed
 and must not be reintroduced.

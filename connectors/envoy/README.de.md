@@ -65,17 +65,22 @@ nach erfolgreichen gRPC-Sends. Dies ist echter lokaler Hostnachweis, bleibt
 aber nicht hochgestuft und verändert weder die kanonischen `ext_authz`-
 Fähigkeiten noch den Laufzeitstatus. Eine späte P4-Entscheidung in
 `safe` wird als hostbestätigtes `log_only` aufgezeichnet; `off` bewahrt die
-native Interventionsbehandlung ohne zusätzliche Late-Policy. Der Service-Decoder kann `late_action_policy: strict` darstellen, aber ein
-regelauswertender CGo-Service mit `phase4_mode=strict` weist das Profil
-`envoy-ext-proc` beim Start ab, bis eine deterministische Post-Commit-
-Hostaktion nachgewiesen ist. Es werden weder eine späte Statusänderung noch
-ein deterministischer Reset, Client-Reset oder Upstream-Reset behauptet.
+native Interventionsbehandlung ohne zusätzliche Late-Policy. Der Dienst
+unterstützt `late_action_policy: strict` mit passendem `phase4_mode=strict`.
+Nach dem Response-Commit sendet Strict eine späte `ImmediateResponse`. Der
+Filter-Manager des angehefteten Envoy setzt nach bereits kodierten Headern
+den betroffenen Downstream-Stream zurück. Der Dienst protokolliert den
+erfolgreichen gRPC-Send als `strict_immediate_response_sent`; erst unabhängige
+Client-Framebeobachtungen belegen den Downstream-Reset. Ein bereits sichtbarer
+Status wird nicht ersetzt. Die Runtimekonfigurationsmaterialisierung akzeptiert
+`ENVOY_EXT_PROC_PHASE4_MODE` als `off`, `safe` (Vorgabe) oder `strict`;
+der Wert muss zur Late-Policy des Dienstes passen.
 
 Die genaue ext_proc-API-Grenze, die Opt-in-Beobachtung von Client-Cancel und
 die Nichtförderungsbedingungen stehen im
 [kanonischen Envoy-Guide](../../docs/connectors/envoy.de.md).
 
-## Downstream-H1/H2-Konfigurationsprofile (nur Source/Konfiguration)
+## Downstream-H1/H2-Profile
 
 `prepare_envoy_ext_proc_config.sh` akzeptiert über
 `EXT_PROC_DOWNSTREAM_PROTOCOL` ausschließlich `http1` (Vorgabe) und `h2`. Die
@@ -85,7 +90,7 @@ den HTTP/2-HCM-Codec und `http2_protocol_options`; ein unbekanntes Profil
 schlägt fehl, statt auf H1 zurückzufallen.
 
 Für ein bereitgestelltes privates Loopback-Zertifikat/-Schlüsselpaar lässt sich
-das nicht ausgeübte H2-Profil außerhalb des Checkouts materialisieren mit:
+das H2-Profil außerhalb des Checkouts materialisieren mit:
 
 ```sh
 make -C connectors/envoy prepare-envoy-ext-proc-config \
@@ -99,6 +104,16 @@ Envoy noch begründet sie H2-Runtime-Evidence. Eine echte H2-Aussage erfordert
 weiterhin einen H2-fähigen Client, einen Envoy-Config-Load/Host-Lauf,
 ausgehandelte-ALPN-Beobachtung und passende kanonische Lifecycle-Evidence. H3
 ist hier kein wählbares Profil.
+
+Der separate Framework-Adapter
+`connector_suite/adapters/envoy/harness/envoy_h2_acceptance.py` bietet
+acht echte Opt-in-H2-Hostfälle. Er prüft TLS 1.3/ALPN h2, P1–P4-Entscheidungen,
+Target-Reset/Cancel, einen gleichzeitig aktiven Peer und Folgezugriff auf
+derselben Verbindung, native Regel-/Transaktionskorrelation sowie Cleanup vor
+Peer-Freigabe. Strict wird mit
+`--late-action-policy strict --case phase4_strict` ausgewählt; die
+Safe-Vorgabe führt die übrigen sieben Fälle aus. Diese profilbezogenen
+Beobachtungen stufen weder ext_authz noch beliebige Deployments hoch.
 
 ## Quelllayout
 

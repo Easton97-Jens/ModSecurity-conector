@@ -29,12 +29,13 @@ const (
 )
 
 type options struct {
-	mode          string
-	listen        string
-	forwardAuth   string
-	uds           string
-	runtimeConfig string
-	eventLog      string
+	lateActionPolicy string
+	mode             string
+	listen           string
+	forwardAuth      string
+	uds              string
+	runtimeConfig    string
+	eventLog         string
 }
 
 type engineRuntime struct {
@@ -75,11 +76,12 @@ func run() error {
 		defer closeObserver.Close()
 	}
 	coordinator, err := composite.New(opts.mode, key, composite.Limits{
-		Capacity:       128,
-		TTL:            30 * time.Second,
-		IdleTTL:        5 * time.Second,
-		MaxHeaders:     256,
-		MaxHeaderBytes: 64 << 10,
+		LateActionPolicy: processor.LateActionPolicy(opts.lateActionPolicy),
+		Capacity:         128,
+		TTL:              30 * time.Second,
+		IdleTTL:          5 * time.Second,
+		MaxHeaders:       256,
+		MaxHeaderBytes:   64 << 10,
 	}, runtime.engine, observer)
 	if err != nil {
 		return fmt.Errorf("coordinator setup: %w", err)
@@ -134,6 +136,7 @@ func shutdownResult(serveErr, coordinatorErr, observerErr, observerCloseErr, eng
 
 func parseOptions() (options, error) {
 	var o options
+	flag.StringVar(&o.lateActionPolicy, "late-action-policy", "safe", "post-commit policy: off, safe, or strict; must match native runtime")
 	flag.StringVar(&o.mode, "mode", "", "connector mode: envoy or traefik")
 	flag.StringVar(&o.listen, "listen", "", "loopback TCP address for Envoy gRPC")
 	flag.StringVar(&o.forwardAuth, "forwardauth-listen", "", "loopback TCP address for Traefik ForwardAuth")

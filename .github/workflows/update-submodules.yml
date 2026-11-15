@@ -751,7 +751,7 @@ jobs:
                 $6 == "docs/build/compilers/lighttpd.md" ||
                 $6 == "docs/build/compilers/lighttpd.de.md" {
                   records += 1
-                  if ($1 !~ /^:100[0-7][0-7][0-7]$/ || $2 !~ /^100[0-7][0-7][0-7]$/ || $5 != "M") {
+                  if ($1 !~ /^:100[0-7][0-7][0-7]$/ || $2 !~ /^100[0-7][0-7][0-7]$/ || $1 != ":" $2 || $5 != "M") {
                     invalid = 1
                   }
                   next

@@ -60,17 +60,20 @@ is real local host evidence, but it remains non-promoted and does not change
 the canonical `ext_authz` capabilities or runtime status. A late P4 decision
 in `safe` is recorded as host-confirmed `log_only`; `off` preserves native
 intervention handling without applying the additional late policy. The service
-decoder can represent `late_action_policy: strict`, but a rule-evaluating CGo
-service with `phase4_mode=strict` rejects the `envoy-ext-proc` profile at
-startup until a deterministic post-commit host action is proven. It never
-claims a late status change, deterministic reset, client reset, or upstream
-reset.
+supports `late_action_policy: strict` with matching `phase4_mode=strict`.
+After response commitment, Strict sends a late `ImmediateResponse`. The
+pinned Envoy filter-manager path resets the affected downstream stream after
+headers have been encoded. The service records the successful gRPC send as
+`strict_immediate_response_sent`; only independent client frame observations
+establish the downstream reset. It does not replace an already visible status.
+The runtime config materializer accepts `ENVOY_EXT_PROC_PHASE4_MODE` as
+`off`, `safe` (default), or `strict`; match it to the service late policy.
 
 The exact ext_proc API boundary, opt-in client-cancel observation, and
 non-promotion conditions are documented in the
 [canonical Envoy guide](../../docs/connectors/envoy.md).
 
-## Downstream H1/H2 configuration profiles (source/configuration only)
+## Downstream H1/H2 profiles
 
 `prepare_envoy_ext_proc_config.sh` accepts only `http1` (the default) and `h2`
 through `EXT_PROC_DOWNSTREAM_PROTOCOL`. The `http1` materialization contains
@@ -79,7 +82,7 @@ only ALPN `h2`, the HTTP/2 HCM codec, and `http2_protocol_options`; an unknown
 profile fails instead of falling back to H1.
 
 For a provisioned private loopback certificate/key pair, materialize the
-unexercised H2 profile outside the checkout with:
+H2 profile outside the checkout with:
 
 ```sh
 make -C connectors/envoy prepare-envoy-ext-proc-config \
@@ -92,6 +95,15 @@ This configuration does not relabel the existing Python helper, start Envoy,
 or establish H2 runtime evidence. A real H2 claim still requires an H2-capable
 client, an Envoy config-load/host run, negotiated-ALPN observation, and
 matching canonical lifecycle evidence. H3 is not a selectable profile here.
+
+The separate Framework adapter
+`connector_suite/adapters/envoy/harness/envoy_h2_acceptance.py` supplies
+eight opt-in real-host H2 cases. It checks TLS 1.3/ALPN h2, P1–P4 decisions,
+target reset/cancellation, a simultaneously active peer and a follow-up on
+the same connection, native rule/transaction correlation, and cleanup before
+the peer is released. Select `--late-action-policy strict --case phase4_strict`
+for Strict; the default Safe selection runs the other seven cases. These
+profile-specific observations do not promote ext_authz or arbitrary deployments.
 
 ## Source layout
 

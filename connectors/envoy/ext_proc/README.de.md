@@ -151,24 +151,28 @@ erfolgreiche Senden von Response-Header-`CONTINUE` markiert die Response als
 committet. Für eine echte Regelintervention nach gesundem P4-Abschluss gilt:
 
 - `off` bewahrt die native Interventionsbehandlung ohne zusätzliche Late-Policy;
-- `safe` zeichnet ein echtes Common-Host-Ergebnis `log_only` auf und setzt
-  die Response mit ihrem ursprünglichen sichtbaren Status fort; ausschließlich
+- `safe` zeichnet ein echtes Common-Host-Ergebnis `log_only` auf und setzt die
+  Response mit ihrem ursprünglichen sichtbaren Status fort. Ausschließlich
   optionales Ereignislogging betreffende Fehler werden ohne Änderung dieses
   Ergebnisses diagnostiziert;
-- `strict` wird beim Start der Common Runtime für das Profil
-  `envoy-ext-proc` abgewiesen. Dessen unveränderliche Capability
-  `strict_post_commit_action` ist null, bis eine deterministische
-  Post-Commit-Hostaktion bewiesen ist; es wird kein Traffic bedient und keine
-  späte Entscheidung stillschweigend herabgestuft.
+- `strict` übermittelt eine ext_proc-`ImmediateResponse` über Envoys nativen
+  Local-Reply-Pfad. Das ausgewählte Profil `envoy-ext-proc` deklariert
+  `strict_post_commit_action=1`; die Common Runtime verweigert Strict für ein
+  ausgewähltes Profil mit `strict_post_commit_action=0`.
+
+`strict_immediate_response_requested` und `strict_immediate_response_sent`
+dokumentieren die angeforderte Aktion und einen erfolgreichen gRPC-Sendevorgang.
+Ein nachgelagerter Stream-Reset erfordert unabhängige Host-/Wire-Evidence für
+den ausgewählten Envoy-Build und das Protokoll, einschließlich exaktem Target
+und gesundem gleichzeitigem Peer/Folgezugriff. Ein erfolgreicher Sendevorgang
+ist keine Beobachtung eines Downstream-Resets.
 
 Natives Reject und Engine-/API-/Verarbeitungs-/Auditfehler bleiben Fehler,
 keine Safe-Regelereignisse; natives Audit und Cleanup bleiben erforderlich.
 Die genaue Grenze optionaler Ereignisse steht im
 [gemeinsamen Transaktionsvertrag](../../../common/docs/transaction-phase-contract.de.md#optionale-späte-safe-regelereignisse).
 
-Der Adapter verwendet nach dem Response-Commit absichtlich weder
-`ImmediateResponse` noch einen gRPC-Fehler als HTTP-Reset-Ersatz. Ein
-abgebrochener gRPC-Kontext und ein beobachteter gRPC-Peer-EOF werden als
+Ein abgebrochener gRPC-Kontext und ein beobachteter gRPC-Peer-EOF werden als
 `grpc_context_canceled_unattributed` beziehungsweise `grpc_peer_eof` erfasst;
 keines dieser Labels darf als Downstream- oder Upstream-Reset interpretiert
 werden.
@@ -215,9 +219,9 @@ Binärintegrität noch Security-Labels oder die Zuordnung von User-Namespaces.
 
 ## Verbleibende Promotion-Grenze
 
-Der Dienst behauptet keinen deterministischen Post-Commit-Reset und keine
-Beobachtung der Client-Bytes. Eine späte P4-Regel wird im Safe-Modus als vom
-Host bestätigtes `log_only` erfasst. Strict wird absichtlich beim Start
-abgewiesen, bis eine deterministische Envoy-Hostaktion nachgewiesen ist; es ist
-weder `ImmediateResponse` noch ein gRPC-Fehler oder behaupteter Reset. Die
-kanonische Validierung des rohen Common-JSONL bleibt eine Promotionsgrenze.
+Der Dienst erfasst Nachrichtenübermittlung statt einer Clientbytebeobachtung.
+Eine späte P4-Regel wird im Safe-Modus als hostbestätigtes `log_only` erfasst.
+Strict sendet die native späte ImmediateResponse; separate Client-/Access-/
+Completion-Nachweise müssen den tatsächlichen Reset qualifizieren. Kanonische
+Validierung des rohen Common-JSONL und der unabhängige Hostlauf des ausgewählten
+Profils bleiben Promotionsgrenzen.

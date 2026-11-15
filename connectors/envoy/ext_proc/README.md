@@ -142,24 +142,28 @@ response-header `CONTINUE` send marks a response as committed. For a genuine
 rule intervention after healthy P4 completion:
 
 - `off` preserves native intervention handling without the additional late policy;
-- `safe` records a real Common host outcome `log_only` and
-  continues with the original visible response status; failure confined to
-  optional event logging is diagnosed without changing that result;
-- `strict` is rejected at Common Runtime startup for the `envoy-ext-proc`
-  profile. Its immutable `strict_post_commit_action` capability is zero until
-  a deterministic post-commit host action is proven; no traffic is served and
-  no late decision is silently downgraded.
+- `safe` records a real Common host outcome `log_only` and continues with the
+  original visible response status. Failure confined to optional event logging
+  is diagnosed without changing that result;
+- `strict` submits an ext_proc `ImmediateResponse` through Envoy's native
+  local-reply path. The selected `envoy-ext-proc` profile declares
+  `strict_post_commit_action=1`; Common Runtime rejects Strict for a selected
+  profile with `strict_post_commit_action=0`.
+
+`strict_immediate_response_requested` and `strict_immediate_response_sent`
+record the requested action and a successful gRPC send. Establishing a
+downstream stream reset requires independent host/wire evidence for the selected
+Envoy build and protocol, including the exact target and healthy simultaneous
+peer/follow-up. A successful send is not a downstream reset observation.
 
 Native Reject and engine/API/processing/audit failures remain errors, not Safe
 rule events; native audit and cleanup stay required. See the
 [shared transaction contract](../../../common/docs/transaction-phase-contract.md#optional-late-safe-rule-events)
 for the precise optional-event boundary.
 
-The adapter intentionally does not use `ImmediateResponse` or a gRPC error as
-an HTTP-reset surrogate after response commitment. A canceled gRPC context and
-an observed gRPC peer EOF are recorded respectively as
-`grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can be
-treated as a downstream client reset or an upstream reset.
+A canceled gRPC context and an observed gRPC peer EOF are recorded respectively
+as `grpc_context_canceled_unattributed` and `grpc_peer_eof`; neither label can
+be treated as a downstream client reset or an upstream reset.
 
 The active-stream cap is aggregate resource containment, not an idle deadline:
 a valid but silent admitted stream retains one bounded slot until Envoy sends a
@@ -200,9 +204,8 @@ integrity, security labels, or user-namespace mapping.
 
 ## Remaining promotion boundary
 
-The service does not claim a deterministic post-commit reset or a client-byte
-observation. A late P4 rule is recorded as host-confirmed `log_only` in Safe.
-Strict is a deliberate startup rejection until a deterministic Envoy host
-action is demonstrated; it is not an `ImmediateResponse`, a gRPC error, or a
-claimed reset. Canonical collector validation of the raw Common JSONL remains
-a promotion boundary.
+The service records message delivery rather than a client-byte observation.
+A late P4 rule is recorded as host-confirmed `log_only` in Safe. Strict sends
+the native late ImmediateResponse; separate client/access/completion evidence
+is required to qualify its actual reset. Canonical validation of the raw Common
+JSONL and the selected profile's independent host run remain promotion boundaries.

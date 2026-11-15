@@ -18,10 +18,10 @@ reiner Request-ext_authz-Service ist keine Response-Phasen-Evidence.
 Envoy verwendet den ausgewählten gestreamten <code>ext_proc</code>-Pfad mit
 einem lokalen Common/libmodsecurity-Service. Er unterscheidet sich vom
 beibehaltenen <code>ext_authz</code>-Kompatibilitätsbeispiel. Dieser Guide
-beschreibt die ausgewählte HTTP/1.1-P1--P4-Safe-Architektur und behauptet keine
-Produktionsreife, keine CRS-Verifikation, keine vollständige Matrix-/
-Protokollabdeckung, keine Strict-Post-Commit-Aktion und kein universelles
-Envoy-Deployment.
+beschreibt die ausgewählte HTTP/1.1-P1--P4-Safe-Architektur und den separat
+ausgewählten TLS/H2-Vorbereitungspfad. Er behauptet keine Produktionsreife,
+keine CRS-Verifikation, keine vollständige Matrix-/Protokollabdeckung und
+kein universelles Envoy-Deployment.
 
 ## Architektur und Ownership
 
@@ -116,6 +116,16 @@ konfigurierten Modus oder eine Serviceentscheidung etabliert.
 | Strict-/Cancellation-Verhalten | Explizite Host-/Client-Transportbeobachtung, keine API-/Source-Inspektion |
 
 ## Tests und Nachweise
+
+Der separate Framework-Adapter `envoy_h2_acceptance.py` registriert acht
+Opt-in-H2-Szenarien außerhalb der 100 Standardfälle. Er verknüpft tatsächliche
+TLS/H2-Frames, native Access-Records, Common-Entscheidungen und Service-
+Completion-Records. Strict nutzt den späten `ImmediateResponse`-Resetpfad
+des angehefteten Hosts; ein erfolgreicher gRPC-Send allein ist kein
+Wire-Nachweis. Der Leser verlangt den Reset des exakten Target-Streams,
+gesunden gleichzeitigen Peer/Folgezugriff und Target-Cleanup vor Peer-Freigabe.
+Registrierung und Ausführungsvoraussetzungen stehen im Framework-Guide zur
+Protokoll-Abnahmevorbereitung.
 
 Ausgewählte Build-/Config-/Start-/Runtime-Targets werden nur für die vom Target
 genannte Ebene verwendet. Fehlende optionale Envoy-Komponenten bleiben

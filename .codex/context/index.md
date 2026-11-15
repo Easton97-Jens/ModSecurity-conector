@@ -58,7 +58,7 @@ The six host families are Apache, NGINX, HAProxy, Envoy, Traefik, and lighttpd. 
 
 ## Repository-native authority
 
-Do not maintain a second static Parent command catalog here. Current root `Makefile`, component build files, current versioned connector/testing docs, `ci/README.md`, and `tests/README.md` are the command/test sources of truth.
+Do not maintain a second static Parent command catalog here. Current root `Makefile`, component build files, current versioned connector/testing docs, `ci/README.md`, and `docs/testing-and-evidence.md` are the command/test sources of truth.
 
 Old MRTS-specific `commands.md`, `testing.md`, and `storage-policy.md` are not Parent-wide primary owners.
 

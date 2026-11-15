@@ -221,11 +221,13 @@ CRS-Abdeckung.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Das ext_proc-Service-JSON akzeptiert `late_action_policy: strict`, aber eine
-regelauswertende Common Runtime mit `phase4_mode=strict` weist das Profil
-`envoy-ext-proc` beim Start ab. Das Strict-Artefakt ist damit sichtbar und
-parsergestützt, aber absichtlich nicht startbar, bis eine deterministische
-Post-Commit-Envoy-Hostaktion nachgewiesen ist.
+Der ext_proc-Service akzeptiert `late_action_policy: strict` mit passendem
+`phase4_mode=strict`. Eine späte disruptive Entscheidung sendet
+ImmediateResponse über den Local-Reply-Pfad des angehefteten nativen Envoy.
+Nach bereits kodierten Headern setzt der Host den betroffenen Downstream-
+Stream zurück. Der separate Framework-H2-Adapter prüft den tatsächlichen Reset
+mit gesundem gleichzeitigem Peer und Folgezugriff; erfolgreicher gRPC-Send
+allein belegt ihn nicht.
 
 Safe-ext_proc-Template und Service-Vertrag verwenden, generiertes YAML und
 Service-JSON validieren und die erforderliche Host-Evidenz ergänzen, bevor ein

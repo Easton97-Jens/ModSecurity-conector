@@ -449,8 +449,8 @@ func (transaction *commonRuntimeTransaction) Close(ctx context.Context, summary 
 	}
 	if transaction.native != nil && !transaction.engine.closed {
 		var nativeError [commonRuntimeErrorBufferSize]C.char
-		// Only observed composite expiry/restart supplies a typed terminal
-		// cause. Ordinary incomplete stream closes retain the native EOS gate.
+		// Explicit observed composite expiry/restart or companion transport
+		// termination supplies a typed cause. Unknown closes retain the EOS gate.
 		if cause := commonRuntimeObservedCloseCause(summary.CloseReason); cause != C.MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED {
 			if C.msc_envoy_ext_proc_transaction_observed_close(transaction.native, cause,
 				&nativeError[0], C.size_t(len(nativeError))) != 1 {
@@ -479,6 +479,8 @@ func commonRuntimeObservedCloseCause(reason CloseReason) C.msc_envoy_ext_proc_ob
 		return C.MSC_ENVOY_EXT_PROC_CLOSE_TIMEOUT
 	case CloseReason("restart"):
 		return C.MSC_ENVOY_EXT_PROC_CLOSE_RESTART
+	case CloseReason("companion_transport_closed"):
+		return C.MSC_ENVOY_EXT_PROC_CLOSE_COMPANION_TRANSPORT
 	default:
 		return C.MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED
 	}

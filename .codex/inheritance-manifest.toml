@@ -7,7 +7,7 @@ routing_marker = "codex-control-plane-routing:parent"
 [[policies]]
 id = "PARENT-ARCHITECTURE-AND-BOUNDARIES"
 source = ".codex/context/architecture-and-boundaries.md"
-sha256 = "8292052fc0c67fe1b49ab25142fb4c5ee18049f13b06d9ae5e34c16dc8286f18"
+sha256 = "a62b475adad0bca0156bc33a7771ae9a227e740e65d49294aac3409b6118c741"
 inheritable = true
 
 [[policies]]
@@ -79,7 +79,7 @@ inheritable = true
 [[policies]]
 id = "PARENT-INDEX"
 source = ".codex/context/index.md"
-sha256 = "7ff348fc35266fb24bd359c5369241e30f52d4c3a3b6c2392ee8c42e2aac6eec"
+sha256 = "940d7cd4ced92328be08c34b1055c5cae6a52977ce91186c34ba73311befeac5"
 inheritable = true
 
 [[policies]]

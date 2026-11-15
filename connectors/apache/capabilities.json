@@ -83,7 +83,7 @@
     },
     "late_intervention_abort": {
       "state": "implemented_not_asserted",
-      "reason": "The configured strict late-intervention branch has a controlled connection-abort path for independently committed output, but no canonical real-host event proves actual abort_connection and connection_aborted=true."
+      "reason": "Strict has distinct terminal transport handling: H1 closes its connection; H2 signals the affected mod_http2 stream and seals its secondary conn_rec. Native request flags do not imply physical multiplexed-session closure; matching independent host evidence remains required."
     },
     "late_intervention_status_metadata": {
       "state": "implemented_not_asserted",
@@ -190,28 +190,28 @@
       "reason": "No Apache HTTP/2 full-lifecycle result is attached; ci/runtime/lifecycle/run-apache-phase4-response-regression.sh is the task-local H1/H2 evidence placeholder, not a pass claim."
     },
     "http2_downstream": {
-      "state": "not_implemented",
-      "reason": "The pinned Apache native-host profile does not yet build and exercise mod_http2 on the connector path."
+      "state": "implemented_not_asserted",
+      "reason": "The separate native Apache H2 adapter selects pinned mod_http2 with TLS and verifies actual protocol/stream identity; qualification requires its matching host run."
     },
     "http2_upstream": {
       "state": "not_implemented",
       "reason": "No Apache native connector upstream HTTP/2 profile is implemented."
     },
     "http2_tls_alpn": {
-      "state": "not_implemented",
-      "reason": "The pinned Apache harness has no TLS/ALPN h2 listener."
+      "state": "implemented_not_asserted",
+      "reason": "The separate native H2 adapter verifies TLS1.3 and ALPN h2 with the configured CA; configuration alone is not runtime evidence."
     },
     "http2_cleartext_h2c": {
       "state": "not_implemented",
       "reason": "The pinned Apache harness has no h2c prior-knowledge listener."
     },
     "http2_multiplexing": {
-      "state": "not_implemented",
-      "reason": "No native Apache HTTP/2 multiplexing isolation evidence path is implemented."
+      "state": "implemented_not_asserted",
+      "reason": "The separate H2 adapter checks target, held simultaneous peer and follow-up on one physical H2 session with distinct native transactions."
     },
     "http2_stream_reset": {
-      "state": "not_implemented",
-      "reason": "The Apache strict path only models a connection abort; no request-local HTTP/2 stream-reset API is implemented."
+      "state": "implemented_not_asserted",
+      "reason": "The H2-only terminal branch passes a native error/FLUSH brigade to mod_http2 before marking the secondary conn_rec aborted. Actual target RST_STREAM and surviving peer must be established independently; this does not close the physical session."
     },
     "http3_downstream": {
       "state": "not_implemented",
@@ -250,12 +250,12 @@
       "reason": "The source does not retain a full normalized response brigade, but no protocol-scoped runtime result is attached."
     },
     "client_abort": {
-      "state": "not_implemented",
-      "reason": "No canonical Apache client-abort lifecycle case is implemented."
+      "state": "implemented_not_asserted",
+      "reason": "The separate H2 adapter sends a target-stream cancel and requires native request-pool cleanup before peer release."
     },
     "upstream_abort": {
-      "state": "not_implemented",
-      "reason": "No canonical Apache upstream-abort lifecycle case is implemented."
+      "state": "implemented_not_asserted",
+      "reason": "The separate H2 adapter controls an incomplete upstream response and requires actual target reset, healthy peer/follow-up and native cleanup."
     },
     "response_body_decompression": {
       "state": "not_implemented",

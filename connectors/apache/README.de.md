@@ -137,6 +137,15 @@ Ein direkter Befehl `apxs -c` ist kein Ersatz: das von Autotools erzeugte
 
 ## Eigentums- und Laufzeitansprüche testen
 
+Der separate Framework-Adapter `apache_h2_acceptance.py` registriert acht
+Opt-in-TLS/H2-Szenarien außerhalb der 100 Standardfälle. Er verknüpft tatsächliche
+Clientstreams, native H2-Sessiontags, Regel-/Transaktionszeugen und Requestpool-
+Cleanup bei weiter aktivem Peer. Der H2-Terminalpfad sendet eine native Error-/
+Flush-Brigade an mod_http2, bevor er dessen sekundären `conn_rec` versiegelt;
+dieses Flag bezeichnet den betroffenen Stream statt der physischen TLS-Session.
+Strict-/Resetqualifizierung verlangt den tatsächlichen Target-RST und gesunden
+Peer/Folgezugriff. Der entsprechende H1-Verbindungsschließpfad bleibt erhalten.
+
 Ausführbare Apache-Connector-Tests werden nicht im Framework-Modul verwaltet
 unter `connectors/apache/tests`. Der lokale Connector-Testordner wurde entfernt
 und darf nicht wieder eingeführt werden.

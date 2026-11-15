@@ -11,6 +11,7 @@ provenance boundary and is deliberately not inspected here.
 from __future__ import annotations
 
 import argparse
+import builtins
 from dataclasses import dataclass
 from functools import lru_cache
 import hashlib
@@ -22,6 +23,7 @@ import stat
 import subprocess
 import sys
 import runpy
+from types import ModuleType
 
 if __package__:
     from ..lib.framework_revision_pins import (
@@ -564,6 +566,66 @@ def _framework_blob(framework: Path, revision: str, relative: str) -> str:
         raise ContractError(f"pinned Framework source is not UTF-8: {relative}") from error
 
 
+def _validate_trusted_diagnostics_exports(module: ModuleType) -> None:
+    if (not isinstance(getattr(module, "ACTION_PATH", None), str)
+            or not isinstance(getattr(module, "REFERENCE", None), str)
+            or not callable(getattr(module, "scanner_step", None))):
+        raise ContractError("invalid trusted Framework diagnostics exports")
+
+
+def _trusted_workflow_parser(framework: Path, revision: str) -> dict:
+    """Load the committed parser and only its demanded same-commit companion."""
+    import __future__ as host_future
+    import pathlib as host_pathlib
+
+    import yaml as host_yaml
+    from yaml import nodes as host_yaml_nodes, tokens as host_yaml_tokens
+
+    host_modules = {
+        "__future__": host_future, "hashlib": hashlib, "json": json, "os": os,
+        "pathlib": host_pathlib, "re": re, "stat": stat, "yaml": host_yaml,
+        "yaml.nodes": host_yaml_nodes, "yaml.tokens": host_yaml_tokens,
+    }
+    diagnostics_module = "sonar_diagnostics_contract"
+    paths = {
+        "workflow_sources": "modsecurity_test_framework/workflow_sources.py",
+        diagnostics_module: "modsecurity_test_framework/sonar_diagnostics_contract.py",
+    }
+    diagnostic_exports = frozenset({"ACTION_PATH", "REFERENCE", "scanner_step"})
+    modules: dict[str, ModuleType] = {}
+
+    def trusted_import(name, _globals=None, _locals=None, fromlist=(), level=0):
+        if level:
+            if (level != 1 or name != diagnostics_module or not fromlist
+                    or not set(fromlist) <= diagnostic_exports):
+                raise ContractError("unsupported trusted Framework import")
+            module = load_module(diagnostics_module)
+            _validate_trusted_diagnostics_exports(module)
+            return module
+        if name not in host_modules:
+            raise ContractError("unsupported trusted Framework import")
+        return host_modules[name] if fromlist else host_modules[name.split(".")[0]]
+
+    def load_module(name: str) -> ModuleType:
+        if name in modules:
+            return modules[name]
+        source = _framework_blob(framework, revision, paths[name])
+        module = ModuleType("_parent_trusted_framework." + name)
+        module.__dict__.update({
+            "__package__": "_parent_trusted_framework",
+            "__builtins__": dict(vars(builtins), __import__=trusted_import),
+        })
+        modules[name] = module
+        try:
+            exec(compile(source, "git:" + paths[name], "exec"), module.__dict__)
+        except (ImportError, SyntaxError) as error:
+            raise ContractError("cannot load trusted Framework parser closure") from error
+        return module
+
+    # Genuine pre-companion parsers never acquire the optional companion.
+    return load_module("workflow_sources").__dict__
+
+
 def _workflow_projection(root: Path, text: str, name: str, revision: str) -> str:
     framework = _require_directory(root / FRAMEWORK_PATH, "Framework object repository")
     # Parser code comes only from the committed Parent gitlink. The lock may
@@ -572,9 +634,7 @@ def _workflow_projection(root: Path, text: str, name: str, revision: str) -> str
     match = re.fullmatch(rb"160000 commit ([a-f0-9]{40})\t" + re.escape(FRAMEWORK_PATH.encode()) + rb"\n", entry)
     if match is None:
         raise ContractError("committed Parent Framework gitlink is missing")
-    source = _framework_blob(framework, match[1].decode("ascii"), "modsecurity_test_framework/workflow_sources.py")
-    namespace = {"__name__": "_trusted_workflow_sources"}
-    exec(compile(source, "git:modsecurity_test_framework/workflow_sources.py", "exec"), namespace)
+    namespace = _trusted_workflow_parser(framework, match[1].decode("ascii"))
     # Reuse the trusted closed-schema expander with immutable source acquisition.
     # No candidate Python or ambient connector context is imported or executed.
     namespace["_read"] = lambda _root, relative: _framework_blob(framework, revision, relative)

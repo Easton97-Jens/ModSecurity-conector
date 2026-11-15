@@ -212,11 +212,12 @@ Safe host outcomes, Strict behavior, production readiness, or CRS coverage.
 
 ## Strict profile boundary <a id="strict-profile-boundary"></a>
 
-The ext_proc service JSON accepts `late_action_policy: strict`, but a
-rule-evaluating Common Runtime with `phase4_mode=strict` rejects the
-`envoy-ext-proc` profile at startup. The Strict artifact is therefore visible
-and parser-backed, but it is deliberately not runnable until a deterministic
-post-commit Envoy host action is proven.
+The ext_proc service accepts `late_action_policy: strict` with matching
+`phase4_mode=strict`. A late disruptive decision sends ImmediateResponse
+through the pinned Envoy host's local-reply path. After headers are encoded,
+that host resets the affected downstream stream. The Framework's separate
+H2 adapter verifies the actual reset with a healthy simultaneous peer and
+follow-up; the successful gRPC send alone does not prove it.
 
 Use the Safe ext_proc template and service contract, validate the generated
 YAML and service JSON, and add the required host evidence before enabling a

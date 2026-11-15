@@ -145,10 +145,12 @@ int msc_envoy_ext_proc_transaction_close_checked(
 typedef enum msc_envoy_ext_proc_observed_close_cause {
     MSC_ENVOY_EXT_PROC_CLOSE_UNOBSERVED = 0,
     MSC_ENVOY_EXT_PROC_CLOSE_TIMEOUT,
-    MSC_ENVOY_EXT_PROC_CLOSE_RESTART
+    MSC_ENVOY_EXT_PROC_CLOSE_RESTART,
+    MSC_ENVOY_EXT_PROC_CLOSE_COMPANION_TRANSPORT
 } msc_envoy_ext_proc_observed_close_cause;
 
-/* Records only an observed composite expiry/restart before checked finish. */
+/* Records observed expiry/restart or incomplete companion transport termination
+ * before checked finish. It never synthesizes response EOS or peer attribution. */
 int msc_envoy_ext_proc_transaction_observed_close(
     msc_envoy_ext_proc_transaction *transaction,
     msc_envoy_ext_proc_observed_close_cause cause, char *error, size_t error_len);

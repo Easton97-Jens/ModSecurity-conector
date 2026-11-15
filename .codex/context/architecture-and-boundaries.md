@@ -2,7 +2,7 @@
 
 ## Versioned authority
 
-For current architecture and route identity, read the current checkout first, especially current product source, root `Makefile`, `docs/repository-concept.md`, `docs/architecture.md`, `docs/connectors/README.md`, affected connector docs/source, `docs/testing-and-evidence.md`, `ci/README.md`, and `tests/README.md`.
+For current architecture and route identity, read the current checkout first, especially current product source, root `Makefile`, `docs/repository-concept.md`, `docs/architecture.md`, `docs/connectors/README.md`, affected connector docs/source, `docs/testing-and-evidence.md` and `ci/README.md`.
 
 Do not freeze target names, runtime counts, capability claims, dependency versions, or point-in-time SHAs in local policy when the current repository can answer them.
 

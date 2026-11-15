@@ -39,11 +39,12 @@ var (
 )
 
 type Limits struct {
-	Capacity       int
-	TTL            time.Duration
-	IdleTTL        time.Duration
-	MaxHeaders     int
-	MaxHeaderBytes int
+	LateActionPolicy processor.LateActionPolicy
+	Capacity         int
+	TTL              time.Duration
+	IdleTTL          time.Duration
+	MaxHeaders       int
+	MaxHeaderBytes   int
 }
 
 // ReservationSnapshot is the immutable request-header input accepted only
@@ -66,6 +67,9 @@ type ReservationSnapshot struct {
 const ReservationSnapshotVersion uint8 = 2
 
 func (l Limits) withDefaults() Limits {
+	if l.LateActionPolicy == "" {
+		l.LateActionPolicy = processor.LateActionSafe
+	}
 	if l.Capacity <= 0 {
 		l.Capacity = 128
 	}
@@ -86,6 +90,7 @@ func (l Limits) withDefaults() Limits {
 }
 
 type Event struct {
+	RequestSHA256    string
 	DecisionID       string
 	Connector        string
 	RuleID           string
@@ -148,6 +153,16 @@ func New(connector string, key []byte, limits Limits, engine processor.Transacti
 		observer = discardObserver{}
 	}
 	l := limits.withDefaults()
+	if l.LateActionPolicy != processor.LateActionOff && l.LateActionPolicy != processor.LateActionSafe && l.LateActionPolicy != processor.LateActionStrict {
+		return nil, errors.New("invalid composite late action policy")
+	}
+	if validator, ok := engine.(processor.LateActionPolicyAdmissionValidator); ok {
+		if err := validator.ValidateLateActionPolicy(l.LateActionPolicy); err != nil {
+			return nil, err
+		}
+	} else if l.LateActionPolicy == processor.LateActionStrict {
+		return nil, errors.New("strict composite policy requires a validating native engine")
+	}
 	c := &Coordinator{connector: connector, key: append([]byte(nil), key...), limits: l, engine: engine, observer: observer, entries: make(map[string]*entry), slots: make(chan struct{}, l.Capacity), stop: make(chan struct{}), stopped: make(chan struct{}), events: make(chan Event, l.Capacity*8), eventDone: make(chan struct{})}
 	go c.dispatchEvents()
 	go c.expirer()
@@ -460,6 +475,37 @@ type Response struct {
 	session string
 }
 
+// StrictLateAction reports the admitted service policy for this retained
+// transaction. Transport adapters still have to perform and observe the abort.
+func (r *Response) StrictLateAction() bool {
+	return r != nil && r.c != nil && r.c.limits.LateActionPolicy == processor.LateActionStrict
+}
+
+// RecordLateAbortRequested is transport intent, never a fabricated Common
+// host-confirmed stream reset. Independent downstream frames prove the abort.
+func (r *Response) RecordLateAbortRequested(ctx context.Context, transport string, visibleStatus int) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if (transport != "strict_immediate_response_sent" && transport != "strict_stream_abort_requested") || visibleStatus < 200 || visibleStatus > 599 {
+		return ErrNotAllowed
+	}
+	if !r.StrictLateAction() {
+		return ErrNotAllowed
+	}
+	r.e.mu.Lock()
+	defer r.e.mu.Unlock()
+	if err := r.e.checkSessionLocked(r.session); err != nil {
+		return err
+	}
+	if !r.e.committed || !r.e.p4Disruptive || r.e.hostActionRecorded {
+		return ErrOutOfOrder
+	}
+	r.e.hostActionRecorded = true
+	r.e.summary.LateAction = processor.LateActionStrictSent
+	return r.e.emitLocked(Event{DecisionID: r.e.id, Connector: r.c.connector, Phase: "host_action_request", Outcome: "sent", ActualHostAction: transport, VisibleStatus: visibleStatus})
+}
+
 // MarkResponseCommitted records that the adapter successfully continued the
 // response. It is not a claim that a client byte was observed.
 func (r *Response) MarkResponseCommitted(ctx context.Context) error {
@@ -591,6 +637,7 @@ const (
 )
 
 type entry struct {
+	p4Disruptive                                                               bool
 	c                                                                          *Coordinator
 	mu                                                                         sync.Mutex
 	id                                                                         string
@@ -934,6 +981,9 @@ func (e *entry) responseBody(ctx context.Context, s string, b []byte, eos bool) 
 	e.responseBodyBytes += int64(len(b))
 	e.responseChunks++
 	d, err := e.tx.ProcessBody(ctx, processor.DirectionResponse, b, eos)
+	if err == nil && d.Action != processor.ActionAllow {
+		e.p4Disruptive = true
+	}
 	e.summary.ResponseBodyBytes = e.responseBodyBytes
 	e.summary.ResponseBodyChunks++
 	e.last = time.Now()
@@ -1034,6 +1084,10 @@ func (e *entry) checkSessionLocked(s string) error {
 	return nil
 }
 func (e *entry) emitLocked(ev Event) error {
+	if e.meta.Request.Method != "" && e.meta.Request.URI != "" {
+		digest := sha256.Sum256([]byte(e.meta.Request.Method + "\x00" + e.meta.Request.URI))
+		ev.RequestSHA256 = fmt.Sprintf("%x", digest)
+	}
 	if ev.RequestPath == "" || ev.ResponsePath == "" || ev.Transport == "" {
 		ev.RequestPath, ev.ResponsePath, ev.Transport = pipelineMetadata(e.c.connector)
 	}
