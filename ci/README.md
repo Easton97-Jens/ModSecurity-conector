@@ -33,6 +33,13 @@ Framework revision in the checked Parent lock. This keeps pre-sync and post-sync
 checks independent of the active Framework checkout and `FRAMEWORK_REVISION`.
 Candidate Python is not imported; incompatible NGINX handoffs still fail.
 
+The updater selects an exact descendant Framework commit. Framework owns its
+nested MRTS revision; Parent makes no independent MRTS release or ancestry
+decision and never fetches MRTS. The existing gitlink reader derives `mrts_sha`
+from that exact Framework commit and passes it explicitly to the verifier and
+synchronizer, keeping the revision lock consistent. Nested topology and URL
+allowlists remain enforced; an initialized MRTS checkout is not required.
+
 ## Selection and evidence
 
 The Framework inventory preserves 100 standard cases / 80 executions and the
