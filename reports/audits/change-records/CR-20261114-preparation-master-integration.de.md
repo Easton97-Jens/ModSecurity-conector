@@ -22,9 +22,13 @@ Die endgültige eingecheckte Kette muss Framework `452f7fc7ca1d9c44c9e768cef565f
 
 Beide Eltern durch einen regulären Merge erhalten. Reine SHA-Konflikte auf den kohärenten f13/M9a-Stand des ersten Elterncommits auflösen und den tatsächlichen Framework-Master anschließend separat nativ pinnen. Upstream-Sättigung der Response-Zähler und native Fehlerklassifikation zusammen mit dem Late-Action-Verhalten dieses PRs erhalten. Die Common-Runtime-Sperre für `strict_post_commit_action=0` bleibt; das ausgewählte Envoy-Profil deklariert `strict_post_commit_action=1`. Ein erfolgreiches `strict_immediate_response_sent` dokumentiert einen Sendevorgang, keinen Downstream-Reset. Die Toleranz optionaler später Safe-Ereignisse umfasst keine nativen Rejects, technischen oder Auditfehler.
 
+Ein Folgefix für `go:S3776` lagert die sättigenden Response-Byte-/Chunk-Beobachtungen aus `processResponseBody` nach `observeResponseBodyLocked` aus. Der vorhandene Mutex, die Sperre für negative Zähler, Engine-Aufruf, terminale Fehler, Safe-/Strict-Entscheidungen und EOS-Behandlung behalten ihre Reihenfolge. Die ursprünglichen195 Go-Blätter und fünf ergänzten Überlauffälle bleiben erforderlich; keine Prüfung und kein Gate wird gelockert.
+
 ## Geänderte Dateien
 
 Der Abgleich ändert61 reguläre Pfade gegenüber seinem ersten Elterncommit und lässt die24 Pinpfade unverändert. Vier aufgelöste Dokumentationsdateien sind die EN/DE-Paare unter `connectors/envoy/ext_proc/` und `connectors/traefik/native_middleware/`. Vorhandene Upstream-Common-/Connector-Quellen und Change Records bleiben erhalten. Dieses Record-Paar dokumentiert den Abgleich sowie die separate beabsichtigte Änderung von `modules/ModSecurity-test-Framework`, `ci/tooling/project-versions.lock.json` und22 Workflow-Projektionen.
+
+Der Quellfolgefix ändert ausschließlich `connectors/traefik/native_middleware/middleware.go` und dieses EN/DE-Record-Paar.
 
 ## Ausgeführte Befehle
 

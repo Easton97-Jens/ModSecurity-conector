@@ -595,15 +595,7 @@ func (state *streamState) processResponseBody(contextValue context.Context, chun
 	if state.responseBodyBytes < 0 {
 		return Decision{}, errors.New("response accounting overflow")
 	}
-	// Response observations must not impose a cumulative delivery limit.
-	if state.responseBodyChunks < math.MaxUint64 {
-		state.responseBodyChunks++
-	}
-	if int64(len(chunk)) > math.MaxInt64-state.responseBodyBytes {
-		state.responseBodyBytes = math.MaxInt64
-	} else {
-		state.responseBodyBytes += int64(len(chunk))
-	}
+	state.observeResponseBodyLocked(len(chunk))
 	decision, err := state.engine.ProcessBody(contextValue, DirectionResponse, chunk, end)
 	if err != nil {
 		state.terminalError = err
@@ -636,6 +628,19 @@ func (state *streamState) processResponseBody(contextValue context.Context, chun
 		state.responseEOS = true
 	}
 	return decision, nil
+}
+
+// observeResponseBodyLocked updates response counters while state.mu is held.
+func (state *streamState) observeResponseBodyLocked(length int) {
+	// Response observations must not impose a cumulative delivery limit.
+	if state.responseBodyChunks < math.MaxUint64 {
+		state.responseBodyChunks++
+	}
+	if int64(length) > math.MaxInt64-state.responseBodyBytes {
+		state.responseBodyBytes = math.MaxInt64
+	} else {
+		state.responseBodyBytes += int64(length)
+	}
 }
 
 func (state *streamState) responseFailure() error {

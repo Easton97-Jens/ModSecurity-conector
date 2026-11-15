@@ -22,9 +22,13 @@ The final committed chain must select Framework `452f7fc7ca1d9c44c9e768cef565f52
 
 Preserve both parents through an ordinary merge. Resolve SHA-only conflicts to the coherent first-parent f13/M9a baseline, then perform the actual Framework-master handoff in a separate native pin change. Preserve upstream response-counter saturation and native-error classification together with this PR's late-action handling. The Common Runtime gate for `strict_post_commit_action=0` remains; the selected Envoy profile declares `strict_post_commit_action=1`. A successful `strict_immediate_response_sent` records a send; it does not establish a downstream reset. Safe optional-event tolerance excludes native Reject, technical and audit errors.
 
+A follow-up for `go:S3776` extracts the saturating response byte/chunk observations from `processResponseBody` into `observeResponseBodyLocked`. The existing mutex, negative-counter guard, engine invocation, terminal errors, Safe/Strict decisions and EOS handling keep their order. The original195 Go leaves and five added overflow leaves remain required; no test or Gate is relaxed.
+
 ## Changed files
 
 The reconciliation changes61 regular paths against its first parent while leaving the24 pin paths unchanged. Four resolved documentation files are the EN/DE pairs under `connectors/envoy/ext_proc/` and `connectors/traefik/native_middleware/`. Existing upstream Common/connector source and Change Records are preserved. This record pair documents that reconciliation and the separate intended change of `modules/ModSecurity-test-Framework`, `ci/tooling/project-versions.lock.json` and22 workflow projections.
+
+The source follow-up changes only `connectors/traefik/native_middleware/middleware.go` and this EN/DE record pair.
 
 ## Commands executed
 
