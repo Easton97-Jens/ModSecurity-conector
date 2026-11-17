@@ -3,5 +3,5 @@
   "framework_sha": "95f228936efe17fda24f21323ad87cd698940b48",
   "mrts_sha": "ee2174431c4edf97e66afe32558ce8454deb2397",
   "python_version": "3.15.2",
-  "go_version": "1.27.3"
+  "go_version": "1.27.4"
 }
