@@ -5,10 +5,11 @@
 ## Snapshot and goal
 
 - Date: **2026-11-14 (Europe/Berlin)**; checkout: repository root (`$CONNECTOR_ROOT`).
-- Branch: `codex/ai-handoff-and-framework-pin-20261114`; original Parent base: `5672c5ff562495ddbc47a1932b1641e0073746f5`; last observed commit before this documentation refresh: `9bb05b578275d918f095e2a3a977e59a3e3ea405`. Resolve the resulting later HEAD, index and PR status from Git/GitHub.
-- **Conversation context:** first prepare a documentation-only Claude Code handoff, then create a PR including the other existing changes. The second request authorizes the task-branch commit/push/PR and inclusion of the Framework pin. It does not authorize a merge. The user subsequently approved the exact operator Gitlink/index admission; that admission is now installed. No earlier product-task conversation or test transcript is available here.
-- **Verified facts:** local diffs and native command definitions were inspected. Fresh remote reads confirmed Parent `master` at the base above and Framework `master` at `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1`.
+- Branch: `master`; task branch `codex/ai-handoff-and-framework-pin-20261114` at `902eaa71`; squash-merged via PR #449 into `master` at `da212088` on **2026-11-14T10:45 UTC**; `origin/master` identical; working tree clean; task-branch cleanup not yet dispositioned.
+- **Conversation context:** first prepare a documentation-only Claude Code handoff, then create a PR including the other existing changes. The second request authorizes the task-branch commit/push/PR and inclusion of the Framework pin. It does not authorize a merge. The user subsequently approved the exact operator Gitlink/index admission; that admission is now installed; the task work was later delivered through PR #449. No earlier product-task conversation or test transcript is available here.
+- **Verified facts:** local diffs and native command definitions were inspected; fresh remote reads confirmed Parent `master` at the PR #449 merge commit and Framework `master` at `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1`; current-head CI at `da212088f018b7852284768ced03feca286980ef` was read back via GitHub CLI.
 - **Assumption:** Claude Code resumes in this checkout, where ignored local instructions remain available. Reconcile this snapshot before relying on it.
+- **Latest task (2026-11-19, Claude Code):** fixes from the 2026-11-15 security review on task branch `claude/fix-security-findings-20261119` (base `b79c3d93efbb8330f121caf8fb7c1a7874195e57`), delivered as a Draft PR, not merged. Scope, decisions (including why CAND-024 is not changed), commands and results: [Change Record](../reports/audits/change-records/CR-20261119-composite-cleanup-redirect-haproxy-rule-id.md). Tests used the official ModSecurity v3.0.17 build, not the system library. The snapshot below describes the earlier 2026-11-14 work and remains historical.
 
 ## Relevant components and completed work
 
@@ -44,7 +45,7 @@ Framework is internally clean on `master`; the selected commit is its already-pu
 
 ## Executed checks and limitations
 
-**Resolved delivery blocker:** after explicit user approval, one operator-owned admission was installed for the exact initial worktree/index/Gitlink. Complete Secrets proofs cover all 2514 Framework regular blobs and 9 Git-only aliases, plus all 431 MRTS regular blobs and 41 aliases; all completed scans passed. The normal Git hook then created `82472f02170c34183998780f8ab77b90a7c8a299`. [Draft PR #449](https://github.com/Easton97-Jens/ModSecurity-conector/pull/449) is open; last observed head was `9bb05b578275d918f095e2a3a977e59a3e3ea405`. This follow-up corrects the CI path-convention failure; re-read current-head checks after push.
+**Resolved delivery blocker:** after explicit user approval, one operator-owned admission was installed for the exact initial worktree/index/Gitlink. Complete Secrets proofs cover all 2514 Framework regular blobs and 9 Git-only aliases, plus all 431 MRTS regular blobs and 41 aliases; all completed scans passed. The normal Git hook then created `82472f02170c34183998780f8ab77b90a7c8a299`; the task was delivered through [PR #449](https://github.com/Easton97-Jens/ModSecurity-conector/pull/449), later closed and merged at `da212088f018b7852284768ced03feca286980ef` via squash from task-branch head `902eaa71382bdf471e3a22679be96f44168e5bdf`. This follow-up corrected the CI path-convention failure; current-head checks after the merge were read back.
 
 | Command or procedure | Observed result |
 | --- | --- |
@@ -62,6 +63,8 @@ Framework is internally clean on `master`; the selected commit is its already-pu
 | `rtk bypass python3 -B /var/tmp/codex/ModSecurity-conector/ai-handoff-pr-20261114/operator_admission.py install --expected-plan-sha256 4da207519ebc4839396b5ea98de19b6db3b4bc5f747e98e0a4ca6ae1822dd362` | Exit 0; user-authorized exact-index admission installed after full-source/protected-native checks; existing entries and executable guards preserved. |
 | `rtk bypass git commit -m 'Prepare AI handoff and synchronize Framework maintenance pin'` | Subsequent attempt exit 0 through the normal hook; initial 30-file commit `82472f02170c34183998780f8ab77b90a7c8a299`. |
 | `rtk bypass .venv/bin/python -I ci/tools/read-framework-revisions.py --parent-sha 82472f02170c34183998780f8ab77b90a7c8a299` | Exit 0; committed Framework/MRTS pins agree with the materialized checkouts. |
+| `gh` GitHub CLI readback (`gh api` PR #449; `gh run list --branch master`) at merged head `da212088f018b7852284768ced03feca286980ef` | PR #449 closed/merged at 2026-11-14T10:45:17Z; current-head CI readback: 17 runs at head, 16 completed `success`, 1 still `queued` (`Native target Sonar security`). |
+| Takeover-session verification of this handoff update: `rtk make check-doc-links`; `rtk make check-variable-documentation`; bilingual adapter `check_bilingual.py` at `CONNECTOR_REVISION=da212088f018b7852284768ced03feca286980ef`; `rtk bypass git diff --check`; Secrets re-scan of both handoff files; native pin check `read-framework-revisions.py --parent-sha da212088f018b7852284768ced03feca286980ef` | All exit 0; `doc links ok`; `variable documentation: PASS (109 documented variable references scanned)`; `bilingual docs ok`; whitespace clean; pins agree (`framework_sha` `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1`, `mrts_sha` `ee2174431c4edf97e66afe32558ce8454deb2397`). Ordinary full `make check-bilingual-docs` not re-run in this session; documented historical CPU-bound termination retained above. |
 
 The first scaffold attempts lacked the explicit Framework environment/import path; the successful native invocation supplied both. System-Python candidate verification lacked `yaml`; using the repository `.venv/bin/python` passed. The first synchronizer invocation rejected an input outside its allowed temporary root; selecting the task-owned `RUNNER_TEMP` passed without relaxing path checks.
 
@@ -69,7 +72,7 @@ Hosted CI at `9bb05b578275d918f095e2a3a977e59a3e3ea405` exposed the handoff's ma
 
 The first large source batch timed out (exit 1); its entire scope was successfully rescanned in smaller whole-blob batches before final complete proofs were emitted. Two large Git blobs used actual whole-path scans; no source bytes were omitted. The abbreviated Parent-SHA check was rejected (exit 1); the full 40-character invocation above passed.
 
-**Not run:** product builds, `quick-check`, `test`, host/config/runtime probes, CI or Cloud Quality Gates. Current-head CI/review status must be read after push; no older result qualifies the new commit.
+**Not run:** product builds, `quick-check`, `test`, host/config/runtime probes, Cloud Quality Gate, ordinary full `make check-bilingual-docs` (documented historical CPU-bound termination; indexed adapter equivalent passed above). Current-head CI at the merged commit was read back (see table); no older result qualifies a newer commit.
 
 ## Repository-derived start, build and test commands
 
@@ -85,7 +88,7 @@ References below are not executed product-test results. Run from the Parent root
 
 ## Next steps
 
-1. Read `AGENTS.md`, applicable directory instructions and this handoff; reconcile branch/HEAD, staged/unstaged files, Framework and MRTS identities.
-2. Inspect the task branch's existing PR and current-head checks; publish/open a Draft PR only if missing. Retain the recorded local results and limitations. Merge requires separate authorization.
-3. Choose the next concrete product objective. Inspect affected source and select only relevant checks; do not restart archived I12/matrix campaigns without an explicit request.
-4. Record actual results and remaining gaps in both handoff versions before the next Codex/Claude Code switch. Preserve the ignored local `CLAUDE.md` separately when moving workspaces.
+1. Read `AGENTS.md`, applicable directory instructions and this handoff; reconcile branch/HEAD, staged/unstaged files, Framework and MRTS identities. This session completed the reconciliation: branch `master`, HEAD `da212088`, clean tree, Framework `31531f74…`, MRTS `ee21744…`.
+2. Inspect the task branch's existing PR and current-head checks; publish/open a Draft PR only if missing. Done: [PR #449](https://github.com/Easton97-Jens/ModSecurity-conector/pull/449) is closed and merged at `da212088f018b7852284768ced03feca286980ef`; current-head CI readback completed at merge time; no Draft PR remained to publish. Retain the recorded local results and limitations.
+3. Choose the next concrete product objective. Inspect affected source and select only relevant checks; do not restart archived I12/matrix campaigns without an explicit request. Still open: no new user-selected product objective has been made in this takeover session.
+4. Record actual results and remaining gaps in both handoff versions before the next Codex/Claude Code switch. Preserve the ignored local `CLAUDE.md` separately when moving workspaces. Done with this update; both language versions were synchronized and verified with the bilingual check in this session.

@@ -45,6 +45,9 @@ type Limits struct {
 	IdleTTL          time.Duration
 	MaxHeaders       int
 	MaxHeaderBytes   int
+	// CleanupTimeout bounds native transaction cleanup for every terminal
+	// entry, independent of the caller's context. See Coordinator.cleanupContext.
+	CleanupTimeout time.Duration
 }
 
 // ReservationSnapshot is the immutable request-header input accepted only
@@ -78,6 +81,9 @@ func (l Limits) withDefaults() Limits {
 	}
 	if l.IdleTTL <= 0 {
 		l.IdleTTL = 5 * time.Second
+	}
+	if l.CleanupTimeout <= 0 {
+		l.CleanupTimeout = 5 * time.Second
 	}
 
 	if l.MaxHeaders <= 0 {
@@ -143,7 +149,7 @@ func New(connector string, key []byte, limits Limits, engine processor.Transacti
 	if connector == "" || len(key) < 32 || engine == nil {
 		return nil, errors.New("connector, 256-bit key, and engine are required")
 	}
-	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 {
+	if limits.Capacity < 0 || limits.TTL < 0 || limits.IdleTTL < 0 || limits.MaxHeaders < 0 || limits.MaxHeaderBytes < 0 || limits.CleanupTimeout < 0 {
 		return nil, ErrLimit
 	}
 	if limits.Capacity > 4096 {
@@ -191,6 +197,30 @@ func (c *Coordinator) currentFault() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.fault
+}
+
+// cleanupContext returns the context used to close an entry's native
+// transaction. It is detached from the caller's cancellation and bounded by
+// Limits.CleanupTimeout:
+//
+//   - Detached: callers such as ForwardAuth pass a request context that is
+//     already canceled when the client went away. The Common runtime treats a
+//     canceled context as an unsafe cleanup and marks the whole engine as
+//     terminally failed, so a single client disconnect must not reach Close
+//     with that context. The composite Envoy sibling already detaches cleanup
+//     with context.WithoutCancel for the same reason.
+//   - Bounded: many paths finish entries from context.Background(). If a native
+//     call never returns, it keeps the serial Common runtime gate, so an
+//     unbounded Close would wait forever, and with it the entry's closeOnce
+//     waiters, the finish gate and the companion's admission slot. On expiry
+//     the Common runtime records a cleanup failure without freeing native
+//     memory, and recordCleanupFailure turns it into a fail-closed
+//     coordinator fault.
+func (c *Coordinator) cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), c.limits.CleanupTimeout)
 }
 
 func (c *Coordinator) setFault(err error) error {
@@ -1143,7 +1173,9 @@ func (e *entry) finish(ctx context.Context, why string) {
 		e.c.releaseCapacity()
 		outcome, cleanupOutcome := "closed", "closed"
 		if e.tx != nil {
-			e.tx.Close(ctx, e.summary)
+			closeCtx, cancel := e.c.cleanupContext(ctx)
+			e.tx.Close(closeCtx, e.summary)
+			cancel()
 			if err := e.c.recordCleanupFailure(e.tx); err != nil {
 				outcome, cleanupOutcome = "failed", "failed"
 			}

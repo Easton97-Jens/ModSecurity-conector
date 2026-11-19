@@ -168,25 +168,9 @@ func (s *UDS) handle(conn net.Conn) {
 	defer conn.Close()
 	defer func() { st.cleanup(context.Background(), cleanupReason) }()
 	for {
-		if err := st.deadline(context.Background()); err != nil {
-			return
-		}
-		op, payload, err := readFrame(conn)
-		if err != nil {
-			if isTimeout(err) {
-				cleanupReason = "timeout"
-			} else if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				cleanupReason = "companion_transport_closed"
-			}
-			return
-		}
-		result, terminal := st.dispatch(context.Background(), op, payload)
-		clear(payload)
-		if err := st.writeResult(context.Background(), op, result); err != nil {
-			if isTimeout(err) {
-				cleanupReason = "timeout"
-			}
-			return
+		terminal, reason := st.serveFrame()
+		if reason != "" {
+			cleanupReason = reason
 		}
 		if terminal {
 			return
@@ -194,20 +178,51 @@ func (s *UDS) handle(conn net.Conn) {
 	}
 }
 
+// serveFrame reads, dispatches and answers one MSC2 frame. The connection
+// deadline already bounds the frame read and the result write; the engine work
+// in between uses a context with the same deadline. A result computed after
+// that deadline could not be written anyway, and an unbounded context would
+// let a session queued behind a native call that never returns hold its
+// admission slot forever. It reports whether the session ends and, if the
+// cause is known, the cleanup reason.
+func (s *udsSession) serveFrame() (bool, string) {
+	frameDeadline := s.frameDeadline()
+	if err := s.conn.SetDeadline(frameDeadline); err != nil {
+		return true, ""
+	}
+	op, payload, err := readFrame(s.conn)
+	if err != nil {
+		if isTimeout(err) {
+			return true, "timeout"
+		}
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return true, "companion_transport_closed"
+		}
+		return true, ""
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), frameDeadline)
+	defer cancel()
+	result, terminal := s.dispatch(ctx, op, payload)
+	clear(payload)
+	if err := s.writeResult(ctx, op, result); err != nil {
+		if isTimeout(err) {
+			return true, "timeout"
+		}
+		return true, ""
+	}
+	return terminal, ""
+}
+
 func isTimeout(err error) bool {
 	var netErr net.Error
 	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
-func (s *udsSession) deadline(ctx context.Context) error {
-	d := time.Now().Add(s.svc.Timeout)
+func (s *udsSession) frameDeadline() time.Time {
 	if s.svc.Timeout <= 0 {
-		d = time.Now().Add(5 * time.Second)
+		return time.Now().Add(5 * time.Second)
 	}
-	if x, ok := ctx.Deadline(); ok && x.Before(d) {
-		d = x
-	}
-	return s.conn.SetDeadline(d)
+	return time.Now().Add(s.svc.Timeout)
 }
 
 type wireResult struct {
