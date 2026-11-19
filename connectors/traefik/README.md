@@ -93,6 +93,18 @@ and
 with the local runner at
 [`harness/run_traefik_composite_matrix.sh`](../../modules/ModSecurity-test-Framework/connector_suite/adapters/traefik/harness/run_traefik_composite_matrix.sh).
 
+Native transaction cleanup is detached from the request and bounded (default
+5 seconds). A client that disconnects during ForwardAuth therefore fails only
+its own request (503); it no longer reaches cleanup with a canceled context.
+If cleanup cannot acquire the serial Common runtime gate in time, the service
+records a cleanup failure without freeing native memory and the coordinator
+enters a fail-closed fault state that requires a controlled restart. Every
+MSC2 frame bounds its engine work by the same deadline as its read and write,
+so a stuck session releases its admission slot. A ForwardAuth redirect is
+sent only with a non-empty Location value of at most 2048 bytes without ASCII
+controls, DEL or surrounding whitespace; any other redirect target is
+enforced as a 403 deny, as on the composite Envoy and ext_proc paths.
+
 P4 Safe is log-only and preserves the original response. P4 Strict is not a
 passing result unless a real client-visible abort or reset is independently
 observed; this composite currently makes no such claim. The normal sanitized
