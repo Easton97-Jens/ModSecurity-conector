@@ -1049,13 +1049,13 @@ ngx_http_modsecurity_create_ctx(ngx_http_request_t *r)
 
     dd("transaction created");
 
-    ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module)
+    ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module);
 
     cln = ngx_pool_cleanup_add(r->pool, 0);
     if (cln == NULL)
     {
         dd("failed to create the ModSecurity context cleanup");
-        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module)
+        ngx_http_set_ctx(r, NULL, ngx_http_modsecurity_module);
         (void)msconnector_transaction_contract_fail(&ctx->contract,
             MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
         ngx_http_modsecurity_cleanup(ctx);
@@ -1191,7 +1191,7 @@ ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r)
               ctx->contract.engine_decision == MSCONNECTOR_TRANSACTION_DECISION_ALLOW &&
               ngx_http_modsecurity_same_policy(ctx->lifetime.conf, mcf)) ||
              ngx_http_modsecurity_is_block_error_page(r, ctx))) {
-            ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module)
+            ngx_http_set_ctx(r, ctx, ngx_http_modsecurity_module);
             return ctx;
         }
     }
