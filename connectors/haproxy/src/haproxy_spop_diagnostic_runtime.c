@@ -2664,7 +2664,11 @@ static int phase4_common_event_write(
 
     original_status = request->http_metadata.has_response_status ?
         (int)request->response_status : 200;
-    (void)snprintf(rule_id, sizeof(rule_id), "%u", decision->rule_id);
+    if (decision->rule_id > 0) {
+        (void)snprintf(rule_id, sizeof(rule_id), "%d", decision->rule_id);
+    } else {
+        rule_id[0] = '\0';
+    }
     msconnector_event_init(&event);
     event.meta.message_id = MSCONN_EVENT_RESPONSE_BLOCKED;
     if (strcmp(actual_action, "abort_connection") == 0) {
