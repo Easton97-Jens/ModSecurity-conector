@@ -16,6 +16,16 @@ composite actions or reusable workflows. Supply the explicit Connector checkout,
 exact revision, Framework checkout, profile and existing external output root;
 do not infer a product checkout from the test script's directory.
 
+Before a delegated target runs locally, `tools/ensure-python-env.py` provides the
+interpreter: it keys a virtual environment by the exact `.python-version` and the
+hashes of the pinned Framework's reviewed locks and installer, and fills it only
+through that Framework installer. Likewise `tools/ensure-security-tools.py`
+installs the locked release and Go security tools at run time into the
+run-private `$RUNNER_TEMP/security-tools`; see
+[CI security tooling](../docs/security/ci-security-tooling.md). Neither helper is
+a test or provisioning harness, and neither runs in CI. See the
+[variable reference](../docs/reference/variables.md).
+
 ## Product and trust boundaries
 
 Product configuration, dependencies, build, installation and deployment remain

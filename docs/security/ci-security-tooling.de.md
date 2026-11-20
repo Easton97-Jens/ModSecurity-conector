@@ -20,6 +20,31 @@ Release-Asset, prüft den SHA-256-Digest vor dem Entpacken, weist absolute und
 Traversal-Archivpfade zurück und extrahiert genau eine deklarierte Executable.
 Das Tool installiert keine Abhängigkeiten und verändert keine Repository-Dateien.
 
+`ci/tooling/go-tools.lock.json` pinnt die Go-Analysewerkzeuge `staticcheck`
+(`honnef.co/go/tools` `v0.8.2`) und `govulncheck` (`golang.org/x/vuln`
+`v1.10.0`) über exakte Modulversion und `h1:`-Modulsumme, mit Upstream, Lizenz
+und Zweck. Sie werden aus genau dieser Version mit dem durch `.go-version`
+gewählten Go gebaut (`GOTOOLCHAIN=local`, `CGO_ENABLED=0`, `-trimpath`); die
+Modulsumme wird vor dem Build geprüft, die Build-Informationen der Binary
+(Go-Version, Paketpfad, Modulversion und -summe) danach.
+
+### Laufprivate lokale Installation
+
+Für lokale Läufe installiert `ci/tools/ensure-security-tools.py` jedes gelockte
+Release- und Go-Werkzeug zur Laufzeit nach `$RUNNER_TEMP/security-tools`
+(Verzeichnismodus `0700`), den Ort, den die checksum-geprüften Scanner-Checks
+lesen. Jedes an das Framework delegierte Root-Makefile-Target führt es zuerst
+aus, wenn `SECURITY_TOOLS_AUTO=1` (Default außerhalb von CI) und `RUNNER_TEMP`
+gesetzt sind; `make security-tools` führt es ausdrücklich aus und schlägt bei
+jedem fehlenden Werkzeug fehl. Ein Stempel neben jeder Binary hält den
+Lock-Eintrag fest, der sie erzeugt hat; eine fehlende, geänderte, verlinkte oder
+ungestempelte Binary wird atomar über ein Staging-Verzeichnis ersetzt, und
+außerhalb dieses Verzeichnisses wird nichts installiert. Eine von `.go-version`
+abweichende Go-Toolchain blockiert nur die Go-Werkzeuge (`77`). Im automatischen
+Schritt wird ein nicht installierbares Werkzeug als Warnung gemeldet, und die
+Checks, die es benötigen, schlagen mit ihrer eigenen Meldung fehl. CI-Workflows
+holen ihre Werkzeuge weiterhin ausdrücklich; der Helper läuft dort nicht.
+
 ## Eingeschränkter Workflow-/Tool-Updater
 
 `.github/workflows/update-workflow-tools.yml` behält `resolver`, `validator`,

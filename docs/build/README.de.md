@@ -612,7 +612,8 @@ Toolchain sie erfordert. Die Root-Defaults sind:
 
 | Variable | Pflicht | Root-Default | Beispiel | Auswirkung / Sicherheit |
 |---|---:|---|---|---|
-| <code>PYTHON</code> | nein | <code>.venv/bin/python</code>, falls vorhanden, sonst <code>python3</code> | <code>PYTHON=python3</code> | Wählt Python-Interpreter für Skripte; vertrauenswürdiges Executable verwenden |
+| <code>PYTHON</code> | nein | lokal das verwaltete <code>.venv/bin/python</code>, bei Bedarf von <code>make python-env</code> bereitgestellt; in CI <code>.venv/bin/python</code>, falls vorhanden, sonst <code>python3</code> | <code>PYTHON=python3</code> | Wählt Python-Interpreter für Skripte; ein expliziter Wert wird nicht bereitgestellt; vertrauenswürdiges Executable verwenden |
+| <code>PYTHON_ENV_ROOT</code> | nein | leer (Umgebung im Checkout) | <code>PYTHON_ENV_ROOT="/srv/build/python-envs"</code> | Hält die verwalteten Umgebungen außerhalb des Checkouts; siehe [Variablenreferenz](../reference/variables.de.md) |
 | <code>MSCONNECTOR_C_STD</code> | nein | <code>c17</code> | <code>MSCONNECTOR_C_STD=c23</code> | Wählt Common-Helper-C-Profil; nicht unterstützte optionale Profile können übersprungen werden |
 | <code>MSCONNECTOR_CFLAGS</code> | nein | <code>-std=$(MSCONNECTOR_C_STD) -Wall -Wextra -Werror</code> | <code>MSCONNECTOR_CFLAGS="-std=c17 -Wall -Wextra -Werror"</code> | Flags für Common-Helper-Checks; Quoting erhalten |
 | <code>CC</code>, <code>CXX</code> | nein | Shell-/Toolchain-Default | <code>CC=clang</code> | Wählen vertrauenswürdige C/C++-Compiler |
