@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-11-20",
+  "build": "go install of the exact package version with the Go selected by .go-version (GOTOOLCHAIN=local, CGO_ENABLED=0, -trimpath); the module sum below is verified before the build and the binary's build information after it",
+  "tools": {
+    "staticcheck": {
+      "module": "honnef.co/go/tools",
+      "package": "honnef.co/go/tools/cmd/staticcheck",
+      "version": "v0.8.2",
+      "module_sum": "h1:+jPbCzuYxYrcoOvCecYUFDj+XJQRmzIhJmlbpps21Zk=",
+      "executable": "staticcheck",
+      "upstream": "https://github.com/dominikh/go-tools",
+      "license": "MIT",
+      "purpose": "Go static analysis (staticcheck 2026.2.2) for the Parent Go modules."
+    },
+    "govulncheck": {
+      "module": "golang.org/x/vuln",
+      "package": "golang.org/x/vuln/cmd/govulncheck",
+      "version": "v1.10.0",
+      "module_sum": "h1:W/Im35AGknunDiqBysVe9VoMfaeTJE7lptrD+1s//aE=",
+      "executable": "govulncheck",
+      "upstream": "https://go.googlesource.com/vuln",
+      "license": "BSD-3-Clause",
+      "purpose": "Go vulnerability reachability scan; queries the Go vulnerability database at run time."
+    }
+  }
+}

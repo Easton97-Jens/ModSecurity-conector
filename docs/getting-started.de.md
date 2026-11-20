@@ -35,11 +35,17 @@ ausführen. Der Standardpfad des Frameworks ist
 vertrauenswürdiger passender Source-Checkout sein und kein Build-Verzeichnis
 oder eine beliebige Systeminstallation.
 
-Für eine beabsichtigte Entwicklungsumgebung stellt das Repository
-`make setup-dev` bereit, um Python-Entwicklungsabhängigkeiten über das Framework
-vorzubereiten. Das verändert die Entwicklungsumgebung; es installiert oder
-qualifiziert nicht jeden Connector-Host. Die aktuellen Build-/Python-Hinweise
-für den ausgewählten Interpreter und externe Arbeitspfade beachten.
+Lokale Make-Läufe stellen die Python-Umgebung selbst bereit: Jedes an das
+Framework delegierte Target führt zuerst `make python-env` aus. Das legt `.venv`
+für den exakten Interpreter aus `.python-version` an oder verwendet sie wieder
+und installiert nur die geprüften, hash-verifizierten Abhängigkeiten des
+gepinnten Frameworks. Ein geänderter Versions-Pin, Lock oder eine abweichende
+Umgebung wird erneut bereitgestellt; die erste Bereitstellung lädt die gelockten
+Artefakte herunter. `make setup-dev` führt denselben Schritt aus. Mit
+`PYTHON_ENV_ROOT` liegen die Umgebungen außerhalb des Checkouts; ein explizites
+`PYTHON` deaktiviert die Bereitstellung. CI behält ihre eigene explizite
+Installation. Dabei wird kein Connector-Host installiert oder qualifiziert.
+Die Steuervariablen beschreibt die [Variablenreferenz](reference/variables.de.md).
 
 ## 3. Erste Prüfungen ausführen
 

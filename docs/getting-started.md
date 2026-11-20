@@ -32,11 +32,16 @@ first. The default Framework location is `modules/ModSecurity-test-Framework`.
 An external `FRAMEWORK_ROOT` must be a trusted matching source checkout, not a
 build directory or an arbitrary system installation.
 
-For an intended development environment, the repository provides
-`make setup-dev` to prepare Python development dependencies through the
-Framework. It changes the development environment; it does not install or
-qualify every connector host. Follow the current build/Python instructions for
-the selected interpreter and external working paths.
+Local Make runs provide the Python environment themselves: every
+Framework-delegated target first runs `make python-env`, which creates or
+reuses `.venv` for the exact `.python-version` interpreter and installs only the
+pinned Framework's reviewed, hash-verified dependency set. A changed version
+pin, lock or drifted environment is provisioned again; the first provisioning
+downloads the locked artifacts. `make setup-dev` runs the same step. Set
+`PYTHON_ENV_ROOT` to keep the environments outside the checkout, or pass an
+explicit `PYTHON` to opt out. CI keeps its own explicit installation. This does
+not install or qualify any connector host. See the
+[variable reference](reference/variables.md) for the controls.
 
 ## 3. Run the first checks
 

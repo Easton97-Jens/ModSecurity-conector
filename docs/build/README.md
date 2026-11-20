@@ -564,7 +564,8 @@ requires them. The root defaults are:
 
 | Variable | Required | Root default | Example | Effect / safety |
 |---|---:|---|---|---|
-| <code>PYTHON</code> | no | <code>.venv/bin/python</code> if present, otherwise <code>python3</code> | <code>PYTHON=python3</code> | Selects the Python interpreter for scripts; use a trusted executable |
+| <code>PYTHON</code> | no | locally the managed <code>.venv/bin/python</code>, provisioned on demand by <code>make python-env</code>; in CI <code>.venv/bin/python</code> if present, otherwise <code>python3</code> | <code>PYTHON=python3</code> | Selects the Python interpreter for scripts; an explicit value is not provisioned; use a trusted executable |
+| <code>PYTHON_ENV_ROOT</code> | no | empty (environment inside the checkout) | <code>PYTHON_ENV_ROOT="/srv/build/python-envs"</code> | Keeps the managed environments outside the checkout; see the [variable reference](../reference/variables.md) |
 | <code>MSCONNECTOR_C_STD</code> | no | <code>c17</code> | <code>MSCONNECTOR_C_STD=c23</code> | Selects the Common helper C profile; unsupported optional profiles may be skipped |
 | <code>MSCONNECTOR_CFLAGS</code> | no | <code>-std=$(MSCONNECTOR_C_STD) -Wall -Wextra -Werror</code> | <code>MSCONNECTOR_CFLAGS="-std=c17 -Wall -Wextra -Werror"</code> | Flags passed to Common helper checks; preserve quoting |
 | <code>CC</code>, <code>CXX</code> | no | shell/toolchain default | <code>CC=clang</code> | Selects trusted C/C++ compilers |
