@@ -1,0 +1,7 @@
+entryPoints:
+  rust:
+    address: "127.0.0.1:18087"
+
+providers:
+  file:
+    filename: "/var/tmp/codex/git/traefik-rust-dynamic.yml"

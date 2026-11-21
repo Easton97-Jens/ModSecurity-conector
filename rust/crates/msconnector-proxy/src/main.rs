@@ -76,7 +76,13 @@ fn split_http_response(response: &[u8]) -> (&[u8], &[u8]) {
     }
 }
 
-fn handle(mut client: TcpStream, upstream: &str, engine: &Engine, rules: &msconnector_ffi::Rules) {
+fn handle(
+    mut client: TcpStream,
+    upstream: &str,
+    engine: &Engine,
+    rules: &msconnector_ffi::Rules,
+    auth_only: bool,
+) {
     let (head, mut remainder) = match read_head(&mut client) {
         Ok(parts) => parts,
         Err(error) => {
@@ -113,12 +119,26 @@ fn handle(mut client: TcpStream, upstream: &str, engine: &Engine, rules: &msconn
         }
     };
     let (uri, http_version) = request_target(&head);
-    if transaction.process_uri(&uri, "http", http_version.trim_start_matches("HTTP/")) < 0 {
+    let headers = request_headers(&head);
+    let forwarded_uri = headers
+        .iter()
+        .find(|(name, _)| {
+            name.eq_ignore_ascii_case("x-forwarded-uri")
+                || name.eq_ignore_ascii_case("x-original-uri")
+        })
+        .map(|(_, value)| value.clone());
+    let effective_uri = forwarded_uri.unwrap_or(uri);
+    if transaction.process_uri(
+        &effective_uri,
+        "http",
+        http_version.trim_start_matches("HTTP/"),
+    ) < 0
+    {
         let _ =
             client.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
         return;
     }
-    for (name, value) in request_headers(&head) {
+    for (name, value) in headers {
         if transaction.add_request_header(&name, &value) < 0 {
             let _ = client
                 .write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
@@ -144,6 +164,11 @@ fn handle(mut client: TcpStream, upstream: &str, engine: &Engine, rules: &msconn
     if status >= 400 {
         let response = format!("HTTP/1.1 {status} ModSecurity Denied\r\nContent-Length: 0\r\n\r\n");
         let _ = client.write_all(response.as_bytes());
+        let _ = transaction.process_logging();
+        return;
+    }
+    if auth_only {
+        let _ = client.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
         let _ = transaction.process_logging();
         return;
     }
@@ -199,6 +224,9 @@ fn main() -> Result<(), String> {
         env::var("MSCONNECTOR_PROXY_UPSTREAM").unwrap_or_else(|_| "127.0.0.1:8081".to_string());
     let rules =
         env::var("MSCONNECTOR_RULES").map_err(|_| "MSCONNECTOR_RULES is required".to_string())?;
+    let auth_only = env::var("MSCONNECTOR_AUTH_ONLY")
+        .map(|value| value == "1")
+        .unwrap_or(false);
     let mut engine =
         Engine::new().ok_or_else(|| "failed to initialize libmodsecurity".to_string())?;
     let rules = engine.load_rules(&rules).map_err(|error| error)?;
@@ -207,7 +235,7 @@ fn main() -> Result<(), String> {
 
     for accepted in listener.incoming() {
         match accepted {
-            Ok(client) => handle(client, &upstream, &engine, &rules),
+            Ok(client) => handle(client, &upstream, &engine, &rules, auth_only),
             Err(error) => eprintln!("accept failed: {error}"),
         }
     }

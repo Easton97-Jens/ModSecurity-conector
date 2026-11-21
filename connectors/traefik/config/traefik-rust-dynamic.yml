@@ -1,0 +1,19 @@
+http:
+  middlewares:
+    rust-auth:
+      forwardAuth:
+        address: "http://127.0.0.1:18084"
+        trustForwardHeader: false
+  routers:
+    rust-router:
+      entryPoints:
+        - rust
+      rule: "PathPrefix(`/`)"
+      middlewares:
+        - rust-auth
+      service: rust-upstream
+  services:
+    rust-upstream:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:18088"
