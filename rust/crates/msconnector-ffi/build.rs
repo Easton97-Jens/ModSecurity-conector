@@ -1,12 +1,18 @@
 fn main() {
     println!("cargo:rerun-if-changed=shim/modsecurity_shim.cpp");
     println!("cargo:rerun-if-changed=shim/modsecurity_shim.h");
-    println!("cargo:rustc-link-search=native=/var/tmp/codex/git/modsecurity-v3.0.17-prefix/lib");
-    println!("cargo:rustc-link-arg=/var/tmp/codex/git/modsecurity-v3.0.17-prefix/lib/libmodsecurity.so.3.0.17");
+    let root = std::env::var("MODSECURITY_ROOT")
+        .unwrap_or_else(|_| "/usr".to_string());
+    let include = format!("{root}/include");
+    let lib = format!("{root}/lib");
+    let library = format!("{lib}/libmodsecurity.so");
+    println!("cargo:rerun-if-env-changed=MODSECURITY_ROOT");
+    println!("cargo:rustc-link-search=native={lib}");
+    println!("cargo:rustc-link-arg={library}");
     cc::Build::new()
         .cpp(true)
         .std("c++17")
-        .include("/var/tmp/codex/git/modsecurity-v3.0.17-prefix/include")
+        .include(include)
         .file("shim/modsecurity_shim.cpp")
         .compile("msconnector_modsecurity_shim");
 }
