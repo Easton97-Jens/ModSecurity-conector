@@ -4,6 +4,7 @@ members = [
     "crates/msconnector-ffi",
     "crates/msconnector-host-api",
     "crates/msconnector-proxy",
+    "crates/msconnector-uds",
 ]
 resolver = "2"
 

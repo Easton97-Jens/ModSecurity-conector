@@ -1,0 +1,15 @@
+[package]
+name = "msconnector-uds"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "msconnector-uds"
+path = "src/main.rs"
+
+[dependencies]
+msconnector-core = { path = "../msconnector-core" }
+msconnector-ffi = { path = "../msconnector-ffi" }

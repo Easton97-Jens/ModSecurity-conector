@@ -55,6 +55,11 @@ extern "C" {
         transaction: *mut MsShimTransaction,
         status: c_int,
     ) -> c_int;
+    fn msc_shim_add_response_header(
+        transaction: *mut MsShimTransaction,
+        name: *const c_char,
+        value: *const c_char,
+    ) -> c_int;
     fn msc_shim_append_response_body(
         transaction: *mut MsShimTransaction,
         data: *const u8,
@@ -180,6 +185,17 @@ impl Transaction {
     }
     pub fn process_response_headers(&mut self, status: u16) -> i32 {
         unsafe { msc_shim_process_response_headers(self.raw, status as c_int) }
+    }
+    pub fn add_response_header(&mut self, name: &str, value: &str) -> i32 {
+        let name = match CString::new(name) {
+            Ok(value) => value,
+            Err(_) => return -1,
+        };
+        let value = match CString::new(value) {
+            Ok(value) => value,
+            Err(_) => return -1,
+        };
+        unsafe { msc_shim_add_response_header(self.raw, name.as_ptr(), value.as_ptr()) }
     }
     pub fn append_response_body(&mut self, data: &[u8]) -> i32 {
         if self

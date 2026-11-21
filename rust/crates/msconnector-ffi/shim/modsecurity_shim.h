@@ -23,6 +23,7 @@ int msc_shim_process_request_headers(MsShimTransaction *transaction);
 int msc_shim_append_request_body(MsShimTransaction *transaction, const uint8_t *data, size_t len);
 int msc_shim_finish_request_body(MsShimTransaction *transaction);
 int msc_shim_process_response_headers(MsShimTransaction *transaction, int status);
+int msc_shim_add_response_header(MsShimTransaction *transaction, const char *name, const char *value);
 int msc_shim_append_response_body(MsShimTransaction *transaction, const uint8_t *data, size_t len);
 int msc_shim_finish_response_body(MsShimTransaction *transaction);
 int msc_shim_process_logging(MsShimTransaction *transaction);

@@ -31,5 +31,11 @@ all:
 install-exec-hook: $(pkglib_LTLIBRARIES)
 	@APXS@ -i -n mod_security3 ./src/.libs/mod_security3.so
 
+.PHONY: rust-apache
+rust-apache:
+	cargo build --manifest-path ../../rust/Cargo.toml --locked -p msconnector-host-api
+	apxs -c -I../../rust/crates/msconnector-host-api/src -L../../rust/target/debug \
+		-lmsconnector_host_api src/rust_adapter.c
+
 
 .PHONY: all

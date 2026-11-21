@@ -78,6 +78,10 @@ int msc_shim_finish_request_body(MsShimTransaction *transaction) {
 int msc_shim_process_response_headers(MsShimTransaction *transaction, int status) {
     return transaction ? transaction->transaction->processResponseHeaders(status, "HTTP/1.1") : -1;
 }
+int msc_shim_add_response_header(MsShimTransaction *transaction, const char *name, const char *value) {
+    if (!transaction || !name || !value) return -1;
+    return transaction->transaction->addResponseHeader(name, value);
+}
 int msc_shim_append_response_body(MsShimTransaction *transaction, const uint8_t *data, size_t len) {
     return transaction ? transaction->transaction->appendResponseBody(data, len) : -1;
 }

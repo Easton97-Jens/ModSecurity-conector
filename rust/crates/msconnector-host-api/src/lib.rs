@@ -116,6 +116,24 @@ pub extern "C" fn msc_rust_process_request_headers(transaction: *mut Transaction
     if transaction.is_null() {
         return -1;
     }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn msc_rust_add_request_header(
+        transaction: *mut Transaction,
+        name: *const c_char,
+        value: *const c_char,
+    ) -> i32 {
+        if transaction.is_null() || name.is_null() || value.is_null() {
+            return -1;
+        }
+        catch_unwind(AssertUnwindSafe(|| {
+            let transaction = unsafe { &mut *transaction };
+            let name = unsafe { CStr::from_ptr(name) }.to_string_lossy();
+            let value = unsafe { CStr::from_ptr(value) }.to_string_lossy();
+            transaction.add_request_header(name.as_ref(), value.as_ref())
+        }))
+        .unwrap_or(-1)
+    }
     catch_unwind(AssertUnwindSafe(|| {
         unsafe { &mut *transaction }.process_request_headers()
     }))
