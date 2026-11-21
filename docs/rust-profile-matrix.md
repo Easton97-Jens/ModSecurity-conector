@@ -9,4 +9,4 @@
 | Traefik native UDS | Rust MSE1 UDS engine; BEGIN/EOS/DESTROY smoke passed | passed: MSE1 UDS 403 smoke
 | Traefik forwardAuth | Rust HTTP auth service behind real Traefik forwardAuth; real 200/403 smoke passed | passed: real Traefik 200/403 smoke
 | lighttpd patched | Not implemented | not executed |
-| lighttpd stock/Sidecar | Rust auth-only proxy may serve stock-sidecar route | implementation complete; real host smoke not executed
+| lighttpd stock/Sidecar | Rust reverse-proxy sidecar; real 200/403 smoke passed | passed: real Rust sidecar 200/403 smoke
