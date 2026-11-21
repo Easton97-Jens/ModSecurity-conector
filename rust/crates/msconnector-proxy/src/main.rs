@@ -69,6 +69,13 @@ fn http_status(response: &[u8]) -> u16 {
         .unwrap_or(502)
 }
 
+fn split_http_response(response: &[u8]) -> (&[u8], &[u8]) {
+    match response.windows(4).position(|window| window == b"\r\n\r\n") {
+        Some(position) => (&response[..position + 4], &response[position + 4..]),
+        None => (response, &[]),
+    }
+}
+
 fn handle(mut client: TcpStream, upstream: &str, engine: &Engine, rules: &msconnector_ffi::Rules) {
     let (head, mut remainder) = match read_head(&mut client) {
         Ok(parts) => parts,
@@ -128,7 +135,7 @@ fn handle(mut client: TcpStream, upstream: &str, engine: &Engine, rules: &msconn
             client.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
         return;
     }
-    if body_len > 0 && transaction.finish_request_body() < 0 {
+    if transaction.finish_request_body() < 0 {
         let _ =
             client.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
         return;
@@ -158,12 +165,13 @@ fn handle(mut client: TcpStream, upstream: &str, engine: &Engine, rules: &msconn
         let _ = client.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n");
         return;
     }
-    if transaction.process_response_headers(http_status(&response)) < 0 {
+    let (response_head, response_body) = split_http_response(&response);
+    if transaction.process_response_headers(http_status(response_head)) < 0 {
         let _ =
             client.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
         return;
     }
-    if !response.is_empty() && transaction.append_response_body(&response) < 0 {
+    if !response_body.is_empty() && transaction.append_response_body(response_body) < 0 {
         let _ =
             client.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
         return;
