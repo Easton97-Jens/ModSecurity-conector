@@ -1,0 +1,12 @@
+[workspace]
+members = ["crates/msconnector-core", "crates/msconnector-ffi"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.82"
+license = "Apache-2.0"
+
+[workspace.metadata.msconnector]
+engine = "libmodsecurity"
+engine_version_contract = "3.x"

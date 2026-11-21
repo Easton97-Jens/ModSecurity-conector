@@ -22,6 +22,12 @@ build-envoy build-traefik build-lighttpd:
 build-haproxy:
 	$(MAKE) -C "$(CONNECTOR_ROOT)/connectors/haproxy" build-spoa-runtime
 
+rust-build:
+	cd "$(CONNECTOR_ROOT)/rust" && cargo build --workspace --locked
+
+rust-test:
+	cd "$(CONNECTOR_ROOT)/rust" && LD_LIBRARY_PATH=/var/tmp/codex/git/modsecurity-v3.0.17-prefix/lib cargo test --workspace --locked
+
 framework-native-selftest:
 	@$(PYTHON) -P "$(TEST_ROOT)/connector_native_tests/invoke.py"
 
