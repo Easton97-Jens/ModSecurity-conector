@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/msconnector-core", "crates/msconnector-ffi"]
+members = [
+    "crates/msconnector-core",
+    "crates/msconnector-ffi",
+    "crates/msconnector-host-api",
+    "crates/msconnector-proxy",
+]
 resolver = "2"
 
 [workspace.package]

@@ -1,0 +1,13 @@
+[package]
+name = "msconnector-host-api"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+msconnector-core = { path = "../msconnector-core" }
+msconnector-ffi = { path = "../msconnector-ffi" }

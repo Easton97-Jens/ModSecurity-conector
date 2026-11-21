@@ -53,6 +53,19 @@ int msc_shim_process_connection(MsShimTransaction *transaction, const char *clie
     return transaction->transaction->processConnection(client_ip ? client_ip : "127.0.0.1", 0, "127.0.0.1", 80);
 }
 
+int msc_shim_process_uri(MsShimTransaction *transaction, const char *uri, const char *protocol, const char *http_version) {
+    if (!transaction || !uri) return -1;
+    return transaction->transaction->processURI(
+        uri,
+        protocol ? protocol : "http",
+        http_version ? http_version : "1.1");
+}
+
+int msc_shim_add_request_header(MsShimTransaction *transaction, const char *name, const char *value) {
+    if (!transaction || !name || !value) return -1;
+    return transaction->transaction->addRequestHeader(name, value);
+}
+
 int msc_shim_process_request_headers(MsShimTransaction *transaction) {
     return transaction ? transaction->transaction->processRequestHeaders() : -1;
 }

@@ -33,6 +33,17 @@ extern "C" {
         transaction: *mut MsShimTransaction,
         client_ip: *const c_char,
     ) -> c_int;
+    fn msc_shim_process_uri(
+        transaction: *mut MsShimTransaction,
+        uri: *const c_char,
+        protocol: *const c_char,
+        http_version: *const c_char,
+    ) -> c_int;
+    fn msc_shim_add_request_header(
+        transaction: *mut MsShimTransaction,
+        name: *const c_char,
+        value: *const c_char,
+    ) -> c_int;
     fn msc_shim_process_request_headers(transaction: *mut MsShimTransaction) -> c_int;
     fn msc_shim_append_request_body(
         transaction: *mut MsShimTransaction,
@@ -113,6 +124,39 @@ impl Transaction {
             Err(_) => return -1,
         };
         unsafe { msc_shim_process_connection(self.raw, ip.as_ptr()) }
+    }
+    pub fn process_uri(&mut self, uri: &str, protocol: &str, http_version: &str) -> i32 {
+        let uri = match CString::new(uri) {
+            Ok(value) => value,
+            Err(_) => return -1,
+        };
+        let protocol = match CString::new(protocol) {
+            Ok(value) => value,
+            Err(_) => return -1,
+        };
+        let http_version = match CString::new(http_version) {
+            Ok(value) => value,
+            Err(_) => return -1,
+        };
+        unsafe {
+            msc_shim_process_uri(
+                self.raw,
+                uri.as_ptr(),
+                protocol.as_ptr(),
+                http_version.as_ptr(),
+            )
+        }
+    }
+    pub fn add_request_header(&mut self, name: &str, value: &str) -> i32 {
+        let name = match CString::new(name) {
+            Ok(value) => value,
+            Err(_) => return -1,
+        };
+        let value = match CString::new(value) {
+            Ok(value) => value,
+            Err(_) => return -1,
+        };
+        unsafe { msc_shim_add_request_header(self.raw, name.as_ptr(), value.as_ptr()) }
     }
     pub fn process_request_headers(&mut self) -> i32 {
         unsafe { msc_shim_process_request_headers(self.raw) }

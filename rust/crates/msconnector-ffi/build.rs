@@ -1,8 +1,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=shim/modsecurity_shim.cpp");
     println!("cargo:rerun-if-changed=shim/modsecurity_shim.h");
-    let root = std::env::var("MODSECURITY_ROOT")
-        .unwrap_or_else(|_| "/usr".to_string());
+    let root = std::env::var("MODSECURITY_ROOT").unwrap_or_else(|_| "/usr".to_string());
     let include = format!("{root}/include");
     let lib = format!("{root}/lib");
     let library = format!("{lib}/libmodsecurity.so");

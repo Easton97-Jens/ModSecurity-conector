@@ -108,6 +108,42 @@ impl TransactionLifecycle {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Header {
+    pub name: String,
+    pub value: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RequestData {
+    pub client_ip: Option<String>,
+    pub method: Option<String>,
+    pub uri: Option<String>,
+    pub protocol: Option<String>,
+    pub headers: Vec<Header>,
+    pub body: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ResponseData {
+    pub status: u16,
+    pub protocol: String,
+    pub headers: Vec<Header>,
+    pub body: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EngineDecision {
+    Allow,
+    Deny { status: u16 },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EngineResult {
+    pub phase: Phase,
+    pub decision: EngineDecision,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

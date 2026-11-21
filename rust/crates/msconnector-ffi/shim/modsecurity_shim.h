@@ -17,6 +17,8 @@ void msc_shim_rules_free(MsShimRules *rules);
 MsShimTransaction *msc_shim_transaction_new(MsShimEngine *engine, MsShimRules *rules);
 void msc_shim_transaction_free(MsShimTransaction *transaction);
 int msc_shim_process_connection(MsShimTransaction *transaction, const char *client_ip);
+int msc_shim_process_uri(MsShimTransaction *transaction, const char *uri, const char *protocol, const char *http_version);
+int msc_shim_add_request_header(MsShimTransaction *transaction, const char *name, const char *value);
 int msc_shim_process_request_headers(MsShimTransaction *transaction);
 int msc_shim_append_request_body(MsShimTransaction *transaction, const uint8_t *data, size_t len);
 int msc_shim_finish_request_body(MsShimTransaction *transaction);

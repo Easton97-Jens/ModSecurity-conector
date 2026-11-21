@@ -31,6 +31,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "msconnector-host-api"
+version = "0.1.0"
+dependencies = [
+ "msconnector-core",
+ "msconnector-ffi",
+]
+
+[[package]]
+name = "msconnector-proxy"
+version = "0.1.0"
+dependencies = [
+ "msconnector-core",
+ "msconnector-ffi",
+]
+
+[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
