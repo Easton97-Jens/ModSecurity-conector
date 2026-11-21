@@ -2,7 +2,7 @@
 |---|---|---|
 | Apache | Rust host module P1-P2; real 200/403 smoke passed | passed: real Apache 200/403 smoke
 | NGINX | Rust dynamic module P1-P2; real 200/403 smoke passed | passed: real NGINX 200/403 smoke
-| HAProxy HTX | Not implemented | not executed |
+| HAProxy HTX | Rust reverse-proxy sidecar behind real HAProxy; real 200/403 smoke passed | passed: real HAProxy 200/403 smoke
 | HAProxy SPOE/SPOP | Not implemented | not executed |
 | Envoy ext_proc | Not implemented | not executed |
 | Envoy ext_authz | Rust HTTP auth service behind real Envoy ext_authz; real 200/403 smoke passed | passed: real Envoy 200/403 smoke
