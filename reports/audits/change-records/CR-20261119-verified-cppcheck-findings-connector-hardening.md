@@ -24,17 +24,18 @@ cross-translation-unit analysis of `common/runtime/`. Two Parent defects were co
    large unsigned number (`-7` became `4294967289`), and "no rule" (`0`) was rendered as
    `"0"`. The canonical HAProxy binding (`haproxy_modsecurity_binding.c`) renders only
    positive IDs and leaves "no rule" empty.
-2. `connectors/nginx/src/ngx_http_modsecurity_module.c`: three `ngx_http_set_ctx(...)`
-   calls had no terminating semicolon and relied on the NGINX macro supplying it. Without
-   NGINX headers, analyzers report a syntax error and skip the whole translation unit; the
-   Framework contract test `test_context_creation_returns_only_context_or_null` looks for
-   the terminated statement and failed with `ValueError: substring not found`.
+2. `connectors/nginx/src/ngx_http_modsecurity_module.c`: analysis without the NGINX
+   headers reported syntax errors at three `ngx_http_set_ctx(...)` calls. NGINX 1.31.8
+   supplies the terminating semicolon in the macro definition. The initially added
+   semicolons produced three SonarCloud `c:S1116` empty-statement findings and were
+   removed during review. Static analysis requires the configured NGINX headers.
 
 ## Acceptance criteria
 
 - SPOP phase-4 Common events render positive rule IDs unchanged and render `0` and negative
   values as an empty `rule_id`.
-- The NGINX module statement form is terminated and the existing contract test passes.
+- The NGINX calls use the terminator supplied by the configured NGINX macro and compile
+  with the captured C17 configuration.
 - The native C17 checks for HAProxy, Apache, NGINX and the remaining connectors pass.
 - A realistic Cppcheck run of all Parent product translation units reports no remaining
   confirmed defect; remaining diagnostics are dispositioned.
@@ -45,9 +46,9 @@ cross-translation-unit analysis of `common/runtime/`. Two Parent defects were co
   write an empty string. This reuses the existing canonical binding rule instead of adding a
   new convention. The change is identical to the uncommitted change already present in the
   maintainer's working tree, so later integration does not conflict.
-- `ngx_http_modsecurity_module.c`: add `;` after the three calls. With the real NGINX macro
-  this only adds an empty statement inside a braced block; generated code and behaviour are
-  unchanged.
+- `ngx_http_modsecurity_module.c`: preserve the three original macro calls. The NGINX
+  1.31.8 definition supplies the terminator, so an extra semicolon creates an empty
+  statement. Header-free parser diagnostics require corrected preprocessing inputs.
 - No other Parent source was changed. Fail-open/fail-closed policy, API, ABI and wire
   protocol are unchanged.
 - The Framework gitlink is not changed by this record. The regression tests for both fixes
@@ -74,7 +75,7 @@ task-owned external run root `cppcheck-audit-20261119T095825Z`.
 | `rtk bypass make check-remaining-connectors-c17` (Bear-captured) | exit 0, `PASS: remaining connectors C standard check (c17)` |
 | `rtk bypass cppcheck --project=<Bear compile database> --enable=all --inconclusive --std=c17 --library=posix -D__linux__ ...` over 105 Parent product translation units | exit 0; every Parent diagnostic dispositioned (see Known limitations) |
 | Framework on-demand test `test_haproxy_spop_event_sink_failures...test_phase4_event_renders_only_positive_signed_rule_ids` | base revision: 2 failures (`'0' != ''`, `'4294967289' != ''`); this change: OK |
-| Framework on-demand module `test_nginx_upstream_security_contract` | only status change: `test_context_creation_returns_only_context_or_null` ERROR on base, ok with this change; its other 7 non-passing cases are identical on base and change |
+| Framework on-demand module `test_nginx_upstream_security_contract` at initial PR publication | only status change: `test_context_creation_returns_only_context_or_null` ERROR on base, ok with the subsequently removed redundant semicolons; its other 7 non-passing cases are identical on base and change |
 | Framework on-demand module `test_haproxy_spop_event_sink_failures`, also with `CC="gcc -fsanitize=address,undefined"` | all cases OK, no sanitizer report |
 | `rtk make check-active-inventory` | exit 0, `active_case_count` 100 of `hard_limit` 100 |
 
@@ -83,8 +84,8 @@ task-owned external run root `cppcheck-audit-20261119T095825Z`.
 The SPOP fix removes undefined behaviour in event formatting and keeps audit events
 consistent with the canonical rule-ID contract, so a missing or invalid rule ID can no
 longer appear as a fabricated large rule number in phase-4 evidence. No enforcement
-decision, status code, fail mode or transport behaviour changes. The NGINX change has no
-runtime security effect; it restores complete static analysis of the module.
+decision, status code, fail mode or transport behaviour changes. The NGINX review preserves
+the original macro calls and records the configured headers needed for static analysis.
 
 ## Runtime evidence
 
@@ -115,5 +116,14 @@ an empty value, matching the HAProxy binding events.
 
 ## Final diff and review status
 
-Two product files with minimal edits plus this record pair. The diff was reviewed for scope
-and whitespace (`git diff --check`).
+The final product change is the HAProxy rule-ID correction plus this record pair. The
+NGINX source matches the original macro calls. On 2026-11-22 the actual NGINX module
+translation unit compiled successfully using the captured GCC 15 C17 configuration with
+NGINX 1.31.8 headers and `-Wall -Wextra -Werror`. The task-owned adapter
+`nginx455-compile.py` redirects only checkout paths and object/dependency output paths
+from the existing compilation database. `git diff --check` passed.
+
+The focused Framework test `test_context_creation_returns_only_context_or_null` still
+requires a caller-written semicolon at line 49 and failed with `ValueError: substring not
+found` after the macro correction. Its source-text assertion needs a Framework follow-up
+that accepts the terminator supplied by the pinned macro.

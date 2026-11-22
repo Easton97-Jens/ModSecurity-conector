@@ -25,19 +25,18 @@ Parent-Defekte wurden bestätigt:
    Verhalten und erschien als große vorzeichenlose Zahl (`-7` wurde zu `4294967289`), und
    „keine Regel“ (`0`) erschien als `"0"`. Das kanonische HAProxy-Binding
    (`haproxy_modsecurity_binding.c`) gibt nur positive IDs aus und lässt „keine Regel“ leer.
-2. `connectors/nginx/src/ngx_http_modsecurity_module.c`: Drei Aufrufe von
-   `ngx_http_set_ctx(...)` hatten kein abschließendes Semikolon und verließen sich darauf,
-   dass das NGINX-Makro es liefert. Ohne NGINX-Header melden Analysewerkzeuge einen
-   Syntaxfehler und überspringen die gesamte Übersetzungseinheit; der Framework-Vertragstest
-   `test_context_creation_returns_only_context_or_null` sucht die abgeschlossene Anweisung
-   und schlug mit `ValueError: substring not found` fehl.
+2. `connectors/nginx/src/ngx_http_modsecurity_module.c`: Die Analyse ohne NGINX-Header
+   meldete Syntaxfehler bei drei Aufrufen von `ngx_http_set_ctx(...)`. NGINX 1.31.8 liefert
+   das abschließende Semikolon in der Makrodefinition. Die zunächst ergänzten Semikola
+   erzeugten drei SonarCloud-Befunde `c:S1116` zu leeren Anweisungen und wurden im Review
+   entfernt. Die statische Analyse benötigt die konfigurierten NGINX-Header.
 
 ## Akzeptanzkriterien
 
 - SPOP-Phase-4-Common-Events geben positive Regel-IDs unverändert aus und geben `0` sowie
   negative Werte als leere `rule_id` aus.
-- Die Anweisungsform im NGINX-Modul ist abgeschlossen, und der vorhandene Vertragstest
-  besteht.
+- Die NGINX-Aufrufe verwenden das abschließende Semikolon aus dem konfigurierten Makro
+  und kompilieren mit der erfassten C17-Konfiguration.
 - Die nativen C17-Prüfungen für HAProxy, Apache, NGINX und die übrigen Connectoren bestehen.
 - Ein realistischer Cppcheck-Lauf über alle Parent-Produkt-Übersetzungseinheiten meldet
   keinen verbleibenden bestätigten Defekt; verbleibende Diagnosen sind disponiert.
@@ -49,9 +48,10 @@ Parent-Defekte wurden bestätigt:
   eine neue Konvention einzuführen. Die Änderung ist identisch mit der bereits vorhandenen,
   nicht committeten Änderung im Arbeitsbaum des Maintainers, sodass eine spätere Integration
   nicht kollidiert.
-- `ngx_http_modsecurity_module.c`: `;` nach den drei Aufrufen ergänzt. Mit dem echten
-  NGINX-Makro entsteht nur eine leere Anweisung in einem Block mit geschweiften Klammern;
-  erzeugter Code und Verhalten bleiben unverändert.
+- `ngx_http_modsecurity_module.c`: Die drei ursprünglichen Makroaufrufe bleiben erhalten.
+  Die Definition aus NGINX 1.31.8 liefert das abschließende Semikolon, sodass ein weiteres
+  Semikolon eine leere Anweisung erzeugt. Parserdiagnosen ohne Header benötigen korrigierte
+  Präprozessor-Eingaben.
 - Keine weitere Parent-Quelle wurde geändert. Fail-open-/Fail-closed-Richtlinie, API, ABI
   und Wire-Protokoll bleiben unverändert.
 - Der Framework-Gitlink wird durch diesen Record nicht geändert. Die Regressionstests für
@@ -78,7 +78,7 @@ im task-eigenen externen Run-Root `cppcheck-audit-20261119T095825Z`.
 | `rtk bypass make check-remaining-connectors-c17` (mit Bear erfasst) | Exit 0, `PASS: remaining connectors C standard check (c17)` |
 | `rtk bypass cppcheck --project=<Bear-Compile-Datenbank> --enable=all --inconclusive --std=c17 --library=posix -D__linux__ ...` über 105 Parent-Produkt-Übersetzungseinheiten | Exit 0; jede Parent-Diagnose disponiert (siehe Bekannte Einschränkungen) |
 | Framework-On-Demand-Test `test_haproxy_spop_event_sink_failures...test_phase4_event_renders_only_positive_signed_rule_ids` | Basis-Revision: 2 Fehlschläge (`'0' != ''`, `'4294967289' != ''`); diese Änderung: OK |
-| Framework-On-Demand-Modul `test_nginx_upstream_security_contract` | einziger Statuswechsel: `test_context_creation_returns_only_context_or_null` auf der Basis ERROR, mit dieser Änderung ok; die übrigen 7 nicht bestandenen Fälle sind auf Basis und Änderung identisch |
+| Framework-On-Demand-Modul `test_nginx_upstream_security_contract` bei der ersten PR-Veröffentlichung | einziger Statuswechsel: `test_context_creation_returns_only_context_or_null` auf der Basis ERROR, mit den später entfernten redundanten Semikola ok; die übrigen 7 nicht bestandenen Fälle sind auf Basis und Änderung identisch |
 | Framework-On-Demand-Modul `test_haproxy_spop_event_sink_failures`, auch mit `CC="gcc -fsanitize=address,undefined"` | alle Fälle OK, keine Sanitizer-Meldung |
 | `rtk make check-active-inventory` | Exit 0, `active_case_count` 100 von `hard_limit` 100 |
 
@@ -88,8 +88,8 @@ Der SPOP-Fix beseitigt undefiniertes Verhalten bei der Event-Formatierung und h�
 Audit-Events konsistent mit dem kanonischen Regel-ID-Vertrag, sodass eine fehlende oder
 ungültige Regel-ID in Phase-4-Evidence nicht mehr als erfundene große Regelnummer erscheinen
 kann. Keine Durchsetzungsentscheidung, kein Statuscode, kein Fail-Modus und kein
-Transportverhalten ändert sich. Die NGINX-Änderung hat keine Laufzeit-Security-Wirkung; sie
-stellt die vollständige statische Analyse des Moduls wieder her.
+Transportverhalten ändert sich. Das NGINX-Review erhält die ursprünglichen Makroaufrufe
+und dokumentiert die für die statische Analyse benötigten konfigurierten Header.
 
 ## Runtime-Evidence
 
@@ -122,5 +122,14 @@ verlassen haben, erhalten nun einen leeren Wert, passend zu den HAProxy-Binding-
 
 ## Finaler Diff- und Review-Status
 
-Zwei Produktdateien mit minimalen Änderungen plus dieses Record-Paar. Der Diff wurde auf
-Umfang und Whitespace geprüft (`git diff --check`).
+Die finale Produktänderung umfasst die HAProxy-Regel-ID-Korrektur plus dieses Record-Paar.
+Die NGINX-Quelle entspricht den ursprünglichen Makroaufrufen. Am 2026-11-22 kompilierte
+die tatsächliche NGINX-Modul-Übersetzungseinheit mit der erfassten GCC-15-C17-Konfiguration,
+NGINX-1.31.8-Headern und `-Wall -Wextra -Werror` erfolgreich. Der aufgabeneigene Adapter
+`nginx455-compile.py` leitet ausschließlich Checkout-Pfade und Objekt-/Abhängigkeitspfade
+aus der vorhandenen Compile-Datenbank um. `git diff --check` bestand.
+
+Der gezielte Framework-Test `test_context_creation_returns_only_context_or_null` verlangt
+in Zeile 49 weiterhin ein am Aufruf geschriebenes Semikolon und scheiterte nach der
+Makrokorrektur mit `ValueError: substring not found`. Seine Quelltextprüfung benötigt
+eine Framework-Nacharbeit, die das vom gepinnten Makro gelieferte Semikolon berücksichtigt.
