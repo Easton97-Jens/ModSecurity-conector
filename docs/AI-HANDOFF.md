@@ -10,6 +10,7 @@
 - **Verified facts:** local diffs and native command definitions were inspected; fresh remote reads confirmed Parent `master` at the PR #449 merge commit and Framework `master` at `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1`; current-head CI at `da212088f018b7852284768ced03feca286980ef` was read back via GitHub CLI.
 - **Assumption:** Claude Code resumes in this checkout, where ignored local instructions remain available. Reconcile this snapshot before relying on it.
 - **Latest task (2026-11-19, Claude Code):** fixes from the 2026-11-15 security review on task branch `claude/fix-security-findings-20261119` (base `b79c3d93efbb8330f121caf8fb7c1a7874195e57`), delivered as a Draft PR, not merged. Scope, decisions (including why CAND-024 is not changed), commands and results: [Change Record](../reports/audits/change-records/CR-20261119-composite-cleanup-redirect-haproxy-rule-id.md). Tests used the official ModSecurity v3.0.17 build, not the system library. The snapshot below describes the earlier 2026-11-14 work and remains historical.
+- **Review follow-up (2026-11-20):** bounded direct cleanup in `BeginRequest`, bounded claim/abort waits with abort marking against late activation, non-blocking `Sweep`; regression tests delivered as Framework Draft PR [#181](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/181) (run its specialist regressions against a Parent revision containing this follow-up). Details and results are in the Change Record.
 
 ## Relevant components and completed work
 

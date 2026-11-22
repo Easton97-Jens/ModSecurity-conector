@@ -261,7 +261,7 @@ func (s *udsSession) dispatchControl(ctx context.Context, op byte, p []byte) (wi
 		return result, terminal, true
 	}
 	if op == opClaim {
-		result, terminal := s.dispatchClaim(p)
+		result, terminal := s.dispatchClaim(ctx, p)
 		return result, terminal, true
 	}
 	if s.requestTerminal {
@@ -432,7 +432,7 @@ func (s *udsSession) dispatchReserve(p []byte) (wireResult, bool) {
 	return wireResult{token: token}, false
 }
 
-func (s *udsSession) dispatchClaim(p []byte) (wireResult, bool) {
+func (s *udsSession) dispatchClaim(ctx context.Context, p []byte) (wireResult, bool) {
 	if s.claimed {
 		return wireResult{decision: decisionDeny, status: 409}, true
 	}
@@ -440,7 +440,11 @@ func (s *udsSession) dispatchClaim(p []byte) (wireResult, bool) {
 	if err != nil || s.leaseToken == "" || token != s.leaseToken {
 		return wireResult{decision: decisionDeny, status: 503}, true
 	}
-	resp, err := s.svc.Coordinator.Claim(token, s.session)
+	// ctx carries the frame deadline: a claim that races ForwardAuth's still
+	// running P1/P2 call ends with ErrBusy instead of waiting for it, and the
+	// session fails closed (a 503 result, or a closed session if the wait used
+	// the whole frame deadline).
+	resp, err := s.svc.Coordinator.ClaimContext(ctx, token, s.session)
 	if err == nil {
 		s.response, s.claimed = resp, true
 		return wireResult{}, false
@@ -535,7 +539,13 @@ func (s *udsSession) cleanup(ctx context.Context, reason string) {
 	if s.response != nil {
 		s.response.Finish(ctx, reason)
 	} else if s.leaseToken != "" {
-		_ = s.svc.Coordinator.AbortWithReason(s.leaseToken, s.session, reason)
+		// The budget starts here, at cleanup, not at session start. If
+		// ForwardAuth's native call still holds the reservation when it ends,
+		// the coordinator records the abort for that call's owner instead of
+		// keeping this handler and its admission slot.
+		abortCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), s.frameDeadline())
+		_ = s.svc.Coordinator.AbortWithReasonContext(abortCtx, s.leaseToken, s.session, reason)
+		cancel()
 	}
 }
 

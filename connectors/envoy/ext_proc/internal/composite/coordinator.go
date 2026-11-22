@@ -20,6 +20,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
@@ -36,7 +37,47 @@ var (
 	ErrSession           = errors.New("composite session mismatch")
 	ErrEventBackpressure = errors.New("composite event queue saturated")
 	ErrObserver          = errors.New("composite observer failed")
+	// ErrBusy reports that a bounded caller could not acquire an entry because
+	// an operation still holds it, typically a native request-phase call.
+	ErrBusy = errors.New("composite entry is busy")
+	// ErrAborted reports that the owning private session aborted the entry
+	// while an operation held it. The entry can no longer become claimable.
+	ErrAborted = errors.New("composite entry aborted by its session")
 )
+
+// abortError carries the owning session's truthful terminal reason to the
+// operation owner that finishes the entry after its call returns.
+type abortError struct{ reason string }
+
+func (*abortError) Error() string        { return ErrAborted.Error() }
+func (*abortError) Is(target error) bool { return target == ErrAborted }
+
+// lockEntry acquires an entry mutex. A context that can never end waits like
+// mu.Lock. Otherwise the wait ends with ErrBusy when ctx ends; like the Common
+// runtime gate it polls TryLock, so no goroutine is left blocked on the mutex.
+// The entry mutex is held during native request and response processing, so a
+// bounded caller must not wait for it without a bound.
+func lockEntry(ctx context.Context, mu *sync.Mutex) error {
+	if ctx == nil || ctx.Done() == nil {
+		mu.Lock()
+		return nil
+	}
+	if mu.TryLock() {
+		return nil
+	}
+	poll := time.NewTicker(time.Millisecond)
+	defer poll.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%w: %w", ErrBusy, ctx.Err())
+		case <-poll.C:
+			if mu.TryLock() {
+				return nil
+			}
+		}
+	}
+}
 
 type Limits struct {
 	LateActionPolicy processor.LateActionPolicy
@@ -342,7 +383,11 @@ func (c *Coordinator) BeginRequest(ctx context.Context, meta processor.StreamMet
 	if c.closed || c.fault != nil {
 		fault := c.fault
 		c.mu.Unlock()
-		tx.Close(context.WithoutCancel(ctx), e.summary)
+		// The transaction was opened but never registered: close it here with
+		// the same detached, bounded cleanup budget as entry.finish.
+		closeCtx, cancel := c.cleanupContext(ctx)
+		tx.Close(closeCtx, e.summary)
+		cancel()
 		cleanupErr := c.recordCleanupFailure(tx)
 		c.releaseCapacity()
 		if fault != nil {
@@ -428,7 +473,7 @@ func (a *Admission) ProcessBody(ctx context.Context, body []byte, endStream bool
 		eventErr := a.e.markReservedLeaseLocked()
 		a.e.mu.Unlock()
 		if eventErr != nil {
-			a.e.finish(ctx, "event_delivery_failure")
+			a.e.finish(ctx, leaseFailureReason(eventErr))
 			return d, eventErr
 		}
 	}
@@ -468,7 +513,7 @@ func (a *Admission) RecordHostAction(ctx context.Context, action processor.HostA
 	if recorder, ok := e.tx.(processor.HostActionRecorder); ok {
 		if err := recorder.RecordHostAction(ctx, action); err != nil {
 			e.mu.Unlock()
-			e.finish(context.Background(), "companion_failure")
+			e.finish(ctx, "companion_failure")
 			return err
 		}
 	}
@@ -476,7 +521,7 @@ func (a *Admission) RecordHostAction(ctx context.Context, action processor.HostA
 	err := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "request_host_action", Outcome: "recorded", RequestedAction: "block", ActualHostAction: string(action.Action), VisibleStatus: action.VisibleStatus, EventTime: time.Now()})
 	e.mu.Unlock()
 	if err != nil {
-		e.finish(context.Background(), "companion_failure")
+		e.finish(ctx, "companion_failure")
 		return err
 	}
 	return nil
@@ -582,6 +627,13 @@ func finishOutOfOrderClaim(e *entry) {
 }
 
 func (c *Coordinator) Claim(token, session string) (*Response, error) {
+	return c.ClaimContext(context.Background(), token, session)
+}
+
+// ClaimContext is Claim with a bounded wait for the entry. While ForwardAuth
+// still processes P1/P2, its native call holds the entry; a caller with a
+// deadline then receives ErrBusy instead of waiting for that call.
+func (c *Coordinator) ClaimContext(ctx context.Context, token, session string) (*Response, error) {
 	if session == "" || len(session) > 256 {
 		return nil, ErrSession
 	}
@@ -598,21 +650,23 @@ func (c *Coordinator) Claim(token, session string) (*Response, error) {
 	if e == nil {
 		return nil, ErrExpired
 	}
-	e.mu.Lock()
+	if err := lockEntry(ctx, &e.mu); err != nil {
+		return nil, err
+	}
 	defer e.mu.Unlock()
 	if e.expired(time.Now()) {
-		go e.finish(context.Background(), "timeout")
+		go e.finish(ctx, "timeout")
 		return nil, ErrExpired
 	}
 	if e.reserved && session != e.session {
 		return nil, ErrSession
 	}
 	if e.claimed && session != e.session {
-		go e.finish(context.Background(), "session_mismatch")
+		go e.finish(ctx, "session_mismatch")
 		return nil, ErrSession
 	}
 	if e.claimed || e.terminal {
-		go e.finish(context.Background(), "duplicate")
+		go e.finish(ctx, "duplicate")
 		return nil, ErrDuplicate
 	}
 	if e.blocked {
@@ -631,7 +685,7 @@ func (c *Coordinator) Claim(token, session string) (*Response, error) {
 	}
 	e.claimed, e.session, e.phase, e.last = true, session, phaseResponseHeaders, time.Now()
 	if err := e.emitLocked(Event{DecisionID: e.id, Connector: c.connector, Phase: "claim", Outcome: "accepted", Reason: ""}); err != nil {
-		go e.finish(context.Background(), "event_delivery_failure")
+		go e.finish(ctx, "event_delivery_failure")
 		return nil, err
 	}
 	return &Response{c: c, e: e, session: session}, nil
@@ -685,6 +739,21 @@ type entry struct {
 	p4EventEmitted, hostActionRecorded                                         bool
 	session                                                                    string
 	closeOnce                                                                  sync.Once
+	// abortReason is set without e.mu when the owning session aborts while an
+	// operation holds the entry; the operation owner observes it under e.mu.
+	abortReason atomic.Pointer[string]
+	// reservationSession is the private session that created a reservation.
+	// Unlike session it is immutable, so an abort may verify it without e.mu.
+	reservationSession string
+}
+
+// abortedLocked reports an abort requested while another operation held the
+// entry. Callers hold e.mu.
+func (e *entry) abortedLocked() error {
+	if reason := e.abortReason.Load(); reason != nil {
+		return &abortError{reason: *reason}
+	}
+	return nil
 }
 
 // Reserve creates a server-owned, single-use lease before the ForwardAuth
@@ -708,7 +777,7 @@ func (c *Coordinator) Reserve(session string, snapshot ReservationSnapshot) (str
 		return "", err
 	}
 	now := time.Now()
-	e := &entry{c: c, id: id, created: now, last: now, phase: phaseReserved, reserved: true, session: session, binding: binding, snapshot: stored, summary: processor.Summary{TransactionID: id, LateAction: processor.LateActionNone}}
+	e := &entry{c: c, id: id, created: now, last: now, phase: phaseReserved, reserved: true, session: session, reservationSession: session, binding: binding, snapshot: stored, summary: processor.Summary{TransactionID: id, LateAction: processor.LateActionNone}}
 	token, err := c.makeToken(id)
 	if err != nil {
 		c.releaseCapacity()
@@ -757,6 +826,9 @@ func (c *Coordinator) Activate(ctx context.Context, token, method, uri string, m
 	e.mu.Lock()
 	if err := e.checkLocked(); err != nil {
 		e.mu.Unlock()
+		if errors.Is(err, ErrAborted) {
+			e.finish(ctx, reason(err))
+		}
 		return nil, processor.Decision{}, err
 	}
 	if !e.reserved || e.phase != phaseReserved || e.tx != nil {
@@ -810,7 +882,7 @@ func (c *Coordinator) Activate(ctx context.Context, token, method, uri string, m
 		e.mu.Lock()
 		if err := e.markReservedLeaseLocked(); err != nil {
 			e.mu.Unlock()
-			e.finish(context.Background(), "event_delivery_failure")
+			e.finish(ctx, leaseFailureReason(err))
 			return nil, d, err
 		}
 		e.mu.Unlock()
@@ -838,6 +910,17 @@ func (c *Coordinator) Abort(token, session string) error {
 // private UDS read deadline retain its truthful timeout cause instead of
 // relabeling it as a generic reservation abort.
 func (c *Coordinator) AbortWithReason(token, session, reason string) error {
+	return c.AbortWithReasonContext(context.Background(), token, session, reason)
+}
+
+// AbortWithReasonContext is AbortWithReason with a bounded wait for the entry.
+// If an operation (typically a native ForwardAuth P1/P2 call) still holds the
+// reservation when ctx ends, the abort is recorded for that operation's owner
+// and ErrBusy is returned: the owner finishes the entry with this reason once
+// its call returns, and the reservation can no longer become claimable. The
+// caller is never blocked by that call and never closes a transaction in use;
+// a native call that never returns keeps its entry until a process restart.
+func (c *Coordinator) AbortWithReasonContext(ctx context.Context, token, session, reason string) error {
 	switch reason {
 	case "abort", "disconnect", "finish", "timeout":
 	default:
@@ -856,17 +939,26 @@ func (c *Coordinator) AbortWithReason(token, session, reason string) error {
 	if e == nil {
 		return ErrExpired
 	}
-	e.mu.Lock()
+	if err := lockEntry(ctx, &e.mu); err != nil {
+		if e.reserved && e.reservationSession == session {
+			e.abortReason.CompareAndSwap(nil, &reason)
+		}
+		return err
+	}
 	if e.reserved && e.session != session {
 		e.mu.Unlock()
 		return ErrSession
 	}
-	blocked := e.blocked
-	e.mu.Unlock()
-	if blocked {
+	if e.blocked {
 		reason = "request_block"
 	}
-	e.finish(context.Background(), reason)
+	// Like checkSessionLocked: once terminal, checkLocked rejects every new
+	// operation, so finish cannot wait behind a native call started after this
+	// check.
+	e.terminal = true
+	e.mu.Unlock()
+	// finish detaches and bounds its cleanup context itself.
+	e.finish(ctx, reason)
 	return nil
 }
 
@@ -883,6 +975,11 @@ func (e *entry) requestHeaders(ctx context.Context, h []processor.Header, eos bo
 		return processor.Decision{}, err
 	}
 	d, err := e.tx.ProcessHeaders(ctx, processor.DirectionRequest, h, eos)
+	if abortErr := e.abortedLocked(); abortErr != nil {
+		// The owning session aborted during the native call: never let this
+		// late result make the reservation claimable.
+		return d, abortErr
+	}
 	e.summary.RequestHeaderCount = uint64(len(h))
 	if eos {
 		e.phase = phaseLeased
@@ -910,6 +1007,10 @@ func (e *entry) requestBody(ctx context.Context, b []byte, eos bool) (processor.
 	e.requestBodyBytes += int64(len(b))
 	e.requestChunks++
 	d, err := e.tx.ProcessBody(ctx, processor.DirectionRequest, b, eos)
+	if abortErr := e.abortedLocked(); abortErr != nil {
+		// See requestHeaders: an abort during the native call wins.
+		return d, abortErr
+	}
 	e.summary.RequestBodyBytes = e.requestBodyBytes
 	e.summary.RequestBodyChunks = uint64(e.requestChunks)
 	if eos {
@@ -929,6 +1030,15 @@ func (e *entry) requestBody(ctx context.Context, b []byte, eos bool) (processor.
 func (e *entry) markReservedLeaseLocked() error {
 	if !e.reserved || e.leaseIssued || e.blocked || e.phase != phaseLeased {
 		return nil
+	}
+	// This is the only point where a reservation becomes claimable. An abort
+	// or terminal transition between the final request phase and this point
+	// must not activate it.
+	if e.terminal || e.removed {
+		return ErrClosed
+	}
+	if err := e.abortedLocked(); err != nil {
+		return err
 	}
 	e.leaseIssued = true
 	return e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "lease", Outcome: "issued"})
@@ -986,7 +1096,7 @@ func (e *entry) responseHeaders(ctx context.Context, s string, h []processor.Hea
 		e.p4EventEmitted = true
 	}
 	if err != nil {
-		go e.finish(context.Background(), "companion_failure")
+		go e.finish(ctx, "companion_failure")
 	}
 	// The adapter must record the actual host action before terminal cleanup.
 	if eos {
@@ -1030,7 +1140,7 @@ func (e *entry) responseBody(ctx context.Context, s string, b []byte, eos bool) 
 		e.p4EventEmitted = true
 	}
 	if err != nil {
-		go e.finish(context.Background(), "companion_failure")
+		go e.finish(ctx, "companion_failure")
 	}
 	return d, err
 }
@@ -1045,7 +1155,7 @@ func (e *entry) markCommitted(ctx context.Context, s string) error {
 	}
 	if committer, ok := e.tx.(processor.ResponseCommitter); ok {
 		if err := committer.MarkResponseCommitted(ctx); err != nil {
-			go e.finish(context.Background(), "companion_failure")
+			go e.finish(ctx, "companion_failure")
 			return err
 		}
 	}
@@ -1078,7 +1188,7 @@ func (e *entry) recordHostAction(ctx context.Context, s string, action processor
 	if recorder, ok := e.tx.(processor.HostActionRecorder); ok {
 		if err := recorder.RecordHostAction(ctx, action); err != nil {
 			e.mu.Unlock()
-			e.finish(context.Background(), "companion_failure")
+			e.finish(ctx, "companion_failure")
 			return err
 		}
 	}
@@ -1086,7 +1196,7 @@ func (e *entry) recordHostAction(ctx context.Context, s string, action processor
 	err := e.emitLocked(Event{DecisionID: e.id, Connector: e.c.connector, Phase: "host_action", Outcome: "recorded", ActualHostAction: string(action.Action), VisibleStatus: action.VisibleStatus, EventTime: time.Now()})
 	e.mu.Unlock()
 	if err != nil {
-		e.finish(context.Background(), "companion_failure")
+		e.finish(ctx, "companion_failure")
 	}
 	return err
 }
@@ -1096,6 +1206,9 @@ func (e *entry) checkLocked() error {
 	}
 	if e.terminal || e.removed {
 		return ErrClosed
+	}
+	if err := e.abortedLocked(); err != nil {
+		return err
 	}
 	if e.expired(time.Now()) {
 		return ErrExpired
@@ -1153,6 +1266,17 @@ func validateHostAction(action processor.HostAction) error {
 	}
 	return nil
 }
+
+// finish terminates the entry exactly once. Only the native tx.Close is bounded
+// (Limits.CleanupTimeout, see cleanupContext). The waits before it are not
+// timed: finishGate.RLock waits only while Coordinator.Close is draining,
+// closeOnce makes a concurrent caller wait for the first finisher, and e.mu
+// waits for an operation that currently holds the entry. Bounded callers
+// therefore acquire e.mu first (see AbortWithReasonContext and Sweep) and only
+// finish an entry that checkLocked already rejects (terminal or expired), so
+// no new native call can start before finish runs. A
+// native call that never returns keeps its entry and needs a process restart;
+// finish never closes a transaction that is still in use.
 func (e *entry) finish(ctx context.Context, why string) {
 	e.c.finishGate.RLock()
 	defer e.c.finishGate.RUnlock()
@@ -1205,7 +1329,13 @@ func (c *Coordinator) Sweep(now time.Time) {
 	c.mu.Unlock()
 	es := make([]*entry, 0)
 	for _, e := range all {
-		e.mu.Lock()
+		// An entry whose lock is held is inside an operation and therefore not
+		// idle; it is examined again on the next tick. Waiting here would stall
+		// expiry of every other entry behind a long or never-returning native
+		// call.
+		if !e.mu.TryLock() {
+			continue
+		}
 		expired := e.expired(now)
 		e.mu.Unlock()
 		if expired {
@@ -1417,5 +1547,18 @@ func reason(err error) string {
 	if errors.Is(err, ErrExpired) {
 		return "timeout"
 	}
+	var aborted *abortError
+	if errors.As(err, &aborted) {
+		return aborted.reason
+	}
 	return fmt.Sprintf("failure:%v", err)
+}
+
+// leaseFailureReason labels a failed lease transition: an abort keeps its
+// session's reason, any other failure is the lease event delivery.
+func leaseFailureReason(err error) string {
+	if errors.Is(err, ErrAborted) {
+		return reason(err)
+	}
+	return "event_delivery_failure"
 }
