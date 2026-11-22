@@ -17,6 +17,17 @@ exakte Revision, Framework-Checkout, Profil und vorhandener externer Ausgaberoot
 werden explizit angegeben; der Produktcheckout wird nicht aus dem Skriptpfad
 abgeleitet.
 
+Bevor ein delegiertes Target lokal läuft, stellt `tools/ensure-python-env.py` den
+Interpreter bereit: Es identifiziert eine virtuelle Umgebung über die exakte
+`.python-version` und die Hashes der geprüften Locks und des Installers des
+gepinnten Frameworks und befüllt sie ausschließlich über diesen
+Framework-Installer. Ebenso installiert `tools/ensure-security-tools.py` die
+gelockten Release- und Go-Sicherheitswerkzeuge zur Laufzeit in das laufprivate
+`$RUNNER_TEMP/security-tools`; siehe
+[CI-Security-Tooling](../docs/security/ci-security-tooling.de.md). Keiner der
+beiden Helper ist ein Test- oder Provisionierungs-Harness, und keiner läuft in
+CI. Siehe [Variablenreferenz](../docs/reference/variables.de.md).
+
 ## Produkt- und Vertrauensgrenzen
 
 Produktkonfiguration, Abhängigkeiten, Build, Installation und Deployment bleiben
