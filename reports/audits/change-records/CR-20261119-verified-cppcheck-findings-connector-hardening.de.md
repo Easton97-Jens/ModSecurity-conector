@@ -60,8 +60,6 @@ Parent-Defekte wurden bestätigt:
 
 ## Geänderte Dateien
 
-- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
-- `connectors/nginx/src/ngx_http_modsecurity_module.c`
 - `reports/audits/change-records/CR-20261119-verified-cppcheck-findings-connector-hardening.md`
 - `reports/audits/change-records/CR-20261119-verified-cppcheck-findings-connector-hardening.de.md`
 
@@ -122,7 +120,7 @@ verlassen haben, erhalten nun einen leeren Wert, passend zu den HAProxy-Binding-
 
 ## Finaler Diff- und Review-Status
 
-Die finale Produktänderung umfasst die HAProxy-Regel-ID-Korrektur plus dieses Record-Paar.
+Parent-PR #454 integrierte die HAProxy-Regel-ID-Korrektur. Dieser PR ergänzt beide Audit-Records.
 Die NGINX-Quelle entspricht den ursprünglichen Makroaufrufen. Am 2026-11-22 kompilierte
 die tatsächliche NGINX-Modul-Übersetzungseinheit mit der erfassten GCC-15-C17-Konfiguration,
 NGINX-1.31.8-Headern und `-Wall -Wextra -Werror` erfolgreich. Der aufgabeneigene Adapter

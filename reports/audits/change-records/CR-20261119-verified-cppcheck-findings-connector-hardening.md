@@ -57,8 +57,6 @@ cross-translation-unit analysis of `common/runtime/`. Two Parent defects were co
 
 ## Changed files
 
-- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
-- `connectors/nginx/src/ngx_http_modsecurity_module.c`
 - `reports/audits/change-records/CR-20261119-verified-cppcheck-findings-connector-hardening.md`
 - `reports/audits/change-records/CR-20261119-verified-cppcheck-findings-connector-hardening.de.md`
 
@@ -116,8 +114,8 @@ an empty value, matching the HAProxy binding events.
 
 ## Final diff and review status
 
-The final product change is the HAProxy rule-ID correction plus this record pair. The
-NGINX source matches the original macro calls. On 2026-11-22 the actual NGINX module
+Parent PR #454 landed the HAProxy rule-ID correction. This PR adds the two audit records.
+The NGINX source matches the original macro calls. On 2026-11-22 the actual NGINX module
 translation unit compiled successfully using the captured GCC 15 C17 configuration with
 NGINX 1.31.8 headers and `-Wall -Wextra -Werror`. The task-owned adapter
 `nginx455-compile.py` redirects only checkout paths and object/dependency output paths

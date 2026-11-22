@@ -2664,6 +2664,10 @@ static int phase4_common_event_write(
 
     original_status = request->http_metadata.has_response_status ?
         (int)request->response_status : 200;
+    /* rule_id is a signed int. Like the rule_id > 0 guard of the SPOP wire
+     * path, format only real (positive) rule IDs, with the matching %d
+     * conversion; a missing or invalid ID is the empty string that the other
+     * connectors' events use for "no rule". */
     if (decision->rule_id > 0) {
         (void)snprintf(rule_id, sizeof(rule_id), "%d", decision->rule_id);
     } else {
