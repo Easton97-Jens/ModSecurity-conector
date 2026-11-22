@@ -266,10 +266,12 @@ def prepare_destination(destination: Path) -> Path:
 def run(destination: Path, selected: list[str], verbose: bool) -> int:
     destination = prepare_destination(destination)
     provisioner = Provisioner(destination, verbose)
-    names = selected or provisioner.known()
-    unknown = sorted(set(names) - set(provisioner.known()))
+    known = provisioner.known()
+    unknown = sorted(set(selected) - set(known))
     if unknown:
         raise ValueError("unknown tool: " + ", ".join(unknown))
+    canonical = {name: name for name in known}
+    names = [canonical[name] for name in selected] if selected else known
     status = 0
     descriptor = os.open(destination, os.O_RDONLY)
     try:

@@ -118,18 +118,23 @@ def interpreter_version(executable: str) -> str | None:
     return completed.stdout.strip() if completed.returncode == 0 else None
 
 
+def running_base(version: str, explicit: str) -> Path:
+    """Confirm the selected name identifies the already running interpreter."""
+    located = explicit if os.sep in explicit else shutil.which(explicit)
+    running = Path(sys.executable).resolve()
+    if not located or Path(located).resolve() != running:
+        raise Blocked("--base must identify the interpreter running this helper; "
+                      "launch the helper with the selected PYTHON_BASE")
+    if "%d.%d.%d" % sys.version_info[:3] != version:
+        raise Blocked(f"the running interpreter does not match Python {version} "
+                      f"selected by {VERSION_FILE}")
+    return running
+
+
 def select_base(version: str, explicit: str | None) -> Path:
     """Return the real path of an interpreter with exactly the pinned version."""
     if explicit:
-        located = explicit if os.sep in explicit else shutil.which(explicit)
-        running = Path(sys.executable).resolve()
-        if not located or Path(located).resolve() != running:
-            raise Blocked("--base must identify the interpreter running this helper; "
-                          "launch the helper with the selected PYTHON_BASE")
-        if "%d.%d.%d" % sys.version_info[:3] != version:
-            raise Blocked(f"the running interpreter does not match Python {version} "
-                          f"selected by {VERSION_FILE}")
-        return running
+        return running_base(version, explicit)
     major_minor = ".".join(version.split(".")[:2])
     candidates = [sys.executable, f"python{major_minor}", "python3"]
     seen = []
