@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/composite"
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
@@ -99,6 +100,13 @@ func (h *ForwardAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ForwardAuth) writeRequestDecision(w http.ResponseWriter, r *http.Request, admission *composite.Admission, decision processor.Decision) {
+	// Validate the redirect target before the host action is recorded, so the
+	// recorded action and the response stay identical. Like the composite Envoy
+	// and ext_proc sibling sinks, a redirect without a valid Location value is
+	// enforced as a deny instead of writing an unchecked header value.
+	if decision.Action == processor.ActionRedirect && !validRedirectURL(decision.RedirectURL) {
+		decision = processor.Decision{Action: processor.ActionDeny, Status: http.StatusForbidden}
+	}
 	status := decision.Status
 	action := processor.AppliedActionDeny
 	if decision.Action == processor.ActionRedirect {
@@ -239,10 +247,29 @@ func writeDecision(w http.ResponseWriter, d processor.Decision, fallback int) {
 	if status < 100 || status > 599 {
 		status = fallback
 	}
-	if d.Action == processor.ActionRedirect && d.RedirectURL != "" {
+	if d.Action == processor.ActionRedirect && validRedirectURL(d.RedirectURL) {
 		w.Header().Set("Location", d.RedirectURL)
 	}
 	w.WriteHeader(status)
+}
+
+// maxRedirectURLBytes matches the Common bridge's redirect_url[2049] buffer and
+// the composite Envoy sibling.
+const maxRedirectURLBytes = 2048
+
+// validRedirectURL accepts only a non-empty, bounded, valid UTF-8 Location
+// value without surrounding whitespace, ASCII controls (including CR, LF and
+// NUL) or DEL. URLs can still carry such data in percent-encoded form.
+func validRedirectURL(value string) bool {
+	if value == "" || len(value) > maxRedirectURLBytes || !utf8.ValidString(value) || value != strings.TrimSpace(value) {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] < 0x20 || value[i] == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 var _ http.Handler = (*ForwardAuth)(nil)
