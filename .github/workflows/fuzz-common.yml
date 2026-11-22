@@ -1,0 +1,44 @@
+name: Common HTTP header fuzzing
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  common-http-header-fuzz:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Checkout Connector and its pinned Framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          submodules: true
+          persist-credentials: false
+      - name: Run the bounded header fuzz test
+        run: |
+          framework_root="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+          expected_framework=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD:modules/ModSecurity-test-Framework)
+          test "$(git -C "$framework_root" rev-parse HEAD)" = "$expected_framework"
+          command -v clang >/dev/null
+          run_root=$(mktemp -d "$RUNNER_TEMP/fuzz-common.XXXXXX")
+          export TMPDIR="$run_root"
+          if make -C "$GITHUB_WORKSPACE" ON_DEMAND_TESTS=1 \
+            BUILD_ROOT="$run_root/build" check-common-http-header-fuzz > "$run_root/fuzz.log" 2>&1; then
+            echo "Common HTTP header fuzz test passed."
+          else
+            status=$?
+            echo "::error::Common HTTP header fuzz test failed (exit $status). See the Change Record for the local command."
+            exit "$status"
+          fi
