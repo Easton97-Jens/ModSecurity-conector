@@ -2664,7 +2664,15 @@ static int phase4_common_event_write(
 
     original_status = request->http_metadata.has_response_status ?
         (int)request->response_status : 200;
-    (void)snprintf(rule_id, sizeof(rule_id), "%u", decision->rule_id);
+    /* rule_id is a signed int. Like the rule_id > 0 guard of the SPOP wire
+     * path, format only real (positive) rule IDs, with the matching %d
+     * conversion; a missing or invalid ID is the empty string that the other
+     * connectors' events use for "no rule". */
+    if (decision->rule_id > 0) {
+        (void)snprintf(rule_id, sizeof(rule_id), "%d", decision->rule_id);
+    } else {
+        rule_id[0] = '\0';
+    }
     msconnector_event_init(&event);
     event.meta.message_id = MSCONN_EVENT_RESPONSE_BLOCKED;
     if (strcmp(actual_action, "abort_connection") == 0) {
