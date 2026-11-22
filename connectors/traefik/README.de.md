@@ -117,6 +117,29 @@ und
 konfiguriert; der lokale Runner liegt unter
 [`harness/run_traefik_composite_matrix.sh`](../../modules/ModSecurity-test-Framework/connector_suite/adapters/traefik/harness/run_traefik_composite_matrix.sh).
 
+Das Cleanup nativer Transaktionen ist von der Anfrage entkoppelt und begrenzt
+(Standard 5 Sekunden). Ein Client, der während ForwardAuth die Verbindung
+abbricht, lässt daher nur seine eigene Anfrage fehlschlagen (503); das Cleanup
+erhält keinen stornierten Kontext mehr. Kann das Cleanup das serielle Gate der
+Common-Runtime nicht rechtzeitig erhalten, protokolliert der Dienst einen
+Cleanup-Fehler, ohne nativen Speicher freizugeben, und der Coordinator geht in
+einen fail-closed Fault-Zustand, der einen kontrollierten Neustart erfordert.
+Jeder MSC2-Frame begrenzt seine Engine-Arbeit mit derselben Deadline wie Lesen
+und Schreiben, einschließlich eines Claims, der wartet, solange der
+P1/P2-Aufruf von ForwardAuth den Eintrag noch hält; ein solcher Claim schlägt
+fail-closed fehl. Das Sitzungs-Cleanup gibt seinem Abort ein frisches Budget
+derselben Länge. Hält der P1/P2-Aufruf den Eintrag am Ende dieses Budgets noch,
+wird der Abort für diesen Aufruf vermerkt: Kehrt er zurück, scheitert die
+Anfrage mit 503 und die Reservierung kann nie mehr claimbar werden, und der
+UDS-Handler und sein Admission-Slot werden freigegeben, ohne auf ihn zu warten.
+Dies sind Grenzen je Schritt, keine harte Gesamtzeitgrenze für einen Handler;
+ein nativer Aufruf, der nicht zurückkehrt, behält seinen eigenen Eintrag und
+erfordert weiterhin einen kontrollierten Neustart. Ein
+ForwardAuth-Redirect wird nur mit einem nicht leeren Location-Wert von höchstens
+2048 Bytes ohne ASCII-Steuerzeichen, DEL oder umgebende Leerzeichen gesendet;
+jedes andere Redirect-Ziel wird wie auf den Composite-Envoy- und
+ext_proc-Pfaden als 403-Deny durchgesetzt.
+
 P4 Safe ist log-only und erhält die ursprüngliche Antwort. P4 Strict ist kein
 bestandenes Ergebnis, solange kein echter, für den Client sichtbarer Abbruch
 oder Reset unabhängig beobachtet wurde; das Composite behauptet dies derzeit
