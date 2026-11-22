@@ -67,7 +67,9 @@ only where a local run needs them.
   `requirements-ci.lock`. A stamp records identity, inputs, installer receipt and
   an installed-distribution probe; the fast path accepts only a matching identity
   with an unchanged probe. A provisional stamp (`state: incomplete`) is written
-  right after the environment is created.
+  before old helper-owned contents are removed. Cleanup preserves this stamp,
+  unlinks symlinks without following them and invokes `venv` without `--clear`.
+  Failed creation and interrupted cleanup retain ownership for the next retry.
 - Without `PYTHON_ENV_ROOT` the environment is `.venv` in the checkout. With it,
   versioned environments `<role>-<version>-<identity>` live in that store, the
   links `parent`/`framework` point to the latest provisioned one and are repaired
@@ -139,6 +141,21 @@ versions.
 | `make quick-check` on the final diff, environment from the local `msc-test-env.sh` with a fresh `RUNNER_TEMP` | exit 0 after 814 s; the automatic step installed all five tools first, the Python step took the fast path |
 | `make test` with an earlier helper revision | exit 2 after 1808 s; the four workflow fixture executions passed with the run-private `zizmor`; `runtime.no-crs.apache` ran with 0 failed cases but its evidence gate refused PASS because the worktree was not clean; the cached `httpd` also resolved `libpcre2-8` from the system library path, so this run is not valid runtime evidence |
 
+## Provisioning retry follow-up, 2026-11-21
+
+The published helper wrote its incomplete stamp after `venv --clear`. A failure
+during that subprocess could leave a partially created environment without a
+stamp, so the next attempt refused it as unmanaged. The follow-up preserves the
+stamp while clearing the old contents and creating the environment.
+
+A task-owned standard-library regression suite outside the checkout reproduced
+the missing stamp against the published helper. All five cases passed after the
+change. They cover failed creation followed by retry, interrupted cleanup,
+preservation of an unmanaged environment, safe symlink removal and real local
+venv creation with `pip check`. The reviewed dependency installer was stubbed
+only in the real-venv case, and no packages were downloaded. The Parent-owned
+Python environment ran these checks. Ruff was unavailable in that environment.
+
 ## Security impact
 
 Dependency and tool installation is narrowed for local runs: Python packages
@@ -179,7 +196,7 @@ database at run time.
 
 ## Checks not run and rationale
 
-- SonarCloud is not evaluated for this change by explicit user decision.
+- The current SonarCloud findings and CI results must be verified after publishing the follow-up.
 - `make test` on a clean committed revision with the pinned PCRE2/APR runtime
   libraries was not run; the earlier runs above are not counted as passed.
 - Hosted CI runs only after the push.
@@ -191,3 +208,5 @@ database at run time.
 
 Task branch `claude/python-env-autoprovision-20261119`, delivered as a draft
 pull request for review; no merge is part of this change.
+
+The security-tool helper binds the canonical destination to the independently configured `RUNNER_TEMP/security-tools` directory and checks the checkout boundary before installation. The root Makefile exports this run context. Direct helper calls must configure it, and `--base` confirms the interpreter already running the Python-environment helper. `PYTHON_BASE` still selects the interpreter used by the Makefile to launch the helper. Eight destination checks, five interpreter-identity checks, five provisioning-retry checks and the Makefile environment-export check passed. The SonarCloud result for this follow-up remains to be verified after publication.

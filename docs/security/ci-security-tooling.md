@@ -44,6 +44,11 @@ automatic step a tool that cannot be installed is reported as a warning, and
 the checks that need it fail with their own message. CI workflows keep fetching
 their tools explicitly; the helper does not run there.
 
+The root Makefile exports `RUNNER_TEMP` to the helper. Direct callers must
+configure the same absolute run directory in the environment and pass its
+`security-tools` child as `--destination`. The helper checks their canonical
+equality and the checkout boundary before using the configured child for writes.
+
 ## Constrained workflow/tool updater
 
 `.github/workflows/update-workflow-tools.yml` keeps `resolver`, `validator`,

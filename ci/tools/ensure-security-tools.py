@@ -243,17 +243,28 @@ def tool_detail(name: str, error: Exception) -> str:
     return detail if detail.startswith(f"{name}:") else f"{name}: {detail}"
 
 
-def prepare_destination(destination: Path) -> None:
-    if not destination.is_absolute() or destination.is_relative_to(ROOT):
+def prepare_destination(destination: Path) -> Path:
+    if not destination.is_absolute():
         raise Blocked("the tool directory must be absolute and outside the checkout")
     if destination.is_symlink():
         raise Blocked(f"{destination} must not be a symlink")
-    destination.mkdir(mode=0o700, parents=True, exist_ok=True)
-    destination.chmod(0o700)
+    configured = os.environ.get("RUNNER_TEMP", "")
+    if not configured or not Path(configured).is_absolute():
+        raise Blocked("RUNNER_TEMP must select an absolute run-private directory")
+    approved = Path(configured).resolve() / "security-tools"
+    if approved.is_relative_to(ROOT):
+        raise Blocked("the tool directory must be absolute and outside the checkout")
+    if approved.is_symlink():
+        raise Blocked(f"{approved} must not be a symlink")
+    if destination.resolve() != approved:
+        raise Blocked("--destination must match RUNNER_TEMP/security-tools")
+    approved.mkdir(mode=0o700, parents=True, exist_ok=True)
+    approved.chmod(0o700)
+    return approved
 
 
 def run(destination: Path, selected: list[str], verbose: bool) -> int:
-    prepare_destination(destination)
+    destination = prepare_destination(destination)
     provisioner = Provisioner(destination, verbose)
     names = selected or provisioner.known()
     unknown = sorted(set(names) - set(provisioner.known()))
@@ -282,7 +293,8 @@ def run(destination: Path, selected: list[str], verbose: bool) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--destination", type=Path, required=True)
+    parser.add_argument("--destination", type=Path, required=True,
+                        help="confirm the RUNNER_TEMP/security-tools directory")
     parser.add_argument("--tool", action="append", default=[], help="limit to this tool")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()

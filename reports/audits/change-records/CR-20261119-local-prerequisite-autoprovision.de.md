@@ -69,8 +69,11 @@ entstehen, wo ein lokaler Lauf es braucht.
   `requirements-ci.lock`. Ein Stempel hält Identität, Eingaben,
   Installer-Receipt und eine Prüfung der installierten Distributionen fest; der
   schnelle Pfad akzeptiert nur eine passende Identität mit unveränderter Prüfung.
-  Direkt nach dem Anlegen der Umgebung wird ein vorläufiger Stempel
-  (`state: incomplete`) geschrieben.
+  Vor dem Entfernen alter vom Helper verwalteter Inhalte wird ein vorläufiger
+  Stempel (`state: incomplete`) geschrieben. Die Bereinigung erhält diesen
+  Stempel, entfernt Symlinks ohne ihnen zu folgen und ruft `venv` ohne
+  `--clear` auf. Fehlgeschlagenes Anlegen und abgebrochene Bereinigung erhalten
+  die Eigentumskennzeichnung für den nächsten Versuch.
 - Ohne `PYTHON_ENV_ROOT` ist die Umgebung `.venv` im Checkout. Mit dieser
   Variable liegen versionierte Umgebungen `<role>-<version>-<identity>` in diesem
   Speicher, die Links `parent`/`framework` zeigen auf die zuletzt bereitgestellte
@@ -148,6 +151,24 @@ Helper-Versionen.
 | `make quick-check` auf dem finalen Diff, Umgebung aus dem lokalen `msc-test-env.sh` mit frischem `RUNNER_TEMP` | Exit 0 nach 814 s; der automatische Schritt installierte zuerst alle fünf Werkzeuge, der Python-Schritt nahm den schnellen Pfad |
 | `make test` mit einer früheren Helper-Revision | Exit 2 nach 1808 s; die vier Workflow-Fixture-Ausführungen bestanden mit dem laufprivaten `zizmor`; `runtime.no-crs.apache` lief mit 0 fehlgeschlagenen Fällen, sein Evidence-Gate verweigerte PASS aber, weil der Worktree nicht sauber war; das gecachte `httpd` löste außerdem `libpcre2-8` aus dem Systembibliothekspfad auf, daher ist dieser Lauf keine gültige Runtime-Evidence |
 
+## Nacharbeit zur Wiederholung der Bereitstellung, 2026-11-21
+
+Der veröffentlichte Helper schrieb seinen vorläufigen Stempel nach
+`venv --clear`. Ein Fehler in diesem Unterprozess konnte eine teilweise
+angelegte Umgebung ohne Stempel hinterlassen, die beim nächsten Versuch als
+unverwaltet abgelehnt wurde. Die Nacharbeit erhält den Stempel während der
+Bereinigung alter Inhalte und beim Anlegen der Umgebung.
+
+Eine Task-eigene Regressionstest-Suite aus der Standardbibliothek außerhalb des
+Checkouts reproduzierte den fehlenden Stempel mit dem veröffentlichten Helper.
+Nach der Änderung bestanden alle fünf Fälle. Sie prüfen fehlgeschlagenes Anlegen
+mit erneutem Versuch, abgebrochene Bereinigung, den Erhalt einer unverwalteten
+Umgebung, sicheres Entfernen von Symlinks und das echte lokale Anlegen einer Venv
+mit `pip check`. Nur im Fall mit echter Venv wurde der geprüfte
+Abhängigkeitsinstaller durch einen Stub ersetzt. Es wurden keine Pakete
+heruntergeladen. Die Parent-eigene Python-Umgebung führte diese Prüfungen aus.
+Ruff war in dieser Umgebung nicht verfügbar.
+
 ## Security-Auswirkung
 
 Die Installation von Abhängigkeiten und Werkzeugen wird für lokale Läufe
@@ -193,8 +214,8 @@ der Online-Schwachstellendatenbank ab.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-- SonarCloud wird für diese Änderung auf ausdrückliche Entscheidung des Nutzers
-  nicht ausgewertet.
+- Die aktuellen SonarCloud-Befunde und CI-Ergebnisse sind nach Veröffentlichung
+  der Nacharbeit zu prüfen.
 - `make test` auf einer sauberen committeten Revision mit den gepinnten
   PCRE2-/APR-Laufzeitbibliotheken wurde nicht ausgeführt; die früheren Läufe oben
   gelten nicht als bestanden.
@@ -208,3 +229,5 @@ der Online-Schwachstellendatenbank ab.
 
 Task-Branch `claude/python-env-autoprovision-20261119`, als Draft-Pull-Request zur
 Prüfung geliefert; ein Merge ist nicht Teil dieser Änderung.
+
+Der Security-Tool-Helfer bindet den kanonischen Zielpfad an das unabhängig konfigurierte Verzeichnis `RUNNER_TEMP/security-tools` und prüft die Checkout-Grenze vor der Installation. Das Root-Makefile exportiert diesen Laufkontext. Direkte Helper-Aufrufe müssen ihn konfigurieren, und `--base` bestätigt den Interpreter, der den Python-Umgebungshelper bereits ausführt. `PYTHON_BASE` wählt weiterhin den Interpreter, mit dem das Makefile den Helper startet. Acht Zielpfadprüfungen, fünf Interpreter-Identitätsprüfungen, fünf Bereitstellungs-Wiederholungsprüfungen und die Prüfung des Makefile-Umgebungsexports bestanden. Der SonarCloud-Befundstand für diese Nacharbeit ist nach Veröffentlichung zu prüfen.

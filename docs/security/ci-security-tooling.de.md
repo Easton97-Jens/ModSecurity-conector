@@ -45,6 +45,12 @@ Schritt wird ein nicht installierbares Werkzeug als Warnung gemeldet, und die
 Checks, die es benötigen, schlagen mit ihrer eigenen Meldung fehl. CI-Workflows
 holen ihre Werkzeuge weiterhin ausdrücklich; der Helper läuft dort nicht.
 
+Das Root-Makefile exportiert `RUNNER_TEMP` an den Helper. Direkte Aufrufer müssen
+dasselbe absolute Laufverzeichnis in der Umgebung konfigurieren und dessen
+Kind `security-tools` als `--destination` übergeben. Der Helper prüft die
+kanonische Gleichheit und die Checkout-Grenze, bevor er das konfigurierte
+Kindverzeichnis für Schreibzugriffe verwendet.
+
 ## Eingeschränkter Workflow-/Tool-Updater
 
 `.github/workflows/update-workflow-tools.yml` behält `resolver`, `validator`,

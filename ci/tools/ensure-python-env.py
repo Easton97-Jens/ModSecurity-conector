@@ -120,8 +120,18 @@ def interpreter_version(executable: str) -> str | None:
 
 def select_base(version: str, explicit: str | None) -> Path:
     """Return the real path of an interpreter with exactly the pinned version."""
+    if explicit:
+        located = explicit if os.sep in explicit else shutil.which(explicit)
+        running = Path(sys.executable).resolve()
+        if not located or Path(located).resolve() != running:
+            raise Blocked("--base must identify the interpreter running this helper; "
+                          "launch the helper with the selected PYTHON_BASE")
+        if "%d.%d.%d" % sys.version_info[:3] != version:
+            raise Blocked(f"the running interpreter does not match Python {version} "
+                          f"selected by {VERSION_FILE}")
+        return running
     major_minor = ".".join(version.split(".")[:2])
-    candidates = [explicit] if explicit else [sys.executable, f"python{major_minor}", "python3"]
+    candidates = [sys.executable, f"python{major_minor}", "python3"]
     seen = []
     for candidate in candidates:
         located = candidate if os.sep in candidate else shutil.which(candidate)
@@ -252,10 +262,18 @@ def installer_environment(checkout: Checkout) -> dict[str, str]:
 def install(selected: Layout, base: Path, role: str, checkout: Checkout) -> dict:
     """Create the environment and fill it only through the reviewed installer."""
     environment = selected.environment
-    subprocess.run([str(base), "-I", "-m", "venv", "--clear", str(environment)], check=True)
-    # Mark the environment as helper-owned before anything can fail, so an
-    # interrupted run is provisioned again instead of reported as unmanaged.
+    environment.mkdir(parents=True, exist_ok=True)
+    # Keep ownership recorded throughout cleanup and venv creation so failures
+    # and interruptions leave an environment that can be provisioned again.
     write_stamp(environment, {"schema": SCHEMA, "role": role, "state": "incomplete"})
+    for entry in environment.iterdir():
+        if entry.name == STAMP:
+            continue
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    subprocess.run([str(base), "-I", "-m", "venv", str(environment)], check=True)
     build_root = Path(tempfile.mkdtemp(prefix=f".build-{role}-", dir=selected.store))
     child = installer_environment(checkout)
     command = [str(environment / VENV_PYTHON), "-P", str(checkout.framework / INSTALLER),
@@ -350,7 +368,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--role", choices=("parent", "framework"), default="parent")
-    parser.add_argument("--base", help=f"interpreter with the exact {VERSION_FILE}")
+    parser.add_argument("--base", help=f"confirm the running interpreter selected by {VERSION_FILE}")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     try:
