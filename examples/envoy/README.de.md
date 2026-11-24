@@ -1,239 +1,131 @@
-# Envoy-ext_proc-Beispiele
+# Envoy-Beispiele
 
 **Sprache:** [English](README.md) | Deutsch
 
 ## Integration und Grenze
 
-Integrationsmodus: Envoy ext_proc mit einem repository-eigenen gRPC-Prozessor.
-Das [Safe-Template](safe/envoy-ext-proc-streaming.yaml.in) verwendet STREAMED
-für Request- und Response-Body. Zusammen mit
-[safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) ist es die
-native HTTP/1.1-P1--P4-Safe-Referenz.
-
-P1 sind Request-Header, P2 Request-Body, P3 Response-Header und P4
-Response-Body. Safe bedeutet, dass ein spätes P4-Ergebnis als Log-only
-aufgezeichnet wird und nicht als später HTTP-Statuswechsel oder
-deterministischer Stream-Reset behauptet wird. Das Template verspricht weder
-einen vollständigen Connector-Response-Buffer noch ein clientbeobachtetes First
-Byte oder einen Strict-Abbruch nach dem Commit. Das
-[Strict-Profilgrenze](#strict-profilgrenze) dokumentiert die optionale Grenze,
-ohne ein striktes Transportergebnis zu behaupten.
-
-Das verbliebene [ext_authz-Kompatibilitätsbeispiel](#ext_authz-kompatibilität)
-ist nur für die Request-Phase. Die vollständige logische ext_authz-Lösung
-liegt unter `ext-authz/{off,safe,strict,all}` und ergänzt den verpflichtenden
-privaten UDS-Response-Observer für P3/P4.
-
-## Dateien
-
-| Pfad | Typ | Zweck |
-| --- | --- | --- |
-| [off/envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in) | Template | Gestreamte ext_proc-Transportform mit abgeschalteter zusätzlicher Late-Policy. |
-| [off/envoy-ext-proc-service.json](off/envoy-ext-proc-service.json) | Service-Konfiguration | Validierte Prozessorlimits für das Off-Kompatibilitätsprofil. |
-| [off/msconnector-runtime.conf](off/msconnector-runtime.conf) | Runtime-Konfiguration | Common-Runtime-Profil mit `phase4_mode=off`. |
-| [safe/envoy-ext-proc-streaming.yaml.in](safe/envoy-ext-proc-streaming.yaml.in) | Template | Envoy-Listener, ext_proc-Filter und gRPC-/Upstream-Cluster. |
-| [safe/envoy-ext-proc-service.json](safe/envoy-ext-proc-service.json) | Service-Konfiguration | Grenzen und Safe-Late-Action-Policy des Prozessors. |
-| [ext-proc/all/](ext-proc/all/) | Logisches Bundle | Umfassende ext_proc-Template-, Service- und Runtime-Konfiguration mit Strict-P4-Policy. |
-| [ext-authz/all/](ext-authz/all/) | Logisches Bundle | Umfassende ext_authz- plus private Response-Observer-Konfiguration mit Strict-P4-Policy. |
-| [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Runtime-Konfiguration | DetectionOnly-Regeln mit dem ausgewählten ext_proc-Transport; siehe [DetectionOnly-Profil](#detectiononly-profil). |
-| [disabled/msconnector-runtime.conf](disabled/msconnector-runtime.conf) | Runtime-Konfiguration | Runtime deaktiviert, Host-YAML bleibt transportorientiert; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
-| [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
-| [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
-| [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | No-CRS-Regelquelle und Phasen-IDs. |
-| [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, keine Run-Evidence. |
-| [Off-ext_proc-Referenz](#off-ext_proc-referenz) | Dokumentation | Vollständige gestreamte Transportform mit nativer Interventionsbehandlung. |
-| [ext_authz-Kompatibilität](#ext_authz-kompatibilität) | Kompatibilität | Frühere Request-Authorization-Route. |
+`ext_proc` verwendet den repository-eigenen gRPC-Prozessor. `ext_authz`
+benötigt zusätzlich seinen privaten UDS-Response-Observer. Beide logischen
+Lösungen besitzen vollständige Bündel für die vier Beispielvarianten.
 
 ## Vollständige logische Profilmatrix
 
-Jede logische Envoy-Lösung besitzt ein materialisierbares Bundle für
-`off`, `safe`, `strict` und `all`. Jedes Bundle enthält ein Host-Template und eine
-Common-Runtime-Konfiguration mit sichtbaren Limits und Modi.
-
 | Logische Lösung | Off | Safe | Strict | All | P1/P2 | P3/P4 |
 | --- | --- | --- | --- | --- | --- | --- |
-| ext_proc | [Bundle](ext-proc/off/) | [Bundle](ext-proc/safe/) | [Bundle](ext-proc/strict/) | [Bundle](ext-proc/all/) | ext_proc | ext_proc |
-| ext_authz | [Bundle](ext-authz/off/) | [Bundle](ext-authz/safe/) | [Bundle](ext-authz/strict/) | [Bundle](ext-authz/all/) | ext_authz | privater UDS-ext_proc-Observer |
+| ext_proc | [Bündel](ext-proc/off/) | [Bündel](ext-proc/safe/) | [Bündel](ext-proc/strict/) | [Bündel](ext-proc/all/) | ext_proc | ext_proc |
+| ext_authz | [Bündel](ext-authz/off/) | [Bündel](ext-authz/safe/) | [Bündel](ext-authz/strict/) | [Bündel](ext-authz/all/) | ext_authz | Privater UDS-ext_proc-Observer |
 
-Der ext_authz-Observer erhält nur das einmalige opaque Handle des
-Authorization-Service und anschließend Response-Header/-Body. Fehlende,
-abgelaufene oder abweichende Handles werden fail-closed behandelt. Sein Socket
-wird vom Envoy-Harness in ein privates, nur dem Eigentümer zugängliches
-Runtime-Verzeichnis gerendert; der Default im Quelltext ist
-`/run/modsecurity/envoy-ext-authz-companion.sock`.
+Der ext_authz-Observer beansprucht ein einmaliges undurchsichtiges Handle für
+die Response-Verarbeitung. Fehlende, abgelaufene oder abweichende Handles
+werden fail-closed behandelt. Der Harness legt seinen Socket in einem privaten,
+nur dem Eigentümer zugänglichen Runtime-Verzeichnis ab. Der Quelltext-Default
+ist `/run/modsecurity/envoy-ext-authz-companion.sock`. Der Observer entfernt
+`x-msconnector-response-handle` vor dem Upstream-Routing.
 
-Die P1-Fortsetzung des Observers entfernt
-`x-msconnector-response-handle` ausdrücklich vor dem Upstream-Routing; das
-opaque Handle ist daher für die Anwendung nicht sichtbar.
+## Dateien
 
-Alle obigen Pfade sind ab examples/envoy repository-relativ. Die erzeugte
-Runtime-Konfiguration muss außerhalb des Checkouts geschrieben werden.
-
-## Template-Werte und Service-Felder
-
-| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel, Auswirkung und Sicherheit |
-| --- | --- | --- | --- |
-| @ENVOY_RELEASE@ | Gepinnter Envoy-Release-String | Im Template-Kommentar Pflicht; Connector-Version-Lock setzt ihn; Materialisierungs-Scope | 1.38.2. Dokumentiert die beabsichtigte API-Version; keine Runtime-Evidence. |
-| @LISTEN_PORT@ | Dezimaler TCP-Listener-Port von 1 bis 65535 | Pflicht; Connector-Preparation-Skript setzt ihn; Listener-Scope | 18080. Öffentliche Adresse oder Port verändert die Exponierung. |
-| @UPSTREAM_PORT@ | Dezimaler Application-Backend-Port | Pflicht; Connector-Preparation-Skript setzt ihn; Upstream-Cluster | 18081. Nur über den Materialisierungsinput ersetzen. |
-| @EXT_PROC_PORT@ | Dezimaler lokaler gRPC-Prozessor-Port | Pflicht; Connector-Preparation-Skript setzt ihn; gRPC-Cluster | 18083. An der vertrauenswürdigen Envoy/Service-Grenze privat halten. |
-| @ADMIN_PORT@ | Dezimaler Envoy-Administrationsport | Pflicht; Connector-Preparation-Skript setzt ihn; Admin-Listener | 19001. Admin-Endpunkte nur mit explizitem Sicherheitsdesign exponieren. |
-| listen_address | Prozessor-Host:Port-String | Pflicht; explizit in JSON; Prozessor-Scope | 127.0.0.1:18083. Muss zum ext_proc-Cluster-Endpunkt passen. |
-| transaction_id_header | HTTP-Headername | Pflicht; explizit in JSON; Transaction-Scope | x-request-id. Korrelationsmetadaten, kein Credential. |
-| max_header_count, max_header_name_bytes, max_header_value_bytes, max_total_header_bytes | Positive Metadatenlimits | Pflicht; explizit in JSON; Prozessor-Scope | 128, 256, 8192, 32768. Kleinere Werte lehnen mehr Traffic ab; Limits nicht entfernen. |
-| max_body_chunk_bytes, max_grpc_message_bytes | Grenzen für einzelne Chunks und gRPC-Nachrichten | Explizit in JSON; Prozessor-Scope | 1048576 und 1114112. Diese Kontrollen gelten pro Nachricht, nicht für die Gesamtgröße von Request oder Response. |
-| late_action_policy | Name der Late-P4-Policy | Pflicht; explizit in JSON; Prozessor-Scope | safe. Erlaubt weder synthetischen späten Response-Status noch Reset. |
-
-Die literalen @NAME@-Werte sind Template-Marker, keine Envoy-Felder. Der
-Repository-Materializer ersetzt sie und weist ungelöste Marker zurück.
-
-## Konfigurationsreferenz
-
-Die generierte [Konfigurationsreferenz](configuration-reference.de.md)
-dokumentiert ext_proc-YAML-Pfade, den Service-JSON-Vertrag, CLI-Flags,
-Materializer-Platzhalter und den getrennten ext_authz-Kompatibilitätseintrag.
-
-| Einstellung | Ebene | Aufgabe |
-| --- | --- | --- |
-| `envoy.filters.http.ext_proc` | Host / Connector | Sendet den ausgewählten Request-/Response-Lifecycle an den Prozessor. |
-| `SecRuleEngine` | ModSecurity Engine | Wählt Engine-Enforcement, DetectionOnly oder Off in der Runtime-Regeldatei. |
-| `request_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Request-Body-Eingabe für die native Bridge. |
-| `response_body_mode` | Common Runtime | Wählt die erforderliche gestreamte Response-Body-Eingabe für die native Bridge. |
-| `late_action_policy` | Connector-Service | Wählt off, safe oder strict; off bewahrt die native Behandlung ohne zusätzliche Late-Policy. |
-
-Das Entfernen von `ext_proc` deaktiviert den Connector-Pfad. `SecRuleEngine Off`
-lässt die Prozessorroute bestehen, deaktiviert aber die Engine-Regelauswertung.
-ext_authz ist nur Kompatibilität und kein P3/P4-Ersatz.
-
-## Profile
+Das eigenständige [Safe-Template](safe/envoy-ext-proc-streaming.yaml.in) und
+[Service-JSON](safe/envoy-ext-proc-service.json) bilden die ext_proc-Referenz
+für die folgenden Validierungsbefehle. Das [Off-Template](off/envoy-ext-proc-streaming.yaml.in),
+[Service-JSON](off/envoy-ext-proc-service.json) und die
+[Runtime-Datei](off/msconnector-runtime.conf) bilden ihr Off-Gegenstück.
 
 ### DetectionOnly-Profil
 
-`detection-only/msconnector-runtime.conf` wird mit dem ausgewählten ext_proc-
-YAML verwendet und wählt DetectionOnly-Regeln. DetectionOnly lädt und bewertet
-Engine-Regeln und zeichnet Treffer auf, führt aber keine disruptiven Engine-
-Aktionen aus.
-
-Nach dem Anpassen der Hostpfade den untenstehenden Connector-
-Validierungsbefehl verwenden. Dieses Profil ist Konfigurationsanleitung und
-keine Runtime-Evidenz.
+[detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf)
+mit dem gewählten ext_proc-YAML verwenden. Die [Regeln](rules/detection-only.conf)
+bewerten und protokollieren Treffer bei deaktivierten disruptiven Engine-Aktionen.
 
 ### Deaktiviertes Profil
 
-`disabled/msconnector-runtime.conf` setzt `enabled=off`; Host-YAML bleibt eine
-getrennte ext_proc-Transportkonfiguration. Dies unterscheidet sich von
-`SecRuleEngine Off`, das bei aktivem Hostconnector die Regelauswertung
-innerhalb der Engine abschaltet.
+[disabled/msconnector-runtime.conf](disabled/msconnector-runtime.conf) setzt
+`enabled=off`. Das YAML beschreibt weiterhin den Transport. Dagegen lassen
+[Engine-Off-Regeln](rules/engine-off.conf) den Connector bei deaktivierter
+Engine-Regelauswertung aktiv.
 
-Nach dem Anpassen der Hostpfade den untenstehenden Connector-
-Validierungsbefehl verwenden. Aus einem deaktivierten Profil kein
-P1--P4-Verhalten ableiten.
+## Template-Werte und Service-Felder
+
+Listener-, Upstream-, Prozessor- und Administrationsendpunkte, installierte
+Regelpfade sowie private Runtime-/Logpfade anpassen. Prozessor- und
+Admin-Endpunkte innerhalb ihrer vertrauenswürdigen Service-Grenze halten.
+`listen_address` des Prozessors muss zum ext_proc-Cluster passen. Der
+Repository-Materializer ersetzt Template-Marker und weist ungelöste Marker ab.
+
+## Konfigurationsreferenz
+
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md) beschreibt
+YAML-Felder, Service-JSON, CLI-Flags, Template-Marker und einzelne
+Header-/Chunk-/gRPC-Nachrichtenlimits. Kumulative Body-Inspektionslimits und
+Aktionen in Engine-Regeln gemäß [Konfiguration](../../docs/configuration.de.md)
+festlegen.
 
 ## P1--P4-Safe-Absicht
 
-Die ext_proc-Referenz setzt beide Body-Modi auf STREAMED und die Service-Policy
-auf safe. Sie ist die native Full-Lifecycle-Referenz. Ein P4-Ergebnis nach dem
-Start der Response wird als Safe-Log-only dargestellt, nicht als behaupteter
-später HTTP-Statuswechsel oder deterministischer Stream-Reset.
-
-Die separate Kompatibilitätskonfiguration kann weder Upstream-Response-Header
-noch -Bodies sehen und ist absichtlich keine vollständige logische
-Connectorlösung. Für den P1--P4-Vertrag die Bundles unter
-`ext-authz/{off,safe,strict,all}` verwenden. Strict dokumentiert die
-Entscheidungsgrenze, verspricht aber keinen künstlichen späten Status nach dem
-Response-Commit durch Envoy.
-
-## No-CRS-Regeln
-
-Der ext_proc-Service lädt die geprüfte installierte Regeldatei aus seiner
-Runtime-Konfiguration. Die Repositoryquelle für das No-CRS-Profil ist
-[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
-
-| Regel-ID | Phase | Zweck |
-| ---: | ---: | --- |
-| 1100001 | P1 | Request-Header-Deny |
-| 1100101 | P2 | Request-Body-Deny |
-| 1100201 | P3 | Response-Header-Deny |
-| 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
+Die HTTP/1.1-ext_proc-Referenz verwendet STREAMED für Request- und Response-Body.
+Safe protokolliert eine P4-Entscheidung nach Beginn der Response-Ausgabe als
+Log-only. Eine Konfigurationsdatei belegt die Konfigurationsabsicht.
+Clientbeobachtbares Verhalten benötigt einen passenden Hostlauf.
 
 ## Off-ext_proc-Referenz
 
-Der ausgewählte Envoy-Kern benötigt gestreamte ext_proc-Eingaben in beiden
-Richtungen. Die Off-Profildateien liefern eine vollständige Transportform in
-[envoy-ext-proc-streaming.yaml.in](off/envoy-ext-proc-streaming.yaml.in),
-ihren validierten Service-Vertrag und eine passende Common-Runtime-Datei mit
-`phase4_mode=off`. Es ist kein nativer Request-only-Pfad: Die Bridge
-benötigt weiterhin STREAMED-Request- und Response-Body-Modi. Das getrennte
-[ext_authz-Request-only-Material](#ext_authz-kompatibilität) bleibt
-Kompatibilitätsmaterial.
+`phase4_mode=off` bewahrt native Interventions- und Fehlerbehandlung bei
+deaktivierter zusätzlicher Late-Policy. Beide Body-Richtungen benötigen
+weiterhin STREAMED-Eingaben. `all` wählt einen echten Policy-Wert wie `strict`.
+
+## No-CRS-Regeln
+
+Eine geprüfte Regeldatei installieren und in der Runtime-Konfiguration wählen.
+Die [No-CRS-Baseline](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)
+ist die Quelle des Repository-Testprofils. Phasen-IDs und Engine-Modi erläutern
+die [Beispielübersicht](../README.de.md) und [Regelbeispiele](../common/rule-examples.de.md).
 
 ## ext_authz-Kompatibilität
 
-Die bewahrte Datei ist das frühere Envoy-Request-Phasen-Beispiel. Sie
-konfiguriert einen HTTP-ext_authz-Aufruf vor dem Routing zum Upstream und bleibt
-vom gestreamten ext_proc-Kern unter [safe/](safe/) getrennt.
-
-### Anzupassende Werte
-
-| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel und Grenze |
-| --- | --- | --- |
-| Listener-Socket-Adresse und port_value | TCP-Listener-Adresse und dezimaler Port | Pflicht; YAML static resources; Listener-Scope | 0.0.0.0:8080. Für lokale Übungen Loopback binden, sofern keine Freigabe beabsichtigt ist. |
-| modsecurity_authz | ext_authz-Clustername | Pflicht; YAML-Cluster und Filter; Filter-Scope | Endpunkt 127.0.0.1:9000. Muss ein vertrauenswürdiger Authorization-Service sein. |
-| server_uri und timeout | Authorization-HTTP-URI und positive Dauer | Pflicht; ext_authz-Filter; Request-Scope | http://127.0.0.1:9000 und 0.2s. Ein Timeout ist keine Response-Phasen-Evidence. |
-| authorization und content-type | Erlaubte Request-Headernamen | Optionaler Filter-Allow-List; Request-Scope | Nur Headernamen, keine Geheimwerte. Keine Credentials in diese Datei schreiben. |
-| app_backend | Upstream-Clustername und Endpunkt | Pflicht; Route und Cluster; Route-Scope | 127.0.0.1:8081. Durch gewünschten Application-Endpunkt ersetzen. |
-
-Die [ext_authz-Konfiguration](compatibility-ext-authz/envoy-ext-authz.yaml)
-macht die spätere Upstream-Response diesem Service nicht zugänglich. Sie ist
-keine P3/P4-Evidence und bleibt nur als Request-only-Kompatibilitätsfixture
-erhalten.
+Das ältere [HTTP-ext_authz-Beispiel](compatibility-ext-authz/envoy-ext-authz.yaml)
+autorisiert ausschließlich Requests. Listener, vertrauenswürdigen
+Authorization-Service, Timeout, Header-Allow-List und Application-Upstream
+anpassen. Für Response-Prüfung die vollständigen `ext-authz/`-Bündel oben verwenden.
 
 ## Validierung
 
-Aus diesem Verzeichnis eine private erzeugte Konfiguration außerhalb des
-Checkouts mit dem repository-eigenen Preparation-Skript materialisieren:
+Aus `examples/envoy` einen absoluten beschreibbaren externen `BUILD_ROOT` und
+das Repository-Preparation-Skript verwenden. OpenSSL erzeugt private eintägige
+Loopback-Test-Credentials für dieses Beispiel.
 
 ~~~sh
 export TLS_CERTIFICATE="$BUILD_ROOT/envoy-ext-proc/runtime-smoke/envoy-loopback.crt"
 export TLS_PRIVATE_KEY="$BUILD_ROOT/envoy-ext-proc/runtime-smoke/envoy-loopback.key"
-mkdir -p "$(dirname "$TLS_CERTIFICATE")"
 umask 077
+mkdir -p "$(dirname "$TLS_CERTIFICATE")"
 openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
   -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 \
   -keyout "$TLS_PRIVATE_KEY" -out "$TLS_CERTIFICATE"
-TLS_CERTIFICATE="$TLS_CERTIFICATE" TLS_PRIVATE_KEY="$TLS_PRIVATE_KEY" \
+TEMPLATE="$PWD/safe/envoy-ext-proc-streaming.yaml.in" \
+  TLS_CERTIFICATE="$TLS_CERTIFICATE" TLS_PRIVATE_KEY="$TLS_PRIVATE_KEY" \
   sh ../../connectors/envoy/config/prepare_envoy_ext_proc_config.sh
 ~~~
 
-Das Skript gibt den erzeugten Konfigurationspfad aus. Zertifikat und Schlüssel
-sind private eintägige Loopback-Test-Credentials, kein Produktionsmaterial.
-Sie müssen außerhalb des Checkouts bleiben. Diese erzeugte Datei mit dem
-installierten Envoy-Binary validieren; der Standard liegt unter dem
-dokumentierten `$BUILD_ROOT` außerhalb des Checkouts:
+Das Skript gibt den erzeugten Konfigurationspfad aus. Mit dem installierten
+Envoy-Binary den folgenden Default-Ausgabepfad prüfen oder bei einer
+Überschreibung den tatsächlich ausgegebenen Pfad verwenden.
 
 ~~~sh
 envoy --mode validate -c "$BUILD_ROOT/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml"
 ~~~
 
-Erfolgreiche Materialisierung und Syntaxvalidierung beweisen weder P1--P4-
-Verhalten noch Safe-Host-Ergebnisse, Strict-Verhalten, Produktionsreife oder
-CRS-Abdeckung.
+Materialisierung und Syntaxprüfung belegen Dateivorbereitung und Host-Laden.
+Die [Testanleitung](../../docs/testing-and-evidence.de.md) beschreibt Runtime-Validierung.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
 Der ext_proc-Service akzeptiert `late_action_policy: strict` mit passendem
-`phase4_mode=strict`. Eine späte disruptive Entscheidung sendet
-ImmediateResponse über den Local-Reply-Pfad des angehefteten nativen Envoy.
-Nach bereits kodierten Headern setzt der Host den betroffenen Downstream-
-Stream zurück. Der separate Framework-H2-Adapter prüft den tatsächlichen Reset
-mit gesundem gleichzeitigem Peer und Folgezugriff; erfolgreicher gRPC-Send
-allein belegt ihn nicht.
-
-Safe-ext_proc-Template und Service-Vertrag verwenden, generiertes YAML und
-Service-JSON validieren und die erforderliche Host-Evidenz ergänzen, bevor ein
-striktes Transportergebnis aktiviert wird.
+`phase4_mode=strict`. Eine späte ImmediateResponse verwendet den Local-Reply-Pfad
+des gepinnten Envoy-Hosts, der nach kodierten Headern den betroffenen
+Downstream-Stream zurücksetzt. Der Framework-H2-Adapter prüft den Reset zusammen
+mit einem gesunden Peer und Folgezugriff. Dieses Hostergebnis für den gewählten
+Lauf nachweisen.
 
 ## Verwandtes Material
 
-- [Envoy-Connector-Quellcode und ext_proc-Grenze](../../connectors/envoy/README.de.md)
+- [Envoy-Connector-Anleitung](../../connectors/envoy/README.de.md)
 - [Repository-Beispielübersicht](../README.de.md)

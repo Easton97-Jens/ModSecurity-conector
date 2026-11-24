@@ -1,217 +1,109 @@
-# HAProxy native HTX examples
+# HAProxy examples
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Integration and boundary
-
-Integration mode: native HTX filter. The native [off](off/haproxy-htx.cfg)
-and [Safe](safe/haproxy-htx.cfg), plus [Strict](strict/haproxy-htx.cfg) and
-[all](all/haproxy-htx.cfg), are the native HTX solution. The
-[SPOE/SPOP solution](#spoespop-response-companion-solution) has matching
-off, safe, strict, and all bundles and combines request-side SPOE/SPOP
-with the native HTX response companion. The all layouts use the existing
-strict policy value; they do not create an `all` P4 policy.
-
-The Safe file selects phase4-mode safe for the selected HTTP/1.1 P1--P4 core.
-It is a configuration reference for the patched host filter, not a claim that
-stock HAProxy loads it. P1, P2, P3, and P4 mean request headers, request body,
-response headers, and response body. At the late P4 boundary Safe preserves a
-response instead of fabricating a status change. This directory does not claim
-a complete response buffer, per-chunk rule execution, or a client-observed
-Strict abort. The [Strict profile boundary](#strict-profile-boundary) records the optional
-parser boundary without claiming a native host abort.
+Choose native HTX or SPOE/SPOP with its native HTX response companion. Both
+require the patched HAProxy filter parser. These references cover HTTP/1.1.
 
 ## Files
 
-| Path | Type | Purpose |
+| Layout | Native HTX | SPOE/SPOP with response companion |
 | --- | --- | --- |
-| [off/haproxy-htx.cfg](off/haproxy-htx.cfg) | Host configuration | Native HTX off compatibility mode; engine inspection remains enabled. |
-| [safe/haproxy-htx.cfg](safe/haproxy-htx.cfg) | Host configuration | Native HTTP/1.1 P1--P4 Safe reference. |
-| [strict/haproxy-htx.cfg](strict/haproxy-htx.cfg) | Host configuration | Native HTX parser-supported strict policy boundary. |
-| [all/haproxy-htx.cfg](all/haproxy-htx.cfg) | Host configuration | Comprehensive native HTX layout with every source-backed filter setting visible. |
-| [spoe-spop/off/](spoe-spop/off/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, off compatibility mode. |
-| [spoe-spop/safe/](spoe-spop/safe/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, Safe. |
-| [spoe-spop/strict/](spoe-spop/strict/) | Logical bundle | SPOE/SPOP P1/P2 plus native HTX companion P3/P4, strict boundary. |
-| [spoe-spop/all/](spoe-spop/all/) | Logical bundle | Complete SPOE/SPOP P1/P2 and private native-HTX P3/P4 companion layout. |
-| [detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) | Host configuration | Native connector with DetectionOnly rules; see [DetectionOnly profile](#detectiononly-profile). |
-| [disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) | Host configuration | Native filter omitted; see [Disabled profile](#disabled-profile). |
-| [rules/detection-only.conf](rules/detection-only.conf) | Rules | DetectionOnly engine settings. |
-| [rules/engine-off.conf](rules/engine-off.conf) | Rules | Engine-Off settings, distinct from disabling the connector. |
-| [No-CRS rules](#no-crs-rules) | Documentation | Canonical No-CRS rules-file source and IDs. |
-| [P1--P4 semantics and topology](#p1-p4-semantics-and-topology) | Documentation | Shared phase meaning and logical composition. |
-| [SPOE/SPOP response companion solution](#spoespop-response-companion-solution) | Logical solution | Current response-capable SPOE/SPOP bundles. |
-| [SPOE/SPOP compatibility material](#spoespop-compatibility-material) | Compatibility | Historical request/header-only examples, not P3/P4 proof. |
+| `off` | [haproxy-htx.cfg](off/haproxy-htx.cfg) | [bundle](spoe-spop/off/) |
+| `safe` | [haproxy-htx.cfg](safe/haproxy-htx.cfg) | [bundle](spoe-spop/safe/) |
+| `strict` | [haproxy-htx.cfg](strict/haproxy-htx.cfg) | [bundle](spoe-spop/strict/) |
+| `all` | [haproxy-htx.cfg](all/haproxy-htx.cfg) | [bundle](spoe-spop/all/) |
 
-The native references use host installation values: listener 127.0.0.1:8080,
-upstream 127.0.0.1:8081, and rules file
-/etc/modsecurity/no-crs-baseline.conf. None is a repository-relative path.
+`off` preserves native intervention handling. `all` exposes the complete
+configuration and selects the accepted `phase4-mode strict` value.
 
 ## Values to adapt
 
-| Name | Purpose and format | Required/default, setter, scope | Example, effect, and security |
-| --- | --- | --- | --- |
-| filter modsecurity-htx | Patched HAProxy filter directive | Required; no stock-host default; configured in frontend scope | The patched host must provide this parser. A stock binary rejecting it is a configuration incompatibility, not a reason to fall back silently. |
-| rules-file | Readable installed rules file | Required; no repository default; filter argument; frontend scope | /etc/modsecurity/no-crs-baseline.conf. A reviewed ruleset can block traffic. |
-| phase4-mode | P4 policy: off, safe, or strict | Optional filter argument; set in frontend scope; the Safe file sets safe | safe. It records a late P4 result without treating it as a status rewrite. |
-| bind address | Listener TCP address | Required; host config; frontend scope | 127.0.0.1:8080. Choose a private address for local testing; a public bind changes exposure. |
-| upstream server | Backend host and TCP port | Required; host config; backend scope | 127.0.0.1:8081. Replace with the intended application endpoint. |
-| timeout connect/client/server | Positive HAProxy duration | Required in these references; host config; defaults scope | 2s and 5s. Tune for the application; timeouts are not WAF decisions. |
-
-The No-CRS rule IDs and their phase meanings are in
-[No-CRS rules](#no-crs-rules). The historical SPOE options and their separate
-limits remain in [SPOE/SPOP compatibility material](#spoespop-compatibility-material).
-
-## Configuration reference
-
-The generated [configuration reference](configuration-reference.md) separates
-the native HTX parser from the SPOE/SPOP compatibility files.
-
-| Setting | Layer | Task |
-| --- | --- | --- |
-| `filter modsecurity-htx` | Host / Connector | Attaches the selected native HTX lifecycle filter. |
-| `SecRuleEngine` | ModSecurity Engine | Evaluates rules loaded through `rules-file`. |
-| `SecRequestBodyAccess` | ModSecurity Engine | Allows P2 input when native HTX supplies it. |
-| `SecResponseBodyAccess` | ModSecurity Engine | Allows P4 input when native HTX supplies it. |
-| `phase4-mode` | Connector / Common policy | Requests off, safe, or strict late-P4 policy. |
-
-Removing the native filter disables the connector path. `SecRuleEngine Off`
-does not remove the filter, but it disables engine rule processing. `filter
-spoe` remains a separate compatibility route, not a native HTX setting.
+Set `rules-file`, listener, upstream, and connect/client/server timeouts for the
+installation. The references use `127.0.0.1:8080`, `127.0.0.1:8081`, and
+`/etc/modsecurity/no-crs-baseline.conf`. Body access, inspection limits, and
+limit actions belong in engine rules. Syntax, defaults, and route-specific
+settings are in the generated [configuration reference](configuration-reference.md).
 
 ## Profiles
 
 ### DetectionOnly profile
 
-`detection-only/haproxy-htx.cfg` keeps the native HTX filter and selects the
-DetectionOnly rules file. DetectionOnly loads and evaluates engine rules and
-records matches, but it does not apply disruptive engine actions.
-
-After adapting the host paths, use the connector validation command below.
-This profile is configuration guidance, not runtime evidence.
+[detection-only/haproxy-htx.cfg](detection-only/haproxy-htx.cfg) keeps the filter
+active and uses [DetectionOnly rules](rules/detection-only.conf), which evaluate
+and log matches while suppressing disruptive engine actions.
 
 ### Disabled profile
 
-`disabled/haproxy-htx.cfg` omits `filter modsecurity-htx`; SPOE is not
-substituted. This is distinct from `SecRuleEngine Off`, which leaves an active
-host connector but disables rule evaluation inside the engine.
-
-After adapting the host paths, use the connector validation command below. Do
-not infer P1--P4 behavior from a disabled profile.
+[disabled/haproxy-htx.cfg](disabled/haproxy-htx.cfg) omits the native filter.
+With the filter active, [rules/engine-off.conf](rules/engine-off.conf) disables
+engine evaluation through `SecRuleEngine Off`.
 
 ## P1--P4 semantics and topology
 
-The native HTX Safe reference selects phase4-mode safe. It is meant for the
-patched native filter path, not the SPOE/SPOP compatibility service. A P4
-decision after a response has started is recorded as Safe log-only behavior;
-the configuration does not promise a status replacement or a Strict abort.
-
-The off reference preserves native intervention handling; the
-Strict reference selects `phase4-mode strict`. Strict is a policy request at
-the host boundary; the current source records a post-commit strict request as
-`not_attempted` when an abort cannot safely be performed. No bundle claims a
-client-visible late abort.
-
-| Phase | Native HTX | SPOE/SPOP logical solution |
+| Phase | Native HTX | SPOE/SPOP solution |
 | --- | --- | --- |
-| P1 | HTX request headers -> engine | HAProxy SPOE request message -> SPOP agent |
-| P2 | bounded HTX request body + EOS -> engine | buffered bounded `req.body` SPOE argument + SPOP agent |
-| P3 | HTX response headers -> engine | native HTX response companion claims opaque MRC1 handle over private UDS |
-| P4 | bounded HTX response chunks + EOS -> engine | native HTX response companion forwards bounded chunks and exactly one EOS |
+| P1 | Request headers to engine | SPOE request message to SPOP agent |
+| P2 | Request body and EOS to engine | Bounded buffered `req.body` to agent |
+| P3 | Response headers to engine | HTX companion claims opaque MRC1 handle over private UDS |
+| P4 | Response chunks and EOS to engine | HTX companion sends bounded chunks and exactly one EOS |
+
+Safe records a late P4 decision as log-only after response output has started.
+The SPOE request route retains its host buffering and frame limits.
+
+## Strict profile boundary <a id="strict-profile-boundary"></a>
+
+The parser accepts `phase4-mode strict`. The current host path records a
+post-commit abort request as `not_attempted` when it cannot perform the abort
+safely. Validate client-visible behavior on the selected host/profile.
 
 ## SPOE/SPOP response-companion solution
 
-Each bundle contains `haproxy.cfg`, `spoe.cfg`, and `spoa-agent.conf`. The
-four variants differ only in the selected P4 policy and their private
-socket/log paths. All applicable bounded parameters remain visible:
+Each bundle contains `haproxy.cfg`, `spoe.cfg`, and `spoa-agent.conf`. Adapt the
+private socket and log paths together with the process identity.
 
-| Parameter | Checked-in value | Boundary |
-| --- | ---: | --- |
-| `tune.bufsize` / `max-frame-size` | 65536 / 65532 | HAProxy and SPOE request bounds |
-| `response-body-timeout` / `spoe-timeout` | 2000 / 2000 ms | companion and agent timeout |
-| `max-transactions` / `worker-count` | 64 / 8 | bounded state, deterministic ownership, and peer isolation |
-| `response-companion-uid/gid` | 1000 / 1000 | must equal the agent process identity |
+| Parameter | Reference value |
+| --- | --- |
+| `tune.bufsize` / `max-frame-size` | 65536 / 65532 |
+| `response-body-timeout` / `spoe-timeout` | 2000 / 2000 ms |
+| `max-transactions` / `worker-count` | 64 / 8 |
+| `response-companion-uid/gid` | 1000 / 1000, matching agent identity |
 
-The `response-companion=native-htx` setting, private UDS, matching UID/GID,
-bounded protocol frames, EOS, and timeout controls are mandatory startup
-requirements. Missing correlation or companion failure is fail-closed and
-cleaned up; no native transaction pointer crosses the UDS. The private UDS
-path is an example and must be changed together with the service identity.
+`response-companion=native-htx`, private UDS, matching UID/GID, bounded frames,
+EOS, and timeouts are mandatory startup requirements. Correlation or companion
+failure is fail-closed with cleanup. Only opaque handles cross the UDS.
 
 ## No-CRS rules
 
-The native HTX references consume an installed copy of the repository-owned
-[No-CRS baseline rules](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
-The rules-file value in the HAProxy filter is a host installation path, not a
-path relative to the HAProxy process.
-
-| Rule ID | Phase | Purpose |
-| ---: | ---: | --- |
-| 1100001 | P1 | Request-header deny |
-| 1100101 | P2 | Request-body deny |
-| 1100201 | P3 | Response-header deny |
-| 1100301 | P4 | Response-body decision used by the Safe boundary |
+Install a reviewed copy of the [No-CRS baseline](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)
+at the configured rules path. IDs `1100001`, `1100101`, `1100201`, and `1100301`
+correspond to P1, P2, P3, and P4. See the
+[shared rule guide](../common/rule-examples.md).
 
 ## SPOE/SPOP compatibility material
 
-The preserved files below are historical compatibility references. They are
-not the P1--P4 solution; use the [response-companion bundles](#spoespop-response-companion-solution)
-for a response-capable logical connector.
+The historical [request-only](compatibility-spoe/haproxy-request-only.cfg) and
+[response-header](compatibility-spoe/haproxy-response-headers.cfg) illustrations
+use [SPOE mapping](compatibility-spoe/spoe-modsecurity.conf) and
+[SPOA process settings](compatibility-spoe/modsecurity-agent.conf).
+Response-body controls are disabled with `response-body-timeout=0`.
+The [legacy strict-abort sample](compatibility-spoe/legacy-phase4-strict-abort.cfg)
+is disabled. Use the response-companion bundles above for P3/P4 body handling.
 
-| File | Scope |
-| --- | --- |
-| [haproxy-request-only.cfg](compatibility-spoe/haproxy-request-only.cfg) | Request SPOE group for P1/P2-style request decisions. |
-| [haproxy-response-headers.cfg](compatibility-spoe/haproxy-response-headers.cfg) | Adds response-header SPOE; it is not response-body processing. |
-| [spoe-modsecurity.conf](compatibility-spoe/spoe-modsecurity.conf) | SPOE agent, group, message, and returned-variable mapping. |
-| [modsecurity-agent.conf](compatibility-spoe/modsecurity-agent.conf) | SPOA process settings. |
-| [legacy-phase4-strict-abort.cfg](compatibility-spoe/legacy-phase4-strict-abort.cfg) | Disabled historical sample; never use as P4 evidence. |
-
-### Values to adapt
-
-| Name | Purpose and format | Required/default, setter, scope | Example and boundary |
-| --- | --- | --- |
-| filter spoe engine modsecurity config | HAProxy SPOE filter and readable agent file | Required; host configuration; frontend scope | /etc/haproxy/spoe-modsecurity.conf. This selects compatibility SPOE, not native HTX. |
-| send-spoe-group | Request or response-header SPOE message group | Required for its matching file; host configuration; request/response scope | request-check or response-check. response-check does not send a response body. |
-| be_spoa_modsecurity | SPOP backend name and endpoint | Required; host configuration; backend scope | 127.0.0.1:12345. It must match the agent listen value. |
-| groups and register-var-names | SPOE group names and returned transaction variables | Required; spoe-modsecurity.conf; agent scope | request-check response-check and blocked/action/status fields. Names must match HAProxy enforcement expressions. |
-| max-frame-size | Positive SPOE frame byte limit | Required; spoe-modsecurity.conf; agent scope | 65532. It bounds a frame; it does not create P4 body support. |
-| rules-file | Readable agent rules file | Required; modsecurity-agent.conf; SPOA scope | /etc/modsecurity/haproxy-rules.conf. A reviewed ruleset can block traffic. |
-| decision-log, audit-log, log-file | Writable process log paths | decision-log required; others optional; SPOA scope | /var/log/haproxy-modsecurity. Protect metadata and do not log secrets. |
-| response-body-timeout | Compatibility response-body controls | Explicitly disabled; SPOA scope | 0. They must not be presented as P4 support. |
-
-The SPOP address 127.0.0.1:12345, HAProxy listener 127.0.0.1:8080, upstream
-127.0.0.1:8081, and /etc or /var/log paths are host examples, not
-repository-relative paths.
-
-This historical path must not be used to claim native HTX behavior, P4 response-body
-handling, Safe late behavior, Strict abort behavior, first-byte-before-EOS
-behavior, or no-full-response-buffer behavior.
+For compatibility files, align the SPOP backend with agent `listen`, group and
+returned-variable names with enforcement expressions, and all rules/log paths.
+The sample SPOP endpoint is `127.0.0.1:12345`. Retain frame bounds and protect
+metadata logs. Detailed fields are in the configuration reference.
 
 ## Validation
 
-Place the selected reference in an installed patched HAProxy configuration,
-adapt rules-file and addresses, then run the installed host checker:
+After adapting the selected files, use the installed patched host checker.
 
 ~~~sh
 haproxy -c -f /etc/haproxy/haproxy.cfg
 ~~~
 
-The path is a distribution example; select the real host configuration path.
-A successful check proves that this HAProxy binary parsed the file. It does not
-prove P1--P4 outcomes, P4 client behavior, Strict aborts, production readiness,
-or that the SPOE/SPOP compatibility path has native HTX properties.
-
-## Strict profile boundary <a id="strict-profile-boundary"></a>
-
-The native HTX parser accepts `phase4-mode strict`, and the checked-in native
-and SPOE/SPOP bundles select it. The current host path records the requested
-abort as `not_attempted` when response bytes are already committed; this is not
-an abort guarantee.
-
-Set the optional argument on the native filter, validate with `haproxy -c -f
-<config>`, and do not represent it as a client-visible abort without new host
-evidence.
-
-## Related material
-
-- [HAProxy connector source and native HTX boundary](../../connectors/haproxy/README.md)
-- [Repository examples overview](../README.md)
+Select the actual installed configuration path. Runtime enforcement requires
+profile-specific traffic evidence. See the
+[HAProxy connector guide](../../connectors/haproxy/README.md) and
+[examples index](../README.md).

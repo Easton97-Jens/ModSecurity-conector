@@ -2,190 +2,90 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-## Integration und Grenze
-
-Integrationsmodus: natives httpd-Modul. [Off-Kompatibilitätsreferenz](off/httpd.conf),
-[Safe-Referenz](safe/httpd.conf), [Strict-Referenz](strict/httpd.conf) und
-[vollständige Referenz](all/httpd.conf) wählen die native HTTP/1.1-P1--P4-
-Konfigurationsform. P1 sind Request-Header, P2 Request-Body, P3 Response-
-Header und P4 Response-Body. Die vollständige Referenz verwendet den
-existierenden parsergültigen Wert `strict`; `all` ist ein Beispiel-Layout und
-kein vierter Wert für `modsecurity_phase4_mode`.
-
-Die vollständige Datei lässt beide Host-Korrelationsüberschreibungen bewusst
-inaktiv. Common erzeugt die kanonische Transaktions-ID eindeutig; eine externe
-Host-ID darf erst nach dem Nachweis aktiviert werden, dass sie eindeutig und
-nicht request-abgeleitet ist.
-
-Apache folgt dem gemeinsamen progressiven Phase-4-Vertrag: Es hängt jeden
-Response-Daten-Bucket genau einmal an libmodsecurity an und leitet diesen
-Bucket anschließend ohne Warten auf EOS an den nächsten Apache-Filter weiter.
-Nur das terminale EOS-Fragment bleibt lange genug erhalten, um die Response-
-Body-Verarbeitung abzuschließen und die eine finale Entscheidung aufzulösen.
-Das verspricht keine Regelentscheidung pro Chunk. Nach einer committed
-Response zeichnet Safe ein disruptives Ergebnis als <code>log_only</code> auf
-und setzt fort; Strict verwendet den nativen Connection-Abort-Pfad. Die
-[Strict-Profilgrenze](#strict-profilgrenze) behauptet kein client-sichtbares
-Abbruchergebnis, bevor ein Host-Runtime-Test eines beobachtet.
+Das native httpd-Modul muss zur ABI der installierten Apache-Version passen.
+Diese HTTP/1.1-Referenzen decken Request-Header/-Body (P1/P2) und
+Response-Header/-Body (P3/P4) ab.
 
 ## Dateien
 
-| Pfad | Typ | Zweck |
-| --- | --- | --- |
-| [off/httpd.conf](off/httpd.conf) | Host-Konfiguration | Begrenzter nativer P1--P4-Start mit abgeschalteter zusätzlicher Late-Policy. |
-| [safe/httpd.conf](safe/httpd.conf) | Host-Konfiguration | Begrenzte native P1--P4-Safe-Referenz. |
-| [strict/httpd.conf](strict/httpd.conf) | Host-Konfiguration | Parserunterstützter Strict-Fallback ohne Behauptung eines client-sichtbaren späten Abbruchs. |
-| [all/httpd.conf](all/httpd.conf) | Host-Konfiguration | Vollständige quellenbasierte Parameterreferenz; sie wählt gültiges `strict`, nicht den Phase-4-Modus `all`. |
-| [detection-only/httpd.conf](detection-only/httpd.conf) | Host-Konfiguration | Nativer Connector mit DetectionOnly-Engine-Regeln; siehe [DetectionOnly-Profil](#detectiononly-profil). |
-| [disabled/httpd.conf](disabled/httpd.conf) | Host-Konfiguration | Auf Apache-Ebene deaktivierter Connector; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
-| [rules/request-only.conf](rules/request-only.conf) | Regeln | Rule-Engine-Einstellungen nur für Requests. |
-| [rules/p1-p4-safe.conf](rules/p1-p4-safe.conf) | Regeln | Begrenzte Response-Body-Einstellungen und lokale P4-Illustration. |
-| [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
-| [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
-| [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | No-CRS-Quelle und Bedeutung der Regel-IDs. |
-| [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, kein Testergebnis. |
+| Konfiguration | Zweck |
+| --- | --- |
+| [off/httpd.conf](off/httpd.conf) | Native Interventionsbehandlung mit abgeschalteter zusätzlicher Late-Policy |
+| [safe/httpd.conf](safe/httpd.conf) | Safe-Einstiegsreferenz für P1–P4 |
+| [strict/httpd.conf](strict/httpd.conf) | Strict-Policy für späte Aktionen |
+| [all/httpd.conf](all/httpd.conf) | Vollständiges Parameterlayout mit `modsecurity_phase4_mode strict` |
+| [detection-only/httpd.conf](detection-only/httpd.conf) | Aktiver Connector mit DetectionOnly-Regeln |
+| [disabled/httpd.conf](disabled/httpd.conf) | Durch `modsecurity off` deaktivierter Connector |
 
-Alle Pfade in dieser Tabelle sind ab examples/apache repository-relativ. Pfade
-in der Konfiguration, einschließlich /usr/lib/apache2/modules/mod_security3.so,
-/etc/modsecurity und /var/log, sind Beispiele für Hostinstallationen.
+`all` bezeichnet das Layout. Zulässige Phase-4-Werte sind `off`, `safe` und `strict`.
 
 ## Anzupassende Werte
 
-| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel, Auswirkung und Sicherheit |
-| --- | --- | --- | --- |
-| security3_module | Von LoadModule geladenes Modul | Pflicht; kein Repository-Default; Apache-Paket oder lokaler Build; Server-Scope | mod_security3.so an installiertem Modulpfad. Falsche ABI oder falscher Pfad verhindert den Start. |
-| modsecurity_rules_file | Lesbare libmodsecurity-Regeldatei | Pflicht; kein Repository-Default; Host-Konfiguration; Modul-Scope | /etc/modsecurity/modsecurity-phase4.conf. Ein geprüftes Ruleset kann Traffic blockieren. |
-| modsecurity_phase4_mode | Late-P4-Policy: off, safe oder strict | Off-, Safe-, Strict- und vollständige Datei; Host-Konfiguration; Modul-Scope | Die vollständige Datei verwendet bewusst `strict`; `all` ist kein Parserwert. Die Einstellung wählt die Post-Commit-Aktion, ohne bereits weitergeleitete Bytes umzuschreiben. |
-| modsecurity_phase4_log | Ziel für Decision-JSONL | Optional; Host-Konfiguration; Modul-Scope | /var/log/modsecurity/apache-phase4.jsonl. Request-Metadaten schützen und rotieren. Ein root-eigenes Parent-Verzeichnis wird nur unterstützt, wenn es nicht für Gruppe/Andere schreibbar ist und die bestehende finale reguläre Datei dem Apache-Worker gehört; der Öffner normalisiert ihren Modus auf 0600. Sie vorab anlegen und diese Eigentümerschaft beim Rotieren erhalten. |
-| SecResponseBodyLimit / SecResponseBodyLimitAction | WAF-Inspection-Policy der Engine | Engine-Regeln | Die entfernte Direktive modsecurity_phase4_body_limit wird abgewiesen; aus der Host-Konfiguration entfernen. Unabhängige Host-Ressourcenlimits bleiben aktiv. |
-| modsecurity_transaction_id_expr und modsecurity_transaction_id | Optionale Host-Korrelationsüberschreibungen | Optional; Host-Konfiguration; Modul-Scope | Beide stehen in `all/httpd.conf` bewusst als Kommentar. Nur einen validierten, eindeutigen Hostwert aktivieren; URI-abgeleitete oder statische Werte korrelieren Transaktionen nicht sicher. |
-| SecRequestBodyAccess und SecResponseBodyAccess | Request-/Response-Body-Schalter | In passenden Regeln Pflicht; Rule-Engine-Scope | On in Safe-Regeln; Response Access ist bei Request-only Off. |
-| SecResponseBodyMimeType und SecResponseBodyLimitAction | Engine-P4-Scope und Policy über dem Limit | In Safe-Regeln Pflicht; Rule-Engine-Scope | Explizite Text-/JSON-Typen wählen die Engine-Inspektion. Kein Binary-Verhalten oder eine andere Host-Weiterleitungsreihenfolge ableiten. |
-| SecAuditLog | Audit-Log-Ziel | Optional; Regeldatei; Rule-Engine-Scope | /var/log/modsecurity/apache-audit.log. Zugriff und Aufbewahrung steuern. |
+Installierten Modulpfad, `modsecurity_rules_file`, Listener/Upstream und
+Logziele anpassen. Pfade unter `/etc/modsecurity` und `/var/log` sind
+Installationsbeispiele. Body-Zugriff, MIME-Auswahl, Inspektionslimits und
+Limitaktionen in Engine-Regeln konfigurieren. Das veraltete
+`modsecurity_phase4_body_limit` entfernen.
 
-Regel-ID 9002801 gehört nur zu p1-p4-safe.conf. Sie ist weder eine OWASP-CRS-
-noch eine No-CRS-Baseline-ID; siehe [No-CRS-Regeln](#no-crs-regeln).
+Request-Metadaten in `modsecurity_phase4_log` schützen und rotieren. Ein
+root-eigenes Elternverzeichnis muss gegen Schreibzugriffe durch Gruppe/Andere
+geschützt sein. Die reguläre Logdatei vorab mit Apache-Worker-Eigentümerschaft
+anlegen und diese bei Rotation erhalten. Der Öffner setzt Modus `0600`.
 
-## Konfigurationsreferenz
-
-Die generierte [Konfigurationsreferenz](configuration-reference.de.md)
-dokumentiert alle 11 registrierten Apache-Direktiven, die hier verwendeten
-Hostfelder und ihre Parser-/Default-/Merge-Anker.
-
-| Einstellung | Ebene | Aufgabe |
-| --- | --- | --- |
-| `modsecurity on|off` | Host / Connector | Aktiviert oder deaktiviert die Apache-Transaction-Erzeugung. |
-| `SecRuleEngine` | ModSecurity Engine | Wertet geladene Regeln aus und wählt Enforcement, DetectionOnly oder Off. |
-| `SecRequestBodyAccess` | ModSecurity Engine | Stellt dem Engine-P2-Request-Body-Eingaben bereit. |
-| `SecResponseBodyAccess` | ModSecurity Engine | Stellt berechtigte P4-Response-Body-Eingaben bereit. |
-| `modsecurity_phase4_mode` | Connector / Common Policy | Wählt die Post-Commit-Policy. Er schreibt niemals einen Response-Daten-Bucket rückwirkend um, den Apache bereits weitergeleitet hat. |
-
-`modsecurity on` mit `SecRuleEngine Off` erzeugt den Connector-Pfad, schaltet
-aber die Engine-Regelauswertung ab. `modsecurity off` verhindert eine
-Connector-Transaction auch dann, wenn eine Regeldatei `SecRuleEngine On` setzt.
+Die Korrelationsüberschreibungen in `all/httpd.conf` sind auskommentiert.
+`modsecurity_transaction_id_expr` oder `modsecurity_transaction_id` nur mit
+einem validierten, eindeutigen und vom Host erzeugten Wert aktivieren. Syntax,
+Defaults und Merge-Verhalten stehen in der generierten
+[Konfigurationsreferenz](configuration-reference.de.md).
 
 ## Profile
 
 ### DetectionOnly-Profil
 
-`detection-only/httpd.conf` lässt `modsecurity on` aktiv und wählt die
-DetectionOnly-Regeldatei. DetectionOnly lädt und bewertet Engine-Regeln und
-zeichnet Treffer auf, führt aber keine disruptiven Engine-Aktionen aus.
-
-Nach dem Anpassen der Hostpfade den untenstehenden Connector-
-Validierungsbefehl verwenden. Dieses Profil ist Konfigurationsanleitung und
-keine Runtime-Evidenz.
+DetectionOnly wertet Regeln aus und zeichnet Treffer auf, unterdrückt dabei
+disruptive Engine-Aktionen. Dazu dient
+[rules/detection-only.conf](rules/detection-only.conf).
 
 ### Deaktiviertes Profil
 
-`disabled/httpd.conf` setzt `modsecurity off`; Apache erzeugt keine Connector-
-Transaction. Dies unterscheidet sich von `SecRuleEngine Off`, das bei aktivem
-Hostconnector die Regelauswertung innerhalb der Engine abschaltet.
-
-Nach dem Anpassen der Hostpfade den untenstehenden Connector-
-Validierungsbefehl verwenden. Aus einem deaktivierten Profil kein
-P1--P4-Verhalten ableiten.
+`modsecurity off` verhindert Connector-Transaktionen. Bei aktivem Connector
+deaktiviert [rules/engine-off.conf](rules/engine-off.conf) die
+Engine-Regelauswertung über `SecRuleEngine Off`.
 
 ## P1--P4-Safe-Absicht
 
-Die Safe-Referenz konfiguriert die Verarbeitung des nativen httpd-Moduls für
-P1 bis P4 mit einem Response-Body-Limit von 1048576 Byte. Für jeden Nicht-
-Metadaten-Response-Bucket ruft Apache zuerst `msc_append_response_body()` auf
-und ruft anschließend den nächsten Output-Filter mit demselben Bucket auf.
-FLUSH bleibt Host-Metadatum und wird nicht zu Body-Daten. Beim tatsächlichen
-EOS führt Apache `msc_process_response_body()` genau einmal aus und emittiert
-das terminale EOS-Fragment erst nach Abschluss des finalen Entscheidungspfads.
-Dieser Filter hält keine vollständige Response-Kopie.
+[rules/request-only.conf](rules/request-only.conf) aktiviert Request-Inspektion.
+[rules/p1-p4-safe.conf](rules/p1-p4-safe.conf) ergänzt Response-Inspektion und
+die lokale Beispielregel `9002801`. Apache hängt jeden Daten-Bucket an die
+Engine an, leitet ihn weiter und löst die finale Body-Entscheidung bei EOS auf.
+Nach dem Response-Commit zeichnet Safe ein disruptives Ergebnis als
+`log_only` auf und setzt fort.
 
-Das konfigurierbare Byte-Limit begrenzt die inkrementelle Inspektion und
-schlägt fail-closed fehl, bevor ein übergroßer Chunk angehängt werden kann. Es
-ist kein Grund, eine unbegrenzte Response zurückzuhalten. Die C-API lässt die
-wirksame libModSecurity-MIME-Entscheidung für diesen Adapter opak;
-`SecResponseBodyMimeType` wählt die Engine-Inspektion, ändert aber nicht die
-Pass-through-Reihenfolge. Das veraltete
-Safe-Konfiguration.
+## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Dieser Abschnitt dokumentiert Konfigurationsabsicht plus die quellenbasierte
-Reihenfolge, kein client-sichtbares Runtime-Ergebnis. Ein Pre-Commit-Ergebnis
-kann weiter den normalen HTTP-Error-/Redirect-Pfad verwenden. Sobald Apache
-Response-Bytes weitergeleitet hat, zeichnet Safe ein spätes disruptives
-Ergebnis log-only auf und setzt fort; Strict betritt den nativen Connection-
-Abort-Pfad. Die ausführbare vollständige Form ist
-[all/httpd.conf](all/httpd.conf); sie verwendet bewusst die gültige Strict-
-Einstellung und dokumentiert zugleich die Runtime-Evidenzgrenze.
+Strict wählt nach dem Commit den nativen Connection-Abort-Pfad. Das
+client-sichtbare Ergebnis am installierten Host validieren, bevor darauf
+vertraut wird. Der fokussierte Regressionseinstieg ist
+`ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`.
 
 ## No-CRS-Regeln
 
-Die wiederverwendbare No-CRS-Quelle ist
-[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
-Sie ist repository-relativ und soll vom Betreiber als geprüftes Host-Ruleset,
-zum Beispiel /etc/modsecurity/no-crs-baseline.conf, installiert oder kopiert
-werden.
-
-| Regel-ID | Phase | Zweck |
-| ---: | ---: | --- |
-| 1100001 | P1 | Request-Header-Deny |
-| 1100101 | P2 | Request-Body-Deny |
-| 1100201 | P3 | Response-Header-Deny |
-| 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
-
-Die eingecheckte Datei p1-p4-safe.conf ist eine illustrative Apache-
-Regeldatei. Ihre Regel 9002801 gehört nur zu diesem Beispiel und ist weder
-eine OWASP-CRS- noch eine No-CRS-Baseline-ID.
+Eine geprüfte Kopie der [No-CRS-Baseline](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)
+am konfigurierten Regelpfad installieren. Ihre IDs `1100001`, `1100101`,
+`1100201` und `1100301` entsprechen P1, P2, P3 und P4. Die lokale Regel
+`9002801` dient der Illustration. Regel-IDs und Engine-Beispiele erklärt der
+[gemeinsame Regel-Leitfaden](../common/rule-examples.de.md).
 
 ## Validierung
 
-Die gewählten Dateien installieren oder einbinden, alle Hostpfade anpassen und
-die vollständige installierte Apache-Konfiguration prüfen:
+Nach Installation der gewählten Dateien und Anpassung der Pfade die gesamte
+Apache-Konfiguration prüfen.
 
 ~~~sh
 apachectl -t
 ~~~
 
-Nach einem beabsichtigten Reload Apache-Error-Log, Decision-Log und Audit-Log
-prüfen. Ein Syntaxcheck beweist weder P1--P4-Verhalten noch einen
-client-sichtbaren P4-Status, CRS-Abdeckung oder Produktionsreife.
-
-## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
-
-`modsecurity_phase4_mode strict` wird vom Parser unterstützt. Der Source
-markiert die native Connection nach einem committed disruptiven Phase-4-
-Ergebnis als abgebrochen, aber dieses Repository besitzt keinen aktuellen
-Apache-Hostnachweis für das client-sichtbare späte Abbruchergebnis. Strict ist
-deshalb optional und behauptet dieses client-sichtbare Ergebnis nicht. Es gilt
-nur nach dem Commit; es wandelt einen normalen P4-Deny vor Commit nicht in
-einen späten Abbruch um.
-
-Von `safe/httpd.conf` ausgehen, `modsecurity_phase4_mode strict` setzen,
-mit `apachectl -t` validieren und host-spezifische Evidenz erfassen, bevor auf
-eine Post-Commit-Aktion vertraut wird.
-
-Der fokussierte H1/H2-Evidence-Platzhalter ist
-`ci/runtime/lifecycle/run-apache-phase4-response-regression.sh`. Erst nach
-seiner Ausführung werden laufbezogene Artefakte erfasst; diese
-Konfigurationsdokumentation behauptet keinen Pass für eines der Protokolle.
-
-## Verwandtes Material
-
-- [Apache-Connector-Quellcode und Validierungsgrenze](../../connectors/apache/README.de.md)
-- [Repository-Beispielübersicht](../README.de.md)
+Nach einem beabsichtigten Reload Error-, Decision- und Audit-Logs prüfen.
+Runtime-Enforcement benötigt profilspezifische Traffic-Evidenz. Siehe
+[Apache-Connector-Leitfaden](../../connectors/apache/README.de.md) und
+[Beispielindex](../README.de.md).

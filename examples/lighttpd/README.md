@@ -1,234 +1,142 @@
-# lighttpd native-module examples
+# lighttpd examples
 
 **Language:** English | [Deutsch](README.de.md)
 
 ## Integration and boundary
 
-There are two logical solutions. [Stock](stock/) is the traffic-owning
-repository sidecar and performs the complete client-to-private-backend P1--P4
-exchange. [Patched](patched/) is the native `mod_msconnector` module paired
-with the Framework-synchronized patched lighttpd host and its HTTP/1.1
-identity-entity hooks.
-
-The Safe reference configures the P1--P4 shape with phase4_mode safe. P1 is
-request headers, P2 request body, P3 response headers, and P4 response body.
-It is not a claim of client-observed P4 behavior, full response buffering,
-HTTP/2, HTTP/3, compression, file/zero-copy handling, or Strict abort. The
-[Strict profile boundary](#strict-profile-boundary) documents the optional boundary without
-claiming an implemented host abort.
-
-The Stock sidecar takes `--config`, `--listen`, `--upstream`, and
-`--timeout-ms` as command-line arguments. The `stock-sidecar.args` files are
-operator-readable argv records, not a second configuration parser. Both
-endpoints are literal loopback addresses; the sidecar owns cleanup and no
-cross-process transaction registry is needed.
-
-## Files
-
-| Path | Type | Purpose |
-| --- | --- | --- |
-| [stock/](stock/) | Stock solution | `off`, `safe`, `strict`, and `all`; sidecar argv, private backend, and full runtime files. |
-| [patched/](patched/) | Patched solution | `off`, `safe`, `strict`, and `all`; native host and full runtime files. |
-| [detection-only/msconnector-runtime.conf](detection-only/msconnector-runtime.conf) | Runtime configuration | Stock body modes with DetectionOnly rules; see [DetectionOnly profile](#detectiononly-profile). |
-| [disabled/lighttpd.conf](disabled/lighttpd.conf) | Host configuration | Native plugin disabled; see [Disabled profile](#disabled-profile). |
-| [rules/detection-only.conf](rules/detection-only.conf) | Rules | DetectionOnly engine settings. |
-| [rules/engine-off.conf](rules/engine-off.conf) | Rules | Engine-Off settings, distinct from disabling the connector. |
-| [No-CRS rules](#no-crs-rules) | Documentation | No-CRS source and phase IDs. |
-| [P1--P4 Safe intent](#p1-p4-safe-intent) | Documentation | Configuration intent, not run evidence. |
-| [P1--P4 contract](#p1-p4-contract) | Architecture | Same phase meaning for both logical solutions. |
-
-All listed paths are repository-relative from examples/lighttpd. Paths inside
-the configurations are host-installation or host-runtime examples.
-
-## Values to adapt
-
-| Name | Purpose and format | Required/default, setter, scope | Example, effect, and security |
-| --- | --- | --- | --- |
-| server.modules | Ordered installed lighttpd module names | Required; host configuration; server scope | mod_msconnector for Off and mod_proxy plus mod_msconnector for Safe. Use the matching module ABI. |
-| server.document-root, errorlog, pid-file, upload-dirs | Absolute host paths | Required in these references; host configuration; server scope | /srv/lighttpd/htdocs, /srv/lighttpd/log/error.log, /srv/lighttpd/run/lighttpd.pid, /srv/lighttpd/runtime/uploads. Create them with suitable service permissions. |
-| server.bind and server.port | Listener host and decimal port | Required; host configuration; server scope | 127.0.0.1 and 8080. A public bind changes exposure. |
-| msconnector.config-file | Absolute runtime key=value file path | Required; host configuration; module scope | /etc/lighttpd/msconnector-runtime.conf. The file must be readable by the host process. |
-| rules_file | Installed reviewed rules file | Required; runtime configuration; engine scope | /etc/modsecurity/no-crs-baseline.conf. Rules can block traffic. |
-| transaction_id_header | HTTP correlation-header name | Required; runtime configuration; transaction scope | x-modsec-transaction-id. Metadata only; do not use it for secrets. |
-| request_body_mode and response_body_mode | none, buffered, or streaming according to host capability | Required; runtime configuration; engine scope | streaming for the Stock sidecar and matching patched host; never enable streaming on an unpatched native Stock module. |
-| SecRequestBodyLimit, SecRequestBodyLimitAction | Native request inspection limit and action | Engine rule configuration; no connector option or default | The engine chooses Reject or ProcessPartial; SecRequestBodyNoFilesLimit remains an independent native constraint. |
-| phase4_mode | P4 policy: off, safe, or strict | Required in these runtime files; runtime configuration; engine scope | safe for patched Safe; all selects strict. It does not prove a status rewrite or abort. |
-| server.stream-response-body and proxy.server | Patched delivery setting and local upstream route | Required for Patched bundles; host configuration; server scope | 1 and 127.0.0.1:8081. Identity HTTP/1.1 only; do not infer gzip/br or HTTP/2 behavior. |
-| event_path | Writable JSONL metadata destination | Required in these references; runtime configuration; engine scope | /var/log/lighttpd/msconnector-events.jsonl. Protect and rotate it; do not write bodies or secrets. |
-
-## Configuration reference
-
-The generated [configuration reference](configuration-reference.md) documents
-the two registered `msconnector.*` keys, all current Common Runtime keys, and
-the separately labelled sidecar compatibility configuration.
-
-| Setting | Layer | Task |
-| --- | --- | --- |
-| `msconnector.enabled` | Host / Connector | Enables or disables native plugin startup. |
-| `SecRuleEngine` | ModSecurity Engine | Selects enforcement, DetectionOnly, or Off in the runtime rules file. |
-| `request_body_mode` | Common Runtime | Selects stock-none or patched streaming P2 input. |
-| `response_body_mode` | Common Runtime | Selects stock-none or patched streaming P4 input. |
-| `phase4_mode` | Common Runtime | Selects late-P4 policy; source does not implement a strict host abort. |
-
-`msconnector.enabled = "disable"` prevents Common Runtime startup. With the
-plugin enabled, `SecRuleEngine Off` keeps host callbacks but disables engine
-rule evaluation. The sidecar proxy has no native lifecycle claim.
+Stock uses the repository sidecar to own the client-to-private-backend exchange.
+Patched uses `mod_msconnector` with the matching Framework-synchronized patched
+lighttpd host. Both provide P1--P4 inputs through their own integration.
 
 ## Profiles
 
 ### Logical solution bundles
 
-Every bundle contains the topology artifacts, a Common Runtime `key=value`
-file, and (for Stock) the sidecar argv record. Each runtime file uses the
-same bounded header/event controls and incremental body modes and visibly includes source-valid
-inactive rule-source and transaction-ID alternatives as comments. Do not
-enable more than one rule source or use the static transaction ID in
-production.
+| Solution | Off | Safe | Strict | All | Host requirements |
+| --- | --- | --- | --- | --- | --- |
+| Stock | [bundle](stock/off/) | [bundle](stock/safe/) | [bundle](stock/strict/) | [bundle](stock/all/) | Native sidecar, private backend, runtime file, and `stock-sidecar.args`. |
+| Patched | [bundle](patched/off/) | [bundle](patched/safe/) | [bundle](patched/strict/) | [bundle](patched/all/) | Matching patched host/module pair, host configuration, and runtime file. |
 
-| Solution | Variants | P1/P2/P3/P4 owner |
-| --- | --- | --- |
-| Stock | `stock/{off,safe,strict,all}/` | `stock-lighttpd-sidecar`; bounded streaming request and response bodies. |
-| Patched | `patched/{off,safe,strict,all}/` | `mod_msconnector` patched hooks; pre-upstream request gate and identity HTTP/1.1 response scope. |
-
-Stock backends bind only to `127.0.0.1:8081`; the sidecar listens on
-`127.0.0.1:8080` and forwards only to that private backend. Patched configs
-explicitly select `msconnector.request-body-gate = "pre-upstream"`.
+Stock examples listen on `127.0.0.1:8080` and forward to the private backend
+at `127.0.0.1:8081`. Patched examples select
+`msconnector.request-body-gate = "pre-upstream"` and inspect identity HTTP/1.1
+entities through `mod_proxy`. Their scope excludes compressed, HTTP/2, HTTP/3,
+file, and zero-copy responses.
 
 ### P1-P4 contract
 
-P1 means request headers, P2 request body, P3 response headers, and P4
-response body. Allow, block, redirect, rate-limit/host action, Safe/log-only,
-Strict/enforce, timeout, unreachable engine, invalid engine response,
-connector/protocol error, client cancel, upstream disconnect, and cleanup are
-shared Common Runtime decision categories. The host adapter only translates
-the resulting action. Strict selection does not promise an abort after
-response commit.
+P1/P2 are request headers/body and P3/P4 are response headers/body. Common
+Runtime selects the decision and the adapter applies the supported host action.
 
 ### DetectionOnly profile
 
-`detection-only/msconnector-runtime.conf` is a legacy native compatibility
-profile. The canonical Stock and Patched solutions are the six variant bundles
-above, each of which covers P1--P4.
-
-After adapting the host paths, use the connector validation command below.
-This profile is configuration guidance, not runtime evidence.
+The older [detection-only runtime file](detection-only/msconnector-runtime.conf)
+is a native compatibility example. Its [DetectionOnly rules](rules/detection-only.conf)
+evaluate and record matches with disruptive engine actions disabled. Use the
+Stock or Patched bundles above for the complete topology.
 
 ### Disabled profile
 
-`disabled/lighttpd.conf` sets `msconnector.enabled = "disable"` and no runtime
-file is required. This is distinct from `SecRuleEngine Off`, which leaves an
-active host connector but disables rule evaluation inside the engine.
+[disabled/lighttpd.conf](disabled/lighttpd.conf) sets
+`msconnector.enabled = "disable"` and requires no runtime file. The
+[Engine-Off rules](rules/engine-off.conf) keep the connector active with engine
+rule evaluation disabled.
 
-After adapting the host paths, use the connector validation command below. Do
-not infer P1--P4 behavior from a disabled profile.
+## Values to adapt
+
+Adapt module ABI and installation paths, document root, logs, PID/upload paths,
+listeners, upstreams, runtime files, and reviewed rules paths. Create runtime
+and event directories with service-appropriate permissions. Activate one rule
+source and use transaction-specific IDs. Keep event JSONL limited to metadata.
+
+## Configuration reference
+
+The generated [configuration reference](configuration-reference.md) documents
+host directives, Common Runtime fields, and compatibility configuration. Choose
+body modes supported by the selected host. Configure body inspection limits
+and actions in engine rules using [Configuration](../../docs/configuration.md).
 
 ## P1--P4 Safe intent
 
-The Patched Safe reference is limited to the matching patched Framework-synchronized lighttpd native
-host and identity HTTP/1.1 entity data through mod_proxy. It selects streaming
-body modes and phase4_mode safe. It neither enables compressed entities nor
-claims HTTP/2, HTTP/3, file, or zero-copy response inspection.
-
-A late P4 decision is a Safe log-only boundary, not a claimed visible 403 or
-Strict abort. All eight canonical bundles contain a strict configuration.
+Safe selects streaming input with `phase4_mode=safe` and log-only handling of
+P4 decisions after response output starts. `off` disables the additional late
+policy while preserving native intervention/error handling. `all` uses the
+existing `strict` policy. Validate client-visible behavior in a matching host run.
 
 ## No-CRS rules
 
-The native module reads the reviewed installed rules file named by
-msconnector.config-file. The repository source for the No-CRS profile is
-[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
-
-| Rule ID | Phase | Purpose |
-| ---: | ---: | --- |
-| 1100001 | P1 | Request-header deny |
-| 1100101 | P2 | Request-body deny |
-| 1100201 | P3 | Response-header deny |
-| 1100301 | P4 | Response-body decision used by the Safe boundary |
+Install a reviewed rules file and select it in the runtime configuration. The
+[No-CRS baseline](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)
+is the repository test-profile source. Phase IDs and engine modes are explained
+in the [examples overview](../README.md) and [rule examples](../common/rule-examples.md).
 
 ## Sidecar compatibility
 
-The retained file is a legacy host-only proxy illustration. It is not one of
-the logical profiles and does not replace the traffic-owning [Stock bundle](stock/)
-or native [Patched bundle](patched/).
+The older [host-only proxy example](compatibility-sidecar/lighttpd-sidecar-proxy.conf)
+illustrates routing to an operator-supplied sidecar. Adapt its listener, backend,
+module and log paths. Choose a complete Stock or Patched bundle above for
+connector lifecycle configuration.
 
-### Values to adapt
+## Stock service setup
 
-| Name | Purpose and format | Required/default, setter, scope | Example and boundary |
-| --- | --- | --- |
-| server.modules | Installed lighttpd proxy and logging modules | Required; host config; server scope | mod_accesslog and mod_proxy. This is not mod_msconnector. |
-| server.document-root and log paths | Host filesystem paths | Required; host config; server scope | /var/empty and relative log names. Replace with writable operator paths. |
-| server.port | Decimal TCP listener port | Required; host config; server scope | 8080. Bind a private listener for a local exercise. |
-| proxy.server host and port | Upstream endpoint | Required; host config; proxy scope | 127.0.0.1:8081. Replace with the intended backend. |
-| $HTTP host expression | lighttpd request Host-header selector | Required in this example; host config; conditional scope | Matches every host. It is a host-language variable, not a shell variable or secret. |
+The launcher reads fixed `stock-sidecar.args` records and executes the installed
+native component at `/usr/libexec/msconnector/lighttpd-stock-sidecar`. The records
+supply `--config`, `--listen`, `--upstream`, and `--timeout-ms`. Both endpoints
+must be literal loopback addresses. From the repository root, launch as the
+service UID after installing the component and adapting rules/event paths.
 
-A separate operator-supplied sidecar remains outside lifecycle claims made by
-the native examples.
+~~~sh
+python3 connectors/lighttpd/launch_stock_sidecar.py --profile safe
+~~~
+
+The accepted profiles are `all`, `off`, `safe`, and `strict`. `--install-root`
+relocates the fixed component, absolute config, and spool paths for staged
+installations. Stage external builds at the fixed component path. The launcher
+validates ownership, permissions, and native artifact type, then executes
+through a pinned descriptor.
+
+Spool directories under `/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`
+must be owned by the effective UID with mode 0700. The launcher creates missing
+children where its UID has write permission and rejects unsafe existing paths.
+An administrator can provision the ancestors and selected profile directory
+with the service's actual UID/GID. These commands describe initial provisioning.
+
+~~~sh
+install -d -o root -g root -m 0755 /var/lib/msconnector /var/lib/msconnector/lighttpd-stock
+install -d -o SERVICE_UID -g SERVICE_GID -m 0700 /var/lib/msconnector/lighttpd-stock/safe
+~~~
+
+Configuration parents such as `/etc/lighttpd` may retain mode 0755. Spool
+admission defaults to `--spool-capacity-bytes` 268435456 (256 MiB) of aggregate
+outstanding reservations and `--spool-free-reserve-bytes` 67108864 (64 MiB) of
+available free space. After P1 allows, the service preallocates the declared
+request using `posix_fallocate` and rechecks free space before body inspection.
+Allocation failures return 503 with a connector resource error. Reservations
+last until descriptor close, and a directory lifetime lock prevents concurrent
+sidecars sharing a spool. Synchronous allocation can outlast deadline checks.
 
 ## Validation
 
-Install the matching lighttpd module and configuration files, adapt all paths,
-then check the installed host configuration. The path below is an installation
-example:
+For Patched, install the matching host/module pair, adapt its configuration,
+and check the installed host file. For Stock, check the private backend
+configuration and the sidecar setup above. The path below is an installation
+example.
 
 ~~~sh
 lighttpd -tt -f /etc/lighttpd/lighttpd.conf
 ~~~
 
-For the Safe reference, also verify the exact patched host/module pair and a
-private local upstream before starting it. A configuration check proves syntax
-and readable inputs only; it does not prove P1--P4 outcomes, Safe host actions,
-Strict behavior, production readiness, or CRS coverage.
+This checks syntax and readable inputs. Use the [testing guide](../../docs/testing-and-evidence.md)
+for runtime validation.
 
 ## Strict profile boundary <a id="strict-profile-boundary"></a>
 
-All eight canonical bundles contain visible Strict configurations. Common
-Runtime admits `phase4_mode=strict` only for the traffic-owning Stock sidecar,
-whose profile has a tested post-commit socket shutdown. It rejects the Patched
-native profile at startup because that host action is not yet proven. Neither
-case claims an untested client result for the patched host.
-
-Validate the matching host/module pair and Common Runtime configuration before
-testing a strict value; do not describe the Patched profile as a runnable
-client abort.
+Common Runtime admits `phase4_mode=strict` for Stock, whose sidecar profile has
+a tested post-commit socket shutdown. Patched rejects it at startup because its
+required host action is unproven. The Strict and `all` bundles expose the
+respective admission behavior.
 
 ## Related material
 
-- [lighttpd connector source and patched-host boundary](../../connectors/lighttpd/README.md)
+- [lighttpd connector guide](../../connectors/lighttpd/README.md)
 - [Repository examples overview](../README.md)
-
-The shipped argv records select separate disk-backed private directories under
-`/var/lib/msconnector/lighttpd-stock/{all,off,safe,strict}`. Launch a profile as the
-service UID using `python3 connectors/lighttpd/launch_stock_sidecar.py --profile safe`.
-The launcher accepts only `all`, `off`, `safe` and `strict`, reads their fixed
-repository argv records, and executes the installed native component at
-`/usr/libexec/msconnector/lighttpd-stock-sidecar`. Arbitrary executable paths,
-argv-file paths and extra options are unsupported. It validates ownership,
-permissions and native artifact type, then executes through a pinned descriptor. The launcher provisions missing
-spool directories and rejects unsafe existing paths without changing their
-permissions. Configuration parents such as `/etc/lighttpd` may remain 0755;
-spool directories must be effective-UID-owned 0700. `--install-root` relocates
-the fixed component path and absolute config/spool paths for staged installations;
-external builds must be staged at that fixed component path. Runtime config contents
-still need installation-specific rules and event paths.
-
-`--spool-capacity-bytes` defaults to 268435456 (256 MiB) aggregate outstanding
-spool reservations per process, rounded to filesystem blocks.
-`--spool-free-reserve-bytes` defaults to 67108864 (64 MiB) unprivileged available
-free space. These are technical disk admission capacities, independent of native
-WAF body policy. After P1 allows, admission checks the pinned filesystem,
-preallocates the complete declared request with `posix_fallocate`, and rechecks
-the free-space floor before any native body append. Failure returns 503 and a
-connector resource error, never a WAF BODY_LIMIT event. There is no sparse-file
-fallback. Reservations remain held until the descriptor closes on every exit,
-including replay, cancellation and receipt failure. A directory lifetime lock
-rejects a second sidecar process using the same directory. Deadline checks before
-and after allocation do not make synchronous regular-file calls cancellable.
-
-An administrator must provision root-owned non-writable ancestors before an
-unprivileged service can use `/var/lib`: for example,
-`install -d -o root -g root -m 0755 /var/lib/msconnector /var/lib/msconnector/lighttpd-stock`,
-then `install -d -o SERVICE_UID -g SERVICE_GID -m 0700 /var/lib/msconnector/lighttpd-stock/safe`
-(and the other selected profiles). These commands describe initial provisioning;
-do not use them to repair existing unsafe paths implicitly. The launcher can
-create missing children only where its effective UID has directory write
-permission; it validates administrator-provisioned paths without elevation.

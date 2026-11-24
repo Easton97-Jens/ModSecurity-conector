@@ -2,157 +2,88 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-## Integration and boundary
-
-Integration mode: native NGINX HTTP module. [off/nginx.conf](off/nginx.conf),
-[safe/nginx.conf](safe/nginx.conf), [strict/nginx.conf](strict/nginx.conf), and
-[all/nginx.conf](all/nginx.conf) cover the bounded HTTP/1.1 P1--P4 contract.
-`all` is a comprehensive configuration layout with a real strict P4 policy,
-not a fourth P4 policy value. Strict records a
-parser-supported configuration shape, not a claim that a late abort or status
-rewrite was observed.
-
-The P4 body filter runs after the response-header path. Safe therefore records
-late outcomes without portraying them as a clean client-visible 403. The
-reference turns gzip off until the byte representation seen by the installed
-module is validated. It does not promise per-chunk P4 evaluation or a full
-connector response buffer.
-
-The native event-sink lifecycle is validated in the separately controlled
-Functional-A hosted path when that gate is available. Protected-B attestation
-is a distinct trust boundary and is not implied by these examples; no current
-runtime claim is made here. `modsecurity_use_error_log on|off` controls only
-forwarding of libmodsecurity messages to NGINX's error log and does not alter
-rule evaluation.
+Use the native HTTP module built for the installed NGINX ABI. These examples
+configure HTTP/1.1 request and response inspection through P1–P4.
 
 ## Files
 
-| Path | Type | Purpose |
-| --- | --- | --- |
-| [off/nginx.conf](off/nginx.conf) | Host configuration | Bounded native P1--P4 reference preserving native intervention handling. |
-| [safe/nginx.conf](safe/nginx.conf) | Host configuration | Bounded P1--P4 Safe reference. |
-| [strict/nginx.conf](strict/nginx.conf) | Host configuration | Explicitly limited Strict configuration shape. |
-| [all/nginx.conf](all/nginx.conf) | Host configuration | Comprehensive native configuration with all source-backed directives visible and `modsecurity_phase4_mode strict`. |
-| [detection-only/nginx.conf](detection-only/nginx.conf) | Host configuration | Native connector with DetectionOnly engine rules; see [DetectionOnly profile](#detectiononly-profile). |
-| [disabled/nginx.conf](disabled/nginx.conf) | Host configuration | Connector disabled at the NGINX layer; see [Disabled profile](#disabled-profile). |
-| [rules/request-only.conf](rules/request-only.conf) | Rules | Request-only settings. |
-| [rules/p1-p4-safe.conf](rules/p1-p4-safe.conf) | Rules | Bounded P4 settings and local illustration. |
-| [rules/detection-only.conf](rules/detection-only.conf) | Rules | DetectionOnly engine settings. |
-| [rules/engine-off.conf](rules/engine-off.conf) | Rules | Engine-Off settings, distinct from disabling the connector. |
-| [No-CRS rules](#no-crs-rules) | Documentation | No-CRS source and rule IDs. |
-| [P1--P4 Safe intent](#p1-p4-safe-intent) | Documentation | Intent only, not test evidence. |
+| Configuration | Purpose |
+| --- | --- |
+| [off/nginx.conf](off/nginx.conf) | Native intervention handling with the additional late policy off |
+| [safe/nginx.conf](safe/nginx.conf) | Safe P1–P4 starting reference |
+| [strict/nginx.conf](strict/nginx.conf) | Strict configuration shape requiring host validation |
+| [all/nginx.conf](all/nginx.conf) | Full directive layout using `modsecurity_phase4_mode strict` |
+| [detection-only/nginx.conf](detection-only/nginx.conf) | Active connector with DetectionOnly rules |
+| [disabled/nginx.conf](disabled/nginx.conf) | Connector disabled with `modsecurity off` |
 
-The listed paths are repository-relative from examples/nginx. Module, rules,
-logs, listener, and upstream values inside them are host examples.
+`all` names the layout. The accepted Phase-4 values are `off`, `safe`, and `strict`.
 
 ## Values to adapt
 
-| Name | Purpose and format | Required/default, setter, scope | Example, effect, and security |
-| --- | --- | --- | --- |
-| load_module path | Installed NGINX dynamic module | Required; no repository default; operator; main scope | modules/ngx_http_modsecurity_module.so. Use a module built for the exact NGINX ABI. |
-| modsecurity_rules_file | Readable libmodsecurity rules file | Required; no repository default; host config; http scope | /etc/modsecurity/modsecurity-phase4.conf. A reviewed ruleset can block traffic. |
-| modsecurity_phase4_mode | P4 policy: off, safe, or strict | Required in Safe, Strict, or all file; host config; http scope | safe in safe/nginx.conf; all selects strict. Strict is configuration-only here. |
-| modsecurity_phase4_log | Native connector-owned P4 JSONL event sink | Optional; http/server/location; inherited when unset | Common no-follow helper requires a safe parent, regular leaf, suitable ownership, and private-`0600` descriptor. Use a validated configuration reload for rotation; generic NGINX `USR1` reopening is not supported. |
-| SecResponseBodyLimit / SecResponseBodyLimitAction | Engine WAF inspection policy | Engine rules | The removed modsecurity_phase4_body_limit directive is rejected; remove it from host configuration. Independent host resource limits remain active. |
-| modsecurity_use_error_log | Forward engine messages to NGINX error log | Optional; host config; http/server/location scope | on in all lifecycle profiles. |
-| modsecurity_transaction_id | Per-request transaction expression | Optional; host config; http/server/location scope | Commented by default because `$request_id` requires a host request-id variable. Enable only a unique, server-generated value; URI- or header-derived values are not suitable for correlation. |
-| modsecurity_rules_remote | Remote rules key and URL | Optional; host config; http/server/location scope | Commented by default because credentials and endpoint ownership are operator-specific. |
-| app_backend and 127.0.0.1:8081 | Upstream group and local TCP endpoint | Required in these proxy references; host config; http scope | Replace with the intended upstream. Loopback avoids accidental exposure during a local test. |
-| listen 127.0.0.1:8080 and server_name example.test | Listener and virtual-host selector | Required in these files; host config; server scope | Replace for the installed host; a public bind changes exposure. |
-| SecResponseBodyLimit | Positive P4 byte bound | Required in bounded P4 rules; rules file; rule-engine scope | 1048576 bytes. Do not infer unbounded behavior from this reference. |
+Set the module path, `modsecurity_rules_file`, listener, `server_name`, upstream,
+and log destinations for the target installation. Check the actual bind
+address before exposing the service. Keep gzip off until the inspected byte
+representation has been validated. Body access, MIME selection, inspection
+limits, and limit actions belong in engine rules. Remove the obsolete
+`modsecurity_phase4_body_limit`.
 
-Rule ID 9001801 is illustrative only, not an OWASP CRS or No-CRS baseline ID;
-see [No-CRS rules](#no-crs-rules).
+The optional `modsecurity_phase4_log` sink requires a safe parent directory,
+a regular file, suitable ownership, and private descriptor mode `0600`. Rotate
+it through a validated configuration reload. Generic NGINX `USR1` reopening is
+unsupported. `modsecurity_use_error_log` controls forwarding engine messages
+to the NGINX error log.
 
-## Configuration reference
-
-The generated [configuration reference](configuration-reference.md) documents
-all 10 registered `ngx_command_t` directives, their `http → server → location`
-contexts, and the surrounding example host fields.
-
-| Setting | Layer | Task |
-| --- | --- | --- |
-| `modsecurity on|off` | Host / Connector | Enables or disables NGINX connector processing in the merged context. |
-| `SecRuleEngine` | ModSecurity Engine | Evaluates loaded rules and selects enforcement, DetectionOnly, or Off. |
-| `SecRequestBodyAccess` | ModSecurity Engine | Makes P2 request-body input available to the engine. |
-| `SecResponseBodyAccess` | ModSecurity Engine | Makes eligible P4 response-body input available to the engine. |
-| `modsecurity_phase4_mode` | Connector / Common policy | Selects requested late-P4 policy; Safe does not promise a late 403. |
-
-`modsecurity off` stops the NGINX access-handler connector path; configured
-rules can still have been loaded during configuration parsing. `SecRuleEngine`
-is an engine setting and does not load or enable the NGINX module by itself.
+Enable `modsecurity_transaction_id` only with a unique server-generated value.
+The commented `$request_id` expression requires that host variable. Remote-rule
+credentials and endpoints require operator configuration. Syntax, contexts,
+and defaults are in the generated
+[configuration reference](configuration-reference.md).
 
 ## Profiles
 
 ### DetectionOnly profile
 
-`detection-only/nginx.conf` keeps `modsecurity on` and selects the
-DetectionOnly rules file. DetectionOnly loads and evaluates engine rules and
-records matches, but it does not apply disruptive engine actions.
-
-After adapting the host paths, use the connector validation command below.
-This profile is configuration guidance, not runtime evidence.
+[rules/detection-only.conf](rules/detection-only.conf) evaluates rules and
+records matches while suppressing disruptive engine actions.
 
 ### Disabled profile
 
-`disabled/nginx.conf` sets `modsecurity off`, so NGINX does not create a
-connector transaction. This is distinct from `SecRuleEngine Off`, which leaves
-an active host connector but disables rule evaluation inside the engine.
-
-After adapting the host paths, use the connector validation command below. Do
-not infer P1--P4 behavior from a disabled profile.
+`modsecurity off` stops the access-handler connector path. Rules can still load
+during configuration parsing. With the connector active,
+[rules/engine-off.conf](rules/engine-off.conf) disables engine evaluation
+through `SecRuleEngine Off`.
 
 ## P1--P4 Safe intent
 
-The Safe config enables the native module, scopes response inspection to the
-listed content types, and uses Safe for a late P4 decision. A late match is not
-a promise that the client sees a replacement 403. The reference also keeps
-gzip off so the inspected byte representation is not assumed.
+[rules/request-only.conf](rules/request-only.conf) enables request inspection.
+[rules/p1-p4-safe.conf](rules/p1-p4-safe.conf) adds response inspection and
+local illustration rule `9001801`. The P4 body filter runs after the
+response-header path. Safe records late outcomes after output has started.
+A replacement client-visible 403 requires an earlier decision.
 
-The Strict config is an available configuration shape only. It does not prove
-a client-observed abort, status rewrite, or complete response buffering.
+## Strict profile boundary <a id="strict-profile-boundary"></a>
+
+The Strict file is parser-supported. Validate post-commit abort behavior on the
+installed NGINX host before relying on it. These files describe configuration
+intent. Hosted event-sink checks and protected NGINX attestation retain their
+separate execution requirements.
 
 ## No-CRS rules
 
-The reusable No-CRS source is
-[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
-Install a reviewed copy at the rules-file path selected in the NGINX
-configuration.
-
-| Rule ID | Phase | Purpose |
-| ---: | ---: | --- |
-| 1100001 | P1 | Request-header deny |
-| 1100101 | P2 | Request-body deny |
-| 1100201 | P3 | Response-header deny |
-| 1100301 | P4 | Response-body decision used by the Safe boundary |
-
-The illustrative p1-p4-safe.conf uses 9001801 only as a local example. It is
-not an OWASP CRS or No-CRS baseline ID.
+Install a reviewed copy of the [No-CRS baseline](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)
+at the configured rules path. Its IDs `1100001`, `1100101`, `1100201`, and
+`1100301` correspond to P1, P2, P3, and P4. The local rule `9001801` is an
+illustration. See the [shared rule guide](../common/rule-examples.md).
 
 ## Validation
 
-Copy or include the selected file in the installed NGINX configuration, adapt
-all host values, then check the complete installed configuration:
+After adapting paths and endpoints, check the complete installed configuration.
 
 ~~~sh
 nginx -t
 ~~~
 
-Inspect the NGINX error log and configured ModSecurity logs after a deliberate
-reload. Validation proves syntax and readable dependencies only; it does not
-prove P1--P4 outcomes, a visible late P4 status, Strict abort, production
-readiness, or CRS coverage.
-
-## Strict profile boundary <a id="strict-profile-boundary"></a>
-
-[strict/nginx.conf](strict/nginx.conf) is a parser-supported Strict
-configuration shape. It does not claim a visible late status rewrite;
-post-commit Strict behavior must be validated against the installed NGINX host.
-
-Adapt paths and endpoints, run `nginx -t`, and treat an abort as a
-host-specific outcome rather than a guaranteed later 403.
-
-## Related material
-
-- [NGINX connector source and validation boundary](../../connectors/nginx/README.md)
-- [Repository examples overview](../README.md)
+After an intentional reload, inspect NGINX and ModSecurity logs. Runtime
+enforcement requires profile-specific traffic evidence. See the
+[NGINX connector guide](../../connectors/nginx/README.md) and
+[examples index](../README.md).

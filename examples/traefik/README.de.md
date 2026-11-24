@@ -1,222 +1,117 @@
-# Traefik-Beispiele für die native Middleware
+# Traefik-Beispiele
 
 **Sprache:** [English](README.md) | Deutsch
 
 ## Integration und Grenze
 
-Integrationsmodus: repository-eigenes Traefik-Local-Plugin plus persistenter
-lokaler Unix-Domain-Socket-Engine-Service. Die
-[statische Off-Referenz](off/traefik-static.yaml) registriert Local
-Plugin und File Provider. Die benachbarten dynamischen Off-Profil- und
-Engine-Service-Dateien wählen dieselbe UDS-Form mit `phase4_mode=off`; die
-[dynamische Safe-Referenz](safe/traefik-dynamic.yaml)
-wählt engineMode uds. Die passende
-[Engine-Service-Konfiguration](safe/traefik-engine-service.conf) wählt
-gestreamte Bodies und phase4_mode safe.
+Das native Profil verwendet das repository-eigene Local Plugin und einen
+persistenten privaten Unix-Domain-Socket-Engine-Service. Das forwardAuth-Profil
+kombiniert Request-Autorisierung mit einem privaten Response-Observer.
 
-Der native UDS-Dienst verwendet für jeden vollständigen Frame eine einzige
-monotone Deadline, schließt Clients bei Überschreitung und begrenzt parallele
-Worker standardmäßig auf 64, höchstens auf 256. Die Grenze wird über die
-Service-CLI-Option `--max-workers N` gesetzt, nicht über eine Traefik-YAML-
-Einstellung. Beim Herunterfahren werden aktive Sockets signalisiert und die
-interne Finalisierung bis zum Ende der Worker aufgeschoben.
+## Vollständige Matrix der logischen Lösungen
 
-Dies ist die native HTTP/1.1-P1--P4-Safe-Referenz. P1, P2, P3 und P4 sind
-Request-Header, Request-Body, Response-Header und Response-Body. Safe behauptet
-weder einen späten Statuswechsel noch einen Strict-Verbindungsabbruch. Die
-Konfiguration verspricht keinen vollständigen Response-Buffer und keine
-Regelbewertung pro Chunk. Die Strict-Profilgrenze dokumentiert die optionale
-Grenze, statt einen ausführbaren Host-Abbruch zu behaupten.
+| Lösung | Off | Safe | Strict | All | Phaseneingabe |
+| --- | --- | --- | --- | --- | --- |
+| Native UDS | [Bündel](native-uds/off/) | [Bündel](native-uds/safe/) | [Bündel](native-uds/strict/) | [Bündel](native-uds/all/) | `modsecurityNative` streamt P1--P4 in einer Transaktion. |
+| forwardAuth + Observer | [Bündel](forwardauth/off/) | [Bündel](forwardauth/safe/) | [Bündel](forwardauth/strict/) | [Bündel](forwardauth/all/) | forwardAuth liefert P1/P2, `modsecurityResponseObserver` liefert P3/P4. |
 
-Die vollständige Matrix liegt unter [native-uds/](native-uds/) und
-[forwardauth/](forwardauth/) und enthält die Bundles `off`, `safe`,
-`strict` und `all`. `all` verwendet den bestehenden Strict-P4-Policy-Wert und
-ist kein vierter Phasenmodus. Die älteren [forwardAuth-Kompatibilitätsdateien](#forwardauth-kompatibilität)
-bleiben Request-only-Beispiele und dürfen nicht als P3/P4-Kernpfad gelten.
+Auf die forwardAuth-Middleware muss unmittelbar der private UDS-Observer folgen.
+Request-Bodies werden begrenzt gepuffert mit `forwardBody: true` und
+`maxBodySize: 4096`. Der Observer beansprucht das undurchsichtige
+Transaktionshandle. Fehlende Handles und Observer-Timeouts werden fail-closed
+behandelt und bereinigen die Transaktion.
 
 ## Dateien
 
-| Pfad | Typ | Zweck |
-| --- | --- | --- |
-| [off/traefik-static.yaml](off/traefik-static.yaml) | Statische Host-Konfiguration | Local-Plugin-Registrierung, Web-EntryPoint und File Provider. |
-| [off/traefik-dynamic.yaml](off/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | UDS-Middleware-/Router-/Service-Form für das Off-Kompatibilitätsprofil. |
-| [off/traefik-engine-service.conf](off/traefik-engine-service.conf) | Engine-Konfiguration | Gestreamte Body-Modi mit abgeschalteter zusätzlicher Late-P4-Policy. |
-| [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Dynamische Host-Konfiguration | Router, Middleware, UDS-Engine-Auswahl und lokaler Upstream. |
-| [safe/traefik-engine-service.conf](safe/traefik-engine-service.conf) | Engine-Konfiguration | Regeln, Limits, gestreamte Body-Modi und Safe-Policy. |
-| [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine-Konfiguration | DetectionOnly-Regeln mit ausgewählter UDS-Middleware; siehe [DetectionOnly-Profil](#detectiononly-profil). |
-| [disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf) | Engine-Konfiguration | Runtime deaktiviert, ohne forwardAuth zu einem nativen Pfad zu machen; siehe [Deaktiviertes Profil](#deaktiviertes-profil). |
-| [rules/detection-only.conf](rules/detection-only.conf) | Regeln | DetectionOnly-Engine-Einstellungen. |
-| [rules/engine-off.conf](rules/engine-off.conf) | Regeln | Engine-Off-Einstellungen, getrennt vom Deaktivieren des Connectors. |
-| [No-CRS-Regeln](#no-crs-regeln) | Dokumentation | No-CRS-Quelle und Phasen-IDs. |
-| [P1--P4-Safe-Absicht](#p1-p4-safe-absicht) | Dokumentation | Konfigurationsabsicht, keine Evidence. |
-| [forwardAuth-Kompatibilität](#forwardauth-kompatibilität) | Kompatibilität | Frühere Request-only-Route. |
-
-Alle obigen Pfade sind ab examples/traefik repository-relativ. Pfade in den
-Dateien sind entweder Hostinstallationspfade oder lokale Testwerte und müssen
-angepasst werden.
-
-## Anzupassende Werte
-
-| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel, Auswirkung und Sicherheit |
-| --- | --- | --- | --- |
-| moduleName | Go-Modulkennung des Local Plugins | Pflicht; expliziter statischer Wert; Traefik-Local-Plugin-Scope | github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware. Passenden Source im installierten Traefik-Local-Plugin-Workspace bereitstellen. |
-| entryPoints.web.address | Listener-Adressstring | Pflicht; expliziter statischer Wert; Traefik-Static-Scope | :8080. Öffentlicher Bind verändert die Exponierung. |
-| providers.file.filename | Dynamischer Konfigurationsdateipfad relativ zum Traefik-Arbeitsverzeichnis | Pflicht; expliziter statischer Wert; File-Provider-Scope | ./traefik-dynamic.yaml. Safe-Dynamic-Datei an diesen aufgelösten Ort kopieren. |
-| Router-Regel und Service-URL | Request-Matcher und Upstream-URL | Pflicht; dynamische Konfiguration; Router/Service-Scope | PathPrefix für alle Pfade und http://127.0.0.1:8081. Routen begrenzen und Endpunkt für Deployment ersetzen. |
-| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, requestBodyIdleTimeoutMillis, maxResponseChunkBytes | Header-, Einzelchunk- und Inaktivitätskontrollen | Dynamische Konfiguration; Middleware-Scope | 128, 65536, 32768, 1000, 32768. Chunk-Puffer werden wiederverwendet; ausschließlich die native Engine wählt Inspection-Limits und Aktionen. |
-| transactionIDHeader | HTTP-Korrelationsheadername | Pflicht; dynamische Konfiguration; Middleware-Scope | X-Request-Id. Metadaten, kein Geheimnis. |
-| engineMode | Nativer Engine-Modus: nur uds | Pflicht; dynamische Konfiguration; Middleware-Scope | uds. Jeder Legacy-passthrough-Wert wird abgelehnt. |
-| engineSocketPath | Absoluter privater Unix-Socket-Pfad | Pflicht; dynamische Konfiguration; Middleware-Scope | /run/traefik-msconnector/engine.sock. Parent-Verzeichnis muss zugriffsgeschützt sein und dem vertrauenswürdigen Service gehören. |
-| rules_file | Installierter geprüfter Rules-Dateipfad | Pflicht; Engine-Konfiguration; Engine-Scope | /etc/modsecurity/no-crs-baseline.conf. Regeln können Traffic blockieren. |
-| request_body_mode und response_body_mode | Engine-Body-Modi | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | streaming. Beweist weder vollständiges Buffering noch späte Client-Action. |
-| phase4_mode | Name der Late-P4-Policy | Für Safe-Referenz Pflicht; Engine-Konfiguration; Engine-Scope | safe. Erlaubt weder erfundenen Status noch Strict-Abbruch. |
-
-## Konfigurationsreferenz
-
-Die generierte [Konfigurationsreferenz](configuration-reference.de.md)
-dokumentiert statische/dynamische YAML-Felder, native Plugin-Defaults, die
-Common-Runtime-Datei und den getrennt markierten forwardAuth-Kompatibilitätsweg.
-
-| Einstellung | Ebene | Aufgabe |
-| --- | --- | --- |
-| `engineMode: uds` | Host / Connector | Wählt den persistenten nativen UDS-Engine-Service. |
-| `SecRuleEngine` | ModSecurity Engine | Wählt Enforcement, DetectionOnly oder Off in der Engine-Regeldatei. |
-| `request_body_mode` | Common Runtime | Wählt die native Engine-P2-Body-Verarbeitung. |
-| `response_body_mode` | Common Runtime | Wählt die native Engine-P4-Body-Verarbeitung. |
-| `phase4_mode` | Common Runtime | Zeichnet die gewünschte Late-P4-Policy auf; Go-Middleware bleibt nach Commit log-only. |
-
-Nur `engineMode: uds` wird akzeptiert. Eine Legacy-`passthrough`-Konfiguration
-wird bei der Plugin-Konstruktion abgelehnt; sie kann nicht als Allow-Fallback
-dienen. `SecRuleEngine Off` lässt die UDS-Route bestehen, deaktiviert aber
-Engine-Regeln. forwardAuth ist ein getrennter Request-only-Kompatibilitätsweg.
-
-## Profile
+Die eigenständige [statische Off-Datei](off/traefik-static.yaml),
+[dynamische Datei](off/traefik-dynamic.yaml) und
+[Engine-Datei](off/traefik-engine-service.conf) zeigen Local-Plugin-Registrierung,
+File-Provider-Anbindung und UDS-Service-Konfiguration. Die [dynamische Safe-Datei](safe/traefik-dynamic.yaml)
+und [Engine-Datei](safe/traefik-engine-service.conf) wählen gestreamte Bodies
+und `phase4_mode=safe`.
 
 ### DetectionOnly-Profil
 
-`detection-only/traefik-engine-service.conf` wird mit der UDS-dynamischen
-Middleware verwendet und wählt DetectionOnly-Regeln. DetectionOnly lädt und
-bewertet Engine-Regeln und zeichnet Treffer auf, führt aber keine disruptiven
-Engine-Aktionen aus.
-
-Nach dem Anpassen der Hostpfade den untenstehenden Connector-
-Validierungsbefehl verwenden. Dieses Profil ist Konfigurationsanleitung und
-keine Runtime-Evidenz.
+[detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf)
+wählt [DetectionOnly-Regeln](rules/detection-only.conf) mit der UDS-Middleware.
+Treffer werden bei deaktivierten disruptiven Engine-Aktionen bewertet und protokolliert.
 
 ### Deaktiviertes Profil
 
-`disabled/traefik-engine-service.conf` setzt `enabled=off`; forwardAuth wird
-dadurch nicht zu einem nativen Pfad. Dies unterscheidet sich von
-`SecRuleEngine Off`, das bei aktivem Hostconnector die Regelauswertung
-innerhalb der Engine abschaltet.
+[disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf)
+setzt `enabled=off`. [Engine-Off-Regeln](rules/engine-off.conf) lassen den
+Connector bei deaktivierter Engine-Regelauswertung aktiv.
 
-Nach dem Anpassen der Hostpfade den untenstehenden Connector-
-Validierungsbefehl verwenden. Aus einem deaktivierten Profil kein
-P1--P4-Verhalten ableiten.
+## Anzupassende Werte
+
+- Den passenden Quelltext von `github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware`
+  im installierten Traefik-Local-Plugin-Workspace bereitstellen.
+- `entryPoints.web.address`, Router-Regeln, Upstream-URL und
+  `providers.file.filename` anpassen. Relative File-Provider-Pfade beziehen
+  sich auf das Traefik-Arbeitsverzeichnis.
+- `engineMode: uds` und einen privaten `engineSocketPath` wie
+  `/run/traefik-msconnector/engine.sock` setzen. Das Elternverzeichnis schützen
+  und dem vertrauenswürdigen Service zuordnen. Legacy-`passthrough` wird abgewiesen.
+- Geprüfte Regeln installieren und `rules_file`, Ereignisziele sowie
+  Berechtigungen anpassen. Eine Regelquelle aktivieren und transaktionsspezifische
+  IDs verwenden. Event-JSONL enthält ausschließlich Metadaten.
+
+Der native Service verwendet eine monotone Deadline pro vollständigem Frame.
+Seine CLI-Option `--max-workers N` begrenzt Worker auf standardmäßig 64 und
+höchstens 256. Beim Herunterfahren signalisiert er aktive Sockets und wartet
+vor der Finalisierung auf die Worker.
+
+## Konfigurationsreferenz
+
+Die generierte [Konfigurationsreferenz](configuration-reference.de.md) beschreibt
+statisches/dynamisches YAML, Plugin-Defaults, Common-Runtime-Felder sowie
+Header-/Chunk-/Inaktivitätskontrollen. Body-Inspektionslimits und Aktionen gehören
+in Engine-Regeln. Siehe [Konfiguration](../../docs/configuration.de.md).
 
 ## P1--P4-Safe-Absicht
 
-Die native Local-Plugin-Referenz verwendet engineMode uds und einen privaten
-lokalen Engine-Socket. Ihre Service-Konfiguration wählt gestreamte Body-Modi
-und phase4_mode safe. Ein P4-Ergebnis nach dem Commit soll Safe-Log-only
-bleiben; es ist kein behaupteter Response-Wechsel oder Strict-
-Verbindungsabbruch.
-
-Die forwardAuth-Dateien sind Request-only-Kompatibilitätsmaterial. Sie dürfen
-nicht zur Beschreibung von P3/P4-Abdeckung benutzt werden. Das
-[Strict-Profilgrenze](#strict-profilgrenze) dokumentiert die optionale Grenze;
-es ist kein Host-Abbruch-Anspruch.
+Die native HTTP/1.1-Referenz verwendet Streaming-Body-Modi und Safe-Log-only
+für P4-Entscheidungen nach dem Response-Commit. `phase4_mode=off` deaktiviert
+die zusätzliche Late-Policy und bewahrt native Behandlung. `all` wählt den
+bestehenden Wert `strict`. Clientbeobachtbares Verhalten benötigt einen passenden Hostlauf.
 
 ## No-CRS-Regeln
 
-Der persistente lokale UDS-Engine-Service benötigt eine installierte geprüfte
-Regeldatei. Die Repositoryquelle für das No-CRS-Profil ist
-[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
-
-| Regel-ID | Phase | Zweck |
-| ---: | ---: | --- |
-| 1100001 | P1 | Request-Header-Deny |
-| 1100101 | P2 | Request-Body-Deny |
-| 1100201 | P3 | Response-Header-Deny |
-| 1100301 | P4 | Response-Body-Entscheidung für die Safe-Grenze |
+Die geprüfte [No-CRS-Baseline](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)
+installieren und im Engine-Service wählen. Phasen-IDs und Engine-Modi erläutern
+die [Beispielübersicht](../README.de.md) und [Regelbeispiele](../common/rule-examples.de.md).
 
 ## forwardAuth-Kompatibilität
 
-Die bewahrten Dateien halten die frühere Request-Authorization-Konfiguration
-fest. Sie sind vom nativen Local-Plugin-/UDS-Kern unter [safe/](safe/) getrennt.
-
-### Anzupassende Werte
-
-| Name | Zweck und Format | Pflicht/Default, Setzer, Geltungsbereich | Beispiel und Grenze |
-| --- | --- | --- |
-| entryPoints.web.address | Listener-Adressstring | Pflicht; statische Datei; Traefik-Static-Scope | :8080. Ein öffentlicher Listener verändert die Exponierung. |
-| providers.file.filename | Dynamischer Dateipfad relativ zum Traefik-Arbeitsverzeichnis | Pflicht; statische Datei; File-Provider-Scope | ./traefik-dynamic.yaml. Für diese Route beide Kompatibilitätsdateien zusammen kopieren. |
-| Router-Regel und entryPoints | Request-Matcher und benannter Entry Point | Pflicht; dynamische Datei; Router-Scope | PathPrefix für alle Pfade und web. Für echtes Deployment begrenzen. |
-| forwardAuth-Adresse | Authorization-Service-HTTP-URL | Pflicht; dynamische Datei; Middleware-Scope | http://127.0.0.1:9000/authorize. Keine Tokens oder Credentials einbetten. |
-| trustForwardHeader | Boolesche Forwarded-Header-Policy | Pflicht; dynamische Datei; Middleware-Scope | false. Änderung verändert die Vertrauensgrenze und benötigt eine explizite Proxy-Header-Policy. |
-| App-Service-URL | Upstream-HTTP-URL | Pflicht; dynamische Datei; Service-Scope | http://127.0.0.1:8081. Für Deployment ersetzen. |
-
-Die [forwardAuth-Konfiguration](compatibility-forwardauth/traefik-dynamic.yaml)
-läuft vor der Upstream-Response-Verarbeitung. Sie darf nicht als P3/P4-
-Prüfung, natives Middleware-Verhalten, Safe-Late-Verhalten,
-Strict-Verhalten, First-Byte-Evidence oder No-Full-Response-Buffer-Evidence
-beschrieben werden.
+Die älteren [dynamischen](compatibility-forwardauth/traefik-dynamic.yaml) und
+[statischen](compatibility-forwardauth/traefik-static.yaml) Dateien zeigen
+Request-Autorisierung. Beide Dateien gemeinsam anpassen, einschließlich
+File-Provider-Pfad, Listener, Router, vertrauenswürdiger Authorization-URL und
+Application-Upstream. Credentials aus URLs heraushalten. Eine Änderung von
+`trustForwardHeader: false` benötigt eine ausdrückliche Vertrauensregel für
+Proxy-Header. Für Response-Prüfung die vollständigen `forwardauth/`-Bündel oben wählen.
 
 ## Validierung
 
-Statische und dynamische Dateien an die vom File Provider gewählten Hostorte
-kopieren, alle Pfade und Endpunkte anpassen und die installierte statische
-Konfiguration validieren. /etc/traefik/traefik.yaml ist ein
-Installationsbeispiel:
+Die ausgewählten statischen/dynamischen Dateien an die File-Provider-Orte
+kopieren, Pfade und Endpunkte anpassen und die installierte statische
+Konfiguration prüfen. `/etc/traefik/traefik.yaml` ist ein Installationsbeispiel.
 
 ~~~sh
 traefik check --configFile=/etc/traefik/traefik.yaml
 ~~~
 
-Zusätzlich prüfen, dass der Engine-Socket privat ist, der Engine-Service die
-Rules-Datei lesen kann und Traefik das Local Plugin lädt. Ein
-Konfigurationscheck beweist weder P1--P4-Verhalten noch Safe-Host-Actions,
-Strict-Verhalten, Produktionsreife oder CRS-Abdeckung.
+Plugin-Laden, privaten Engine-Socket und Service-Zugriff auf die Regeldatei
+prüfen. Ein Konfigurationscheck belegt das Laden. Die [Testanleitung](../../docs/testing-and-evidence.de.md)
+beschreibt Runtime-Validierung.
 
 ## Strict-Profilgrenze <a id="strict-profilgrenze"></a>
 
-Common Runtime weist `phase4_mode=strict` für beide Traefik-Profile beim Start
-ab, weil keines eine nachgewiesene `strict_post_commit_action` besitzt. Dies
-ist ein fail-closed-Konfigurationsfehler, kein später Log-only-Downgrade und
-kein behaupteter Abbruch.
-
-Das Safe-UDS-Setup beibehalten, statische/dynamische Konfiguration und den
-Engine-Service validieren und eine deterministische Hostaktion samt
-Client-Evidenz verlangen, bevor Strict aktiviert wird.
-
-## Vollständige Matrix der logischen Lösungen
-
-Jede logische Lösung besitzt sichtbare Bundles für `off`, `safe`, `strict`
-und `all`. Off und Safe sind zur Laufzeit zulässig; die Strict-Bundles
-sind parsergestützt, werden aber absichtlich vom Common-Runtime-Zulassungsgate
-abgewiesen. Die nativen UDS-Bundles verwenden das repository-eigene
-`modsecurityNative`-Plugin und decken P1/P2/P3/P4 in einer gestreamten
-Transaktion ab. Die forwardAuth-Bundles sind eine logische Lösung aus
-Traefik-`forwardAuth`, unmittelbar gefolgt vom privaten UDS-Plugin
-`modsecurityResponseObserver`: forwardAuth liefert P1 und den begrenzten
-gepufferten P2-Body (`forwardBody: true`, `maxBodySize: 4096`), der Observer
-beansprucht das undurchsichtige Handle für P3/P4. Ein fehlendes Handle oder ein
-Observer-Timeout wird fail-closed behandelt und bereinigt die korrelierte
-Transaktion.
-
-| Lösung | Varianten | P1/P2 | P3/P4 | Hostgrenze |
-| --- | --- | --- | --- | --- |
-| Native UDS | [off](native-uds/off/), [safe](native-uds/safe/), [strict](native-uds/strict/), [all](native-uds/all/) | Natives Plugin, gestreamt und begrenzt | Natives Plugin, gestreamt und begrenzt | Strict-Start wird abgewiesen, bis ein Host-Abbruch nachgewiesen ist. |
-| forwardAuth + Observer | [off](forwardauth/off/), [safe](forwardauth/safe/), [strict](forwardauth/strict/), [all](forwardauth/all/) | forwardAuth plus begrenzter gepufferter Body | Privater Response-Observer über ein undurchsichtiges Handle | Strict-Start wird abgewiesen; kein später clientseitiger Abbruch wird behauptet. |
-
-Jede Runtime-Datei zeigt alle aktuell geparsten Common-Runtime-Schlüssel. Die
-aktive Rules-Quelle ist die geprüfte private `rules_file`; `rules_inline`,
-Remote-Ruleschlüssel, statische `transaction_id` und die optionale
-Content-Type-Datei sind als auskommentierte, gegenseitig ausschließende
-Alternativen sichtbar. Event-JSONL enthält nur Metadaten und nutzt einen
-begrenzten privaten Pfad.
+Common Runtime weist `phase4_mode=strict` für beide Profile beim Start ab, weil
+die erforderliche `strict_post_commit_action` unbewiesen ist. Die Strict- und
+`all`-Bündel zeigen diese Zulassungsgrenze. Off und Safe sind zur Laufzeit zulässig.
 
 ## Verwandtes Material
 
-- [Traefik-Connector-Quellcode und native Service-Grenze](../../connectors/traefik/README.de.md)
+- [Traefik-Connector-Anleitung](../../connectors/traefik/README.de.md)
 - [Repository-Beispielübersicht](../README.de.md)

@@ -1,212 +1,115 @@
-# Traefik native-middleware examples
+# Traefik examples
 
 **Language:** English | [Deutsch](README.de.md)
 
 ## Integration and boundary
 
-Integration mode: repository-owned native Traefik local plugin plus a persistent
-local Unix-domain-socket engine service. The
-[off static reference](off/traefik-static.yaml) registers the local
-plugin and a File Provider. Its adjacent off-profile dynamic and engine-service
-files select the same UDS shape with `phase4_mode=off`; the
-[Safe dynamic reference](safe/traefik-dynamic.yaml) selects engineMode uds.
-The matching [engine-service configuration](safe/traefik-engine-service.conf)
-selects streaming bodies and phase4_mode safe.
+The native profile uses the repository-owned local plugin and a persistent
+private Unix-domain-socket engine service. The forwardAuth profile combines
+request authorization with a private response observer.
 
-The native UDS service applies one monotonic deadline to each complete frame,
-closes clients that exceed it, and bounds concurrent workers to 64 by default
-and 256 maximum. Configure the bound with the service CLI option
-`--max-workers N`; it is not a Traefik YAML setting. Shutdown signals active
-sockets and defers internal finalization until workers have exited.
+## Complete logical-solution matrix
 
-This is the native HTTP/1.1 P1--P4 Safe reference. P1, P2, P3, and P4 mean
-request headers, request body, response headers, and response body. Safe does
-not claim a late status rewrite or Strict connection abort. The configuration
-does not promise a full response buffer or per-chunk rule evaluation. The
-Strict profile boundary documents the optional boundary rather than claiming a
-runnable host abort.
+| Solution | Off | Safe | Strict | All | Phase input |
+| --- | --- | --- | --- | --- | --- |
+| Native UDS | [bundle](native-uds/off/) | [bundle](native-uds/safe/) | [bundle](native-uds/strict/) | [bundle](native-uds/all/) | `modsecurityNative` streams P1--P4 in one transaction. |
+| forwardAuth + observer | [bundle](forwardauth/off/) | [bundle](forwardauth/safe/) | [bundle](forwardauth/strict/) | [bundle](forwardauth/all/) | forwardAuth supplies P1/P2; `modsecurityResponseObserver` supplies P3/P4. |
 
-The complete matrix is under [native-uds/](native-uds/) and
-[forwardauth/](forwardauth/), including `off`, `safe`, `strict`, and
-`all` bundles. `all` uses the existing strict P4 policy value and is not a
-fourth phase mode. The older [forwardAuth compatibility files](#forwardauth-compatibility)
-remain request-only examples; they must not be treated as a P3/P4 core path.
+The forwardAuth middleware must be followed immediately by the private-UDS
+observer. Request bodies use bounded buffering with `forwardBody: true` and
+`maxBodySize: 4096`. The observer claims the opaque transaction handle.
+Missing handles and observer timeouts fail closed and clean up the transaction.
 
 ## Files
 
-| Path | Type | Purpose |
-| --- | --- | --- |
-| [off/traefik-static.yaml](off/traefik-static.yaml) | Static host configuration | Local-plugin registration, web entry point, and File Provider. |
-| [off/traefik-dynamic.yaml](off/traefik-dynamic.yaml) | Dynamic host configuration | UDS middleware/router/service shape for the off compatibility profile. |
-| [off/traefik-engine-service.conf](off/traefik-engine-service.conf) | Engine configuration | Streaming body modes with the additional late-P4 policy off. |
-| [safe/traefik-dynamic.yaml](safe/traefik-dynamic.yaml) | Dynamic host configuration | Router, middleware, UDS engine selection, and local upstream. |
-| [safe/traefik-engine-service.conf](safe/traefik-engine-service.conf) | Engine configuration | Rules, limits, streaming body modes, and Safe policy. |
-| [detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf) | Engine configuration | DetectionOnly rules with the selected UDS middleware; see [DetectionOnly profile](#detectiononly-profile). |
-| [disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf) | Engine configuration | Runtime disabled without turning forwardAuth into a native path; see [Disabled profile](#disabled-profile). |
-| [rules/detection-only.conf](rules/detection-only.conf) | Rules | DetectionOnly engine settings. |
-| [rules/engine-off.conf](rules/engine-off.conf) | Rules | Engine-Off settings, distinct from disabling the connector. |
-| [No-CRS rules](#no-crs-rules) | Documentation | No-CRS source and phase IDs. |
-| [P1--P4 Safe intent](#p1-p4-safe-intent) | Documentation | Configuration intent, not evidence. |
-| [forwardAuth compatibility](#forwardauth-compatibility) | Compatibility | Former request-only route. |
-
-All paths above are repository-relative from examples/traefik. Paths inside the
-files are either host-installation paths or local test values and must be
-adapted.
-
-## Values to adapt
-
-| Name | Purpose and format | Required/default, setter, scope | Example, effect, and security |
-| --- | --- | --- | --- |
-| moduleName | Go module identifier for the local plugin | Required; explicit static value; Traefik local-plugin scope | github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware. Stage matching source in the installed Traefik local-plugin workspace. |
-| entryPoints.web.address | Listener address string | Required; explicit static value; Traefik static scope | :8080. A public bind changes exposure. |
-| providers.file.filename | Dynamic configuration file path relative to Traefik working directory | Required; explicit static value; File Provider scope | ./traefik-dynamic.yaml. Copy the Safe dynamic file to this resolved location. |
-| router rule and service URL | Request matcher and upstream URL | Required; dynamic configuration; router/service scope | PathPrefix for all paths and http://127.0.0.1:8081. Restrict routes and replace endpoint for deployment. |
-| maxHeaderCount, maxHeaderBytes, maxRequestChunkBytes, requestBodyIdleTimeoutMillis, maxResponseChunkBytes | Header, individual chunk and inactivity controls | Dynamic configuration; middleware scope | 128, 65536, 32768, 1000, 32768. Chunk buffers are reused; the native engine alone selects inspection limits and actions. |
-| transactionIDHeader | HTTP correlation header name | Required; dynamic configuration; middleware scope | X-Request-Id. It is metadata, not a secret. |
-| engineMode | Native engine mode: uds only | Required; dynamic configuration; middleware scope | uds. Any legacy passthrough value is rejected. |
-| engineSocketPath | Absolute private Unix socket path | Required; dynamic configuration; middleware scope | /run/traefik-msconnector/engine.sock. The parent directory must be access-controlled and owned by the trusted service. |
-| rules_file | Installed reviewed rules-file path | Required; engine configuration; engine scope | /etc/modsecurity/no-crs-baseline.conf. Rules can block traffic. |
-| request_body_mode and response_body_mode | Engine body modes | Required for Safe reference; engine configuration; engine scope | streaming. This does not itself prove a complete buffer or a late client action. |
-| phase4_mode | Late P4 policy name | Required for Safe reference; engine configuration; engine scope | safe. It does not authorize a fabricated status or Strict abort. |
-
-## Configuration reference
-
-The generated [configuration reference](configuration-reference.md) documents
-static/dynamic YAML fields, native plugin defaults, the Common Runtime file,
-and the separately labelled forwardAuth compatibility path.
-
-| Setting | Layer | Task |
-| --- | --- | --- |
-| `engineMode: uds` | Host / Connector | Selects the persistent native UDS engine service. |
-| `SecRuleEngine` | ModSecurity Engine | Selects enforcement, DetectionOnly, or Off in the engine rule file. |
-| `request_body_mode` | Common Runtime | Selects native engine P2 body handling. |
-| `response_body_mode` | Common Runtime | Selects native engine P4 body handling. |
-| `phase4_mode` | Common Runtime | Records requested late-P4 policy; post-commit Go middleware remains log-only. |
-
-Only `engineMode: uds` is accepted. A legacy `passthrough` configuration is
-rejected during plugin construction; it cannot serve as an allow fallback.
-`SecRuleEngine Off` keeps the UDS route but disables engine rules. forwardAuth
-is a separate request-only compatibility route.
-
-## Profiles
+The standalone [Off static file](off/traefik-static.yaml),
+[dynamic file](off/traefik-dynamic.yaml), and
+[engine file](off/traefik-engine-service.conf) show local-plugin registration,
+File Provider wiring, and UDS service configuration. The [Safe dynamic file](safe/traefik-dynamic.yaml)
+and [engine file](safe/traefik-engine-service.conf) select streaming bodies
+and `phase4_mode=safe`.
 
 ### DetectionOnly profile
 
-`detection-only/traefik-engine-service.conf` is used with the UDS dynamic
-middleware and selects DetectionOnly rules. DetectionOnly loads and evaluates
-engine rules and records matches, but it does not apply disruptive engine
-actions.
-
-After adapting the host paths, use the connector validation command below.
-This profile is configuration guidance, not runtime evidence.
+[detection-only/traefik-engine-service.conf](detection-only/traefik-engine-service.conf)
+selects [DetectionOnly rules](rules/detection-only.conf) with the UDS middleware.
+Matches are evaluated and recorded with disruptive engine actions disabled.
 
 ### Disabled profile
 
-`disabled/traefik-engine-service.conf` sets `enabled=off`; it does not turn
-forwardAuth into a native path. This is distinct from `SecRuleEngine Off`,
-which leaves an active host connector but disables rule evaluation inside the
-engine.
+[disabled/traefik-engine-service.conf](disabled/traefik-engine-service.conf)
+sets `enabled=off`. [Engine-Off rules](rules/engine-off.conf) keep the connector
+active with engine rule evaluation disabled.
 
-After adapting the host paths, use the connector validation command below. Do
-not infer P1--P4 behavior from a disabled profile.
+## Values to adapt
+
+- Stage the matching `github.com/Easton97-Jens/ModSecurity-conector/connectors/traefik/native_middleware`
+  source in the installed Traefik local-plugin workspace.
+- Adapt `entryPoints.web.address`, router rules, upstream URL, and
+  `providers.file.filename`. Relative File Provider paths resolve from the
+  Traefik working directory.
+- Set `engineMode: uds` and a private `engineSocketPath` such as
+  `/run/traefik-msconnector/engine.sock`. Protect its parent directory and
+  give the trusted service ownership. Legacy `passthrough` is rejected.
+- Install reviewed rules and adapt `rules_file`, event destinations, and
+  permissions. Activate one rule source and use transaction-specific IDs.
+  Event JSONL contains metadata only.
+
+The native service applies one monotonic deadline per complete frame. Its
+`--max-workers N` CLI option bounds workers to 64 by default and 256 maximum.
+Shutdown signals active sockets and waits for workers before finalization.
+
+## Configuration reference
+
+The generated [configuration reference](configuration-reference.md) describes
+static/dynamic YAML, plugin defaults, Common Runtime fields, and header/chunk/
+inactivity controls. Body inspection limits and actions belong in engine rules.
+See [Configuration](../../docs/configuration.md).
 
 ## P1--P4 Safe intent
 
-The native local-plugin reference uses engineMode uds and a private local
-engine socket. Its service configuration selects streaming body modes and
-phase4_mode safe. A post-commit P4 result is intended to remain Safe log-only;
-it is not a claimed response rewrite or Strict connection abort.
-
-The forwardAuth files are request-only compatibility material. They must not be
-used to describe P3/P4 coverage. The [Strict profile boundary](#strict-profile-boundary)
-documents the optional boundary; it is not a host-abort claim.
+The native HTTP/1.1 reference uses streaming body modes and Safe log-only
+handling for P4 decisions after response commit. `phase4_mode=off` disables the
+additional late policy while preserving native handling. `all` selects the
+existing `strict` value. Client-visible behavior requires a matching host run.
 
 ## No-CRS rules
 
-The persistent local UDS engine service needs an installed reviewed rules file.
-The repository source for the No-CRS profile is
-[modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf).
-
-| Rule ID | Phase | Purpose |
-| ---: | ---: | --- |
-| 1100001 | P1 | Request-header deny |
-| 1100101 | P2 | Request-body deny |
-| 1100201 | P3 | Response-header deny |
-| 1100301 | P4 | Response-body decision used by the Safe boundary |
+Install the reviewed [No-CRS baseline](../../modules/ModSecurity-test-Framework/tests/rules/no-crs-baseline.conf)
+selected by the engine service. Phase IDs and engine modes are explained in
+the [examples overview](../README.md) and [rule examples](../common/rule-examples.md).
 
 ## forwardAuth compatibility
 
-The retained files preserve the former request-authorization configuration.
-They are separate from the native local-plugin/UDS core in [safe/](safe/).
-
-### Values to adapt
-
-| Name | Purpose and format | Required/default, setter, scope | Example and boundary |
-| --- | --- | --- |
-| entryPoints.web.address | Listener address string | Required; static file; Traefik static scope | :8080. A public listener changes exposure. |
-| providers.file.filename | Dynamic-file path relative to the Traefik working directory | Required; static file; File Provider scope | ./traefik-dynamic.yaml. Copy both compatibility files together if using this route. |
-| router rule and entryPoints | Request matcher and named entry point | Required; dynamic file; router scope | PathPrefix for all paths and web. Restrict for a real deployment. |
-| forwardAuth address | Authorization service HTTP URL | Required; dynamic file; middleware scope | http://127.0.0.1:9000/authorize. Do not embed tokens or credentials in it. |
-| trustForwardHeader | Boolean forwarded-header policy | Required; dynamic file; middleware scope | false. Changing it alters trust boundaries and needs an explicit proxy-header policy. |
-| app service URL | Upstream HTTP URL | Required; dynamic file; service scope | http://127.0.0.1:8081. Replace for deployment. |
-
-[forwardAuth configuration](compatibility-forwardauth/traefik-dynamic.yaml)
-runs before upstream response processing. It must not be described as P3/P4
-inspection, native middleware behavior, Safe late behavior, Strict behavior,
-first-byte evidence, or no-full-response-buffer evidence.
+The older [dynamic](compatibility-forwardauth/traefik-dynamic.yaml) and
+[static](compatibility-forwardauth/traefik-static.yaml) files illustrate
+request authorization only. Adapt both files together, including the File
+Provider path, listener, router, trusted authorization URL, and application
+upstream. Keep credentials out of URLs. Changing `trustForwardHeader: false`
+requires an explicit proxy-header trust policy. Choose the complete
+`forwardauth/` bundles above for response inspection.
 
 ## Validation
 
-Copy the static and dynamic files to the host locations selected by the File
-Provider, adapt all paths and endpoints, and validate the installed static
-configuration. /etc/traefik/traefik.yaml is an installation example:
+Copy the selected static/dynamic files to the File Provider locations, adapt
+paths and endpoints, then validate the installed static configuration.
+`/etc/traefik/traefik.yaml` is an installation example.
 
 ~~~sh
 traefik check --configFile=/etc/traefik/traefik.yaml
 ~~~
 
-Also verify that the engine socket is private, the engine service can read the
-rules file, and Traefik can load the local plugin. A configuration check does
-not prove P1--P4 behavior, Safe host actions, Strict behavior, production
-readiness, or CRS coverage.
+Verify plugin loading, a private engine socket, and service access to the rules
+file. A configuration check establishes loading. Use the [testing guide](../../docs/testing-and-evidence.md)
+for runtime validation.
 
 ## Strict profile boundary <a id="strict-profile-boundary"></a>
 
-Common Runtime rejects `phase4_mode=strict` for both Traefik profiles at
-startup because neither has a proven `strict_post_commit_action`. This is a
-fail-closed configuration error, not a late log-only downgrade or an abort
-claim.
-
-Keep the Safe UDS setup, validate static/dynamic configuration and the engine
-service, and require a deterministic host action plus client evidence before
-enabling Strict.
-
-## Complete logical-solution matrix
-
-Each logical solution has visible `off`, `safe`, `strict`, and `all`
-bundles. Off and Safe are runtime-admissible; the Strict bundles are
-parser-backed but deliberately rejected by the Common Runtime admission gate.
-The
-native UDS bundles use the repository-owned `modsecurityNative` plugin and
-cover P1/P2/P3/P4 in one streaming transaction. The forwardAuth bundles are a
-single logical solution composed of Traefik `forwardAuth` followed immediately
-by the private-UDS `modsecurityResponseObserver` plugin: forwardAuth supplies
-P1 and bounded buffered P2 (`forwardBody: true`, `maxBodySize: 4096`), while the
-observer claims the opaque handle for P3/P4. A missing handle or observer
-timeout fails closed and cleans up the correlated transaction.
-
-| Solution | Variants | P1/P2 | P3/P4 | Host boundary |
-| --- | --- | --- | --- | --- |
-| Native UDS | [off](native-uds/off/), [safe](native-uds/safe/), [strict](native-uds/strict/), [all](native-uds/all/) | Native plugin, streaming and bounded | Native plugin, streaming and bounded | Strict startup is rejected until a host abort is proven. |
-| forwardAuth + observer | [off](forwardauth/off/), [safe](forwardauth/safe/), [strict](forwardauth/strict/), [all](forwardauth/all/) | forwardAuth plus bounded buffered body | Private response observer over one opaque handle | Strict startup is rejected; no client-visible late abort is claimed. |
-
-Every runtime file shows all currently parsed Common Runtime keys. The active
-rule source is the private reviewed `rules_file`; `rules_inline`, remote rule
-source keys, static `transaction_id`, and the optional content-type file are
-shown as commented, mutually exclusive alternatives. Event JSONL contains
-metadata only and uses a bounded private path.
+Common Runtime rejects `phase4_mode=strict` for both profiles at startup because
+the required `strict_post_commit_action` is unproven. The Strict and `all`
+bundles expose this admission boundary. Off and Safe are runtime-admissible.
 
 ## Related material
 
-- [Traefik connector source and native service boundary](../../connectors/traefik/README.md)
+- [Traefik connector guide](../../connectors/traefik/README.md)
 - [Repository examples overview](../README.md)
