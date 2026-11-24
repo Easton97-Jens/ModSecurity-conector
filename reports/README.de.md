@@ -25,6 +25,21 @@ Konfigurationsinventar und die zugehörigen Beispielreferenzen mit
 `make generate-connector-config-reference` neu erzeugen; Source-/
 Dokumentationsparität mit `make check-connector-config-reference` prüfen.
 
+## Historische I12-Nachweise
+
+Die Originaldateien sind in Git unter der Revision
+`48c4672dc07458411288570515bb8357f1e9e581` abrufbar.
+
+| Nachweis | Dateien in der archivierten Revision |
+| --- | --- |
+| Apache, 2026-10-15 | [Prüfung der Regeläquivalenz](https://github.com/Easton97-Jens/ModSecurity-conector/blob/48c4672dc07458411288570515bb8357f1e9e581/reports/audits/apache-i12-20261015/rule-equivalence-probe.py) |
+| lighttpd, 2026-10-15, patched native | [Testfälle](https://github.com/Easton97-Jens/ModSecurity-conector/blob/48c4672dc07458411288570515bb8357f1e9e581/reports/testing/lighttpd-i12-20261015/lighttpd-patched-native-cases.json), [Oracles](https://github.com/Easton97-Jens/ModSecurity-conector/blob/48c4672dc07458411288570515bb8357f1e9e581/reports/testing/lighttpd-i12-20261015/lighttpd-patched-native-oracles.json) |
+| lighttpd, 2026-10-15, stock native control | [Testfälle](https://github.com/Easton97-Jens/ModSecurity-conector/blob/48c4672dc07458411288570515bb8357f1e9e581/reports/testing/lighttpd-i12-20261015/lighttpd-stock-native-control-cases.json), [Oracles](https://github.com/Easton97-Jens/ModSecurity-conector/blob/48c4672dc07458411288570515bb8357f1e9e581/reports/testing/lighttpd-i12-20261015/lighttpd-stock-native-control-oracles.json) |
+| lighttpd, 2026-10-15, stock sidecar | [Oracles](https://github.com/Easton97-Jens/ModSecurity-conector/blob/48c4672dc07458411288570515bb8357f1e9e581/reports/testing/lighttpd-i12-20261015/lighttpd-stock-sidecar-oracles.json) |
+
+Zum Abrufen einer Datei aus einem Klon mit dieser Revision dient
+`git show <revision>:<repository-relative-path>`.
+
 ## Portable Pfadangaben
 
 Versionierte Berichte hängen nie von der Verzeichnisstruktur einer bestimmten
